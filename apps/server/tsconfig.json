@@ -1,0 +1,31 @@
+{
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"target": "ESNext",
+		"module": "ESNext",
+		"moduleResolution": "Bundler",
+		"sourceMap": true,
+		"declaration": false,
+		"declarationMap": false,
+		"noUncheckedIndexedAccess": true,
+		"exactOptionalPropertyTypes": true,
+		"isolatedModules": true,
+		"baseUrl": ".",
+		"paths": {
+			"@app": ["src/app.ts"],
+			"@config/*": ["src/config/*"],
+			"@middleware/*": ["src/middleware/*"],
+			"@routes/*": ["src/routes/*"],
+			"@schemas/*": ["src/schemas/*"],
+			"@services/*": ["src/services/*"],
+			"@utils/*": ["src/utils/*"],
+			"@interfaces/*": ["src/types/*"],
+			"@db/*": ["src/db/*"]
+		},
+		"outDir": "dist",
+		"rootDir": "src",
+		"types": ["node"]
+	},
+	"include": ["src/**/*.ts"],
+	"exclude": ["node_modules", "dist", "build"]
+}

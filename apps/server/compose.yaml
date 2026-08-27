@@ -1,0 +1,33 @@
+# Local-only Postgres for development. Schema + migrations live under prisma/.
+#
+# Bring up:  `pnpm db:up`    (from apps/server, or `pnpm db:up` at the repo root)
+# Tear down: `pnpm db:down`
+# Connect:   `psql postgresql://cuzhane:cuzhane@localhost:5433/cuzhane`
+#
+# `name` is set explicitly: Compose otherwise derives the project name from the
+# containing directory ("server"), which collides with any sibling repo that also
+# keeps its compose file in apps/server — and Compose will happily remove the other
+# project's containers as "stale" when it reconciles.
+name: cuzhane
+
+services:
+    postgres:
+        image: postgres:16-alpine
+        container_name: cuzhane-postgres
+        restart: unless-stopped
+        environment:
+            POSTGRES_USER: cuzhane
+            POSTGRES_PASSWORD: cuzhane
+            POSTGRES_DB: cuzhane
+        ports:
+            - '5433:5432'
+        volumes:
+            - cuzhane-postgres-data:/var/lib/postgresql/data
+        healthcheck:
+            test: ['CMD-SHELL', 'pg_isready -U cuzhane -d cuzhane']
+            interval: 5s
+            timeout: 5s
+            retries: 5
+
+volumes:
+    cuzhane-postgres-data:

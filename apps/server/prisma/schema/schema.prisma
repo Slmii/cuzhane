@@ -1,0 +1,11 @@
+// Generator and datasource only. Models live beside this file, one domain per
+// `.prisma` file — Prisma concatenates every file in this folder into one schema.
+
+generator client {
+    provider = "prisma-client"
+    output   = "../../src/generated/prisma"
+}
+
+datasource db {
+    provider = "postgresql"
+}

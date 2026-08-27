@@ -1,0 +1,16 @@
+diff --git a/node_modules/react-native-ios-utilities/src/native_components/RNIDetachedView/RNIDetachedView.tsx b/node_modules/react-native-ios-utilities/src/native_components/RNIDetachedView/RNIDetachedView.tsx
+index a6f3e2f..2674b89 100644
+--- a/node_modules/react-native-ios-utilities/src/native_components/RNIDetachedView/RNIDetachedView.tsx
++++ b/node_modules/react-native-ios-utilities/src/native_components/RNIDetachedView/RNIDetachedView.tsx
+@@ -68,7 +68,10 @@ export const RNIDetachedView = React.forwardRef<
+   const reactChildrenCount = React.Children.count(props.children);
+ 
+   const children = React.Children.map(props.children, (child) => {
+-    if (React.isValidElement(child) && child.type === React.Fragment) {
++    if (!React.isValidElement(child)) {
++      return child;
++    }
++    if (child.type === React.Fragment) {
+       return child;
+     }
+     return React.cloneElement(

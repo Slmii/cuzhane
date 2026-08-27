@@ -1,0 +1,8 @@
+{
+	"editor.codeActionsOnSave": {
+		"source.organizeImports": "always",
+		"source.removeUnusedImports": "always",
+		"source.removeUnused.ts": "never"
+	},
+	"typescript.tsdk": "node_modules/typescript/lib"
+}

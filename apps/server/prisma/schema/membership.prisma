@@ -1,0 +1,51 @@
+// Who is in a group, who wants in, and the encouragement they send each other.
+
+enum GroupMemberRole {
+    OWNER
+    MEMBER
+}
+
+model GroupMember {
+    id          String          @id @default(cuid())
+    groupId     String
+    userId      String
+    displayName String
+    role        GroupMemberRole @default(MEMBER)
+    // Stable seat number (0-based). Determines the bab block in FIXED groups and
+    // caps membership at `Group.spots`. Freed when a member leaves so the next
+    // joiner reuses the lowest open seat.
+    slotIndex   Int
+    joinedAt    DateTime        @default(now())
+
+    group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+    @@unique([groupId, userId])
+    @@unique([groupId, slotIndex])
+    @@index([userId])
+}
+
+model Cheer {
+    id         String   @id @default(cuid())
+    groupId    String
+    fromUserId String
+    toUserId   String
+    createdAt  DateTime @default(now())
+
+    group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+    @@unique([groupId, fromUserId, toUserId])
+    @@index([groupId, toUserId])
+}
+
+// "Notify me when a spot opens" on a full group.
+model GroupWaitlistEntry {
+    id        String   @id @default(cuid())
+    groupId   String
+    userId    String
+    createdAt DateTime @default(now())
+
+    group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+    @@unique([groupId, userId])
+    @@index([userId])
+}

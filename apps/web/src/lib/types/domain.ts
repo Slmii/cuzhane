@@ -1,0 +1,201 @@
+export type GroupVisibility = 'OPEN' | 'PRIVATE';
+export type GroupSplitMode = 'ROTATION' | 'FIXED';
+export type GroupStatus = 'GATHERING' | 'RUNNING';
+export type BabRange = { start: number; end: number };
+export type GroupCycle = 'DAILY' | 'WEEKLY';
+export type GroupMemberRole = 'OWNER' | 'MEMBER';
+
+export type GroupMember = {
+	id: string;
+	userId: string;
+	displayName: string;
+	role: GroupMemberRole;
+	slotIndex: number;
+	joinedAt: string;
+	babNumbers: number[];
+	readCount: number;
+	/** Percentage of this member's own babs that are read, 0–100. */
+	percent: number;
+	cheeredByMe: boolean;
+};
+
+export type GroupBab = {
+	number: number;
+	assignedUserId: string | null;
+	readByUserId: string | null;
+	readAt: string | null;
+};
+
+/** Shape returned by list endpoints — enough to render a group card without the bab grid. */
+export type GroupSummary = {
+	id: string;
+	name: string;
+	dedication: string | null;
+	visibility: GroupVisibility;
+	splitMode: GroupSplitMode;
+	cycle: GroupCycle;
+	/** IANA zone the group's rounds roll in — the creator's, fixed at creation. */
+	timezone: string;
+	spots: number;
+	memberCount: number;
+	spotsLeft: number;
+	isFull: boolean;
+	openToJoin: boolean;
+	readCount: number;
+	percent: number;
+	endsAt: string | null;
+	daysLeft: number | null;
+	completedAt: string | null;
+	createdAt: string;
+	isOwner: boolean;
+	isMember: boolean;
+	/** GATHERING until the owner starts the hatim; nothing is counted before that. */
+	status: GroupStatus;
+	startedAt: string | null;
+	/** The round this group is on — 0 is the first. Null while gathering. */
+	roundIndex: number | null;
+	/** When the current round began and when it rolls over. Null while gathering. */
+	roundStartedAt: string | null;
+	roundEndsAt: string | null;
+	/** The viewer's seat, or null if they are not a member. */
+	mySlotIndex: number | null;
+	/** The viewer's share for today — already rotated for a ROTATION group. */
+	myBabNumbers: number[];
+	myReadCount: number;
+	/**
+	 * The lowest bab in the viewer's share they haven't read — where "Oku" opens. Null once
+	 * the share is done, or when they have none. Not derivable from `myReadCount`, which
+	 * says how many are read but not which.
+	 */
+	myNextBabNumber: number | null;
+	/**
+	 * What the viewer reads this round and the next. Not "today/tomorrow": rotation moves
+	 * per round, so a WEEKLY group holds one range all week.
+	 */
+	myRoundRange: BabRange | null;
+	myNextRoundRange: BabRange | null;
+	/** Babs belonging to seats nobody took, still unclaimed. */
+	poolBabNumbers: number[];
+	/** Pool babs the viewer has taken on top of their own share. */
+	myPoolBabNumbers: number[];
+};
+
+export type GroupDetail = GroupSummary & {
+	ownerUserId: string;
+	inviteCode: string | null;
+	reminderEnabled: boolean;
+	reminderTime: string;
+	autoStartWhenFull: boolean;
+	startsAt: string;
+	babs: GroupBab[];
+	members: GroupMember[];
+};
+
+/** Unauthenticated-ish preview shown when opening an invite link or entering a code. */
+export type GroupInvitePreview = {
+	id: string;
+	name: string;
+	dedication: string | null;
+	visibility: GroupVisibility;
+	splitMode: GroupSplitMode;
+	cycle: GroupCycle;
+	spots: number;
+	memberCount: number;
+	spotsLeft: number;
+	isFull: boolean;
+	openToJoin: boolean;
+	readCount: number;
+	percent: number;
+	daysLeft: number | null;
+	isMember: boolean;
+	status: GroupStatus;
+	nextRange: BabRange | null;
+	/** Babs no member is reading this round — what a joiner picks up immediately. */
+	poolBabNumbers: number[];
+	roundEndsAt: string | null;
+	/** 1-based day within the current round — "Tur 3. gününde". Null while gathering. */
+	roundDayIndex: number | null;
+	timezone: string;
+	createdByName: string;
+	/** The first couple of members by seat; the rest are counted off `memberCount`. */
+	memberNames: string[];
+};
+
+/**
+ * The shared pool is the share of the seats nobody took. A slot is offered whole rather
+ * than bab by bab, so taking one mirrors what joining that seat would have handed you.
+ */
+export type PoolSlot = {
+	slotIndex: number;
+	start: number;
+	end: number;
+	babNumbers: number[];
+	/** Null while the slot is still unclaimed. */
+	takenByUserId: string | null;
+	takenByDisplayName: string | null;
+	takenByMe: boolean;
+	readCount: number;
+};
+
+export type UserSettings = {
+	id: string;
+	userId: string;
+	language: 'tr' | 'en';
+	notificationsEnabled: boolean;
+	reminderEnabled: boolean;
+	reminderTime: string;
+	hasSeenOnboarding: boolean;
+	readerFontScale: number;
+	createdAt: string;
+	updatedAt: string;
+};
+
+export type ProfileStats = {
+	babsRead: number;
+	roundsCompleted: number;
+	streakDays: number;
+	memberSince: string;
+	/** Exactly 30 entries, oldest first — read counts per day for the heatmap. */
+	last30Days: { date: string; count: number }[];
+};
+
+export type PushToken = {
+	id: string;
+	userId: string;
+	token: string;
+};
+
+/** One pass at the hundred, as the Turlar list shows it. Mirrors the server's RoundSummary. */
+export type RoundSummary = {
+	roundIndex: number;
+	startedAt: string;
+	endsAt: string;
+	readCount: number;
+	/** Always 0 for the open round — the day isn't over, so nothing is missing yet. */
+	missedCount: number;
+	myReadCount: number;
+	myOwedCount: number;
+	isOpen: boolean;
+};
+
+/** A single bab within a round: who owed it, and who ended up reading it. */
+export type RoundBab = {
+	number: number;
+	readByUserId: string | null;
+	readAt: string | null;
+	/** Null when the block belonged to an empty seat, so nobody owed it. */
+	owedByUserId: string | null;
+	owedBySlotIndex: number | null;
+	isPool: boolean;
+};
+
+export type RoundDetail = {
+	roundIndex: number;
+	startedAt: string;
+	endsAt: string;
+	isOpen: boolean;
+	readCount: number;
+	missedCount: number;
+	missedPeopleCount: number;
+	babs: RoundBab[];
+};

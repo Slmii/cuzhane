@@ -1,0 +1,469 @@
+import { babNumbersForRound, babNumbersForSlot, progressPercent, rangeForRound, rangeForSlot } from '@utils/babs';
+import { formatInviteCode } from '@utils/inviteCode';
+import { civilDayNumber, roundEndsAt } from '@utils/rounds';
+import type { CycleName } from '@utils/rounds';
+import type {
+	Cheer,
+	Group,
+	GroupBab as GroupBabModel,
+	GroupMember as GroupMemberModel
+} from '../generated/prisma/client';
+
+// These mirror apps/web/src/lib/types/domain.ts exactly — the server has no shared types
+// package, so the contract is duplicated here on purpose. Keep the two in sync by hand.
+
+export type GroupVisibility = 'OPEN' | 'PRIVATE';
+export type GroupSplitMode = 'ROTATION' | 'FIXED';
+export type GroupStatus = 'GATHERING' | 'RUNNING';
+export type BabRange = { start: number; end: number };
+/** One source of truth: the round maths keys its cycle table off the same union. */
+export type GroupCycle = CycleName;
+export type GroupMemberRole = 'OWNER' | 'MEMBER';
+
+export type GroupBab = {
+	number: number;
+	assignedUserId: string | null;
+	readByUserId: string | null;
+	readAt: string | null;
+};
+
+export type GroupMember = {
+	id: string;
+	userId: string;
+	displayName: string;
+	role: GroupMemberRole;
+	slotIndex: number;
+	joinedAt: string;
+	babNumbers: number[];
+	readCount: number;
+	percent: number;
+	cheeredByMe: boolean;
+};
+
+export type GroupSummary = {
+	id: string;
+	name: string;
+	dedication: string | null;
+	visibility: GroupVisibility;
+	splitMode: GroupSplitMode;
+	cycle: GroupCycle;
+	/**
+	 * IANA zone the group's rounds roll in — the creator's. The client needs it to say when
+	 * the reset lands both in the group's day and in the reader's own.
+	 */
+	timezone: string;
+	spots: number;
+	memberCount: number;
+	spotsLeft: number;
+	isFull: boolean;
+	openToJoin: boolean;
+	readCount: number;
+	percent: number;
+	endsAt: string | null;
+	daysLeft: number | null;
+	completedAt: string | null;
+	createdAt: string;
+	isOwner: boolean;
+	isMember: boolean;
+	/** GATHERING until the owner starts the hatim; nothing is counted before that. */
+	status: GroupStatus;
+	startedAt: string | null;
+	/** The round this group is on — 0 is the first. Null while gathering. */
+	roundIndex: number | null;
+	/** When the current round began and when it rolls over. Null while gathering. */
+	roundStartedAt: string | null;
+	roundEndsAt: string | null;
+	/** The viewer's seat, or null if they are not a member. */
+	mySlotIndex: number | null;
+	/** The viewer's share for today — already rotated for a ROTATION group. */
+	myBabNumbers: number[];
+	myReadCount: number;
+	/**
+	 * The lowest bab in the viewer's share they haven't read — where "Oku" opens. Null once
+	 * the share is done, or when they have none. Not derivable from `myReadCount`, which
+	 * says how many are read but not which.
+	 */
+	myNextBabNumber: number | null;
+	/**
+	 * What the viewer reads this round and the next. Not "today/tomorrow": rotation moves
+	 * per round, so a WEEKLY group holds one range all week.
+	 */
+	myRoundRange: BabRange | null;
+	myNextRoundRange: BabRange | null;
+	/** Babs belonging to seats nobody took, still unclaimed. */
+	poolBabNumbers: number[];
+	/** Pool babs the viewer has taken on top of their own share. */
+	myPoolBabNumbers: number[];
+};
+
+export type GroupDetail = GroupSummary & {
+	ownerUserId: string;
+	inviteCode: string | null;
+	reminderEnabled: boolean;
+	reminderTime: string;
+	autoStartWhenFull: boolean;
+	startsAt: string;
+	babs: GroupBab[];
+	members: GroupMember[];
+};
+
+export type GroupInvitePreview = {
+	id: string;
+	name: string;
+	dedication: string | null;
+	visibility: GroupVisibility;
+	splitMode: GroupSplitMode;
+	cycle: GroupCycle;
+	spots: number;
+	memberCount: number;
+	spotsLeft: number;
+	isFull: boolean;
+	openToJoin: boolean;
+	readCount: number;
+	percent: number;
+	daysLeft: number | null;
+	isMember: boolean;
+	status: GroupStatus;
+	nextRange: BabRange | null;
+	/** Babs no member is reading this round — what a joiner would pick up immediately. */
+	poolBabNumbers: number[];
+	/** When the current round rolls, so the preview can say what a joiner is joining into. */
+	roundEndsAt: string | null;
+	/**
+	 * Which day of the current round today is, 1-based — "Tur 3. gününde". Always 1 for a
+	 * DAILY group, and null while the group is still gathering. Derived here rather than on
+	 * the client: the boundary is a local midnight in the group's zone, and that maths is
+	 * deliberately server-only.
+	 */
+	roundDayIndex: number | null;
+	timezone: string;
+	/** The creator's display name, for the preview's "Kuran" row. */
+	createdByName: string;
+	/**
+	 * The first couple of members by seat, for the preview's "who is already here" line.
+	 * Capped rather than complete: the line names two and counts the rest off `memberCount`,
+	 * so sending a hundred names to render two would be waste.
+	 */
+	memberNames: string[];
+};
+
+/**
+ * `FREE` is retired but still a value in the database enum, so a legacy row can carry
+ * it. Nothing in the app models free-claim any more, and a fixed block is the closest
+ * honest reading of such a row.
+ */
+export const toSplitMode = (splitMode: Group['splitMode']): GroupSplitMode =>
+	splitMode === 'ROTATION' ? 'ROTATION' : 'FIXED';
+
+/**
+ * The round a group is on. Null while it is still gathering — nothing is counted yet.
+ *
+ * Read from the stored column rather than the clock: the rollover is what advances it, so
+ * a group that has fallen behind reports the round it is actually showing. Callers put
+ * `ensureCurrentRound` in front of this to make the two agree.
+ */
+const roundIndexFor = (group: Group): number | null =>
+	group.status === 'RUNNING' && group.startedAt ? group.roundIndex : null;
+
+/**
+ * The babs a member reads in a given round. `GroupBab.assignedUserId` records the seat's
+ * standing owner and never rotates; which block a seat reads is derived from the round
+ * index, so a ROTATION group's share moves without rewriting a hundred rows.
+ */
+/** Only the two fields the split actually depends on, so callers with a partial row can use it. */
+type PlanShape = Pick<Group, 'spots' | 'splitMode'>;
+
+const babNumbersInRound = (group: PlanShape, slotIndex: number, roundIndex: number | null): number[] => {
+	if (roundIndex === null) {
+		// Still gathering: the seat's own block is what has been reserved for them.
+		return babNumbersForSlot(slotIndex, group.spots);
+	}
+
+	return toSplitMode(group.splitMode) === 'ROTATION'
+		? babNumbersForRound(slotIndex, group.spots, roundIndex)
+		: babNumbersForSlot(slotIndex, group.spots);
+};
+
+const rangeInRound = (group: PlanShape, slotIndex: number, roundIndex: number): BabRange | null =>
+	toSplitMode(group.splitMode) === 'ROTATION'
+		? rangeForRound(slotIndex, group.spots, roundIndex)
+		: rangeForSlot(slotIndex, group.spots);
+
+/**
+ * The block a member reads today. Exported because the write paths need the same answer
+ * the read paths give — "mark my whole share" has to target today's babs, and under
+ * ROTATION those are not the babs carrying the member's `assignedUserId`.
+ */
+export const shareBabNumbersToday = (group: Group, members: GroupMemberModel[], viewerUserId: string): number[] => {
+	const member = members.find(candidate => candidate.userId === viewerUserId);
+
+	return member ? babNumbersInRound(group, member.slotIndex, roundIndexFor(group)) : [];
+};
+
+/** Seats nobody took. Their babs are the shared pool until someone takes them. */
+export const poolSlotIndexes = (members: Pick<GroupMemberModel, 'slotIndex'>[], spots: number): number[] => {
+	const taken = new Set(members.map(member => member.slotIndex));
+
+	return Array.from({ length: spots }, (_, slot) => slot).filter(slot => !taken.has(slot));
+};
+
+/**
+ * The blocks nobody is reading this round — the shared pool.
+ *
+ * **The pool rotates with everything else.** An empty seat `e` doesn't leave *its own*
+ * block uncovered; in round `r` it leaves the block that seat `e` would have been reading,
+ * which is `(e + r) % spots`. Taking the standing block instead gets it wrong twice over:
+ * that block is being read by whichever member rotated onto it (so two people are
+ * authorised for the same bab), while the genuinely uncovered block appears nowhere and
+ * cannot be reached at all — making 100/100 unattainable through the intended shares.
+ */
+export const poolBlocks = (
+	group: PlanShape,
+	members: Pick<GroupMemberModel, 'slotIndex'>[],
+	roundIndex: number
+): { slotIndex: number; babNumbers: number[] }[] =>
+	poolSlotIndexes(members, group.spots).map(slotIndex => ({
+		slotIndex,
+		babNumbers: babNumbersInRound(group, slotIndex, roundIndex)
+	}));
+
+/**
+ * Flattened `poolBlocks`. Write paths use this to tell a *pool* claim apart from a
+ * member's standing seat: both are recorded as `assignedUserId`, but only the pool one
+ * grants the right to read outside this round's rotated share.
+ */
+export const poolBabNumbers = (
+	group: PlanShape,
+	members: Pick<GroupMemberModel, 'slotIndex'>[],
+	roundIndex: number
+): number[] => poolBlocks(group, members, roundIndex).flatMap(block => block.babNumbers);
+
+const daysLeftFrom = (endsAt: Date | null): number | null => {
+	if (!endsAt) {
+		return null;
+	}
+
+	const msRemaining = endsAt.getTime() - Date.now();
+
+	return Math.max(0, Math.floor(msRemaining / (24 * 60 * 60 * 1000)));
+};
+
+/** Mirrors groupAccess.service's nextFreeSlotIndex, but synchronous over an already-loaded member list. */
+const nextFreeSlotFromMembers = (members: GroupMemberModel[], spots: number): number | null => {
+	const taken = new Set(members.map(member => member.slotIndex));
+
+	for (let slot = 0; slot < spots; slot++) {
+		if (!taken.has(slot)) {
+			return slot;
+		}
+	}
+
+	return null;
+};
+
+export const serializeBab = (bab: GroupBabModel): GroupBab => ({
+	number: bab.number,
+	assignedUserId: bab.assignedUserId,
+	readByUserId: bab.readByUserId,
+	readAt: bab.readAt ? bab.readAt.toISOString() : null
+});
+
+export const toGroupSummary = (
+	group: Group,
+	babs: GroupBabModel[],
+	members: GroupMemberModel[],
+	viewerUserId: string
+): GroupSummary => {
+	const readCount = babs.filter(bab => bab.readAt !== null).length;
+	const memberCount = members.length;
+	const spotsLeft = Math.max(0, group.spots - memberCount);
+	const roundIndex = roundIndexFor(group);
+
+	const viewerMember = members.find(member => member.userId === viewerUserId);
+	const mySlotIndex = viewerMember ? viewerMember.slotIndex : null;
+
+	// This round's share is derived from the seat, not from `assignedUserId` — under
+	// ROTATION the two diverge in every round after the first.
+	const myShare = mySlotIndex === null ? [] : babNumbersInRound(group, mySlotIndex, roundIndex);
+
+	// Volunteered babs are extra: they sit outside the rotation entirely, which is exactly
+	// why they are the one thing `assignedUserId` records. No need to intersect with the
+	// pool any more — a name on a bab *is* a claim, and claims never outlive their round.
+	const poolNumbers = new Set(poolBabNumbers(group, members, roundIndex ?? 0));
+	const myPoolBabNumbers = babs
+		.filter(bab => bab.assignedUserId === viewerUserId)
+		.map(bab => bab.number)
+		.sort((a, b) => a - b);
+
+	// Deduplicated: a rotation can land a member on a pool block they had already taken, and
+	// the two sources would otherwise list it twice.
+	const myBabNumbers = [...new Set([...myShare, ...myPoolBabNumbers])].sort((a, b) => a - b);
+	// Counted over exactly the babs shown as "mine", so the fraction on screen can never
+	// read 6/5 — counting every `assignedUserId` match would include the member's standing
+	// seat, which on a later rotation day is somebody else's work.
+	const myBabNumberSet = new Set(myBabNumbers);
+	const myReadCount = babs.filter(bab => bab.readAt !== null && myBabNumberSet.has(bab.number)).length;
+	// Where "Oku" goes. Derived here rather than on the client because the list payload
+	// carries a *count* of what's read, not which ones — a caller holding only
+	// `myReadCount` cannot tell 3/5 read-in-order from 3/5 read out of order, and would
+	// send the reader to a bab they had already finished.
+	const readNumbers = new Set(babs.filter(bab => bab.readAt !== null).map(bab => bab.number));
+	const myNextBabNumber = myBabNumbers.find(number => !readNumbers.has(number)) ?? null;
+
+	return {
+		id: group.id,
+		name: group.name,
+		dedication: group.dedication,
+		visibility: group.visibility,
+		splitMode: toSplitMode(group.splitMode),
+		cycle: group.cycle,
+		timezone: group.timezone,
+		spots: group.spots,
+		memberCount,
+		spotsLeft,
+		isFull: spotsLeft === 0,
+		openToJoin: group.openToJoin,
+		readCount,
+		percent: progressPercent(readCount, babs.length),
+		endsAt: group.endsAt ? group.endsAt.toISOString() : null,
+		daysLeft: daysLeftFrom(group.endsAt),
+		completedAt: group.completedAt ? group.completedAt.toISOString() : null,
+		createdAt: group.createdAt.toISOString(),
+		isOwner: group.ownerUserId === viewerUserId,
+		isMember: viewerMember !== undefined,
+		status: group.status,
+		startedAt: group.startedAt ? group.startedAt.toISOString() : null,
+		roundIndex,
+		roundStartedAt: group.roundStartedAt ? group.roundStartedAt.toISOString() : null,
+		roundEndsAt: group.roundStartedAt
+			? roundEndsAt(group.roundStartedAt, group.cycle, group.timezone).toISOString()
+			: null,
+		mySlotIndex,
+		myBabNumbers,
+		myReadCount,
+		myNextBabNumber,
+		myRoundRange: mySlotIndex === null ? null : rangeInRound(group, mySlotIndex, roundIndex ?? 0),
+		myNextRoundRange: mySlotIndex === null ? null : rangeInRound(group, mySlotIndex, (roundIndex ?? 0) + 1),
+		poolBabNumbers: babs
+			.filter(bab => poolNumbers.has(bab.number) && bab.assignedUserId === null)
+			.map(bab => bab.number)
+			.sort((a, b) => a - b),
+		myPoolBabNumbers
+	};
+};
+
+export const toGroupMember = (
+	group: Group,
+	member: GroupMemberModel,
+	babs: GroupBabModel[],
+	cheers: Cheer[],
+	viewerUserId: string
+): GroupMember => {
+	// The member list shows what each person is reading *today*, so it goes through the same
+	// rotation the viewer's own share does. Filtering by `assignedUserId` would show every
+	// member their day-1 block forever.
+	const babNumbers = babNumbersInRound(group, member.slotIndex, roundIndexFor(group));
+	const babNumberSet = new Set(babNumbers);
+	const memberBabs = babs.filter(bab => babNumberSet.has(bab.number));
+	const readCount = memberBabs.filter(bab => bab.readAt !== null).length;
+
+	return {
+		id: member.id,
+		userId: member.userId,
+		displayName: member.displayName,
+		role: member.role,
+		slotIndex: member.slotIndex,
+		joinedAt: member.joinedAt.toISOString(),
+		babNumbers,
+		readCount,
+		percent: progressPercent(readCount, babNumbers.length),
+		cheeredByMe: cheers.some(cheer => cheer.fromUserId === viewerUserId && cheer.toUserId === member.userId)
+	};
+};
+
+export const toGroupDetail = (
+	group: Group,
+	babs: GroupBabModel[],
+	members: GroupMemberModel[],
+	cheers: Cheer[],
+	viewerUserId: string
+): GroupDetail => {
+	const summary = toGroupSummary(group, babs, members, viewerUserId);
+
+	return {
+		...summary,
+		ownerUserId: group.ownerUserId,
+		inviteCode: summary.isOwner ? formatInviteCode(group.inviteCode) : null,
+		reminderEnabled: group.reminderEnabled,
+		reminderTime: group.reminderTime,
+		autoStartWhenFull: group.autoStartWhenFull,
+		startsAt: group.startsAt.toISOString(),
+		babs: babs
+			.slice()
+			.sort((a, b) => a.number - b.number)
+			.map(serializeBab),
+		members: members
+			.slice()
+			.sort((a, b) => a.slotIndex - b.slotIndex)
+			.map(member => toGroupMember(group, member, babs, cheers, viewerUserId))
+	};
+};
+
+/** How many members the preview names before falling back to "+N". */
+const PREVIEW_MEMBER_NAMES = 2;
+
+export const toInvitePreview = (
+	group: Group,
+	babs: GroupBabModel[],
+	members: GroupMemberModel[],
+	viewerUserId: string
+): GroupInvitePreview => {
+	const readCount = babs.filter(bab => bab.readAt !== null).length;
+	const memberCount = members.length;
+	const spotsLeft = Math.max(0, group.spots - memberCount);
+	const isFull = spotsLeft === 0;
+	const nextFreeSlot = nextFreeSlotFromMembers(members, group.spots);
+	// The seat a joiner would take, and the block it reads on the day they land in it.
+	const nextRange =
+		!isFull && nextFreeSlot !== null ? rangeInRound(group, nextFreeSlot, roundIndexFor(group) ?? 0) : null;
+	const poolNumbersForPreview = new Set(poolBabNumbers(group, members, roundIndexFor(group) ?? 0));
+
+	return {
+		id: group.id,
+		name: group.name,
+		dedication: group.dedication,
+		visibility: group.visibility,
+		splitMode: toSplitMode(group.splitMode),
+		cycle: group.cycle,
+		spots: group.spots,
+		memberCount,
+		spotsLeft,
+		isFull,
+		openToJoin: group.openToJoin,
+		readCount,
+		percent: progressPercent(readCount, babs.length),
+		daysLeft: daysLeftFrom(group.endsAt),
+		isMember: members.some(member => member.userId === viewerUserId),
+		status: group.status,
+		// A joiner takes the lowest free seat, and that seat's block for this round is
+		// exactly what the pool is holding — so the preview can promise it honestly.
+		poolBabNumbers: babs
+			.filter(bab => poolNumbersForPreview.has(bab.number) && bab.assignedUserId === null)
+			.map(bab => bab.number)
+			.sort((a, b) => a - b),
+		roundEndsAt: group.roundStartedAt
+			? roundEndsAt(group.roundStartedAt, group.cycle, group.timezone).toISOString()
+			: null,
+		roundDayIndex: group.roundStartedAt
+			? civilDayNumber(new Date(), group.timezone) - civilDayNumber(group.roundStartedAt, group.timezone) + 1
+			: null,
+		timezone: group.timezone,
+		createdByName: members.find(member => member.userId === group.ownerUserId)?.displayName ?? '',
+		memberNames: members
+			.slice()
+			.sort((a, b) => a.slotIndex - b.slotIndex)
+			.slice(0, PREVIEW_MEMBER_NAMES)
+			.map(member => member.displayName),
+		nextRange
+	};
+};

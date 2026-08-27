@@ -1,0 +1,67 @@
+// Per-user state that isn't tied to a single group. Identity itself lives in Clerk;
+// `userId` is the Clerk user id everywhere.
+
+enum AppLanguage {
+    tr
+    en
+}
+
+model UserSettings {
+    id                   String      @id @default(cuid())
+    userId               String      @unique
+    language             AppLanguage @default(en)
+    notificationsEnabled Boolean     @default(true)
+    // Off until asked for. A new account has never been through the OS permission prompt,
+    // so defaulting this on made the Reminders screen claim a notification would arrive
+    // every evening when nothing could be delivered.
+    reminderEnabled      Boolean     @default(false)
+    reminderTime         String      @default("21:30")
+    nudgeEnabled         Boolean     @default(true)
+    hasSeenOnboarding    Boolean     @default(false)
+    readerFontScale      Int         @default(1)
+    createdAt            DateTime    @default(now())
+    updatedAt            DateTime    @updatedAt
+}
+
+model PushToken {
+    id        String   @id @default(cuid())
+    userId    String
+    token     String   @unique
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@index([userId])
+}
+
+enum FeedbackTopic {
+    BUG
+    IDEA
+    OTHER
+}
+
+// "Geliştiricilere yaz" — the in-app form on Profile. The form asks for two things only,
+// a topic and a message; everything else on this row is attached by the server so the
+// reader never has to fill in what we already know.
+model Feedback {
+    id String @id @default(cuid())
+
+    // Quoted back on the thank-you screen so a follow-up can name one message rather than
+    // describing it. Unique because it is the only handle the sender is given.
+    reference String        @unique
+    userId    String
+    topic     FeedbackTopic
+    message   String
+
+    // Attached, never asked for. `email` is read from Clerk at submit time — a snapshot,
+    // deliberately: a reply has to reach the address that sent the message, not whatever
+    // the account carries months later. The rest is what the client knows about itself
+    // and sends without prompting, so a bug report arrives with its own build attached.
+    email      String?
+    appVersion String?
+    platform   String?
+    locale     String?
+
+    createdAt DateTime @default(now())
+
+    @@index([userId, createdAt])
+}

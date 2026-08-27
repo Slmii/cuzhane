@@ -1,0 +1,122 @@
+import { useCurrentUserId } from '@/lib/hooks/useCurrentUserId';
+import { getBabs, setAllBabsRead, type SetAllBabsReadInput, setBabRead, type SetBabReadInput } from '@/api/babs.api';
+import { GroupBab, GroupSummary } from '@/lib/types/domain';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useLiveRefetchInterval } from './useLiveRefetchInterval';
+import { groupQueryKeys, profileQueryKeys } from './queryKeys';
+
+export const useGetBabs = (groupId: string) => {
+	const refetchInterval = useLiveRefetchInterval();
+
+	return useQuery({
+		queryKey: groupQueryKeys.babs(groupId),
+		queryFn: () => getBabs(groupId),
+		enabled: !!groupId,
+		refetchInterval
+	});
+};
+
+export const useSetAllBabsRead = () => {
+	const queryClient = useQueryClient();
+	const userId = useCurrentUserId();
+
+	return useMutation({
+		mutationFn: (input: SetAllBabsReadInput) => setAllBabsRead(input),
+		onMutate: async ({ groupId, read }) => {
+			await queryClient.cancelQueries({ queryKey: groupQueryKeys.babs(groupId) });
+			const previousBabs = queryClient.getQueryData<GroupBab[]>(groupQueryKeys.babs(groupId));
+
+			// Which babs are "mine" comes from the cached group, not from `assignedUserId`:
+			// that field is the seat's standing owner and does not rotate, so from round 1 of
+			// a ROTATION group it names a different block than the one the server is about to
+			// mark. Guessing wrong here would flip the wrong cells and then snap back.
+			//
+			// Both caches are checked because the two callers populate different ones: the
+			// group screen loads `groupById`, while Home only ever fetches the list.
+			const cachedGroup =
+				queryClient.getQueryData<GroupSummary>(groupQueryKeys.groupById(groupId)) ??
+				queryClient
+					.getQueryData<GroupSummary[]>(groupQueryKeys.groups())
+					?.find(candidate => candidate.id === groupId);
+			const mine = new Set(cachedGroup?.myBabNumbers ?? []);
+
+			// The Home button is the app's primary action, so the ring has to flip on the
+			// same frame as the tap rather than after a round trip. With no cached group to
+			// tell us the share, skip the guess and let the refetch settle it.
+			if (previousBabs && userId && mine.size > 0) {
+				queryClient.setQueryData<GroupBab[]>(
+					groupQueryKeys.babs(groupId),
+					previousBabs.map(bab =>
+						mine.has(bab.number)
+							? {
+									...bab,
+									readByUserId: read ? userId : null,
+									readAt: read ? bab.readAt ?? new Date().toISOString() : null
+							  }
+							: bab
+					)
+				);
+			}
+
+			return { previousBabs };
+		},
+		onError: (_error, { groupId }, context) => {
+			if (context?.previousBabs) {
+				queryClient.setQueryData(groupQueryKeys.babs(groupId), context.previousBabs);
+			}
+		},
+		onSettled: async (_data, _error, { groupId }) => {
+			await Promise.all([
+				queryClient.invalidateQueries({ queryKey: groupQueryKeys.babs(groupId) }),
+				queryClient.invalidateQueries({ queryKey: groupQueryKeys.groupById(groupId) }),
+				queryClient.invalidateQueries({ queryKey: groupQueryKeys.groups() }),
+				queryClient.invalidateQueries({ queryKey: profileQueryKeys.stats() })
+			]);
+		}
+	});
+};
+
+export const useSetBabRead = () => {
+	const queryClient = useQueryClient();
+	const userId = useCurrentUserId();
+
+	return useMutation({
+		mutationFn: (input: SetBabReadInput) => setBabRead(input),
+		onMutate: async ({ groupId, babNumber, read }) => {
+			await queryClient.cancelQueries({ queryKey: groupQueryKeys.babs(groupId) });
+			const previousBabs = queryClient.getQueryData<GroupBab[]>(groupQueryKeys.babs(groupId));
+
+			if (previousBabs) {
+				queryClient.setQueryData<GroupBab[]>(
+					groupQueryKeys.babs(groupId),
+					previousBabs.map(bab =>
+						bab.number === babNumber
+							? {
+									...bab,
+									// Assignment no longer implies who reads it, so the optimistic write
+									// credits the current user rather than falling back to `assignedUserId`.
+									readByUserId: read ? bab.readByUserId ?? userId : null,
+									readAt: read ? new Date().toISOString() : null
+							  }
+							: bab
+					)
+				);
+			}
+
+			return { previousBabs };
+		},
+		onError: (_error, { groupId }, context) => {
+			if (context?.previousBabs) {
+				queryClient.setQueryData(groupQueryKeys.babs(groupId), context.previousBabs);
+			}
+		},
+		onSettled: async (_data, _error, { groupId }) => {
+			await Promise.all([
+				queryClient.invalidateQueries({ queryKey: groupQueryKeys.babs(groupId) }),
+				queryClient.invalidateQueries({ queryKey: groupQueryKeys.groupById(groupId) }),
+				queryClient.invalidateQueries({ queryKey: groupQueryKeys.groups() }),
+				queryClient.invalidateQueries({ queryKey: profileQueryKeys.stats() })
+			]);
+		}
+	});
+};

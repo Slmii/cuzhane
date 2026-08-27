@@ -1,0 +1,130 @@
+/** The Cevşen is 100 babs. Every group tracks exactly this many. */
+export const BAB_COUNT = 100;
+
+export type BabRange = {
+	start: number;
+	end: number;
+};
+
+/**
+ * Splits 1..BAB_COUNT across `spots` seats as evenly as possible: the first
+ * `BAB_COUNT % spots` seats get one extra bab. Seat index is 0-based and stable,
+ * so a member keeps the same range for the life of the group.
+ */
+export const rangeForSlot = (slotIndex: number, spots: number): BabRange | null => {
+	if (!Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex >= spots || spots <= 0) {
+		return null;
+	}
+
+	const base = Math.floor(BAB_COUNT / spots);
+	const remainder = BAB_COUNT % spots;
+
+	// Seats before the remainder cutoff carry `base + 1` babs; the rest carry `base`.
+	const extrasBefore = Math.min(slotIndex, remainder);
+	const start = slotIndex * base + extrasBefore + 1;
+	const size = base + (slotIndex < remainder ? 1 : 0);
+
+	if (size <= 0) {
+		return null;
+	}
+
+	return { start, end: start + size - 1 };
+};
+
+export const babNumbersForSlot = (slotIndex: number, spots: number): number[] => {
+	const range = rangeForSlot(slotIndex, spots);
+
+	if (!range) {
+		return [];
+	}
+
+	return Array.from({ length: range.end - range.start + 1 }, (_, index) => range.start + index);
+};
+
+// `roundIndexSince` and `roundStartedAtFor` used to live here. They moved to
+// `utils/rounds.ts` when round boundaries became time-zone aware: they are the only
+// functions in the round math that need a zone, they are server-only (the client is handed
+// a `roundIndex` and never computes one), and keeping them here would have dragged the
+// whole Intl-based calendar into the web mirror of this file for no reader.
+
+/**
+ * Which seat's block a member reads in a given round. A ROTATION group advances by a
+ * whole seat per round, not by a fixed number of babs — that is what keeps the 100 tiled
+ * exactly when `spots` doesn't divide evenly (12 seats: four of 9, eight of 8).
+ *
+ * Per *round*, not per day: a WEEKLY group holds one range for the whole week and moves
+ * on at the boundary. A FIXED group never rotates, so callers pass `roundIndex: 0`.
+ */
+export const rotatedSlot = (slotIndex: number, spots: number, roundIndex: number): number | null => {
+	if (!Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex >= spots || spots <= 0) {
+		return null;
+	}
+
+	// `roundIndex` can exceed `spots` on a long-running group; the modulo wraps it.
+	return (slotIndex + Math.max(0, Math.floor(roundIndex))) % spots;
+};
+
+export const rangeForRound = (slotIndex: number, spots: number, roundIndex: number): BabRange | null => {
+	const slot = rotatedSlot(slotIndex, spots, roundIndex);
+
+	return slot === null ? null : rangeForSlot(slot, spots);
+};
+
+export const babNumbersForRound = (slotIndex: number, spots: number, roundIndex: number): number[] => {
+	const slot = rotatedSlot(slotIndex, spots, roundIndex);
+
+	return slot === null ? [] : babNumbersForSlot(slot, spots);
+};
+
+/**
+ * The inverse of `rangeForSlot`: which seat owns a given bab. Used to turn a bab the
+ * reader is looking at back into the pool slot it belongs to.
+ */
+export const slotIndexForBab = (babNumber: number, spots: number): number | null => {
+	if (!Number.isInteger(babNumber) || babNumber < 1 || babNumber > BAB_COUNT || spots <= 0) {
+		return null;
+	}
+
+	for (let slot = 0; slot < spots; slot++) {
+		const range = rangeForSlot(slot, spots);
+
+		if (range && babNumber >= range.start && babNumber <= range.end) {
+			return slot;
+		}
+	}
+
+	return null;
+};
+
+/** Babs per person, rounded — used for the "20 kişi · 5 bab/kişi" caption. */
+export const babsPerPerson = (spots: number) => (spots > 0 ? Math.round(BAB_COUNT / spots) : 0);
+
+/** Renders a set of bab numbers as "1–5", or "1–5, 12" when it isn't contiguous. */
+export const formatBabRange = (numbers: number[]): string => {
+	if (numbers.length === 0) {
+		return '—';
+	}
+
+	const sorted = [...numbers].sort((a, b) => a - b);
+	const parts: string[] = [];
+	let start = sorted[0] as number;
+	let previous = start;
+
+	for (const current of sorted.slice(1)) {
+		if (current === previous + 1) {
+			previous = current;
+			continue;
+		}
+
+		parts.push(start === previous ? `${start}` : `${start}–${previous}`);
+		start = current;
+		previous = current;
+	}
+
+	parts.push(start === previous ? `${start}` : `${start}–${previous}`);
+
+	return parts.join(', ');
+};
+
+export const progressPercent = (read: number, total = BAB_COUNT) =>
+	total <= 0 ? 0 : Math.max(0, Math.min(100, Math.round((read / total) * 100)));

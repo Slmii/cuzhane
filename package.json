@@ -1,0 +1,29 @@
+{
+	"name": "cuzhane",
+	"version": "1.0.0",
+	"private": true,
+	"packageManager": "pnpm@10.25.0",
+	"scripts": {
+		"start": "pnpm --filter @cuzhane/web start",
+		"android": "pnpm --filter @cuzhane/web android",
+		"ios": "pnpm --filter @cuzhane/web ios",
+		"web": "pnpm --filter @cuzhane/web web",
+		"server": "pnpm --filter @cuzhane/server dev",
+		"dev:ios:go": "pnpm --filter @cuzhane/server dev & pnpm --filter @cuzhane/web ios:go",
+		"dev:ios": "pnpm --filter @cuzhane/server dev & pnpm --filter @cuzhane/web ios",
+		"dev:android": "pnpm --filter @cuzhane/server dev & pnpm --filter @cuzhane/web android",
+		"dev:web": "pnpm --filter @cuzhane/server dev & pnpm --filter @cuzhane/web web",
+		"db:up": "pnpm --filter @cuzhane/server db:up",
+		"db:down": "pnpm --filter @cuzhane/server db:down",
+		"db:migrate": "pnpm --filter @cuzhane/server db:migrate",
+		"db:seed": "pnpm --filter @cuzhane/server db:seed",
+		"test": "pnpm -r --if-present test",
+		"lint": "pnpm -r --if-present lint",
+		"format": "pnpm -r --if-present format",
+		"check-types": "pnpm -r --if-present check-types",
+		"postinstall": "patch-package || echo 'patch-package not found, skipping'"
+	},
+	"devDependencies": {
+		"patch-package": "^8.0.1"
+	}
+}

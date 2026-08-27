@@ -1,0 +1,51 @@
+// One row per bab (1..100) per group — created up front when the group is created.
+//
+// `readByUserId` / `readAt` describe the CURRENT round only; the rollover clears them so
+// the board starts the next round empty. Anything that needs history — a member's total,
+// their streak, the 30-day heatmap — must read `BabRead` instead, which is never cleared.
+//
+// `assignedUserId` means EXACTLY ONE thing: "this member volunteered for this bab out of
+// the shared pool, this round." It is not seat ownership. Who reads which block is derived
+// from the member's seat and the round index and is never stored — storing it as well is
+// what made the pool report a block as claimed by whoever happened to hold that seat at
+// join time, once the rotation moved the leftovers onto it. The rollover clears every
+// claim, so a non-null value always belongs to the round in progress.
+model GroupBab {
+    id             String    @id @default(cuid())
+    groupId        String
+    number         Int
+    assignedUserId String?
+    readByUserId   String?
+    readAt         DateTime?
+    createdAt      DateTime  @default(now())
+    updatedAt      DateTime  @updatedAt
+
+    group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+    @@unique([groupId, number])
+    @@index([groupId, assignedUserId])
+    @@index([groupId, readAt])
+    @@index([readByUserId, readAt])
+}
+
+// Append-only log of every bab ever read, surviving the round rollover that wipes the
+// board. This is what makes a reset non-destructive: `GroupBab` is the current round,
+// `BabRead` is the record.
+//
+// The unique key says a bab is read once per round — a second reader in the same round is
+// a conflict, not a duplicate row. Undoing a read deletes its entry, so the log always
+// agrees with what the reader claims to have done.
+model BabRead {
+    id         String   @id @default(cuid())
+    groupId    String
+    babNumber  Int
+    userId     String
+    roundIndex Int
+    readAt     DateTime @default(now())
+
+    group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+    @@unique([groupId, roundIndex, babNumber])
+    @@index([userId, readAt])
+    @@index([groupId, roundIndex])
+}

@@ -1,0 +1,59 @@
+{
+	"expo": {
+		"name": "Cüzhane",
+		"slug": "cuzhane",
+		"version": "1.0.0",
+		"scheme": "cuzhane",
+		"icon": "./src/assets/icon.png",
+		"orientation": "portrait",
+		"userInterfaceStyle": "automatic",
+		"newArchEnabled": true,
+		"splash": {
+			"image": "./src/assets/splash.png",
+			"resizeMode": "contain",
+			"backgroundColor": "#F7F5F0"
+		},
+		"assetBundlePatterns": ["**/*"],
+		"ios": {
+			"supportsTablet": true,
+			"usesAppleSignIn": true,
+			"icon": "./src/assets/icon.png",
+			"bundleIdentifier": "com.cuzhaneapp.app",
+			"buildNumber": "1",
+			"infoPlist": {
+				"ITSAppUsesNonExemptEncryption": false,
+				"NSCameraUsageDescription": "Use your camera to upload a profile photo.",
+				"NSPhotoLibraryUsageDescription": "Allow access to your photos to set a profile picture."
+			}
+		},
+		"android": {
+			"package": "com.cuzhaneapp.app",
+			"adaptiveIcon": {
+				"foregroundImage": "./src/assets/icon-android.png",
+				"backgroundColor": "#3E6B5C"
+			}
+		},
+		"plugins": [
+			"expo-asset",
+			"expo-font",
+			"expo-secure-store",
+			"expo-notifications",
+			[
+				"expo-image-picker",
+				{
+					"photosPermission": "Allow access to your photos to set a profile picture.",
+					"cameraPermission": "Allow camera access to capture a profile picture."
+				}
+			],
+			"react-native-bottom-tabs",
+			"@clerk/expo"
+		],
+		"extra": {
+			"eas": {
+				"projectId": "134b5179-d281-4abb-bce5-fdca471acdee"
+			}
+		},
+		"owner": "devsc05",
+		"runtimeVersion": "1.0.0"
+	}
+}
