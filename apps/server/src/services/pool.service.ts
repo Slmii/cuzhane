@@ -66,8 +66,15 @@ export const listPoolSlotsForUser = async (userId: string, groupId: string): Pro
 	});
 };
 
-/** The pool block a seat is offering this round, or null if that seat isn't in the pool. */
-const poolBlockFor = (
+/**
+ * The pool block a seat is offering this round, or null if that seat isn't in the pool.
+ *
+ * Exported for the join path, which has to release whatever was volunteered for the seat
+ * it hands out. Sharing this one answer is the point: computed separately the two would
+ * eventually disagree about which block a seat offers, and the join would clear the wrong
+ * babs — leaving the claim it meant to release and voiding one it didn't.
+ */
+export const poolBlockFor = (
 	group: { spots: number; splitMode: 'ROTATION' | 'FIXED' | 'FREE'; roundIndex: number },
 	members: { slotIndex: number }[],
 	slotIndex: number

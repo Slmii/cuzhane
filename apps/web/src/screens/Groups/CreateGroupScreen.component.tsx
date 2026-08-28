@@ -11,7 +11,7 @@ import { SpotsGrid } from '@/components/ui/SpotsGrid/SpotsGrid.component';
 import { BodyStrongText, CaptionText, FieldLabelText } from '@/components/ui/Typography/Typography.component';
 import { useCreateGroup } from '@/lib/hooks/useGroup';
 import { useTranslation } from '@/lib/i18n/I18n.context';
-import { createGroupSchema, type GroupForm } from '@/lib/schemas/group.schema';
+import { createGroupSchema, SPOTS_VALUES, type GroupForm } from '@/lib/schemas/group.schema';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { babsPerPerson } from '@/lib/utils/babs';
 import { CYCLE_OPTIONS, cycleLabelKey } from '@/lib/utils/groups';
@@ -182,13 +182,13 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 								<>
 									<FieldLabelText style={styles.fieldLabel}>{t('spots')}</FieldLabelText>
 									<CardSurface style={styles.spotsCard}>
+										{/* Three sizes, not a range: 5, 10 and 20 each divide the hundred
+										    evenly, so +/- walk the list rather than adding a constant. */}
 										<FormStepper
 											caption={t('perPersonTr', { perBab: babsPerPerson(spots), spots })}
-											max={50}
-											min={5}
 											name='spots'
-											step={5}
 											style={styles.stepper}
+											values={SPOTS_VALUES}
 										/>
 										{/* Every seat is a seat that will be filled — the grid shows the
 										    capacity being chosen, not who has joined yet. */}

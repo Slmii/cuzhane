@@ -79,6 +79,16 @@ export type AppTheme = {
 		babOpen: string;
 		babOpenText: string;
 		babOthersText: string;
+		/**
+		 * Pool cells (07a/07b/07c). A pool bab has three states and the board's colours only
+		 * cover one of them: "someone else took this" is a *claim*, not a read, so it can't
+		 * borrow `babReadByOthers` — in dark that token is a translucent green wash and the
+		 * design asks for a solid panel. "Mine" reuses `accent`/`onAccent` and rings in
+		 * `text`, all three of which already equal the design in both themes.
+		 */
+		poolFree: string;
+		poolTaken: string;
+		poolTakenText: string;
 		// Profile activity heatmap, coldest -> hottest.
 		heatEmpty: string;
 		heatLow: string;
@@ -161,6 +171,9 @@ export const lightTheme: AppTheme = {
 		babOpen: '#ECEAE4',
 		babOpenText: '#A9A8A2',
 		babOthersText: '#5A8674',
+		poolFree: '#F2F0EA',
+		poolTaken: '#DCE7DF',
+		poolTakenText: '#2F5B4C',
 		heatEmpty: '#ECEAE4',
 		heatLow: '#DCE7DF',
 		heatMid: '#A9C7B6',
@@ -231,6 +244,9 @@ export const darkTheme: AppTheme = {
 		babOpen: 'rgba(242,240,234,0.08)',
 		babOpenText: 'rgba(242,240,234,0.62)',
 		babOthersText: '#141513',
+		poolFree: 'rgba(242,240,234,0.08)',
+		poolTaken: '#2B3B33',
+		poolTakenText: '#8FB8A6',
 		heatEmpty: 'rgba(242,240,234,0.08)',
 		heatLow: 'rgba(143,184,166,0.25)',
 		heatMid: 'rgba(143,184,166,0.55)',

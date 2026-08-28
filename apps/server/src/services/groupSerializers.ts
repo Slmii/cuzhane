@@ -90,8 +90,10 @@ export type GroupSummary = {
 	 */
 	myRoundRange: BabRange | null;
 	myNextRoundRange: BabRange | null;
-	/** Babs belonging to seats nobody took, still unclaimed. */
+	/** Babs belonging to seats nobody took, still unclaimed — the board's hatch. */
 	poolBabNumbers: number[];
+	/** Every bab belonging to a seat nobody took, volunteered-for ones included. */
+	poolAllBabNumbers: number[];
 	/** Pool babs the viewer has taken on top of their own share. */
 	myPoolBabNumbers: number[];
 };
@@ -348,6 +350,19 @@ export const toGroupSummary = (
 			.filter(bab => poolNumbers.has(bab.number) && bab.assignedUserId === null)
 			.map(bab => bab.number)
 			.sort((a, b) => a - b),
+		/**
+		 * The whole pool, claimed parts included — what the Havuz card draws.
+		 *
+		 * Sent rather than inferred. The card used to work the pool out client-side as "every
+		 * bab carrying an `assignedUserId`", which held only while a claim could not outlive
+		 * the seat being empty. A claim left over from before joining released them — or any
+		 * future path that strands one — put babs on the card that the Havuz screen, which
+		 * asks the server, correctly left out. Two boards of one pool, disagreeing.
+		 */
+		poolAllBabNumbers: babs
+			.filter(bab => poolNumbers.has(bab.number))
+			.map(bab => bab.number)
+			.sort((a, b) => a - b),
 		myPoolBabNumbers
 	};
 };
@@ -445,10 +460,20 @@ export const toInvitePreview = (
 		daysLeft: daysLeftFrom(group.endsAt),
 		isMember: members.some(member => member.userId === viewerUserId),
 		status: group.status,
-		// A joiner takes the lowest free seat, and that seat's block for this round is
-		// exactly what the pool is holding — so the preview can promise it honestly.
+		/**
+		 * **The whole pool here, unlike `GroupSummary.poolBabNumbers`** — every bab belonging
+		 * to a seat nobody is sitting in, whether or not a member has volunteered to cover it.
+		 *
+		 * That is what "N bab sahipsiz" means everywhere else in the app: `PoolScreen` counts
+		 * its slots the same way, claimed ones included, because a volunteer is covering for
+		 * an empty seat rather than filling it. Filtering to the unvolunteered part made the
+		 * preview say "0 bab sahipsiz" for a group whose Havuz screen said 16.
+		 *
+		 * The summary's copy stays filtered: it feeds the 100-bab board, where a claimed bab
+		 * is that person's work and must stop wearing the hatch.
+		 */
 		poolBabNumbers: babs
-			.filter(bab => poolNumbersForPreview.has(bab.number) && bab.assignedUserId === null)
+			.filter(bab => poolNumbersForPreview.has(bab.number))
 			.map(bab => bab.number)
 			.sort((a, b) => a - b),
 		roundEndsAt: group.roundStartedAt

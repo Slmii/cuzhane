@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { GroupBab } from '@/lib/types/domain';
-import { babCellState, type BabCellContext, toBabCells } from './groups';
+import { babCellState, type BabCellContext, staggerWithinRuns, toBabCells, toPoolCells } from './groups';
 
 const ME = 'user_me';
 const OTHER = 'user_other';
@@ -67,5 +67,87 @@ describe('toBabCells', () => {
 			{ number: 2, state: 'readByOthers' },
 			{ number: 3, state: 'pool' }
 		]);
+	});
+});
+
+describe('toPoolCells', () => {
+	it('keeps the claimed blocks in the pool, telling mine apart from somebody else’s', () => {
+		const babs = [
+			bab({ number: 1, assignedUserId: ME }),
+			bab({ number: 2, assignedUserId: OTHER }),
+			bab({ number: 3 })
+		];
+
+		expect(toPoolCells(babs, { poolAllBabNumbers: [1, 2, 3], viewerUserId: ME })).toEqual([
+			{ number: 1, state: 'takenByMe' },
+			{ number: 2, state: 'takenByOthers' },
+			{ number: 3, state: 'open' }
+		]);
+	});
+
+	it('leaves out babs outside the pool — somebody’s seat this round', () => {
+		const babs = [bab({ number: 1 }), bab({ number: 2 })];
+
+		expect(toPoolCells(babs, { poolAllBabNumbers: [2], viewerUserId: ME })).toEqual([{ number: 2, state: 'open' }]);
+	});
+
+	it('leaves out a claim stranded on a seat somebody has since joined', () => {
+		// The real case: a member volunteered for an empty seat's block, someone joined that
+		// seat, and the claim outlived it. Inferring pool membership from `assignedUserId`
+		// drew those babs on the group card while the Havuz screen rightly omitted them.
+		const babs = [bab({ number: 1, assignedUserId: OTHER }), bab({ number: 2, assignedUserId: ME })];
+
+		expect(toPoolCells(babs, { poolAllBabNumbers: [2], viewerUserId: ME })).toEqual([
+			{ number: 2, state: 'takenByMe' }
+		]);
+	});
+
+	it('still reports the pool once every block has been claimed', () => {
+		const babs = [bab({ number: 1, assignedUserId: OTHER }), bab({ number: 2, assignedUserId: ME })];
+
+		// An emptied *unclaimed* list used to hide the card entirely.
+		expect(toPoolCells(babs, { poolAllBabNumbers: [1, 2], viewerUserId: ME })).toHaveLength(2);
+	});
+
+	it('claims nothing for a viewer who is not signed in', () => {
+		const babs = [bab({ number: 1, assignedUserId: ME })];
+
+		expect(toPoolCells(babs, { poolAllBabNumbers: [1], viewerUserId: null })).toEqual([
+			{ number: 1, state: 'takenByOthers' }
+		]);
+	});
+
+	it('orders by bab number whatever order the babs arrive in', () => {
+		const babs = [bab({ number: 9, assignedUserId: ME }), bab({ number: 2 })];
+
+		expect(toPoolCells(babs, { poolAllBabNumbers: [2, 9], viewerUserId: ME }).map(cell => cell.number)).toEqual([
+			2, 9
+		]);
+	});
+});
+
+describe('staggerWithinRuns', () => {
+	it('restarts the sweep at every run, so one block fills without waiting on the last', () => {
+		expect(staggerWithinRuns(['a', 'a', 'a', 'b', 'b'], 70)).toEqual([0, 70, 140, 0, 70]);
+	});
+
+	it('counts from the start of the run, not the start of the grid', () => {
+		// The case that matters: claiming the third block must not wait out the first two.
+		const delays = staggerWithinRuns([0, 0, 1, 1, 2, 2], 70);
+
+		expect(delays[4]).toBe(0);
+		expect(delays[5]).toBe(70);
+	});
+
+	it('treats a repeated key after a break as a new run', () => {
+		expect(staggerWithinRuns(['a', 'b', 'a'], 70)).toEqual([0, 0, 0]);
+	});
+
+	it('gives one long run an increasing delay', () => {
+		expect(staggerWithinRuns(['a', 'a', 'a'], 70)).toEqual([0, 70, 140]);
+	});
+
+	it('survives an empty grid', () => {
+		expect(staggerWithinRuns([], 70)).toEqual([]);
 	});
 });

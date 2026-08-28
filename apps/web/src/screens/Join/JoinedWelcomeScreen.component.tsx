@@ -14,6 +14,7 @@ import {
 	Typography
 } from '@/components/ui/Typography/Typography.component';
 import { useGetGroupById } from '@/lib/hooks/useGroup';
+import { useGetUserSettings } from '@/lib/hooks/useUserSettings';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { Icon } from '@/components/ui/Icon/Icon.component';
 import { useRoundReset } from '@/lib/hooks/useRoundReset';
@@ -21,7 +22,7 @@ import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { formatBabRange } from '@/lib/utils/babs';
 import type { TabStackParamList } from '@/navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
 type Props = NativeStackScreenProps<TabStackParamList, 'JoinedWelcome'>;
 
@@ -30,6 +31,7 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 	const { theme } = useThemeContext();
 	const { t } = useTranslation();
 	const group = useGetGroupById(groupId);
+	const userSettings = useGetUserSettings();
 	// With the other hooks: the loading branch below returns before the body runs.
 	const reset = useRoundReset({
 		cycle: group.data?.cycle ?? 'WEEKLY',
@@ -60,6 +62,13 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 	const rangeValue = formatBabRange(babNumbers);
 	// Nothing is counted until the owner opens day 1, so the range is only a reservation.
 	const isProvisional = detail.status === 'GATHERING';
+	// While settings are still loading we don't know either way, so fall back to the unset
+	// (ghost button) state rather than flashing the soft-green row and then swapping it out.
+	//
+	// The settings object rather than a boolean, so the row's clock is narrowed to a string
+	// by the same check that decides to show the row — read separately, a drift between the
+	// two would put the word "undefined" where the time goes.
+	const activeReminder = userSettings.data?.reminderEnabled === true ? userSettings.data : null;
 
 	const handleStartReading = () => {
 		navigation.replace('GroupDetail', { groupId });
@@ -151,26 +160,22 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 						<EyebrowText color={theme.colors.subtext} textAlign='center'>
 							{t('yourRange')}
 						</EyebrowText>
-						{/* Numerals, not anonymous pills: these came out of the pool, so which
-						    ones you were handed is the point. */}
+						{/* The numbers themselves, not anonymous pills: these came out of the pool,
+						    so which ones you were handed is the point. Same chip as the invite
+						    preview lists them in — one screen apart, showing the same babs. */}
 						<View style={styles.numeralRow}>
 							{babNumbers.map(number => (
 								<View
 									key={number}
 									style={[
 										styles.numeral,
-										{ backgroundColor: theme.colors.accentSoft, borderRadius: theme.radius.md }
+										{ backgroundColor: theme.colors.accentSoft, borderRadius: theme.radius.sm }
 									]}
 								>
-									<Typography color={theme.colors.accent} variant='title'>
-										{number}
-									</Typography>
+									<CaptionText color={theme.colors.accent}>{number}</CaptionText>
 								</View>
 							))}
 						</View>
-						<CaptionText color={theme.colors.subtext} style={styles.babsCaption} textAlign='center'>
-							{`${t('unclaimedBabs')} · ${babNumbers.length} ${t('babs')}`}
-						</CaptionText>
 						{reset ? (
 							<View style={[styles.roundEndRow, { borderTopColor: theme.colors.divider }]}>
 								<Icon color={theme.colors.subtext} name='clock' size={14} strokeWidth={1.7} />
@@ -198,7 +203,28 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 				) : (
 					<>
 						<AppButton onPress={handleStartReading} title={t('startReading')} />
-						<AppButton onPress={handleSetReminder} title={t('setReminder')} variant='ghost' />
+						{/* A reminder that's already on replaces the "set one" ghost button rather
+						    than sitting beside it — the design swaps the two, and having both would
+						    be two ways to the same place. */}
+						{activeReminder ? (
+							<Pressable
+								onPress={handleSetReminder}
+								style={({ pressed }) => [
+									styles.reminderRow,
+									{ backgroundColor: theme.colors.accentSoft, opacity: pressed ? 0.86 : 1 }
+								]}
+							>
+								<Icon color={theme.colors.accent} name='tabReminders' size={14} strokeWidth={1.8} />
+								<CaptionText color={theme.colors.accent} weight='semibold'>
+									{`${t('reminderOnAt')} · ${activeReminder.reminderTime}`}
+								</CaptionText>
+								<CaptionText color={theme.colors.faintText} weight='semibold'>
+									{t('reminderChange')}
+								</CaptionText>
+							</Pressable>
+						) : (
+							<AppButton onPress={handleSetReminder} title={t('setReminder')} variant='ghost' />
+						)}
 					</>
 				)}
 			</View>
@@ -269,9 +295,6 @@ const styles = StyleSheet.create({
 		marginTop: 16,
 		paddingTop: 13
 	},
-	babsCaption: {
-		marginTop: 9
-	},
 	content: {
 		flexGrow: 1,
 		justifyContent: 'space-between'
@@ -285,6 +308,15 @@ const styles = StyleSheet.create({
 	},
 	loading: {
 		flex: 1
+	},
+	reminderRow: {
+		alignItems: 'center',
+		borderRadius: 12,
+		flexDirection: 'row',
+		gap: 8,
+		justifyContent: 'center',
+		paddingHorizontal: 14,
+		paddingVertical: 11
 	},
 	rangeCard: {
 		marginTop: 28,

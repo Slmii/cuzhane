@@ -6,6 +6,12 @@ export interface StepperProps {
 	min?: number;
 	max?: number;
 	step?: number;
+	/**
+	 * The allowed values, ascending. When given, +/- walk this list instead of adding `step`,
+	 * and `min`/`max`/`step` are ignored — a set like 5, 10, 20 isn't an arithmetic sequence,
+	 * so a stepper that could only add a constant would stop at values nothing accepts.
+	 */
+	values?: number[];
 	caption?: string;
 	style?: StyleProp<ViewStyle>;
 }

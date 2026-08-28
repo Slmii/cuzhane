@@ -13,7 +13,6 @@ const TimeStringSchema = z
 export const UpdateUserSettingsBodySchema = z
 	.object({
 		language: z.enum(['tr', 'en']).optional(),
-		notificationsEnabled: z.boolean().optional(),
 		reminderEnabled: z.boolean().optional(),
 		hasSeenOnboarding: z.boolean().optional(),
 		reminderTime: TimeStringSchema.optional(),

@@ -1,16 +1,17 @@
 import { BabGrid } from '@/components/BabGrid/BabGrid.component';
 import { BabLegend } from '@/components/BabLegend/BabLegend.component';
 import { BabRow } from '@/components/BabRow/BabRow.component';
+import { GridSkeleton } from '@/components/GridSkeleton/GridSkeleton.component';
+import { PoolGrid } from '@/components/PoolGrid/PoolGrid.component';
+import { RoundResetRow } from '@/components/RoundResetRow/RoundResetRow.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
-import { CornerAction } from '@/components/ui/CornerAction/CornerAction.component';
-import { CellGrid } from '@/components/ui/CellGrid/CellGrid.component';
 import { Chip } from '@/components/ui/Chip/Chip.component';
+import { CornerAction } from '@/components/ui/CornerAction/CornerAction.component';
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
 import { NavRow } from '@/components/ui/NavRow/NavRow.component';
-import { RoundResetRow } from '@/components/RoundResetRow/RoundResetRow.component';
 import { SectionHeader } from '@/components/ui/SectionHeader/SectionHeader.component';
 import {
 	BodyText,
@@ -20,16 +21,16 @@ import {
 	TitleText,
 	Typography
 } from '@/components/ui/Typography/Typography.component';
-import { useTranslation } from '@/lib/i18n/I18n.context';
-import { useCurrentUserId } from '@/lib/hooks/useCurrentUserId';
 import { useGetBabs, useSetBabRead } from '@/lib/hooks/useBab';
+import { useCurrentUserId } from '@/lib/hooks/useCurrentUserId';
 import { useGetGroupById } from '@/lib/hooks/useGroup';
-import { useGetRounds } from '@/lib/hooks/useRounds';
 import { useRoundReset, useTimeUntilReset } from '@/lib/hooks/useRoundReset';
+import { useGetRounds } from '@/lib/hooks/useRounds';
+import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { GroupBab } from '@/lib/types/domain';
-import { formatBabRange } from '@/lib/utils/babs';
-import { toBabCells } from '@/lib/utils/groups';
+import { BAB_COUNT, formatBabRange } from '@/lib/utils/babs';
+import { toBabCells, toPoolCells } from '@/lib/utils/groups';
 import type { TabStackParamList } from '@/navigation/types';
 import { LeaveGroupButton } from '@/screens/Groups/LeaveGroupButton.component';
 import { ManageSheet } from '@/screens/Groups/ManageSheet.component';
@@ -44,6 +45,8 @@ type Sheet = 'share' | 'manage' | 'members' | null;
 
 const CHEVRON_DOWN_DEGREES = 90;
 const CHEVRON_UP_DEGREES = -90;
+/** Entries in `BabLegend` — the skeleton stubs the same number so the card keeps its height. */
+const BAB_LEGEND_COUNT = 5;
 
 type Props = NativeStackScreenProps<TabStackParamList, 'GroupDetail'>;
 
@@ -98,7 +101,10 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 		}
 	}, [groupId, isOwnerOfGroup, navigation, status]);
 
-	if (groupQuery.isPending || babsQuery.isPending) {
+	// Only the group gates the screen. The board arrives separately, and the two things that
+	// need it — the pool card and the hundred — each have their own stand-in, so waiting on
+	// it no longer blanks the whole page.
+	if (groupQuery.isPending) {
 		return (
 			<ScreenContainer isScrollable={false}>
 				<View style={styles.centered}>
@@ -127,6 +133,9 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 
 	const detail = groupQuery.data;
 	const babs = babsQuery.data ?? [];
+	// The pool card's own loading state: the group already says how big the pool is, but who
+	// holds each bab comes from the board.
+	const isPoolPending = babsQuery.isPending && detail.poolAllBabNumbers.length > 0;
 
 	// The redirect above has already fired; hold the spinner rather than render a board
 	// for a group that has no progress yet.
@@ -143,6 +152,9 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 	// are a different seat's block every round, so this can't be derived from assignment.
 	const myBabNumbers = detail.myBabNumbers;
 	const myBabNumberSet = new Set(myBabNumbers);
+	// The pool as the Havuz screen counts it — every block of an empty seat, whether or not
+	// somebody has already volunteered for it.
+	const poolCells = toPoolCells(babs, { poolAllBabNumbers: detail.poolAllBabNumbers, viewerUserId: userId ?? null });
 	const myBabs = babs.filter(bab => myBabNumberSet.has(bab.number)).sort((a, b) => a.number - b.number);
 	const myRange = formatBabRange(myBabNumbers);
 	const myReadCount = myBabs.filter(bab => bab.readAt !== null).length;
@@ -280,7 +292,7 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 								? {
 										borderBottomColor: theme.colors.divider,
 										borderBottomWidth: StyleSheet.hairlineWidth
-								  }
+									}
 								: null
 						]}
 					>
@@ -374,25 +386,33 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 					</CardSurface>
 				) : null}
 
-				{/* Only groups that started with seats to spare have a pool at all. */}
-				{detail.poolBabNumbers.length > 0 ? (
+				{/*
+				 * Only groups that started with seats to spare have a pool at all — but the
+				 * whole pool, not just the part still going. Counted off `poolBabNumbers`
+				 * this card used to shed cells as members claimed blocks and vanish once the
+				 * last one went, taking the only way to the Havuz screen with it.
+				 *
+				 * Whether there *is* a pool, and how big, comes from the group — so the
+				 * skeleton below is sized exactly rather than guessed. Only who holds each
+				 * bab needs the board, which is why this one section can still be waiting
+				 * while the rest of the screen is real.
+				 */}
+				{isPoolPending ? (
+					<GridSkeleton cellCount={detail.poolAllBabNumbers.length} style={styles.poolCard} />
+				) : poolCells.length > 0 ? (
 					<CardSurface isFlush style={styles.poolCard}>
 						<View style={[styles.poolHeader, { borderBottomColor: theme.colors.divider }]}>
 							<TitleText>{t('pool')}</TitleText>
-							<Chip label={`${detail.poolBabNumbers.length} ${t('poolBabs')}`} tone='sand' />
+							{/* Just "15 bab" — the card is already headed "Ortak havuz", so
+							    repeating "sahipsiz" here says it twice. The Havuz screen's own
+							    header carries the fuller wording, where it isn't redundant. */}
+							<Chip label={`${poolCells.length} ${t('babs')}`} tone='sand' />
 						</View>
 						<View style={styles.poolBody}>
-							<CellGrid
-								columns={10}
-								gap={3}
-								items={detail.poolBabNumbers.map(number => ({
-									backgroundColor: theme.colors.track,
-									isHatched: true,
-									key: number
-								}))}
-								radius={4}
-								style={styles.poolStrip}
-							/>
+							{/* Literally the Havuz screen's board, component and all — this card
+							    is the door to that screen, so the two cannot be allowed to
+							    describe the same babs differently. */}
+							<PoolGrid cells={poolCells} />
 							<CaptionText color={theme.colors.subtext}>{t('poolHint')}</CaptionText>
 							<NavRow
 								label={t('poolSee')}
@@ -410,20 +430,33 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 				 */}
 				{detail.isOwner ? null : <LeaveGroupButton groupId={groupId} />}
 
+				{/* The count is the group's own, so the heading is real either way. */}
 				<SectionHeader meta={`${detail.readCount} / 100`} title={t('groupProgress')} />
 
-				<CardSurface style={styles.gridCard}>
-					<BabGrid
-						cells={toBabCells(babs, {
-							viewerUserId: userId ?? null,
-							myBabNumbers: detail.myBabNumbers,
-							poolBabNumbers: detail.poolBabNumbers
-						})}
-						onPressBab={handlePressBab}
-					/>
-				</CardSurface>
+				{babsQuery.isPending ? (
+					/*
+					 * The skeleton, not a blank hundred. `emptyBabCells` renders every cell in
+					 * the "unread" tone, which doesn't read as loading — it reads as nobody
+					 * having read anything, which is a claim about the data rather than an
+					 * admission that it hasn't arrived.
+					 */
+					<GridSkeleton cellCount={BAB_COUNT} hasHeader={false} legendCount={BAB_LEGEND_COUNT} />
+				) : (
+					<>
+						<CardSurface style={styles.gridCard}>
+							<BabGrid
+								cells={toBabCells(babs, {
+									viewerUserId: userId ?? null,
+									myBabNumbers: detail.myBabNumbers,
+									poolBabNumbers: detail.poolBabNumbers
+								})}
+								onPressBab={handlePressBab}
+							/>
+						</CardSurface>
 
-				<BabLegend />
+						<BabLegend />
+					</>
+				)}
 			</ScreenContainer>
 
 			<ShareSheet group={detail} isVisible={sheet === 'share'} onClose={() => setSheet(null)} />
@@ -483,9 +516,6 @@ const styles = StyleSheet.create({
 	},
 	poolNav: {
 		marginTop: 1
-	},
-	poolStrip: {
-		marginBottom: 0
 	},
 	myBabsBadge: {
 		alignItems: 'center',

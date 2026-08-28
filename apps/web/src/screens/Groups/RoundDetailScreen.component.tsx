@@ -1,4 +1,5 @@
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
+import { GridSkeleton } from '@/components/GridSkeleton/GridSkeleton.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
 import { Avatar } from '@/components/ui/Avatar/Avatar.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
@@ -13,13 +14,17 @@ import { useGetGroupMembers } from '@/lib/hooks/useMembership';
 import { useCoverBabs, useGetRoundDetail } from '@/lib/hooks/useRounds';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import { formatBabRange } from '@/lib/utils/babs';
+import { BAB_COUNT, formatBabRange } from '@/lib/utils/babs';
+import { staggerWithinRuns } from '@/lib/utils/groups';
 import { roundRows, type RoundCellState, roundCellStates, type RoundRow } from '@/lib/utils/rounds';
 import type { TabStackParamList } from '@/navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 type Props = NativeStackScreenProps<TabStackParamList, 'RoundDetail'>;
+
+/** Entries in `legend` below — the skeleton stubs the same number so the card keeps its height. */
+const LEGEND_COUNT = 5;
 
 /**
  * 10a. One closed round, bab by bab, and who still owes what.
@@ -42,10 +47,19 @@ export const RoundDetailScreen = ({ navigation, route }: Props) => {
 
 	if (groupQuery.isPending || roundQuery.isPending) {
 		return (
-			<ScreenContainer isScrollable={false}>
-				<View style={styles.centered}>
-					<ActivityIndicator color={theme.colors.accent} />
-				</View>
+			<ScreenContainer>
+				{/*
+				 * The heading is real — the round number is a route param, not something the
+				 * request tells us — so only the board is stubbed. The lattice is nearly the
+				 * whole page's height here, which is what made a spinner followed by a hundred
+				 * cells feel like the screen arriving twice.
+				 */}
+				<ScreenHeader
+					eyebrow={`${t('roundN')} ${roundIndex + 1}`}
+					onBack={navigation.goBack}
+					title={t('missedTitle')}
+				/>
+				<GridSkeleton cellCount={BAB_COUNT} hasHeader={false} legendCount={LEGEND_COUNT} />
 			</ScreenContainer>
 		);
 	}
@@ -70,6 +84,8 @@ export const RoundDetailScreen = ({ navigation, route }: Props) => {
 	const round = roundQuery.data;
 	const members = membersQuery.data ?? [];
 	const cellStates = roundCellStates(round, viewerUserId);
+	// Stagger per run of like cells, so a covered stretch fills in sequence.
+	const fillDelays = staggerWithinRuns(round.babs.map(bab => cellStates[bab.number] ?? 'missed'));
 	const rows = roundRows(round, members, viewerUserId);
 
 	const cellColor = (state: RoundCellState) => (state === 'read' ? theme.colors.accent : theme.colors.missed);
@@ -157,16 +173,23 @@ export const RoundDetailScreen = ({ navigation, route }: Props) => {
 				 * grid takes one border width for all cells, and a ring that only some cells
 				 * had would shift the others by two points.
 				 */}
+				{/*
+				 * Covering a stretch of missed babs sweeps them left to right rather than
+				 * repainting the block at once — the same fill the havuz uses, and for the
+				 * same reason: the sweep is what says *these* are the ones you just took.
+				 * Runs are keyed on state, since a cover changes a contiguous stretch.
+				 */}
 				<CellGrid
 					borderWidth={2}
 					columns={10}
-					items={round.babs.map(bab => {
+					items={round.babs.map((bab, index) => {
 						const state = cellStates[bab.number] ?? 'missed';
 
 						return {
 							key: String(bab.number),
 							label: String(bab.number),
 							backgroundColor: cellColor(state),
+							fillDelay: fillDelays[index],
 							labelColor: theme.colors.onAccent,
 							// Ownership rides on the outline, not the fill — the fill already
 							// carries read-or-missed and can't say both at once.

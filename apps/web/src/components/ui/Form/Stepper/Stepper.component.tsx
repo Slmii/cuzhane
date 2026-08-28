@@ -3,7 +3,7 @@ import { Controller, useFormContext } from 'react-hook-form';
 import type { FormStepperProps } from './Stepper.types';
 
 /** `Stepper` bound to a numeric form field — the group spots picker. */
-export const FormStepper = ({ caption, max, min, name, step, style }: FormStepperProps) => {
+export const FormStepper = ({ caption, max, min, name, step, style, values }: FormStepperProps) => {
 	const { control } = useFormContext();
 
 	return (
@@ -19,6 +19,7 @@ export const FormStepper = ({ caption, max, min, name, step, style }: FormSteppe
 					step={step}
 					style={style}
 					value={Number(field.value)}
+					values={values}
 				/>
 			)}
 		/>

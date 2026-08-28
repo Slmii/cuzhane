@@ -5,22 +5,12 @@ enum GroupVisibility {
     PRIVATE
 }
 
-// How a member's share of the 100 babs is decided.
-//
-// ROTATION: a seat's block is assigned on join, then advances by one whole seat
-//           each round — a round being one cycle (daily for DAILY, weekly for WEEKLY) —
-//           seat s reads seat (s + roundIndex) % spots. Advancing by a block rather than
-//           a fixed offset keeps the 100 tiled exactly on uneven splits.
-// FIXED:    the block assigned on join never changes.
-// FREE:     retired. Kept as a value because dropping a Postgres enum member is a
-//           destructive migration; no group can be created with it any more.
 enum GroupSplitMode {
     ROTATION
     FIXED
     FREE
 }
 
-// A group gathers members first and counts nothing until the owner starts it.
 enum GroupStatus {
     GATHERING
     RUNNING
@@ -32,51 +22,30 @@ enum GroupCycle {
 }
 
 model Group {
-    id          String          @id @default(cuid())
-    ownerUserId String
-    name        String
-    dedication  String?
-    visibility  GroupVisibility @default(OPEN)
-    splitMode   GroupSplitMode  @default(ROTATION)
-    status      GroupStatus     @default(GATHERING)
-    cycle       GroupCycle      @default(WEEKLY)
-    spots       Int             @default(20)
-    inviteCode  String          @unique
-    openToJoin  Boolean         @default(true)
-
-    // IANA zone the group's day is measured in — the owner's, captured at creation.
-    // A round boundary is a local midnight, so this decides when the board resets for
-    // EVERYONE in the group: the day has to be shared or two members disagree about which
-    // round's reads the rollover may wipe. Personal stats use the viewer's own zone instead.
-    // Immutable after creation, like `spots`, `splitMode` and `cycle` — changing it mid-hatim
-    // would move a boundary that has already been counted against.
-    timezone String @default("Europe/Istanbul")
-
-    reminderEnabled Boolean @default(true)
-    reminderTime    String  @default("21:30")
-    nudgeEnabled    Boolean @default(true)
-
-    // Set the moment the owner starts the hatim — day 1. Null while GATHERING, and the
-    // anchor every round index is measured from.
+    id                String          @id @default(cuid())
+    ownerUserId       String
+    name              String
+    dedication        String?
+    visibility        GroupVisibility @default(OPEN)
+    splitMode         GroupSplitMode  @default(ROTATION)
+    status            GroupStatus     @default(GATHERING)
+    cycle             GroupCycle      @default(WEEKLY)
+    spots             Int             @default(20)
+    inviteCode        String          @unique
+    openToJoin        Boolean         @default(true)
+    timezone          String          @default("Europe/Istanbul")
+    reminderEnabled   Boolean         @default(true)
+    reminderTime      String          @default("21:30")
+    nudgeEnabled      Boolean         @default(true)
     startedAt         DateTime?
-    autoStartWhenFull Boolean   @default(true)
-
-    // A round is one pass at the hundred. DAILY rolls every day, WEEKLY every seven.
-    // The board resets at the boundary whether or not it was finished, so the cycle is a
-    // promise about *when*, not about completing.
-    //
-    // `roundIndex` is also the rotation index: a seat reads seat (s + roundIndex) % spots,
-    // so a WEEKLY group holds one range for the whole week and moves on at the boundary.
-    roundIndex     Int       @default(0)
-    // Where the current round began. Derivable from `startedAt` and the cycle, but stored
-    // so the rollover can be guarded and so a board query stays a single comparison.
-    roundStartedAt DateTime?
-
-    startsAt    DateTime  @default(now())
-    endsAt      DateTime?
-    completedAt DateTime?
-    createdAt   DateTime  @default(now())
-    updatedAt   DateTime  @updatedAt
+    autoStartWhenFull Boolean         @default(true)
+    roundIndex        Int             @default(0)
+    roundStartedAt    DateTime?
+    startsAt          DateTime        @default(now())
+    endsAt            DateTime?
+    completedAt       DateTime?
+    createdAt         DateTime        @default(now())
+    updatedAt         DateTime        @updatedAt
 
     members  GroupMember[]
     babs     GroupBab[]

@@ -7,6 +7,7 @@ import { syncCompletedAt } from './babs.service';
 import { autoStartIfFull } from './groups.service';
 import { requireMembership, requireOwner } from './groupAccess.service';
 import { toGroupDetail, toGroupMember, toInvitePreview } from './groupSerializers';
+import { poolBlockFor } from './pool.service';
 import type { GroupDetail, GroupInvitePreview, GroupMember } from './groupSerializers';
 
 const loadDetail = async (groupId: string, viewerUserId: string): Promise<GroupDetail> => {
@@ -122,6 +123,29 @@ const attemptJoin = async (
 		// Joining assigns no babs. Which block a member reads is derived from their seat and
 		// the round, so writing their name onto a block here would only duplicate that — and
 		// the duplicate goes stale the moment the rotation moves them off it.
+		//
+		// It does, however, *release* one. Volunteering out of the pool means "I'll cover for
+		// an empty seat this round"; the seat now has someone in it, so the errand is over.
+		// Left standing, the claim strands the volunteer: the block stops being pool (the seat
+		// is taken) and was never their own seat's, so `setBabRead` refuses it as "not yours to
+		// mark today" while their share still lists it. Meanwhile the joiner is handed the same
+		// babs, because a share is derived from seat + round and knows nothing about claims.
+		//
+		// Reads already made are deliberately untouched: those happened, they belong to whoever
+		// made them, and `BabRead` has them permanently. Only the claim on the rest comes off.
+		//
+		// `group.members` is the list from before the seat was filled, which is what makes this
+		// seat a pool block at all. No `ensureCurrentRound` first: on a stale round this clears
+		// babs the rollover is about to clear wholesale anyway, so the worst case is a no-op.
+		const coveredBabNumbers = poolBlockFor(group, group.members, slotIndex);
+
+		if (coveredBabNumbers) {
+			await tx.groupBab.updateMany({
+				where: { groupId, number: { in: coveredBabNumbers }, assignedUserId: { not: null } },
+				data: { assignedUserId: null }
+			});
+		}
+
 		await tx.groupWaitlistEntry.deleteMany({
 			where: { groupId, userId: normalizedUserId }
 		});

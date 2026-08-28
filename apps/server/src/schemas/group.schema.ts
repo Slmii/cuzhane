@@ -1,6 +1,9 @@
 import { DEFAULT_TIME_ZONE, isValidTimeZone } from '@utils/rounds';
 import { z } from 'zod';
 
+/** The only group sizes a client may create. Mirrored by `SPOTS_VALUES` on the web app. */
+const SPOTS_VALUES = [5, 10, 20];
+
 /**
  * The zone the group's day is measured in, sent by the creating client. Validated against
  * the platform's own tz database rather than trusted: it ends up in `Intl.DateTimeFormat`,
@@ -57,14 +60,16 @@ export const CreateGroupBodySchema = z.object({
 	// group can choose it. Rotation is the design's default and comes first.
 	splitMode: z.enum(['ROTATION', 'FIXED']).default('ROTATION'),
 	cycle: GroupCycleSchema.default('WEEKLY'),
-	// The design's spots stepper moves in steps of 5.
+	/**
+	 * Three sizes only. Each divides the hundred evenly — 20, 10 and 5 babs a head — so no
+	 * seat carries a leftover bab. Mirrors `SPOTS_VALUES` on the client; `spots` is immutable
+	 * after creation, so a value accepted here is one the group keeps forever.
+	 */
 	spots: z
 		.number()
 		.int()
-		.min(5)
-		.max(50)
 		.default(20)
-		.refine(value => value % 5 === 0, { message: 'Spots must be a multiple of 5' }),
+		.refine(value => SPOTS_VALUES.includes(value), { message: 'Spots must be 5, 10 or 20' }),
 	reminderEnabled: z.boolean().default(true),
 	reminderTime: TimeStringSchema,
 	timezone: TimeZoneSchema

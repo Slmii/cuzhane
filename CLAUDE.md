@@ -63,6 +63,14 @@ The Cevşen is **100 babs**. A group divides those 100 across its members.
   leftovers onto a member's old block the pool started reporting it as claimed by whoever had held
   that seat at join time. The rollover clears the whole column, so a non-null value always belongs to
   the round in progress. Reading never writes it; only volunteering does.
+- **Joining a seat releases whatever was volunteered for it.** A claim means "I'll cover for an empty
+  seat this round"; filling the seat ends the errand, so `attemptJoin` clears `assignedUserId` across
+  the block that seat is offering — via `poolBlockFor`, the same helper the pool itself uses, so the
+  two can't disagree about which block a seat offers. Left standing, the claim stranded the volunteer:
+  the block stops being pool once the seat is filled and was never their own seat's, so `setBabRead`
+  refused it as "not yours to mark today" while their share still listed it — and the joiner was handed
+  the same babs, because a share is derived from seat + round and knows nothing about claims. **Reads
+  already made are never touched**: they happened, and `BabRead` keeps them. Only the claim comes off.
 - **Lifecycle.** A group is `GATHERING` until the owner starts it: no `startedAt`, no day index, and
   nothing is counted. `startGroupForUser` stamps `startedAt` under a conditional `updateMany` guarded
   on `status: 'GATHERING'`, so a double tap can't rewind everyone's rotation. `autoStartIfFull` runs
@@ -297,9 +305,37 @@ defaultValues render={({ handleSubmit, watch, setValue }) => …} />`, which wir
   `Pressable`'s `({ pressed })`. Real motion uses Reanimated. Eased colour/width transitions already live
   inside `ProgressBar`, `CellGrid` and `BabRow`'s checkbox, so callers get them for free; don't reimplement
   them per screen.
-- The square-lattice UI (100-bab board, spots picker, activity heatmap) all builds on the single
-  `components/ui/CellGrid` primitive, which derives cell size from measured width. Don't reintroduce
-  percentage-based grid sizing — it drifts a pixel per column.
+- **`Keyframe` is mutable — build one per animated element, never share a module constant.** `.delay()`
+  writes to the instance and returns the same object, so a shared `const POP = new Keyframe(...)` used
+  across a grid ends up carrying whatever delay the last cell asked for: every cell then animates on one
+  schedule, which is no stagger at all and reads as "the animation doesn't work". `CellGrid`'s `pop()` /
+  `shrink()` and `Stepper`'s `countPop()` are factories for exactly this reason.
+- **Grid motion follows `design_handoff_cuzhane/pool-fill.html`**, which is deliberate about *which*
+  channel moves. The **pool fill** (üstlen, on the havuz board and the Turlar grid) is **colour only** —
+  420ms a cell, no scale — because at forty cells a pop reads as noise while a colour sweep reads as
+  ownership. The **spots picker** is the opposite: the cell *count* changes there, so entrance and exit
+  have to be legible, and it pops (380ms) and ghosts out (300ms) instead. Both stagger by a cell's index
+  **within its own run** — `staggerWithinRuns` in `utils/groups.ts`, 70ms a step for the fill, 26ms for
+  the seats. Timed from the start of the whole grid, a late block would still be filling seconds after
+  the tap. Both honour `useReducedMotion`.
+- The square-lattice UI (100-bab board, spots picker, activity heatmap, pool board) all builds on the
+  single `components/ui/CellGrid` primitive, which derives cell size from measured width. Don't
+  reintroduce percentage-based grid sizing — it drifts a pixel per column.
+- **The pool board is `components/PoolGrid`, and there is exactly one of it.** Numbered cells in three
+  states — hatched "havuzda", a soft panel for "başkası üstlendi", solid accent with a `text` ring for
+  "sen üstlendin" — plus the matching three-item legend. The Havuz screen (07a/07b) and the group
+  screen's Havuz card (07c) both render it, because the card is the door to the screen and two
+  pictures of the same babs must not disagree. **07b is not a separate screen**: a crowded pool is the
+  same board with more slots. The ring is a per-cell `borderColor` at a uniform `borderWidth`, not the
+  design's outer `box-shadow` — `CellGrid` clips its cells, so an outset shadow would never show, and
+  a uniform width keeps every cell the same size. Cells are always **sorted by bab number**: under
+  ROTATION the slots arrive in rotated order, and the two surfaces build their cells from different
+  sources (slots on the Havuz screen, the hundred via `toPoolCells` on the group screen), so without
+  the sort the same pool would read in two different orders one tap apart.
+- The Havuz screen's header counts **free** babs and **free** slots — what you could still take on —
+  while the group screen's card chip counts the **whole** pool. Two questions, deliberately two
+  numbers; `GroupInvitePreview.poolBabNumbers` is the whole pool too, `GroupSummary.poolBabNumbers`
+  only the unclaimed part (it feeds the board, where a claimed bab is someone's work).
 - Environment: `EXPO_PUBLIC_API_URL` (localhost auto-resolves to the Metro host for devices) and
   `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`.
 - Path alias: `@/*` → `src/*`.
@@ -309,6 +345,61 @@ defaultValues render={({ handleSubmit, watch, setValue }) => …} />`, which wir
 `src/lib/content/cevsen.ts` ships 100 bab entries with **empty** `arabic` fields — the Cevşen text is not
 bundled. The reader renders the `readerMissing` string for any empty bab. Do not generate, transliterate
 or approximate this text; it must be supplied from an authoritative source.
+
+## Notifications
+
+The daily reminder is a **local** notification, scheduled on the device — one repeating
+`DAILY` trigger, so the OS keeps firing it whether the app is backgrounded, force-quit or
+never opened again. There is no server push; `PushToken` is stored but nothing sends to it.
+
+`useReminderNotificationSync` is what makes that survive: the settings live on the server,
+so a fresh install, a new device or a sign-in leaves the OS knowing nothing. It reconciles
+on mount (hard reopen), whenever the settings or the counts change, and on every
+`AppState` → `active` (soft reopen). `NotificationOrchestrator` mounts it in `AppRoot` — app
+lifetime, not the Reminders tab's, because the schedule must be right whether or not anyone
+opened that screen.
+
+It compares **signatures** stored in the notification's own `data` rather than rescheduling
+blindly: `triggerSig` (time + enabled) and `contentSig` (title + body). Cancelling and
+re-adding on every launch leaves a window with nothing scheduled, and an app opened at the
+moment the reminder was due would silently lose that day's notification. Only reminders
+carrying this app's `kind` are ever cancelled.
+
+Four rules the reconciler must keep — each of them was a real bug found in audit:
+
+- **Serialise runs, never drop them.** A request arriving mid-run sets a rerun flag and the
+  loop goes round again, reading the desired state from a ref. Returning early instead meant
+  that on a cold start — where settings and groups resolve moments apart — the first run
+  cancelled (no group yet) and the second was discarded, leaving *nothing* scheduled.
+- **Act only when the answer is known.** `isReady` needs both queries, or signed-out.
+  Reconciling on settings alone cancels a good notification in the gap before groups arrive.
+- **Signed out is a known answer, not an unknown one.** It means "cancel". Otherwise the
+  previous account's reminder — with their group's name in it — keeps arriving on a
+  signed-out device, because clearing the cache leaves no successful query to reconcile.
+- **Read permission, never request it.** The reconciler runs on every launch; prompting from
+  there throws the system dialog at someone who merely opened the app. `RemindersScreen`
+  owns the prompt, at the moment the switch is turned on.
+
+The Android channel is declared inside `scheduleReminder`, immediately before the schedule
+that needs it — from a mount effect it raced the first schedule, and Android silently drops
+anything posted to a channel that doesn't exist yet.
+
+The body's bab count is a **snapshot taken when it was scheduled** — a local notification's
+text is fixed and nothing can recompute it at 21:30. Keeping the count in `contentSig` is
+what keeps it honest: reading a bab re-syncs and replaces the pending notification. It can
+only go stale if the reader progresses on another device. `pickReminderGroup` is shared by
+the scheduler and the Reminders screen's preview so the two can never name different groups.
+
+`setNotificationHandler` is set at module scope in `AppRoot`, before any component mounts —
+without it a reminder arriving while the app is open is delivered silently.
+
+There is **no account-wide notifications switch.** `UserSettings.notificationsEnabled` was
+a column with an update endpoint and no control in any screen, so nothing ever wrote
+anything but its `true` default — while a row holding `false` would have stopped every
+reminder for good with the Reminders toggle still reading "on". It was dropped
+(`20260828090000_drop_notifications_enabled`) from the schema, the zod body, the service,
+the domain type and the API input. `reminderEnabled` is the only switch, because it is the
+only one the app gives anybody a way to set; add a column back only alongside its UI.
 
 ## Cross-Cutting
 

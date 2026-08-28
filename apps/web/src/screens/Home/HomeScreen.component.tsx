@@ -15,12 +15,12 @@ import { TabStackParamList } from '@/navigation/types';
 import { TabBarOffsetContext } from '@/navigation/TabBarOffsetContext';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useContext, useMemo, useState } from 'react';
-import { ActivityIndicator, LayoutChangeEvent, Pressable, StyleSheet, View } from 'react-native';
+import { useCallback, useContext, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, LayoutChangeEvent, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { JoinByCodeSheet } from '@/screens/Join/JoinByCodeSheet.component';
-import { DockRing } from './DockRing.component';
+import { DockRing, DOCK_DISTANCE } from './DockRing.component';
 import type { DockRingGroup } from './DockRing.types';
 
 type HomeNavigationProp = NativeStackNavigationProp<TabStackParamList>;
@@ -33,6 +33,9 @@ const GAP_NAME = 34;
 const CAPTION_HEIGHT = 16;
 const GAP_RANGE = 36;
 const GAP_RING = 252;
+
+/** Below this, the finger lifted without throwing the list — no momentum will follow. */
+const MOMENTUM_EPSILON = 0.1;
 
 /**
  * 01g — Ana ekran.
@@ -55,6 +58,21 @@ export const HomeScreen = () => {
 	const [selectedId, setSelectedId] = useState<string | null>(null);
 	const [isJoinSheetOpen, setIsJoinSheetOpen] = useState(false);
 	const [width, setWidth] = useState(0);
+	const [viewportHeight, setViewportHeight] = useState(0);
+	const scrollRef = useRef<ScrollView>(null);
+
+	/**
+	 * The dock is scroll-driven, so letting go mid-travel left the ring frozen between its
+	 * two designed states — neither the full ring nor the pill. Anything in between snaps to
+	 * whichever end is nearer, so the animation always completes or never starts.
+	 */
+	const snapDock = useCallback((offsetY: number) => {
+		if (offsetY <= 0 || offsetY >= DOCK_DISTANCE) {
+			return;
+		}
+
+		scrollRef.current?.scrollTo({ animated: true, y: offsetY < DOCK_DISTANCE / 2 ? 0 : DOCK_DISTANCE });
+	}, []);
 	const scrollY = useSharedValue(0);
 
 	const scrollHandler = useAnimatedScrollHandler(event => {
@@ -158,8 +176,31 @@ export const HomeScreen = () => {
 		>
 			<View onLayout={(event: LayoutChangeEvent) => setWidth(event.nativeEvent.layout.width)} style={styles.fill}>
 				<Animated.ScrollView
-					contentContainerStyle={[styles.content, { paddingBottom: tabBarHeight + 24 }]}
+					contentContainerStyle={[
+						styles.content,
+						{
+							// Guarantees the dock can finish. With only a few groups the column
+							// barely scrolls, so the offset could never reach `DOCK_DISTANCE` and
+							// the ring sat permanently half-collapsed at the bottom of the list.
+							// `minHeight` off the viewport is stable — unlike padding derived from
+							// the content, it can't feed back into the measurement that set it.
+							minHeight: viewportHeight + DOCK_DISTANCE,
+							paddingBottom: tabBarHeight + 24
+						}
+					]}
+					onLayout={(event: LayoutChangeEvent) => setViewportHeight(event.nativeEvent.layout.height)}
+					onMomentumScrollEnd={event => snapDock(event.nativeEvent.contentOffset.y)}
 					onScroll={scrollHandler}
+					// The finger lifting is only the end of the gesture if no momentum follows;
+					// when it does, `onMomentumScrollEnd` is the one that settles the position.
+					onScrollEndDrag={event => {
+						const { contentOffset, velocity } = event.nativeEvent;
+
+						if (!velocity || Math.abs(velocity.y) < MOMENTUM_EPSILON) {
+							snapDock(contentOffset.y);
+						}
+					}}
+					ref={scrollRef}
 					scrollEventThrottle={16}
 					showsVerticalScrollIndicator={false}
 				>

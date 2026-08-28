@@ -49,6 +49,11 @@ const CORE_GAP = 5;
 /** Rest → pinned, in points. Scroll is locked to this distance. */
 const REST_Y = 116;
 const PIN_Y = 15;
+/**
+ * The screen underneath reads this to guarantee the dock can *finish*: it snaps the scroll
+ * offset to either end of this distance, and pads its content so the far end is reachable
+ * at all. A ring frozen half-collapsed is neither of its two designed states.
+ */
 const DOCK_DISTANCE = REST_Y - PIN_Y;
 
 const RING_SIZE = 236;

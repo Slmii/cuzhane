@@ -74,8 +74,18 @@ export type GroupSummary = {
 	 */
 	myRoundRange: BabRange | null;
 	myNextRoundRange: BabRange | null;
-	/** Babs belonging to seats nobody took, still unclaimed. */
+	/**
+	 * Babs belonging to seats nobody took, **minus anything a member has volunteered for** —
+	 * this one feeds the board, where a claimed bab is that person's work and must stop
+	 * wearing the hatch. `GroupInvitePreview` carries the same name for the whole pool.
+	 */
 	poolBabNumbers: number[];
+	/**
+	 * Every bab belonging to a seat nobody took, volunteered-for ones included — what the
+	 * Havuz card draws. Sent by the server rather than worked out from `assignedUserId`,
+	 * which a claim stranded on a since-filled seat gets wrong.
+	 */
+	poolAllBabNumbers: number[];
 	/** Pool babs the viewer has taken on top of their own share. */
 	myPoolBabNumbers: number[];
 };
@@ -110,7 +120,11 @@ export type GroupInvitePreview = {
 	isMember: boolean;
 	status: GroupStatus;
 	nextRange: BabRange | null;
-	/** Babs no member is reading this round — what a joiner picks up immediately. */
+	/**
+	 * Every bab belonging to an empty seat, volunteered-for ones included — the app's
+	 * "N bab sahipsiz", counted the way `PoolScreen` counts it. Not the same filter as
+	 * `GroupSummary.poolBabNumbers`; what a joiner gets is `nextRange`, not this.
+	 */
 	poolBabNumbers: number[];
 	roundEndsAt: string | null;
 	/** 1-based day within the current round — "Tur 3. gününde". Null while gathering. */
@@ -141,7 +155,8 @@ export type UserSettings = {
 	id: string;
 	userId: string;
 	language: 'tr' | 'en';
-	notificationsEnabled: boolean;
+	// No account-wide notifications switch: `reminderEnabled` is the only one, because it
+	// is the only one the app gives anybody a way to set. See `user.prisma`.
 	reminderEnabled: boolean;
 	reminderTime: string;
 	hasSeenOnboarding: boolean;

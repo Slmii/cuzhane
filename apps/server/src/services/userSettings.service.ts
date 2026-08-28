@@ -17,7 +17,6 @@ export const updateUserSettingsForUser = async (userId: string, input: UpdateUse
 
 	const updateData = {
 		...(input.language !== undefined ? { language: input.language } : {}),
-		...(input.notificationsEnabled !== undefined ? { notificationsEnabled: input.notificationsEnabled } : {}),
 		...(input.reminderEnabled !== undefined ? { reminderEnabled: input.reminderEnabled } : {}),
 		...(input.reminderTime !== undefined ? { reminderTime: input.reminderTime } : {}),
 		...(input.hasSeenOnboarding !== undefined ? { hasSeenOnboarding: input.hasSeenOnboarding } : {}),

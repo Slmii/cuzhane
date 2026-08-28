@@ -1,3 +1,4 @@
+import { NotificationOrchestrator } from '@/components/NotificationOrchestrator/NotificationOrchestrator.component';
 import { ClerkProvider } from '@/lib/context/ClerkProvider.context';
 import { useAppFocusSync } from '@/lib/hooks/useAppFocusSync';
 import { useAuthTokenSync } from '@/lib/hooks/useAuthTokenSync';
@@ -18,6 +19,7 @@ import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { NavigationContainer } from '@react-navigation/native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
+import * as Notifications from 'expo-notifications';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo } from 'react';
@@ -28,6 +30,20 @@ import { KeyboardProvider } from 'react-native-keyboard-controller';
 const queryClient = new QueryClient();
 
 SplashScreen.preventAutoHideAsync();
+
+/**
+ * Without this a reminder that fires while the app is open is delivered silently — iOS
+ * suppresses banners for the foreground app unless it's told otherwise. Set at module
+ * scope, before any component mounts, because a notification can arrive at any moment.
+ */
+Notifications.setNotificationHandler({
+	handleNotification: async () => ({
+		shouldPlaySound: true,
+		shouldSetBadge: false,
+		shouldShowBanner: true,
+		shouldShowList: true
+	})
+});
 
 const AppContainer = () => {
 	const { theme } = useThemeContext();
@@ -43,6 +59,7 @@ const AppContainer = () => {
 					<NavigationContainer linking={linking} theme={navigationTheme}>
 						<StatusBar style={theme.mode === 'dark' ? 'light' : 'dark'} />
 						<AppNavigator />
+						<NotificationOrchestrator />
 					</NavigationContainer>
 				</BottomSheetModalProvider>
 			</KeyboardProvider>

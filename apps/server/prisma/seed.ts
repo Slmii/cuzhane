@@ -26,6 +26,9 @@ import { DEFAULT_TIME_ZONE, ROUND_DAYS, roundEndsAt, roundIndexSince, roundStart
  *                      is not complete.
  * 13. Hicret Hatmi   — PRIVATE, dev_user is a MEMBER (not owner), part-read.
  * 14. Silsile Hatmi  — RUNNING + DAILY, dev_user is a MEMBER (not owner), part-read board.
+ * 15. Havuz Hatmi    — RUNNING + ROTATION with three empty seats, so the pool holds every
+ *                      state at once: one block dev_user has taken, one another member has,
+ *                      and one still going. dev_user is a MEMBER (not owner).
  *
  * Closed-round history (`pastRounds`) is spread across three of them so the Turlar screens
  * have every state to show:
@@ -536,6 +539,53 @@ const GROUPS: GroupSeed[] = [
 				]
 			},
 			{ roundsAgo: 4 }
+		]
+	},
+	{
+		name: 'Havuz Hatmi',
+		dedication: 'Sahipsiz kalan cüzler için',
+		inviteCode: 'HAVZ8N3K',
+		ownerUserId: 'dev_havuz_owner',
+		memberIdPrefix: 'dev_havuz',
+		// dev_user holds a seat but never owns the group.
+		slotUserIds: { 1: OWNER_USER_ID },
+		spots: 8,
+		cycle: 'DAILY',
+		reminderTime: '20:15',
+		splitMode: 'ROTATION',
+		visibility: 'OPEN',
+		status: 'RUNNING',
+		/**
+		 * Three days in, so the rotation offset is 3 and the pool is deliberately *not* the
+		 * empty seats' standing blocks: seats 5-7 stand on 65-100 but this round they leave
+		 * 1-39 uncovered. Anything that reads the pool off `rangeForSlot` instead of
+		 * `poolBlocks` shows the wrong numbers here, which is the point of the fixture.
+		 */
+		startedDaysAgo: 3,
+		autoStartWhenFull: true,
+		// 5 of 8 seats taken; slots 5, 6 and 7 are empty, so their blocks make up the pool.
+		members: [
+			['Nazlı Ergün', 6],
+			['Şeyma Ulaş', 7],
+			['Kaan Doruk', 4],
+			['Berk Yalçın', 9],
+			['Esra Tunç', 2],
+			null,
+			null,
+			null
+		],
+		/**
+		 * The pool wearing all three of its states at once — the fixture the Havuz screen
+		 * needs, since one claimed slot alone can't tell "mine" from "somebody else's":
+		 *
+		 *  slot 5 (babs 1-13)  — dev_user took it, part-read: the accent cells
+		 *  slot 6 (babs 14-26) — Berk Yalçın took it: the muted cells, and the card that
+		 *                        reads "… üstlendi" rather than "Üstlendin"
+		 *  slot 7 (babs 27-39) — nobody has it: still hatched, still offering "Üstlen"
+		 */
+		poolClaims: [
+			{ slotIndex: 5, byMemberIndex: 1, babsRead: 5 },
+			{ slotIndex: 6, byMemberIndex: 3, babsRead: 9 }
 		]
 	}
 ];

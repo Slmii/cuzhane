@@ -11,9 +11,6 @@ model GroupMember {
     userId      String
     displayName String
     role        GroupMemberRole @default(MEMBER)
-    // Stable seat number (0-based). Determines the bab block in FIXED groups and
-    // caps membership at `Group.spots`. Freed when a member leaves so the next
-    // joiner reuses the lowest open seat.
     slotIndex   Int
     joinedAt    DateTime        @default(now())
 
@@ -37,7 +34,6 @@ model Cheer {
     @@index([groupId, toUserId])
 }
 
-// "Notify me when a spot opens" on a full group.
 model GroupWaitlistEntry {
     id        String   @id @default(cuid())
     groupId   String

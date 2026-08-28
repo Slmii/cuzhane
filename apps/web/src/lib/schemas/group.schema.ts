@@ -5,8 +5,16 @@ type Translate = (key: StringKey, values?: Record<string, string | number>) => s
 
 const GROUP_NAME_MAX = 60;
 const DEDICATION_MAX = 120;
-const SPOTS_MIN = 5;
-const SPOTS_MAX = 50;
+
+/**
+ * The only group sizes offered, ascending. Each divides the hundred evenly — 20, 10 and 5
+ * babs a head — so nobody carries a leftover bab, which is what the "first `100 % spots`
+ * seats get one extra" rule exists to handle and what these three sizes avoid entirely.
+ *
+ * Exported because the picker walks this exact list: a stepper with its own bounds and the
+ * schema with its own would eventually disagree about what is selectable.
+ */
+export const SPOTS_VALUES = [5, 10, 20];
 
 /** Mirrors the server's `CreateGroupBodySchema` so the client rejects what the API would. */
 export const createGroupSchema = (t: Translate) =>
@@ -16,7 +24,11 @@ export const createGroupSchema = (t: Translate) =>
 		visibility: z.enum(['OPEN', 'PRIVATE']).default('OPEN'),
 		// Rotation is the design's default and the first option offered.
 		splitMode: z.enum(['ROTATION', 'FIXED']).default('ROTATION'),
-		spots: z.number().int().min(SPOTS_MIN).max(SPOTS_MAX).default(20),
+		spots: z
+			.number()
+			.int()
+			.refine(value => SPOTS_VALUES.includes(value), { message: t('fieldRequired') })
+			.default(20),
 		cycle: z.enum(['DAILY', 'WEEKLY']).default('WEEKLY'),
 		reminderEnabled: z.boolean().default(true),
 		reminderTime: z

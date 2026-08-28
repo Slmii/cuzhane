@@ -20,7 +20,6 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 type Props = NativeStackScreenProps<TabStackParamList, 'InvitePreview'>;
 
 /** The design lists a dozen; past that the row wraps into a wall of numbers. */
-const MAX_POOL_CHIPS = 12;
 
 export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 	const { groupId } = route.params;
@@ -160,6 +159,13 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 		: [data.dedication, t(splitModeLabelKey(data.splitMode))].filter(Boolean).join(' · ');
 	// What a joiner would actually be handed: their seat's share, capped by what's unclaimed.
 	const shareSize = data.nextRange ? data.nextRange.end - data.nextRange.start + 1 : 0;
+	// The seat's own block, spelled out. This is what a joiner is actually handed, and it
+	// exists whenever a seat is free — unlike `poolBabNumbers`, which carries only the part
+	// nobody has volunteered for and comes back empty in a group whose free seats have all
+	// been covered, taking the card with it.
+	const nextBabNumbers = data.nextRange
+		? Array.from({ length: shareSize }, (_, index) => (data.nextRange?.start ?? 0) + index)
+		: [];
 
 	/**
 	 * The meta table. A running group has a round to report and counts the seats that are
@@ -217,16 +223,32 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 							</CaptionText>
 						</CardSurface>
 
-						{data.poolBabNumbers.length > 0 ? (
+						{/*
+						 * One card, one subject: the babs *you* would be handed. It used to list
+						 * the pool instead, and the three numbers on it each answered a different
+						 * question — "33 sahipsiz" (the whole unclaimed pool), twelve chips (a
+						 * display cap) and "16'i sana atanır" (your seat's block). Worse, the
+						 * chips were the pool's lowest numbers, so the card showed babs 1-12
+						 * while promising 69-84. Your seat's block is the only one of the three
+						 * a joiner can act on, so it is the only one shown.
+						 */}
+						{nextBabNumbers.length > 0 ? (
 							<CardSurface style={styles.sectionCard}>
 								<View style={styles.sectionHead}>
-									<EyebrowText color={theme.colors.faintText}>{t('unclaimedBabs')}</EyebrowText>
+									<EyebrowText color={theme.colors.faintText}>{t('yourRange')}</EyebrowText>
+									{/* Not a second count of the chips below — every bab sitting in
+									    an empty seat, which is the group's state rather than your
+									    share, and includes the block you are about to take. The
+									    same number its Havuz screen shows. */}
 									<CaptionText color={theme.colors.accent}>
 										{t('unclaimedCount', { count: data.poolBabNumbers.length })}
 									</CaptionText>
 								</View>
+								{/* Every one of them, however many rows that takes. These are the babs
+								    you are agreeing to read, so a "+4" would be withholding part of
+								    the thing the card exists to show. */}
 								<View style={styles.babChips}>
-									{data.poolBabNumbers.slice(0, MAX_POOL_CHIPS).map(number => (
+									{nextBabNumbers.map(number => (
 										<View
 											key={number}
 											style={[
@@ -242,7 +264,7 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 									))}
 								</View>
 								<CaptionText color={theme.colors.subtext} style={styles.sectionNote}>
-									{t('joinMidNote', { count: Math.min(data.poolBabNumbers.length, shareSize) })}
+									{t('joinRangeNote', { count: shareSize })}
 								</CaptionText>
 							</CardSurface>
 						) : null}

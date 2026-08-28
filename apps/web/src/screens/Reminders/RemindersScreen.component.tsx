@@ -1,5 +1,4 @@
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { ScreenTitle } from '@/components/ScreenTitle/ScreenTitle.component';
 import { BrandMark } from '@/components/ui/BrandMark/BrandMark.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
@@ -18,10 +17,11 @@ import { useTranslation } from '@/lib/i18n/I18n.context';
 import { createRemindersSchema, RemindersForm } from '@/lib/schemas/profile.schema';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { toAlphaColor } from '@/lib/theme/tokens';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as Notifications from 'expo-notifications';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { UseFormWatch } from 'react-hook-form';
-import { ActivityIndicator, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, AppState, Platform, Pressable, StyleSheet, View } from 'react-native';
 
 const REMINDER_TIME_WRITE_DELAY_MS = 600;
 
@@ -54,6 +54,36 @@ type ReminderPersistenceProps = {
  */
 const ReminderPersistence = ({ onRemindersEnabled, updateSettings, watch }: ReminderPersistenceProps) => {
 	const writeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	/** The value a pending debounce is holding, so it can be forced out early. */
+	const pendingTimeRef = useRef<string | null>(null);
+
+	const flushPendingTime = useCallback(() => {
+		if (writeTimeoutRef.current) {
+			clearTimeout(writeTimeoutRef.current);
+			writeTimeoutRef.current = null;
+		}
+
+		if (pendingTimeRef.current !== null) {
+			updateSettings.mutate({ reminderTime: pendingTimeRef.current });
+			pendingTimeRef.current = null;
+		}
+	}, [updateSettings]);
+
+	/**
+	 * A debounce lives in a JS timer, and a timer dies with the process. Someone who picked
+	 * a new time and immediately swiped the app away lost it — the server kept the old
+	 * value, and the next cold start scheduled the old time and reverted the picker. Leaving
+	 * the foreground is the last moment we are certain to get, so the write goes out there.
+	 */
+	useEffect(() => {
+		const subscription = AppState.addEventListener('change', state => {
+			if (state !== 'active') {
+				flushPendingTime();
+			}
+		});
+
+		return () => subscription.remove();
+	}, [flushPendingTime]);
 
 	useEffect(() => {
 		// `watch`'s callback form only fires on subsequent changes, never for the initial
@@ -63,11 +93,15 @@ const ReminderPersistence = ({ onRemindersEnabled, updateSettings, watch }: Remi
 			if (name === 'reminderTime' && values.reminderTime) {
 				const nextReminderTime = values.reminderTime;
 
+				pendingTimeRef.current = nextReminderTime;
+
 				if (writeTimeoutRef.current) {
 					clearTimeout(writeTimeoutRef.current);
 				}
 
 				writeTimeoutRef.current = setTimeout(() => {
+					writeTimeoutRef.current = null;
+					pendingTimeRef.current = null;
 					updateSettings.mutate({ reminderTime: nextReminderTime });
 				}, REMINDER_TIME_WRITE_DELAY_MS);
 				return;
@@ -86,12 +120,11 @@ const ReminderPersistence = ({ onRemindersEnabled, updateSettings, watch }: Remi
 
 		return () => {
 			subscription.unsubscribe();
-
-			if (writeTimeoutRef.current) {
-				clearTimeout(writeTimeoutRef.current);
-			}
+			// Leaving the screen is also a last chance: send the pending time rather than
+			// dropping it with the timer.
+			flushPendingTime();
 		};
-	}, [onRemindersEnabled, updateSettings, watch]);
+	}, [flushPendingTime, onRemindersEnabled, updateSettings, watch]);
 
 	return null;
 };
@@ -108,10 +141,28 @@ export const RemindersScreen = () => {
 
 	const remindersSchema = useMemo(() => createRemindersSchema(), []);
 
+	/**
+	 * Re-read on every return to the foreground, not only on mount. Granting or revoking
+	 * happens in the device's own Settings, so the app is always in the background when it
+	 * changes — checked once, this screen would keep showing the "no permission" hint to
+	 * someone who had just granted it, or hide it from someone who had just revoked it.
+	 */
 	useEffect(() => {
-		Notifications.getPermissionsAsync()
-			.then(result => setHasNotifPermission(result.status === 'granted'))
-			.catch(() => setHasNotifPermission(true));
+		const readPermission = () => {
+			Notifications.getPermissionsAsync()
+				.then(result => setHasNotifPermission(result.status === 'granted'))
+				.catch(() => setHasNotifPermission(true));
+		};
+
+		readPermission();
+
+		const subscription = AppState.addEventListener('change', state => {
+			if (state === 'active') {
+				readPermission();
+			}
+		});
+
+		return () => subscription.remove();
 	}, []);
 
 	// Asking only when reminders are switched on keeps the prompt tied to the moment it
@@ -151,8 +202,13 @@ export const RemindersScreen = () => {
 		);
 	}
 
-	const firstGroup = groups?.[0];
-	const unreadCount = firstGroup ? firstGroup.myBabNumbers.length - firstGroup.myReadCount : 0;
+	// The same sum the scheduler makes, so this preview is the notification that will
+	// actually arrive rather than an illustration of one.
+	const runningGroups = (groups ?? []).filter(group => group.status === 'RUNNING' && group.myBabNumbers.length > 0);
+	const unreadCount = runningGroups.reduce(
+		(total, group) => total + Math.max(0, group.myBabNumbers.length - group.myReadCount),
+		0
+	);
 
 	return (
 		<ScreenContainer shouldIncludeTabBarOffset>
@@ -235,7 +291,7 @@ export const RemindersScreen = () => {
 			{hasNotifPermission ? null : (
 				<CaptionText color={theme.colors.subtext}>{t('notifPermissionHint')}</CaptionText>
 			)}
-			{firstGroup ? (
+			{runningGroups.length > 0 ? (
 				<>
 					<FieldLabelText color={theme.colors.faintText}>{t('preview')}</FieldLabelText>
 					<CardSurface style={styles.previewCard}>
@@ -247,9 +303,9 @@ export const RemindersScreen = () => {
 							/>
 						</View>
 						<View style={styles.previewTextColumn}>
-							<BodyStrongText>{t('notifTitle', { group: firstGroup.name })}</BodyStrongText>
+							<BodyStrongText>{t('notifTitle')}</BodyStrongText>
 							<CaptionText color={theme.colors.subtext} style={styles.previewBody}>
-								{t('notifBody', { unread: unreadCount, read: firstGroup.readCount })}
+								{unreadCount > 0 ? t('notifBody', { unread: unreadCount }) : t('notifBodyIdle')}
 							</CaptionText>
 						</View>
 					</CardSurface>
