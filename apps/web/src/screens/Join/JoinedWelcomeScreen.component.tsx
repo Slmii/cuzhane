@@ -160,27 +160,52 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 						<EyebrowText color={theme.colors.subtext} textAlign='center'>
 							{t('yourRange')}
 						</EyebrowText>
-						{/* The numbers themselves, not anonymous pills: these came out of the pool,
-						    so which ones you were handed is the point. Same chip as the invite
-						    preview lists them in — one screen apart, showing the same babs. */}
+						{/*
+						 * The numbers themselves, not anonymous pills: these came out of the pool,
+						 * so which ones you were handed is the point.
+						 *
+						 * Filled in the board's own `babReadByMe`, the same green the invite preview
+						 * gives them and the same one they wear once read. Three screens in a row
+						 * show these numbers — preview, here, then the board — and one colour makes
+						 * that one fact rather than three that merely look alike.
+						 */}
 						<View style={styles.numeralRow}>
 							{babNumbers.map(number => (
 								<View
 									key={number}
 									style={[
 										styles.numeral,
-										{ backgroundColor: theme.colors.accentSoft, borderRadius: theme.radius.sm }
+										{ backgroundColor: theme.colors.babReadByMe, borderRadius: theme.radius.sm }
 									]}
 								>
-									<CaptionText color={theme.colors.accent}>{number}</CaptionText>
+									{/* `onAccent`, the same pairing the board uses — the fill is dark
+									    enough that accent-on-accent would be unreadable. */}
+									<CaptionText color={theme.colors.onAccent}>{number}</CaptionText>
 								</View>
 							))}
 						</View>
+						{/*
+						 * Both clocks, as everywhere else the reset is stated. The reset is a
+						 * group-wide fact on the creator's zone, so for anyone in another one the
+						 * group's time alone is off by hours with nothing explaining why — and this
+						 * screen is the first thing a new member sees, which is exactly when that
+						 * would be most confusing.
+						 *
+						 * The label stays: unlike the group screen, there is no eyebrow here saying
+						 * what the time refers to.
+						 */}
 						{reset ? (
-							<View style={[styles.roundEndRow, { borderTopColor: theme.colors.divider }]}>
-								<Icon color={theme.colors.subtext} name='clock' size={14} strokeWidth={1.7} />
-								<CaptionText color={theme.colors.subtext}>
-									{`${t('roundEnds')} · ${reset.group}`}
+							<View style={[styles.roundEndBlock, { borderTopColor: theme.colors.divider }]}>
+								<View style={styles.roundEndRow}>
+									<Icon color={theme.colors.subtext} name='clock' size={14} strokeWidth={1.7} />
+									<CaptionText color={theme.colors.subtext}>
+										{`${t('roundEnds')} · ${reset.group}`}
+									</CaptionText>
+								</View>
+								{/* Accent and semibold, the same emphasis the group card gives it:
+								    the local time is the one the reader actually acts on. */}
+								<CaptionText color={theme.colors.accent} textAlign='center' weight='semibold'>
+									{reset.local}
 								</CaptionText>
 							</View>
 						) : null}
@@ -284,16 +309,24 @@ const styles = StyleSheet.create({
 		justifyContent: 'center',
 		marginTop: 12
 	},
+	// Two lines, never a wrapped one. A WEEKLY group states both clocks by weekday
+	// ("Her cumartesi 00:00 GMT+3" / "sende cuma 23:00"), which does not fit across one, and
+	// wrapping broke it wherever the width happened to run out — usually leaving "sende"
+	// hanging off the end of the first line, attached to the group's clock rather than to
+	// yours. The local time is its own fact, so it gets its own line.
+	roundEndBlock: {
+		borderTopWidth: StyleSheet.hairlineWidth,
+		gap: 4,
+		marginTop: 16,
+		paddingTop: 13
+	},
 	roundEndRow: {
 		alignItems: 'center',
-		borderTopWidth: StyleSheet.hairlineWidth,
 		flexDirection: 'row',
 		// Icon and text read as one centred line, not as a label pushed away from its value —
 		// the rest of this card is centred too.
 		gap: 7,
-		justifyContent: 'center',
-		marginTop: 16,
-		paddingTop: 13
+		justifyContent: 'center'
 	},
 	content: {
 		flexGrow: 1,

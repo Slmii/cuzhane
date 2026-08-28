@@ -239,16 +239,42 @@ export const setAssignedBabsReadForUser = async (
 		const group = await tx.group.findUniqueOrThrow({ where: { id: groupId }, include: { members: true } });
 		requireRunning(group);
 
-		// This round's rotated block and nothing else. Deliberately *not* the pool slots this
-		// member volunteered for: those are extra babs taken on top of a share, and sweeping
-		// them into "I read my share" makes one tap mark more than the screen offered. They
-		// are read one at a time in the reader, where taking one was also a per-bab decision.
-		//
-		// Rotated, not the seat's standing block, so this never touches a block the rotation
-		// has handed to somebody else this round.
+		/*
+		 * Everything the caller is holding this round: the rotated block *and* the pool blocks
+		 * they volunteered for — exactly the set the client calls `myBabNumbers`.
+		 *
+		 * The rotated block alone used to be the rule, on the reasoning that a volunteered
+		 * block is extra and one tap shouldn't mark more than the screen offered. That reading
+		 * was overtaken by the screen: Home's ring counts the whole share and says "33 bab · Bu
+		 * grubu bitir" over it. Marking seventeen of those thirty-three looked, to the person
+		 * who tapped it, like nothing had happened.
+		 *
+		 * Rotated rather than the seat's standing block, so this never touches a block the
+		 * rotation has handed to somebody else this round. The claim half is read off
+		 * `assignedUserId`, which means only this round's claims — the rollover clears it.
+		 */
 		const shareNumbers = shareBabNumbersToday(group, group.members, normalizedUserId);
+		/*
+		 * The claim half is intersected with this round's pool, exactly as the single-bab path
+		 * checks `isPool` rather than trusting `assignedUserId` alone.
+		 *
+		 * A claim should never outlive the round that made it — the rollover clears the whole
+		 * column and joining a seat clears the block it was offering — so in practice this
+		 * changes nothing. It is here because the one write that could prove that wrong is this
+		 * one: unmarking deletes `BabRead` rows, and history deleted for a block that turned out
+		 * not to be the caller's is not recoverable. A stale claim should cost a bab that stays
+		 * unread, never somebody else's record.
+		 */
+		const poolNumbers = new Set(poolBabNumbers(group, group.members, group.roundIndex));
+		const claimed = await tx.groupBab.findMany({
+			where: { groupId, assignedUserId: normalizedUserId },
+			select: { number: true }
+		});
+		const numbers = [
+			...new Set([...shareNumbers, ...claimed.map(bab => bab.number).filter(number => poolNumbers.has(number))])
+		];
 
-		const mine: Prisma.GroupBabWhereInput = { groupId, number: { in: shareNumbers } };
+		const mine: Prisma.GroupBabWhereInput = { groupId, number: { in: numbers } };
 
 		// Captured before the write, so the log records exactly the rows this call changed
 		// rather than everything that happens to be read now.

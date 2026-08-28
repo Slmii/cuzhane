@@ -24,7 +24,12 @@ import {
 	startGroupForUser,
 	updateGroupForUser
 } from '@services/groups.service';
-import { listPoolSlotsForUser, releasePoolSlotForUser, takePoolSlotForUser } from '@services/pool.service';
+import {
+	listPoolSlotsForUser,
+	markPoolReleasesSeenForUser,
+	releasePoolSlotForUser,
+	takePoolSlotForUser
+} from '@services/pool.service';
 import { coverMissedBabsForUser, getRoundDetailForUser, listRoundsForUser } from '@services/roundHistory.service';
 import { resolveDisplayName } from '@utils/displayName';
 import { NextFunction, Request, Response, Router } from 'express';
@@ -204,6 +209,28 @@ groupsRouter.delete(
 			} = res.locals;
 
 			const result = await releasePoolSlotForUser(userId, groupId, slotIndex);
+			res.status(OK).json(result);
+		} catch (error) {
+			next(error);
+		}
+	}
+);
+
+/*
+ * Dismisses the "a joiner took over the block you volunteered for" notices. Separate from
+ * the pool slot routes because it acknowledges a *past* event rather than changing who holds
+ * anything — nothing about the board moves.
+ */
+groupsRouter.patch(
+	'/:groupId/pool-releases/seen',
+	async (req: Request, res: Response<object, ResponseLocals>, next: NextFunction) => {
+		try {
+			const { groupId } = GroupIdParamsSchema.parse(req.params);
+			const {
+				auth: { userId }
+			} = res.locals;
+
+			const result = await markPoolReleasesSeenForUser(userId, groupId);
 			res.status(OK).json(result);
 		} catch (error) {
 			next(error);

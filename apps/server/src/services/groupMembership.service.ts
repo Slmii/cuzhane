@@ -6,17 +6,29 @@ import { normalizeUserId } from '@utils/normalizeUserId';
 import { syncCompletedAt } from './babs.service';
 import { autoStartIfFull } from './groups.service';
 import { requireMembership, requireOwner } from './groupAccess.service';
+import { getMemberProfiles } from '@utils/memberProfiles';
 import { toGroupDetail, toGroupMember, toInvitePreview } from './groupSerializers';
 import { poolBlockFor } from './pool.service';
+import { sendPushToUser } from './push.service';
+import { poolClaimReleasedPush, pushLanguageFor } from '@utils/pushCopy';
 import type { GroupDetail, GroupInvitePreview, GroupMember } from './groupSerializers';
 
 const loadDetail = async (groupId: string, viewerUserId: string): Promise<GroupDetail> => {
 	const group = await prisma.group.findUniqueOrThrow({
 		where: { id: groupId },
-		include: { members: true, babs: true, cheers: true }
+		include: {
+			members: true,
+			babs: true,
+			cheers: true,
+			// Only this viewer's, and only what they haven't acknowledged — the serializer
+			// narrows further to the round in progress.
+			poolReleases: { where: { userId: viewerUserId, seenAt: null } }
+		}
 	});
 
-	return toGroupDetail(group, group.babs, group.members, group.cheers, viewerUserId);
+	const profiles = await getMemberProfiles(group.members.map(member => member.userId));
+
+	return toGroupDetail(group, group.babs, group.members, group.cheers, viewerUserId, group.poolReleases, profiles);
 };
 
 export const previewGroupByCode = async (userId: string, rawCode: string): Promise<GroupInvitePreview> => {
@@ -72,6 +84,13 @@ const attemptJoin = async (
 	groupId: string,
 	viaInviteCode: boolean
 ): Promise<void> => {
+	/*
+	 * Whose claim the join released, and over which babs — collected inside the transaction
+	 * but told to them outside it. A push is a courtesy; the join is the point, and Expo
+	 * being slow or unreachable must never roll one back or hold the response open.
+	 */
+	let released: { userId: string; range: string } | null = null;
+
 	await prisma.$transaction(async tx => {
 		const group = await tx.group.findUnique({
 			where: { id: groupId },
@@ -140,10 +159,33 @@ const attemptJoin = async (
 		const coveredBabNumbers = poolBlockFor(group, group.members, slotIndex);
 
 		if (coveredBabNumbers) {
+			// Read before the clear — afterwards there is nothing left to ask. A block is taken
+			// whole by one person, so one row identifies them.
+			const claim = await tx.groupBab.findFirst({
+				where: { groupId, number: { in: coveredBabNumbers }, assignedUserId: { not: null } },
+				select: { assignedUserId: true }
+			});
+
 			await tx.groupBab.updateMany({
 				where: { groupId, number: { in: coveredBabNumbers }, assignedUserId: { not: null } },
 				data: { assignedUserId: null }
 			});
+
+			const startBab = coveredBabNumbers[0];
+			const endBab = coveredBabNumbers[coveredBabNumbers.length - 1];
+
+			if (claim?.assignedUserId && startBab !== undefined && endBab !== undefined) {
+				/*
+				 * Written in the same transaction as the clear, so the record and the thing it
+				 * describes can never disagree. The push that follows is the fast path; this is
+				 * what the volunteer still finds if it never arrives.
+				 */
+				await tx.poolClaimRelease.create({
+					data: { groupId, userId: claim.assignedUserId, roundIndex: group.roundIndex, startBab, endBab }
+				});
+
+				released = { userId: claim.assignedUserId, range: `${startBab}–${endBab}` };
+			}
 		}
 
 		await tx.groupWaitlistEntry.deleteMany({
@@ -154,6 +196,21 @@ const attemptJoin = async (
 		// rather than after the commit means the joiner's own response already says RUNNING.
 		await autoStartIfFull(tx, groupId);
 	});
+
+	/*
+	 * After the commit, and awaited rather than dangling: an unawaited promise here would
+	 * escape the request and any rejection would surface as an unhandled one. `sendPushToUser`
+	 * never throws, so awaiting it costs the join nothing and cannot fail it.
+	 */
+	if (released !== null) {
+		const { userId: volunteerId, range } = released as { userId: string; range: string };
+		const language = await pushLanguageFor(volunteerId);
+
+		await sendPushToUser(volunteerId, {
+			...poolClaimReleasedPush(language, range),
+			data: { groupId, kind: 'pool-claim-released' }
+		});
+	}
 };
 
 const performJoin = async (
@@ -278,5 +335,9 @@ export const listMembersForUser = async (userId: string, groupId: string): Promi
 		prisma.cheer.findMany({ where: { groupId } })
 	]);
 
-	return members.map(member => toGroupMember(group, member, babs, cheers, normalizedUserId));
+	// Photos come from Clerk, not the database — the app never copies them. Cached briefly,
+	// because this list polls every 30 seconds while anyone has it open.
+	const profiles = await getMemberProfiles(members.map(member => member.userId));
+
+	return members.map(member => toGroupMember(group, member, babs, cheers, normalizedUserId, profiles));
 };

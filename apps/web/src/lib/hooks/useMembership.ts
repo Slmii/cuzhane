@@ -8,6 +8,7 @@ import {
 	removeGroupMember,
 	type RemoveGroupMemberInput
 } from '@/api/memberships.api';
+import type { GroupSummary } from '@/lib/types/domain';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { groupQueryKeys } from './queryKeys';
 
@@ -53,11 +54,42 @@ export const useJoinGroup = () => {
 	});
 };
 
+/**
+ * Leaving takes the group off the shelf immediately, before the server answers.
+ *
+ * Optimistic because the screen navigates away on success: without it the reader lands back
+ * on Gruplarım and the group they just left is still sitting there until the refetch
+ * returns, which reads as the action having failed. The same cancel/snapshot/rollback shape
+ * as `useSetBabRead`.
+ *
+ * Only the shelf is written by hand. Keşfet is a server-side query that excludes groups you
+ * belong to, so the group reappears there on the invalidation below — guessing at that list
+ * locally would mean reproducing its filters and sort in two places.
+ */
 export const useLeaveGroup = () => {
 	const queryClient = useQueryClient();
 
 	return useMutation({
 		mutationFn: (groupId: string) => leaveGroup(groupId),
+		onMutate: async (groupId: string) => {
+			await queryClient.cancelQueries({ queryKey: groupQueryKeys.groups() });
+
+			const previousGroups = queryClient.getQueryData<GroupSummary[]>(groupQueryKeys.groups());
+
+			if (previousGroups) {
+				queryClient.setQueryData<GroupSummary[]>(
+					groupQueryKeys.groups(),
+					previousGroups.filter(group => group.id !== groupId)
+				);
+			}
+
+			return { previousGroups };
+		},
+		onError: (_error, _groupId, context) => {
+			if (context?.previousGroups) {
+				queryClient.setQueryData(groupQueryKeys.groups(), context.previousGroups);
+			}
+		},
 		onSettled: async () => {
 			await queryClient.invalidateQueries({ queryKey: groupQueryKeys.root() });
 		}

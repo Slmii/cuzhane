@@ -5,6 +5,7 @@ import { Avatar } from '@/components/ui/Avatar/Avatar.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { CellGrid } from '@/components/ui/CellGrid/CellGrid.component';
+import type { CellGridItem } from '@/components/ui/CellGrid/CellGrid.types';
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
 import { Hatch } from '@/components/ui/Hatch/Hatch.component';
 import { CaptionText, NumericText, StatText } from '@/components/ui/Typography/Typography.component';
@@ -14,17 +15,36 @@ import { useGetGroupMembers } from '@/lib/hooks/useMembership';
 import { useCoverBabs, useGetRoundDetail } from '@/lib/hooks/useRounds';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
+import type { AppTheme } from '@/lib/theme/tokens';
 import { BAB_COUNT, formatBabRange } from '@/lib/utils/babs';
 import { staggerWithinRuns } from '@/lib/utils/groups';
 import { roundRows, type RoundCellState, roundCellStates, type RoundRow } from '@/lib/utils/rounds';
 import type { TabStackParamList } from '@/navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 type Props = NativeStackScreenProps<TabStackParamList, 'RoundDetail'>;
 
 /** Entries in `legend` below — the skeleton stubs the same number so the card keeps its height. */
 const LEGEND_COUNT = 5;
+
+/** Stable empty, so the memo below doesn't hand the grid a new array on every render. */
+const NO_ITEMS: CellGridItem[] = [];
+
+/**
+ * Strong ring for your own share, soft for a block another member covered, nothing
+ * otherwise — but always a colour, so every cell keeps the same footprint.
+ *
+ * At module scope, taking the theme, so the memoised cells can call it without listing a
+ * per-render copy of it as a dependency that always changed.
+ */
+const outlineFor = (state: RoundCellState, theme: AppTheme) =>
+	state === 'missedMine'
+		? theme.colors.text
+		: state === 'takenByOther'
+		? theme.colors.borderStrong
+		: theme.colors.transparent;
 
 /**
  * 10a. One closed round, bab by bab, and who still owes what.
@@ -44,6 +64,40 @@ export const RoundDetailScreen = ({ navigation, route }: Props) => {
 	const roundQuery = useGetRoundDetail(groupId, roundIndex);
 	const membersQuery = useGetGroupMembers(groupId);
 	const coverBabs = useCoverBabs();
+
+	/*
+	 * The hundred cells, memoised above the early returns like the queries themselves.
+	 * `CellGrid` memoises a cell on the identity of the item it was handed, and this screen
+	 * rebuilt all hundred inline whenever anything on it rendered — covering a single bab
+	 * re-evaluated every animated style on the board.
+	 */
+	const cells = useMemo<CellGridItem[]>(() => {
+		const round = roundQuery.data;
+
+		if (!round) {
+			return NO_ITEMS;
+		}
+
+		const states = roundCellStates(round, viewerUserId);
+		// Stagger per run of like cells, so a covered stretch fills in sequence.
+		const delays = staggerWithinRuns(round.babs.map(bab => states[bab.number] ?? 'missed'));
+
+		return round.babs.map((bab, index) => {
+			const state = states[bab.number] ?? 'missed';
+
+			return {
+				key: String(bab.number),
+				label: String(bab.number),
+				backgroundColor: state === 'read' ? theme.colors.accent : theme.colors.missed,
+				fillDelay: delays[index] ?? 0,
+				labelColor: theme.colors.onAccent,
+				// Ownership rides on the outline, not the fill — the fill already carries
+				// read-or-missed and can't say both at once.
+				borderColor: outlineFor(state, theme),
+				isHatched: state === 'pool'
+			};
+		});
+	}, [roundQuery.data, theme, viewerUserId]);
 
 	if (groupQuery.isPending || roundQuery.isPending) {
 		return (
@@ -83,21 +137,9 @@ export const RoundDetailScreen = ({ navigation, route }: Props) => {
 
 	const round = roundQuery.data;
 	const members = membersQuery.data ?? [];
-	const cellStates = roundCellStates(round, viewerUserId);
-	// Stagger per run of like cells, so a covered stretch fills in sequence.
-	const fillDelays = staggerWithinRuns(round.babs.map(bab => cellStates[bab.number] ?? 'missed'));
 	const rows = roundRows(round, members, viewerUserId);
 
 	const cellColor = (state: RoundCellState) => (state === 'read' ? theme.colors.accent : theme.colors.missed);
-
-	// Strong ring for your own share, soft for a block another member covered, nothing
-	// otherwise — but always a colour, so every cell keeps the same footprint.
-	const outlineFor = (state: RoundCellState) =>
-		state === 'missedMine'
-			? theme.colors.text
-			: state === 'takenByOther'
-			? theme.colors.borderStrong
-			: theme.colors.transparent;
 
 	/**
 	 * Who did the covering, from the reader's point of view: "devraldığın" on your own row,
@@ -179,25 +221,7 @@ export const RoundDetailScreen = ({ navigation, route }: Props) => {
 				 * same reason: the sweep is what says *these* are the ones you just took.
 				 * Runs are keyed on state, since a cover changes a contiguous stretch.
 				 */}
-				<CellGrid
-					borderWidth={2}
-					columns={10}
-					items={round.babs.map((bab, index) => {
-						const state = cellStates[bab.number] ?? 'missed';
-
-						return {
-							key: String(bab.number),
-							label: String(bab.number),
-							backgroundColor: cellColor(state),
-							fillDelay: fillDelays[index],
-							labelColor: theme.colors.onAccent,
-							// Ownership rides on the outline, not the fill — the fill already
-							// carries read-or-missed and can't say both at once.
-							borderColor: outlineFor(state),
-							isHatched: state === 'pool'
-						};
-					})}
-				/>
+				<CellGrid borderWidth={2} columns={10} items={cells} />
 			</CardSurface>
 
 			<View style={styles.legend}>
@@ -208,7 +232,7 @@ export const RoundDetailScreen = ({ navigation, route }: Props) => {
 								styles.legendSwatch,
 								{
 									backgroundColor: cellColor(entry.state),
-									borderColor: outlineFor(entry.state)
+									borderColor: outlineFor(entry.state, theme)
 								}
 							]}
 						>
@@ -237,7 +261,7 @@ export const RoundDetailScreen = ({ navigation, route }: Props) => {
 			<View style={styles.rows}>
 				{rows.map(row => (
 					<CardSurface key={row.key} style={styles.row}>
-						<Avatar name={row.isPool ? t('pool') : row.name} size={38} />
+						<Avatar imageUrl={row.imageUrl} name={row.isPool ? t('pool') : row.name} size={38} />
 						<View style={styles.rowCopy}>
 							<CaptionText weight='semibold'>
 								{row.isPool ? t('pool') : row.isViewer ? `${row.name} · ${t('you')}` : row.name}

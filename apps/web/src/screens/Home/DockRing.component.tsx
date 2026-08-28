@@ -1,3 +1,4 @@
+import { SliceChip } from '@/components/SliceChip/SliceChip.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
 import { Typography } from '@/components/ui/Typography/Typography.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
@@ -591,7 +592,17 @@ export const DockRing = ({
 				</View>
 			</Animated.View>
 			<Animated.View pointerEvents='none' style={[styles.flyer, rangeStyle]}>
-				<View onLayout={(event: LayoutChangeEvent) => setRangeWidth(event.nativeEvent.layout.width)}>
+				{/*
+				 * The chip is *inside* the flyer, beside the range, so it rides the docking
+				 * transform with it — one node scaling into the pinned bar rather than a second
+				 * thing to keep in step. It is also inside the measured view, so the dock's
+				 * travel is computed from the range and its chip together and the pair lands
+				 * where a bare range would have.
+				 */}
+				<View
+					onLayout={(event: LayoutChangeEvent) => setRangeWidth(event.nativeEvent.layout.width)}
+					style={styles.rangeRow}
+				>
 					{/* The two numbers count to the new group's range rather than cutting. */}
 					<CountingText
 						color={theme.colors.accent}
@@ -599,6 +610,7 @@ export const DockRing = ({
 						value={group.range}
 						variant='display'
 					/>
+					<SliceChip count={group.moreCount} />
 				</View>
 			</Animated.View>
 
@@ -824,6 +836,13 @@ const styles = StyleSheet.create({
 	range: {
 		fontSize: 30,
 		lineHeight: 30
+	},
+	// The chip sits on the range's baseline-ish middle rather than its cap height, which is
+	// the design's `vertical-align:6px` on a 30px line.
+	rangeRow: {
+		alignItems: 'center',
+		flexDirection: 'row',
+		gap: 8
 	},
 	ring: {
 		height: RING_SIZE,

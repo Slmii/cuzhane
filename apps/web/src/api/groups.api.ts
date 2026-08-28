@@ -90,3 +90,7 @@ export const takePoolSlot = async ({ groupId, slotIndex }: TakePoolSlotInput) =>
 
 export const releasePoolSlot = async ({ groupId, slotIndex }: TakePoolSlotInput) =>
 	wrapperApi<{ success: boolean }>(`/groups/${groupId}/pool/${slotIndex}`, { method: 'DELETE' });
+
+/** Acknowledges the "a joiner took over the block you volunteered for" notices in a group. */
+export const markPoolReleasesSeen = async (groupId: string) =>
+	wrapperApi<{ success: boolean }>(`/groups/${groupId}/pool-releases/seen`, { method: 'PATCH' });

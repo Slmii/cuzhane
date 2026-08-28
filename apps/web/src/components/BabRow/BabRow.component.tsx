@@ -22,27 +22,45 @@ export const BabRow = ({ isRead, onOpen, onToggle, openLabel, style, subtitle, t
 
 	return (
 		<View style={[styles.row, { borderBottomColor: theme.colors.divider }, style]}>
+			{/*
+			 * The whole row marks the bab, not just the 26pt box. Everything up to "Oku" is one
+			 * target — the padding included, which is why it carries the row's insets rather
+			 * than the row doing it — because a list you tick your way down shouldn't ask for a
+			 * thumb on a checkbox each time.
+			 *
+			 * Children as a function so only the box still squeezes on press. Scaling the whole
+			 * row would shrink a line of text mid-sentence; dimming it is enough to say the tap
+			 * landed, and the tick is the thing being acted on.
+			 */}
 			<Pressable
 				accessibilityRole='checkbox'
 				accessibilityState={{ checked: isRead }}
 				onPress={onToggle}
-				style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1, transform: [{ scale: pressed ? 0.92 : 1 }] })}
+				style={({ pressed }) => [styles.toggleArea, { opacity: pressed ? 0.7 : 1 }]}
 			>
-				<Animated.View style={[styles.checkbox, checkboxStyle]}>
-					{isRead ? (
-						<Animated.View entering={ZoomIn.duration(220)}>
-							<Icon color={theme.colors.onAccent} name='check' size={13} strokeWidth={2.2} />
+				{({ pressed }) => (
+					<>
+						<Animated.View
+							style={[styles.checkbox, checkboxStyle, { transform: [{ scale: pressed ? 0.92 : 1 }] }]}
+						>
+							{isRead ? (
+								<Animated.View entering={ZoomIn.duration(220)}>
+									<Icon color={theme.colors.onAccent} name='check' size={13} strokeWidth={2.2} />
+								</Animated.View>
+							) : null}
 						</Animated.View>
-					) : null}
-				</Animated.View>
-			</Pressable>
 
-			<View style={styles.copy}>
-				<BodyStrongText color={isRead ? theme.colors.faintText : theme.colors.text}>{title}</BodyStrongText>
-				<Typography color={theme.colors.faintText} style={styles.subtitle} variant='caption'>
-					{subtitle}
-				</Typography>
-			</View>
+						<View style={styles.copy}>
+							<BodyStrongText color={isRead ? theme.colors.faintText : theme.colors.text}>
+								{title}
+							</BodyStrongText>
+							<Typography color={theme.colors.faintText} style={styles.subtitle} variant='caption'>
+								{subtitle}
+							</Typography>
+						</View>
+					</>
+				)}
+			</Pressable>
 
 			<Pressable
 				accessibilityRole='button'
@@ -92,7 +110,16 @@ const styles = StyleSheet.create({
 		borderBottomWidth: StyleSheet.hairlineWidth,
 		flexDirection: 'row',
 		gap: 13,
-		paddingHorizontal: 16,
+		// Only the right inset lives here now. The rest moved onto the tappable half, so the
+		// padding is part of the target rather than a dead margin around it.
+		paddingRight: 16
+	},
+	toggleArea: {
+		alignItems: 'center',
+		flex: 1,
+		flexDirection: 'row',
+		gap: 13,
+		paddingLeft: 16,
 		paddingVertical: 13
 	},
 	subtitle: {

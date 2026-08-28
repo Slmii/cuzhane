@@ -37,7 +37,13 @@ const CELL_RADIUS = 4;
  * per column cannot be seen, and waiting for a measurement would reintroduce the empty frame
  * this exists to remove.
  */
-export const GridSkeleton = ({ cellCount, columns = 10, hasHeader = true, legendCount = 3, style }: GridSkeletonProps) => {
+export const GridSkeleton = ({
+	cellCount,
+	columns = 10,
+	hasHeader = true,
+	legendCount = 3,
+	style
+}: GridSkeletonProps) => {
 	const { theme } = useThemeContext();
 	const isReducedMotion = useReducedMotion();
 	const pulse = useSharedValue(1);
@@ -49,10 +55,7 @@ export const GridSkeleton = ({ cellCount, columns = 10, hasHeader = true, legend
 
 		// Breathing, not blinking: a flat grey block reads as content that failed to load.
 		pulse.value = withRepeat(
-			withSequence(
-				withTiming(PULSE_MIN_OPACITY, { duration: PULSE_MS }),
-				withTiming(1, { duration: PULSE_MS })
-			),
+			withSequence(withTiming(PULSE_MIN_OPACITY, { duration: PULSE_MS }), withTiming(1, { duration: PULSE_MS })),
 			-1,
 			false
 		);

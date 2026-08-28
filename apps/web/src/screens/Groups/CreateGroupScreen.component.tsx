@@ -29,6 +29,8 @@ type CreateGroupScreenProps = NativeStackScreenProps<RootStackParamList, 'Create
 
 /** Tall enough for the busiest step without covering the status bar. */
 const SHEET_SNAP_POINTS = ['90%'];
+/** The step header is the scroll view's first child, and the one that stays put. */
+const STICKY_HEADER_INDICES = [0];
 
 const parseTimeToDate = (time: string) => {
 	const [hours, minutes] = time.split(':').map(Number);
@@ -139,12 +141,26 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 					};
 
 					return (
+						/*
+						 * The header is pinned so that which step you are on, and how far through you
+						 * are, stay on screen the whole way down a long form — scrolled away, step 2
+						 * lost both the dashes and its own title and the page stopped saying what it
+						 * was.
+						 *
+						 * Pinned with `stickyHeaderIndices` rather than lifted out as a sibling above
+						 * the scroll view. As a sibling it looked right but broke the keyboard: this
+						 * sheet runs `keyboardBehavior='interactive'`, and gorhom shrinks the sheet's
+						 * content while the keyboard is up on the assumption that the scrollable *is*
+						 * the content. With something else sharing the column, the height it took away
+						 * never came back — dismissing the keyboard left the form cut off mid-button
+						 * above a screenful of empty sheet.
+						 */
 						<BottomSheetScrollView
 							contentContainerStyle={styles.sheetContent}
 							showsVerticalScrollIndicator={false}
+							stickyHeaderIndices={STICKY_HEADER_INDICES}
 						>
 							<CreateGroupStepHeader onBack={handleBack} step={step} />
-
 							{step === 1 ? (
 								<>
 									<Field

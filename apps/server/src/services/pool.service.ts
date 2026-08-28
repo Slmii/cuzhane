@@ -3,6 +3,7 @@ import { HttpError } from '@config/httpError';
 import prisma from '@db/prisma';
 import { normalizeUserId } from '@utils/normalizeUserId';
 import { lockGroup, syncCompletedAt } from './babs.service';
+import { getMemberProfiles } from '@utils/memberProfiles';
 import { requireMembership } from './groupAccess.service';
 import { poolBlocks } from './groupSerializers';
 import { ensureCurrentRound, ensureCurrentRoundFor } from './rounds.service';
@@ -22,6 +23,8 @@ export type PoolSlot = {
 	/** Null while the slot is still unclaimed. */
 	takenByUserId: string | null;
 	takenByDisplayName: string | null;
+	/** The taker's profile photo, when they have one — members only, like the member list. */
+	takenByImageUrl: string | null;
 	takenByMe: boolean;
 	readCount: number;
 };
@@ -40,6 +43,7 @@ export const listPoolSlotsForUser = async (userId: string, groupId: string): Pro
 
 	const babByNumber = new Map(group.babs.map(bab => [bab.number, bab]));
 	const nameByUserId = new Map(group.members.map(member => [member.userId, member.displayName]));
+	const profiles = await getMemberProfiles(group.members.map(member => member.userId));
 
 	return poolBlocks(group, group.members, group.roundIndex).flatMap(block => {
 		const babs = block.babNumbers.map(number => babByNumber.get(number)).filter(bab => bab !== undefined);
@@ -58,7 +62,12 @@ export const listPoolSlotsForUser = async (userId: string, groupId: string): Pro
 				end: block.babNumbers[block.babNumbers.length - 1] as number,
 				babNumbers: block.babNumbers,
 				takenByUserId,
-				takenByDisplayName: takenByUserId ? nameByUserId.get(takenByUserId) ?? null : null,
+				// Clerk's name first, the stored one second — a member who set their name after
+				// joining is still stored under whatever their claims held on the day.
+				takenByDisplayName: takenByUserId
+					? profiles.get(takenByUserId)?.displayName ?? nameByUserId.get(takenByUserId) ?? null
+					: null,
+				takenByImageUrl: takenByUserId ? profiles.get(takenByUserId)?.imageUrl ?? null : null,
 				takenByMe: takenByUserId === normalizedUserId,
 				readCount: babs.filter(bab => bab.readAt !== null).length
 			}
@@ -193,6 +202,24 @@ export const releasePoolSlotForUser = async (
 		// Releasing can un-complete the group, so the sync runs in the same transaction as
 		// the write that changed the read state — never after it.
 		await syncCompletedAt(tx, groupId);
+	});
+
+	return { success: true };
+};
+
+/**
+ * Acknowledges the "a joiner took over the block you volunteered for" notices in a group.
+ *
+ * Marking rather than deleting: the row is the only record that the claim existed, and it
+ * is the *notice* being dismissed, not the fact.
+ */
+export const markPoolReleasesSeenForUser = async (userId: string, groupId: string): Promise<{ success: true }> => {
+	const normalizedUserId = normalizeUserId(userId);
+	await requireMembership(normalizedUserId, groupId);
+
+	await prisma.poolClaimRelease.updateMany({
+		where: { groupId, userId: normalizedUserId, seenAt: null },
+		data: { seenAt: new Date() }
 	});
 
 	return { success: true };

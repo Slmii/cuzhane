@@ -27,6 +27,7 @@ export type IconName =
 	| 'share'
 	| 'settings'
 	| 'key'
+	| 'undo'
 	// Status
 	| 'clock'
 	| 'play'

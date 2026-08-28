@@ -3,6 +3,7 @@ import { AppBottomSheet } from '@/components/ui/BottomSheet/BottomSheet.componen
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { CellGrid } from '@/components/ui/CellGrid/CellGrid.component';
+import type { CellGridItem } from '@/components/ui/CellGrid/CellGrid.types';
 import { Chip } from '@/components/ui/Chip/Chip.component';
 import { CodeInput } from '@/components/ui/CodeInput/CodeInput.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
@@ -26,7 +27,7 @@ import { BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Clipboard from 'expo-clipboard';
-import { useRef, useState, type ComponentRef } from 'react';
+import { useMemo, useRef, useState, type ComponentRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { JoinByCodeSheetProps } from './JoinByCodeSheet.types';
 
@@ -125,6 +126,17 @@ export const JoinByCodeSheet = ({ isVisible, onClose }: JoinByCodeSheetProps) =>
 	};
 
 	const data = lookup.data;
+	// Memoised for the same reason as every other grid's cells: `CellGrid` keeps a cell only
+	// while the item it was handed keeps its identity, and this sheet re-renders on every
+	// keystroke of the code above.
+	const seats = useMemo<CellGridItem[]>(
+		() =>
+			Array.from({ length: data?.spots ?? 0 }, (_, index) => ({
+				backgroundColor: theme.colors.accent,
+				key: index
+			})),
+		[data?.spots, theme]
+	);
 
 	// Sized to its content like every other sheet in the app, not pinned to a detent. The
 	// three steps are short — eight cells and a button, a card, a grid — so a fixed
@@ -280,15 +292,7 @@ export const JoinByCodeSheet = ({ isVisible, onClose }: JoinByCodeSheetProps) =>
 							</View>
 							{/* Seats drawn full rather than counted: a solid block of them settles
 							    the question in a way the number "25 / 25" invites argument about. */}
-							<CellGrid
-								columns={SEAT_COLUMNS}
-								gap={3}
-								items={Array.from({ length: data.spots }, (_, index) => ({
-									backgroundColor: theme.colors.accent,
-									key: index
-								}))}
-								radius={4}
-							/>
+							<CellGrid columns={SEAT_COLUMNS} gap={3} items={seats} radius={4} />
 						</CardSurface>
 
 						<AppButton onPress={handleDiscover} style={styles.primary} title={t('discover')} />

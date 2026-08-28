@@ -4,9 +4,21 @@ import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { SpotsGridProps } from './SpotsGrid.types';
 
-const CASCADE_STEP_MS = 26;
-/** Long enough for the last ghost's shrink to finish: 300ms plus a few steps of stagger. */
-const GHOST_LIFETIME_MS = 340;
+const CASCADE_STEP_MS = 18;
+/** `CellGrid`'s `shrink` keyframe. Kept in step by hand — it is the ghost's whole lifetime. */
+const SHRINK_DURATION_MS = 240;
+
+/**
+ * How long the ghosts stay mounted: the last one's stagger plus its shrink, and a frame's
+ * grace so the animation ends before the cell is dropped rather than under it.
+ *
+ * Derived rather than fixed. A flat 340ms was enough back when the seat count moved one at
+ * a time, but the picker now steps 5 → 10 → 20, so going down drops ten seats at once and
+ * the tail of the cascade — 9 × 26ms of stagger before a 300ms shrink even starts — was
+ * still mid-shrink when the timer unmounted it. The last few seats blinked out instead of
+ * collapsing, which is the exact failure the ghosts exist to prevent.
+ */
+const ghostLifetimeMs = (ghostCount: number) => (ghostCount - 1) * CASCADE_STEP_MS + SHRINK_DURATION_MS + 32;
 
 /**
  * The small seat lattice: filled cells are taken spots, empty cells are open.
@@ -46,7 +58,7 @@ export const SpotsGrid = ({ columns = 10, filled, style, total }: SpotsGridProps
 			return undefined;
 		}
 
-		const timeout = setTimeout(() => setGhostCount(0), GHOST_LIFETIME_MS);
+		const timeout = setTimeout(() => setGhostCount(0), ghostLifetimeMs(ghostCount));
 
 		return () => clearTimeout(timeout);
 	}, [ghostCount]);
@@ -67,11 +79,18 @@ export const SpotsGrid = ({ columns = 10, filled, style, total }: SpotsGridProps
 			key: index,
 			entryDelay: index >= shownCount ? (index - shownCount) * CASCADE_STEP_MS : undefined
 		}));
-		// Keyed past the live seats so a ghost is never confused with the seat that took its
-		// place — reusing the index would have React treat the shrink as a colour change.
+		/*
+		 * Keyed past the live seats so a ghost is never confused with the seat that took its
+		 * place — reusing the index would have React treat the shrink as a colour change.
+		 *
+		 * The cascade runs *backwards*: the last seat goes first and the wave retreats toward
+		 * the ones you kept. Delayed by index instead, removal travelled the same way as the
+		 * addition it was undoing, so plus and minus played the same gesture and the minus
+		 * read as a second helping rather than as a reversal.
+		 */
 		const ghosts = Array.from({ length: ghostCount }, (_, index) => ({
 			backgroundColor: theme.colors.babOpen,
-			ghostDelay: index * CASCADE_STEP_MS,
+			ghostDelay: (ghostCount - 1 - index) * CASCADE_STEP_MS,
 			key: `ghost-${total + index}`
 		}));
 

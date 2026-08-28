@@ -99,14 +99,21 @@ export const slotIndexForBab = (babNumber: number, spots: number): number | null
 /** Babs per person, rounded — used for the "20 kişi · 5 bab/kişi" caption. */
 export const babsPerPerson = (spots: number) => (spots > 0 ? Math.round(BAB_COUNT / spots) : 0);
 
-/** Renders a set of bab numbers as "1–5", or "1–5, 12" when it isn't contiguous. */
-export const formatBabRange = (numbers: number[]): string => {
+/**
+ * The unbroken stretches in a set of bab numbers, in order: `[1..5, 12]` → `[1–5, 12–12]`.
+ *
+ * A share is one stretch in the ordinary case and several once the pool is involved —
+ * volunteering for a block puts a second, unconnected range in your hands. Both the label
+ * and the "current slice, plus N more" summary are built from this, so they can't disagree
+ * about where one range ends and the next begins.
+ */
+export const babRuns = (numbers: number[]): BabRange[] => {
 	if (numbers.length === 0) {
-		return '—';
+		return [];
 	}
 
 	const sorted = [...numbers].sort((a, b) => a - b);
-	const parts: string[] = [];
+	const runs: BabRange[] = [];
 	let start = sorted[0] as number;
 	let previous = start;
 
@@ -116,15 +123,22 @@ export const formatBabRange = (numbers: number[]): string => {
 			continue;
 		}
 
-		parts.push(start === previous ? `${start}` : `${start}–${previous}`);
+		runs.push({ start, end: previous });
 		start = current;
 		previous = current;
 	}
 
-	parts.push(start === previous ? `${start}` : `${start}–${previous}`);
+	runs.push({ start, end: previous });
 
-	return parts.join(', ');
+	return runs;
 };
+
+/** One run as the design writes it: "12" when it is a single bab, "1–5" otherwise. */
+export const formatRun = (run: BabRange) => (run.start === run.end ? `${run.start}` : `${run.start}–${run.end}`);
+
+/** Renders a set of bab numbers as "1–5", or "1–5, 12" when it isn't contiguous. */
+export const formatBabRange = (numbers: number[]): string =>
+	numbers.length === 0 ? '—' : babRuns(numbers).map(formatRun).join(', ');
 
 export const progressPercent = (read: number, total = BAB_COUNT) =>
 	total <= 0 ? 0 : Math.max(0, Math.min(100, Math.round((read / total) * 100)));

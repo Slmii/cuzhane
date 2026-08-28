@@ -1,4 +1,5 @@
 import { useNotificationNavigation } from '@/lib/hooks/useNotificationNavigation';
+import { usePushTokenRegistration } from '@/lib/hooks/usePushTokenRegistration';
 import { useReminderNotificationSync } from '@/lib/hooks/useReminderNotificationSync';
 
 /**
@@ -14,6 +15,9 @@ import { useReminderNotificationSync } from '@/lib/hooks/useReminderNotification
 export const NotificationOrchestrator = () => {
 	useReminderNotificationSync();
 	useNotificationNavigation();
+	// Server-sent notifications need somewhere to go. Registered here for the same reason the
+	// reconciler is: it must happen whether or not anyone opens the Reminders tab.
+	usePushTokenRegistration();
 
 	return null;
 };

@@ -7,6 +7,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import type { MemberRowProps } from './MemberRow.types';
 
 export const MemberRow = ({
+	imageUrl,
 	cheerLabel,
 	isCheered = false,
 	name,
@@ -21,7 +22,7 @@ export const MemberRow = ({
 
 	return (
 		<View style={[styles.row, { borderBottomColor: theme.colors.divider }, style]}>
-			<Avatar name={name} size={34} tone='sand' />
+			<Avatar imageUrl={imageUrl} name={name} size={34} tone='sand' />
 
 			<View style={styles.copy}>
 				<View style={styles.nameRow}>

@@ -48,9 +48,9 @@ determines their block of babs. 100 is split across seats as evenly as possible:
 
 Two split modes:
 
-- **FIXED** — joining assigns you a contiguous range.
-- **FREE** — babs stay unassigned and members claim them; marking an unclaimed bab as read claims it in
-  the same atomic write.
+-   **FIXED** — joining assigns you a contiguous range.
+-   **FREE** — babs stay unassigned and members claim them; marking an unclaimed bab as read claims it in
+    the same atomic write.
 
 ## Scripts
 

@@ -9,6 +9,11 @@ export type GroupMember = {
 	id: string;
 	userId: string;
 	displayName: string;
+	/**
+	 * The member's profile photo, when they have set one — null otherwise, and the generated
+	 * avatar stands in. Members only: it is never on `GroupInvitePreview`.
+	 */
+	imageUrl: string | null;
 	role: GroupMemberRole;
 	slotIndex: number;
 	joinedAt: string;
@@ -90,6 +95,13 @@ export type GroupSummary = {
 	myPoolBabNumbers: number[];
 };
 
+/** One "the block you took has passed to a new member" notice, for the viewer. */
+export type PoolClaimReleaseNotice = {
+	id: string;
+	startBab: number;
+	endBab: number;
+};
+
 export type GroupDetail = GroupSummary & {
 	ownerUserId: string;
 	inviteCode: string | null;
@@ -99,6 +111,12 @@ export type GroupDetail = GroupSummary & {
 	startsAt: string;
 	babs: GroupBab[];
 	members: GroupMember[];
+	/**
+	 * Blocks the viewer volunteered for that a joiner took over, not yet acknowledged. The
+	 * push is the fast path; this is what survives a denied permission or a phone that was
+	 * off. Narrowed by the server to the round in progress.
+	 */
+	poolReleases: PoolClaimReleaseNotice[];
 };
 
 /** Unauthenticated-ish preview shown when opening an invite link or entering a code. */
@@ -147,6 +165,8 @@ export type PoolSlot = {
 	/** Null while the slot is still unclaimed. */
 	takenByUserId: string | null;
 	takenByDisplayName: string | null;
+	/** The taker's profile photo, when they have one — members only. */
+	takenByImageUrl: string | null;
 	takenByMe: boolean;
 	readCount: number;
 };

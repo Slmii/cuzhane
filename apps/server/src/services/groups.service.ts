@@ -6,6 +6,7 @@ import { formatInviteCode, generateInviteCode } from '@utils/inviteCode';
 import { normalizeUserId } from '@utils/normalizeUserId';
 import { roundEndsAt } from '@utils/rounds';
 import type { Prisma } from '../generated/prisma/client';
+import { getMemberProfiles } from '@utils/memberProfiles';
 import { requireMembership, requireOwner } from './groupAccess.service';
 import { toGroupDetail, toGroupSummary } from './groupSerializers';
 import { ensureCurrentRoundFor, ensureCurrentRoundsFor } from './rounds.service';
@@ -110,10 +111,27 @@ export const getGroupDetailForUser = async (userId: string, groupId: string): Pr
 
 	const group = await prisma.group.findUniqueOrThrow({
 		where: { id: groupId },
-		include: { members: true, babs: true, cheers: true }
+		include: {
+			members: true,
+			babs: true,
+			cheers: true,
+			// Only this viewer's, and only what they haven't acknowledged — the serializer
+			// narrows further to the round in progress.
+			poolReleases: { where: { userId: normalizedUserId, seenAt: null } }
+		}
 	});
 
-	return toGroupDetail(group, group.babs, group.members, group.cheers, normalizedUserId);
+	const profiles = await getMemberProfiles(group.members.map(member => member.userId));
+
+	return toGroupDetail(
+		group,
+		group.babs,
+		group.members,
+		group.cheers,
+		normalizedUserId,
+		group.poolReleases,
+		profiles
+	);
 };
 
 export const createGroupForUser = async (

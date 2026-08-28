@@ -30,6 +30,21 @@ export const useNotificationNavigation = () => {
 
 		handledIdentifier.current = identifier;
 
+		/*
+		 * A server-sent notification says where it came from; the local reminder does not.
+		 * Anything carrying a `groupId` is about one group, so it opens that group — landing
+		 * on Ana sayfa after being told a specific block changed hands would make the reader
+		 * hunt for what they were just told about.
+		 */
+		const data = response?.notification.request.content.data;
+		const groupId = typeof data?.groupId === 'string' ? data.groupId : null;
+
+		if (groupId) {
+			navigation.navigate('Tabs', { screen: 'Groups', params: { screen: 'GroupDetail', params: { groupId } } });
+
+			return;
+		}
+
 		navigation.navigate('Tabs', { screen: 'Home' });
 	}, [navigation, response]);
 };

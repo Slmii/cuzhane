@@ -19,7 +19,21 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 type Props = NativeStackScreenProps<TabStackParamList, 'InvitePreview'>;
 
-/** The design lists a dozen; past that the row wraps into a wall of numbers. */
+/**
+ * Chips per row. Eight is the most that fits three digits at this size, and a share is
+ * never so long that the rows outgrow the card — 100 babs over the smallest group is 20.
+ */
+const BAB_COLUMNS = 8;
+
+const chunk = (numbers: number[], size: number): number[][] => {
+	const rows: number[][] = [];
+
+	for (let index = 0; index < numbers.length; index += size) {
+		rows.push(numbers.slice(index, index + size));
+	}
+
+	return rows;
+};
 
 export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 	const { groupId } = route.params;
@@ -166,15 +180,36 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 	const nextBabNumbers = data.nextRange
 		? Array.from({ length: shareSize }, (_, index) => (data.nextRange?.start ?? 0) + index)
 		: [];
+	// Explicit rows of `flex: 1`, the same way `CellGrid` lays the board out. Wrapping
+	// content-sized chips left whatever the last one didn't fill as a ragged margin down the
+	// right of the card, and the gap read as a missing chip rather than as spare room.
+	const babRows = chunk(nextBabNumbers, BAB_COLUMNS);
 
 	/**
 	 * The meta table. A running group has a round to report and counts the seats that are
 	 * taken; a gathering one has neither, so it states the capacity it is waiting to fill
 	 * and drops the round row entirely — "when it starts" is the card above.
 	 */
-	const metaRows: { label: string; value: string }[] = [
+	const metaRows: { label: string; value: string; secondary?: string }[] = [
 		{ label: t('cadence'), value: t(cycleLabelKey(data.cycle)) },
-		...(isRunning ? [{ label: t('roundEnds'), value: reset ? reset.group : '—' }] : []),
+		/*
+		 * Both clocks, as everywhere else the reset is stated. Someone deciding whether to join
+		 * is exactly who needs the local one — the group's zone is the creator's and they may
+		 * not share it.
+		 *
+		 * On its own line rather than appended: a weekly group states both by weekday
+		 * ("Her cumartesi 00:00 GMT+3", "sende cuma 23:00"), which is far too long to sit
+		 * beside a label in a table row.
+		 */
+		...(isRunning
+			? [
+					{
+						label: t('roundEnds'),
+						value: reset ? reset.group : '—',
+						...(reset ? { secondary: reset.local } : {})
+					}
+			  ]
+			: []),
 		{
 			label: t('groupSize'),
 			value: isRunning ? `${data.memberCount} / ${data.spots}` : `${data.spots}`
@@ -244,22 +279,40 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 										{t('unclaimedCount', { count: data.poolBabNumbers.length })}
 									</CaptionText>
 								</View>
-								{/* Every one of them, however many rows that takes. These are the babs
-								    you are agreeing to read, so a "+4" would be withholding part of
-								    the thing the card exists to show. */}
+								{/*
+								 * Every one of them, however many rows that takes. These are the babs
+								 * you are agreeing to read, so a "+4" would be withholding part of
+								 * the thing the card exists to show.
+								 *
+								 * Filled in the board's `babReadByMe`, the same green they will wear
+								 * once they are yours — so this card, the Katıldın screen and the
+								 * board are all showing one fact rather than three similar-looking
+								 * ones. `onAccent` for the numeral: the fill is too dark to read
+								 * accent against.
+								 */}
 								<View style={styles.babChips}>
-									{nextBabNumbers.map(number => (
-										<View
-											key={number}
-											style={[
-												styles.babChip,
-												{
-													backgroundColor: theme.colors.accentSoft,
-													borderRadius: theme.radius.sm
-												}
-											]}
-										>
-											<CaptionText color={theme.colors.accent}>{number}</CaptionText>
+									{babRows.map(row => (
+										<View key={row[0]} style={styles.babRow}>
+											{row.map(number => (
+												<View
+													key={number}
+													style={[
+														styles.babChip,
+														{
+															backgroundColor: theme.colors.babReadByMe,
+															borderRadius: theme.radius.sm
+														}
+													]}
+												>
+													<CaptionText color={theme.colors.onAccent}>{number}</CaptionText>
+												</View>
+											))}
+											{/* A short last row keeps the chip width of the full ones rather
+											    than stretching to fill — five babs spread across the card
+											    would read as a different kind of thing to the rows above. */}
+											{Array.from({ length: BAB_COLUMNS - row.length }, (_, index) => (
+												<View key={`gap-${index}`} style={styles.babChipSpacer} />
+											))}
 										</View>
 									))}
 								</View>
@@ -331,7 +384,18 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 							]}
 						>
 							<CaptionText color={theme.colors.subtext}>{row.label}</CaptionText>
-							<CaptionText weight='semibold'>{row.value}</CaptionText>
+							{/* A right-aligned column, so a second line stacks under the first
+							    instead of running back towards the label. */}
+							<View style={styles.metaValue}>
+								<CaptionText textAlign='right' weight='semibold'>
+									{row.value}
+								</CaptionText>
+								{row.secondary ? (
+									<CaptionText color={theme.colors.accent} textAlign='right' weight='semibold'>
+										{row.secondary}
+									</CaptionText>
+								) : null}
+							</View>
 						</View>
 					))}
 				</CardSurface>
@@ -389,14 +453,20 @@ const styles = StyleSheet.create({
 		marginTop: 8
 	},
 	babChip: {
-		paddingHorizontal: 9,
+		alignItems: 'center',
+		flex: 1,
 		paddingVertical: 5
 	},
+	babChipSpacer: {
+		flex: 1
+	},
 	babChips: {
-		flexDirection: 'row',
-		flexWrap: 'wrap',
 		gap: 6,
 		marginTop: 12
+	},
+	babRow: {
+		flexDirection: 'row',
+		gap: 6
 	},
 	chipRow: {
 		flexDirection: 'row',
@@ -459,6 +529,12 @@ const styles = StyleSheet.create({
 		justifyContent: 'space-between',
 		paddingHorizontal: 15,
 		paddingVertical: 13
+	},
+	// Shrinks rather than pushing the label off: a weekly group's reset line is long.
+	metaValue: {
+		alignItems: 'flex-end',
+		flexShrink: 1,
+		gap: 2
 	},
 	sectionBar: {
 		marginBottom: 9,

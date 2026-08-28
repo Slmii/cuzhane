@@ -5,6 +5,26 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLiveRefetchInterval } from './useLiveRefetchInterval';
 import { groupQueryKeys, profileQueryKeys } from './queryKeys';
 
+/**
+ * A group summary with the viewer's share marked read, or unread.
+ *
+ * Home's ring is driven entirely by these two numbers — `myReadCount` against the size of
+ * `myBabNumbers` — and never by the board, which that screen doesn't even fetch. Painting
+ * only the board optimistically left the ring waiting on the round trip, so the app's
+ * primary action sat there for a moment doing nothing visible.
+ *
+ * `myReadCount` counts babs in the share read by *anyone*, so marking all read makes it
+ * exactly the share's size. Clearing is the imprecise direction — a bab of yours that
+ * somebody else read this round stays read — so this guesses zero and lets the refetch
+ * correct it. On Home that guess is almost always right, and it is wrong only by a bab or
+ * two for the moment it stands.
+ */
+const withShareRead = (group: GroupSummary, read: boolean): GroupSummary => ({
+	...group,
+	myReadCount: read ? group.myBabNumbers.length : 0,
+	myNextBabNumber: read ? null : group.myBabNumbers[0] ?? null
+});
+
 export const useGetBabs = (groupId: string) => {
 	const refetchInterval = useLiveRefetchInterval();
 
@@ -58,11 +78,41 @@ export const useSetAllBabsRead = () => {
 				);
 			}
 
-			return { previousBabs };
+			/*
+			 * The same flip on the summaries the ring and the group heading actually read from.
+			 * Both caches, because the two callers populate different ones — Home has only the
+			 * list, the group screen has `groupById`.
+			 */
+			const previousGroups = queryClient.getQueryData<GroupSummary[]>(groupQueryKeys.groups());
+			const previousGroup = queryClient.getQueryData<GroupSummary>(groupQueryKeys.groupById(groupId));
+
+			if (previousGroups) {
+				queryClient.setQueryData<GroupSummary[]>(
+					groupQueryKeys.groups(),
+					previousGroups.map(group => (group.id === groupId ? withShareRead(group, read) : group))
+				);
+			}
+
+			if (previousGroup) {
+				queryClient.setQueryData<GroupSummary>(
+					groupQueryKeys.groupById(groupId),
+					withShareRead(previousGroup, read)
+				);
+			}
+
+			return { previousBabs, previousGroup, previousGroups };
 		},
 		onError: (_error, { groupId }, context) => {
 			if (context?.previousBabs) {
 				queryClient.setQueryData(groupQueryKeys.babs(groupId), context.previousBabs);
+			}
+
+			if (context?.previousGroups) {
+				queryClient.setQueryData(groupQueryKeys.groups(), context.previousGroups);
+			}
+
+			if (context?.previousGroup) {
+				queryClient.setQueryData(groupQueryKeys.groupById(groupId), context.previousGroup);
 			}
 		},
 		onSettled: async (_data, _error, { groupId }) => {

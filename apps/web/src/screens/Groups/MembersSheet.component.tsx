@@ -13,13 +13,27 @@ import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { GroupMember } from '@/lib/types/domain';
 import { formatBabRange } from '@/lib/utils/babs';
 import { BottomSheetScrollView } from '@gorhom/bottom-sheet';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import type { MembersSheetProps } from './MembersSheet.types';
 
-/** Matches the join flow: a tall sheet that still shows a strip of the screen beneath. */
+/**
+ * Three quarters of the screen — **one** detent, deliberately.
+ *
+ * A list of twenty members genuinely runs long, but most groups are five or six and a
+ * full-height sheet opened onto a screen of empty space below them.
+ *
+ * A second, taller detent looks harmless and isn't: the sheet sizes its content to the
+ * *largest* snap point, because that is the height it may be dragged to. At the smaller one
+ * the bottom of that content sits below the screen, and a scroll view inside it ends there
+ * too — so the list scrolled to its end with the last members still off-screen, unreachable
+ * by any gesture. One detent keeps the content and the visible sheet the same height.
+ */
+const SHEET_SNAP_POINTS = ['75%'];
+/** Stood up once, because the memoised rows below depend on the identity of this list. */
+const NO_MEMBERS: GroupMember[] = [];
+/** Keeps the sheet clear of the notch even at its tallest. */
 const SHEET_TOP_INSET = 52;
-const SHEET_SNAP_POINTS = ['100%'];
 
 /**
  * Who is in the group — a sheet rather than a pushed screen, because it is something you
@@ -38,9 +52,38 @@ export const MembersSheet = ({ groupId, isVisible, onClose }: MembersSheetProps)
 	const [memberToRemove, setMemberToRemove] = useState<GroupMember | null>(null);
 
 	const detail = groupQuery.data;
-	const members = membersQuery.data ?? [];
+	// `?? []` inline would be a new array every render, and the rows below are memoised on it.
+	const members = membersQuery.data ?? NO_MEMBERS;
 	const isPending = groupQuery.isPending || membersQuery.isPending;
 	const isError = groupQuery.isError || membersQuery.isError || !detail;
+
+	/*
+	 * The rows are built once per change of data, not once per render of this sheet.
+	 *
+	 * Closing announces itself as the animation *starts*, which re-renders the screen that
+	 * owns the sheet — and with the rows inline, twenty of them rebuilt in the first frames
+	 * of the close. Each carries an avatar the SVG renderer has to draw, so the animation
+	 * stuttered exactly where the share sheet, which has three elements, does not.
+	 *
+	 * Not a `FlatList`: this is capped at `spots`, which is 20, and virtualising inside a
+	 * gorhom sheet means `BottomSheetFlatList` plus a fixed `getItemLayout` to avoid
+	 * measurement jank. Twenty rows that never rebuild cost less than that machinery.
+	 */
+	const rows = useMemo(
+		() =>
+			members.map(member => (
+				<MemberRow
+					imageUrl={member.imageUrl}
+					key={member.id}
+					name={member.displayName}
+					onRemove={detail?.isOwner && member.role !== 'OWNER' ? () => setMemberToRemove(member) : undefined}
+					percent={member.percent}
+					rangeLabel={formatBabRange(member.babNumbers)}
+					tag={member.userId === userId ? t('you') : member.role === 'OWNER' ? t('admin') : undefined}
+				/>
+			)),
+		[detail?.isOwner, members, t, userId]
+	);
 
 	const handleClose = () => {
 		setMemberToRemove(null);
@@ -65,7 +108,18 @@ export const MembersSheet = ({ groupId, isVisible, onClose }: MembersSheetProps)
 				snapPoints={SHEET_SNAP_POINTS}
 				topInset={SHEET_TOP_INSET}
 			>
-				<BottomSheetScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
+				{/*
+				 * `flex: 1` on the scroller itself, not just its content. A sheet with fixed
+				 * detents gives its body a fixed height, and a scroll view with no flex inside
+				 * one takes the height of its *content* — so a list longer than the sheet grew
+				 * past the bottom edge instead of scrolling, and the last members were
+				 * unreachable because the scroller believed it was already showing everything.
+				 */}
+				<BottomSheetScrollView
+					contentContainerStyle={styles.body}
+					showsVerticalScrollIndicator={false}
+					style={styles.scroller}
+				>
 					<Header2 style={styles.title}>{t('membersTitle')}</Header2>
 
 					{isPending ? (
@@ -89,27 +143,7 @@ export const MembersSheet = ({ groupId, isVisible, onClose }: MembersSheetProps)
 								{`${detail.memberCount} / ${detail.spots} · ${detail.spotsLeft} ${t('spotsLeft')}`}
 							</CaptionText>
 
-							<CardSurface isFlush>
-								{members.map(member => {
-									const isSelf = member.userId === userId;
-									const isMemberOwner = member.role === 'OWNER';
-
-									return (
-										<MemberRow
-											key={member.id}
-											name={member.displayName}
-											onRemove={
-												detail.isOwner && !isMemberOwner
-													? () => setMemberToRemove(member)
-													: undefined
-											}
-											percent={member.percent}
-											rangeLabel={formatBabRange(member.babNumbers)}
-											tag={isSelf ? t('you') : isMemberOwner ? t('admin') : undefined}
-										/>
-									);
-								})}
-							</CardSurface>
+							<CardSurface isFlush>{rows}</CardSurface>
 
 							{detail.isOwner ? (
 								<View style={styles.ownerHint}>
@@ -145,6 +179,9 @@ const styles = StyleSheet.create({
 	body: {
 		flexGrow: 1,
 		paddingBottom: 26
+	},
+	scroller: {
+		flex: 1
 	},
 	centered: {
 		alignItems: 'center',

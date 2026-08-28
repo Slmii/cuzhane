@@ -3,7 +3,7 @@ import { Header2, Typography } from '@/components/ui/Typography/Typography.compo
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { BottomSheetBackdrop, BottomSheetModal, BottomSheetView } from '@gorhom/bottom-sheet';
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { AppBottomSheetProps } from './BottomSheet.types';
@@ -36,6 +36,24 @@ export const AppBottomSheet = ({
 	const paddingBottom = Math.max(insets.bottom, 24);
 
 	/**
+	 * Two facts about the close currently running, declared up here because every effect
+	 * below reads or writes them.
+	 *
+	 * `hasAnnouncedClose` — whether the caller has already been told. `onClose` must fire
+	 * exactly once per close: both the start of the animation and the dismissal that lands a
+	 * few hundred milliseconds later used to call it, and screens keep one piece of state for
+	 * all their sheets, so the trailing call arrived after the next sheet had been opened and
+	 * shut it again.
+	 *
+	 * `isCallerDrivenClose` — whether *we* asked for this close. If so the caller already
+	 * knows, and announcing it back is worse than useless: switching sheets sets the shared
+	 * state to the new one, and the outgoing sheet's announcement would set it straight back
+	 * to null.
+	 */
+	const hasAnnouncedCloseRef = useRef(false);
+	const isCallerDrivenCloseRef = useRef(false);
+
+	/**
 	 * The modal is mounted on demand rather than kept alive and toggled with
 	 * `present()`/`dismiss()`. On a screen that has been mounted since app start — which
 	 * is every tab root — a `present()` call arriving long after mount is silently
@@ -50,23 +68,101 @@ export const AppBottomSheet = ({
 		setIsMounted(true);
 	}
 
-	// Present as soon as the modal exists.
-	useEffect(() => {
-		if (isMounted) {
+	/*
+	 * Present whenever the caller wants it open and the modal exists — keyed on `isVisible`
+	 * too, not just on the mount.
+	 *
+	 * Closing takes a few hundred milliseconds to animate, and the modal stays mounted for
+	 * all of it. Reopening inside that window left `isMounted` already true, so an effect
+	 * watching only the mount never ran again and the tap did nothing; the sheet then
+	 * appeared a second or so later, when the old dismissal finally unmounted it and the
+	 * whole cycle started over. Fast enough taps looked like a dead button.
+	 *
+	 * A *layout* effect, so the present is asked for in the same commit that mounted the
+	 * modal rather than after the browser-equivalent paint. A passive effect spent a frame
+	 * with the sheet mounted and still off screen, which reads as a beat of nothing between
+	 * the tap and the sheet starting to rise.
+	 */
+	useLayoutEffect(() => {
+		if (isMounted && isVisible) {
+			// Every open starts from a clean slate. Both flags describe a close that is over by
+			// now, and a stale one left standing is what makes a sheet stop opening — so they
+			// are cleared here rather than only where they happen to be read.
+			hasAnnouncedCloseRef.current = false;
+			isCallerDrivenCloseRef.current = false;
 			sheetRef.current?.present();
 		}
-	}, [isMounted]);
+	}, [isMounted, isVisible]);
 
-	// A caller-driven close (Apply, a confirm button) still animates out.
+	/*
+	 * A caller-driven close (Apply, a confirm button) still animates out — but only if the
+	 * sheet isn't already closing under its own steam.
+	 *
+	 * Announcing at the start of a user dismissal turns `isVisible` false while the sheet is
+	 * still mounted and still animating, which looks exactly like the caller asking for a
+	 * close. Without this guard that mistake dismissed an already-dismissing sheet and left
+	 * the "caller asked for it" flag standing; the *next* close then went unannounced, the
+	 * screen kept believing the sheet was open, and every tap after that wrote the state
+	 * value it already held. Open, close, open, close, and the button was dead.
+	 */
 	useEffect(() => {
-		if (!isVisible && isMounted) {
+		if (!isVisible && isMounted && !hasAnnouncedCloseRef.current) {
+			isCallerDrivenCloseRef.current = true;
 			sheetRef.current?.dismiss();
 		}
 	}, [isMounted, isVisible]);
 
+	/**
+	 * The caller is told the sheet is closing when the animation *starts*, not when it lands.
+	 *
+	 * This is what made the opening button look dead. `onDismiss` fires at the end of a
+	 * several-hundred-millisecond close, so for all of it the screen still held "this sheet is
+	 * open" — and tapping the button in that window set the state to the value it already had,
+	 * which React quite correctly treats as nothing happening. The tap vanished, the sheet
+	 * finished closing, and only the *second* tap did anything.
+	 */
+	const handleAnimate = useCallback(
+		(_fromIndex: number, toIndex: number) => {
+			if (toIndex === -1) {
+				// Only a dismissal the *user* performed is news to the caller.
+				if (!isCallerDrivenCloseRef.current) {
+					hasAnnouncedCloseRef.current = true;
+					onClose();
+				}
+
+				return;
+			}
+
+			// Opening, or moving between detents — the next close is a new one to announce.
+			hasAnnouncedCloseRef.current = false;
+		},
+		[onClose]
+	);
+
+	/**
+	 * A dismissal always closes. Nothing here decides it "belongs to an earlier close" and
+	 * re-presents.
+	 *
+	 * That guard existed for one narrow race — reopening while a close was still animating —
+	 * and it twice produced a sheet that would not stay shut, because the signal it read was
+	 * wrong both times. Its worst case is a sheet you cannot get rid of; the worst case
+	 * without it is a flash if that race ever lands, and `onAnimate` above has already made
+	 * the reopening tap itself work. Fail towards closing.
+	 */
 	const handleDismiss = useCallback(() => {
 		setIsMounted(false);
-		onClose();
+
+		/*
+		 * Told once, or not at all. Not if the start of the animation already said so, and not
+		 * if the caller asked for this close in the first place — the fallback exists only so a
+		 * user dismissal is still reported should `onAnimate` never fire.
+		 */
+		if (!hasAnnouncedCloseRef.current && !isCallerDrivenCloseRef.current) {
+			onClose();
+		}
+
+		hasAnnouncedCloseRef.current = false;
+		isCallerDrivenCloseRef.current = false;
 	}, [onClose]);
 
 	const renderBackdrop = useCallback(
@@ -111,7 +207,22 @@ export const AppBottomSheet = ({
 			keyboardBehavior='interactive'
 			keyboardBlurBehavior='restore'
 			{...(maxHeight !== undefined ? { maxDynamicContentSize: maxHeight } : {})}
+			onAnimate={handleAnimate}
 			onDismiss={handleDismiss}
+			/*
+			 * `push`, never the default `switch`.
+			 *
+			 * `switch` *minimises* whatever sheet is already open when a new one presents, and
+			 * minimising runs the same close animation to index -1 that a user dismissal does —
+			 * which `onAnimate` below cannot tell apart. So opening the member-removal
+			 * confirmation from inside the members list announced the list as closed, the screen
+			 * tore it down, and the confirmation went with it: two sheets gone from one tap.
+			 *
+			 * Nothing in this app wants the automatic minimise. Sheets that are alternatives to
+			 * each other are mutually exclusive through the screen's own state, and a sheet
+			 * opened *on top* of another is a confirmation that should leave it where it is.
+			 */
+			stackBehavior='push'
 			ref={sheetRef}
 			{...(snapPoints !== undefined ? { snapPoints } : {})}
 			// A detent of `100%` measures the space below the inset, so the two together are

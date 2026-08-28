@@ -3,8 +3,13 @@ import type { SharedValue } from 'react-native-reanimated';
 export interface DockRingGroup {
 	id: string;
 	name: string;
-	/** The member's range for this round, already formatted ("31–35"). */
+	/**
+	 * The slice to show large — the stretch holding the next bab still owed, formatted
+	 * ("31–35"). Not the whole share: see `moreCount`.
+	 */
 	range: string;
+	/** Other stretches this member holds, counted for the "+2 aralık daha" chip. */
+	moreCount: number;
 	total: number;
 	done: number;
 	/** Where the row's "Oku" opens. Null once the share is done. */

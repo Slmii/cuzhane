@@ -6,6 +6,11 @@ const FALLBACK_DISPLAY_NAME = 'Member';
 /**
  * Best-effort display name for a group member, sourced from Clerk session claims.
  * Falls back to a generic label when no usable claim is present.
+ *
+ * **Mirrored on the client** by `useViewerDisplayName`, which needs to predict what this
+ * will return so an optimistic row can draw the viewer's avatar before the server answers —
+ * those faces are seeded on the name, so a wrong guess redraws as a different person.
+ * Changing the order here means changing it there.
  */
 export const resolveDisplayName = (req: Request): string => {
 	const { sessionClaims } = getAuth(req);

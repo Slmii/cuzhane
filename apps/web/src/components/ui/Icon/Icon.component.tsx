@@ -39,6 +39,11 @@ const GLYPHS: Record<IconName, Glyph> = {
 	// where it is written inline rather than pulled from the Icon Set sheet.
 	clock: { circles: [[12, 12, 8.6]], paths: ['M12 7.8V12l3 1.8'] },
 
+	// An arrow curving back on itself — "Geri al" on a pool slot you just took. Traced from
+	// the handoff's own two paths rather than mirroring `back`, which is a bare chevron and
+	// would read as navigation instead of as taking something back.
+	undo: { paths: ['M4 10h10a5 5 0 0 1 0 10h-3', 'M8 6l-4 4 4 4'] },
+
 	// Three connected nodes — one person passing the group to two others.
 	share: {
 		circles: [

@@ -1,18 +1,19 @@
 import { BabGrid } from '@/components/BabGrid/BabGrid.component';
 import { BabLegend } from '@/components/BabLegend/BabLegend.component';
+import { SliceChip } from '@/components/SliceChip/SliceChip.component';
 import { BabRow } from '@/components/BabRow/BabRow.component';
 import { GridSkeleton } from '@/components/GridSkeleton/GridSkeleton.component';
 import { PoolGrid } from '@/components/PoolGrid/PoolGrid.component';
 import { RoundResetRow } from '@/components/RoundResetRow/RoundResetRow.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
+import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Chip } from '@/components/ui/Chip/Chip.component';
 import { CornerAction } from '@/components/ui/CornerAction/CornerAction.component';
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
 import { NavRow } from '@/components/ui/NavRow/NavRow.component';
-import { SectionHeader } from '@/components/ui/SectionHeader/SectionHeader.component';
 import {
 	BodyText,
 	CaptionText,
@@ -23,28 +24,43 @@ import {
 } from '@/components/ui/Typography/Typography.component';
 import { useGetBabs, useSetBabRead } from '@/lib/hooks/useBab';
 import { useCurrentUserId } from '@/lib/hooks/useCurrentUserId';
-import { useGetGroupById } from '@/lib/hooks/useGroup';
+import { useGetGroupById, useMarkPoolReleasesSeen } from '@/lib/hooks/useGroup';
 import { useRoundReset, useTimeUntilReset } from '@/lib/hooks/useRoundReset';
 import { useGetRounds } from '@/lib/hooks/useRounds';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { GroupBab } from '@/lib/types/domain';
-import { BAB_COUNT, formatBabRange } from '@/lib/utils/babs';
-import { toBabCells, toPoolCells } from '@/lib/utils/groups';
+import { BAB_COUNT } from '@/lib/utils/babs';
+import { shareSlices, toBabCells, toPoolCells } from '@/lib/utils/groups';
 import type { TabStackParamList } from '@/navigation/types';
 import { LeaveGroupButton } from '@/screens/Groups/LeaveGroupButton.component';
 import { ManageSheet } from '@/screens/Groups/ManageSheet.component';
 import { MembersSheet } from '@/screens/Groups/MembersSheet.component';
 import { ShareSheet } from '@/screens/Groups/ShareSheet.component';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import Animated, { useAnimatedStyle, useReducedMotion, withTiming } from 'react-native-reanimated';
 
 type Sheet = 'share' | 'manage' | 'members' | null;
 
 const CHEVRON_DOWN_DEGREES = 90;
 const CHEVRON_UP_DEGREES = -90;
+/** One duration for the panel and the chevron, so the two read as a single movement. */
+const PANEL_DURATION_MS = 260;
+/**
+ * How tall the open bab list may grow — roughly five rows. Past that it scrolls in place
+ * rather than pushing the rest of the screen down; see `openHeight`.
+ */
+const MY_BABS_MAX_HEIGHT = 310;
+
+/**
+ * Stood up once, because they are memo dependencies: `?? []` written inline is a new array
+ * on every render, which would invalidate the cells it guards every time and defeat the
+ * point of memoising them.
+ */
+const NO_BABS: GroupBab[] = [];
+const NO_NUMBERS: number[] = [];
 /** Entries in `BabLegend` — the skeleton stubs the same number so the card keeps its height. */
 const BAB_LEGEND_COUNT = 5;
 
@@ -62,16 +78,54 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 	// The base `chevron` glyph points right, so down is +90° and up is -90°. Closed points
 	// down at the content it will reveal; open points up at the content it will hide. One
 	// glyph rotated through half a turn, rather than swapping in a second icon.
-	const myBabsRotation = useSharedValue(CHEVRON_DOWN_DEGREES);
-	const chevronStyle = useAnimatedStyle(() => ({
-		transform: [{ rotate: `${myBabsRotation.value}deg` }]
-	}));
+	const isReducedMotion = useReducedMotion();
+	/*
+	 * Both halves of the disclosure are driven *from* `isMyBabsOpen` inside their worklets,
+	 * the way `CellGrid` eases its colours, rather than by writing to a shared value from the
+	 * press handler — one source of truth, and no imperative mutation for the compiler to
+	 * object to.
+	 */
+	const chevronStyle = useAnimatedStyle(() => {
+		const angle = `${isMyBabsOpen ? CHEVRON_UP_DEGREES : CHEVRON_DOWN_DEGREES}deg`;
+
+		return {
+			transform: [{ rotate: isReducedMotion ? angle : withTiming(angle, { duration: PANEL_DURATION_MS }) }]
+		};
+	});
+	/*
+	 * The panel animates its real height — not a fade, and not a layout transition.
+	 *
+	 * The rows stay mounted and measured, and opening runs the clipped wrapper from nothing to
+	 * that measurement. It has to be the actual height because this card sits mid-column in a
+	 * scroll view: `LinearTransition` commits the new layout at once and interpolates only the
+	 * card, so everything below would jump to its final place while the card was still growing
+	 * into it.
+	 */
+	const [myBabsHeight, setMyBabsHeight] = useState(0);
+	/*
+	 * Capped, and the rows scroll inside the cap.
+	 *
+	 * A share is five babs in a small group and twenty-six once pool blocks are on top of it,
+	 * and at full height that panel ran well past a screen — opening it pushed the pool card,
+	 * the board and everything else so far down that the page turned into a list of one
+	 * member's babs. Five rows is enough to show it *is* a list and to start reading down it;
+	 * the rest is a scroll away rather than a page away.
+	 */
+	const openHeight = Math.min(myBabsHeight, MY_BABS_MAX_HEIGHT);
+	const myBabsBodyStyle = useAnimatedStyle(() => {
+		const height = isMyBabsOpen ? openHeight : 0;
+		const opacity = isMyBabsOpen ? 1 : 0;
+
+		return isReducedMotion
+			? { height, opacity }
+			: {
+					height: withTiming(height, { duration: PANEL_DURATION_MS }),
+					opacity: withTiming(opacity, { duration: PANEL_DURATION_MS })
+			  };
+	});
 
 	const toggleMyBabs = () => {
-		const willOpen = !isMyBabsOpen;
-
-		setIsMyBabsOpen(willOpen);
-		myBabsRotation.value = withTiming(willOpen ? CHEVRON_UP_DEGREES : CHEVRON_DOWN_DEGREES, { duration: 300 });
+		setIsMyBabsOpen(current => !current);
 	};
 
 	const groupQuery = useGetGroupById(groupId);
@@ -86,6 +140,51 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 	const untilReset = useTimeUntilReset(groupQuery.data?.roundEndsAt ?? null);
 	const roundsQuery = useGetRounds(groupId);
 	const setBabRead = useSetBabRead();
+	const markPoolReleasesSeen = useMarkPoolReleasesSeen();
+
+	/*
+	 * The two boards' cells, and the tap that opens one, memoised up here with the other
+	 * hooks — above the early returns, and reading from the query data rather than the
+	 * narrowed `detail` below, for the same reason `reset` does: hook order has to hold.
+	 *
+	 * `CellGrid` memoises a cell on the identity of the item it was handed, so building these
+	 * inline in the JSX gave a hundred cells a new object every render and re-evaluated a
+	 * hundred animated styles because a sheet opened.
+	 */
+	const babs = babsQuery.data ?? NO_BABS;
+	// The server decides what "mine" means today — under ROTATION the babs a member reads
+	// are a different seat's block every round, so this can't be derived from assignment.
+	const myBabNumbers = groupQuery.data?.myBabNumbers ?? NO_NUMBERS;
+	const myBabNumberSet = useMemo(() => new Set(myBabNumbers), [myBabNumbers]);
+	// The pool as the Havuz screen counts it — every block of an empty seat, whether or not
+	// somebody has already volunteered for it.
+	const poolCells = useMemo(
+		() =>
+			toPoolCells(babs, {
+				poolAllBabNumbers: groupQuery.data?.poolAllBabNumbers ?? NO_NUMBERS,
+				viewerUserId: userId ?? null
+			}),
+		[babs, groupQuery.data?.poolAllBabNumbers, userId]
+	);
+	const babCells = useMemo(
+		() =>
+			toBabCells(babs, {
+				myBabNumbers,
+				poolBabNumbers: groupQuery.data?.poolBabNumbers ?? NO_NUMBERS,
+				viewerUserId: userId ?? null
+			}),
+		[babs, groupQuery.data?.poolBabNumbers, myBabNumbers, userId]
+	);
+	const handlePressBab = useCallback(
+		(babNumber: number) => {
+			const bab = babs.find(candidate => candidate.number === babNumber);
+
+			if (bab && myBabNumberSet.has(bab.number)) {
+				navigation.navigate('BabReader', { groupId, babNumber });
+			}
+		},
+		[babs, groupId, myBabNumberSet, navigation]
+	);
 
 	const status = groupQuery.data?.status;
 	const isOwnerOfGroup = groupQuery.data?.isOwner === true;
@@ -132,7 +231,6 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 	}
 
 	const detail = groupQuery.data;
-	const babs = babsQuery.data ?? [];
 	// The pool card's own loading state: the group already says how big the pool is, but who
 	// holds each bab comes from the board.
 	const isPoolPending = babsQuery.isPending && detail.poolAllBabNumbers.length > 0;
@@ -148,15 +246,12 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 			</ScreenContainer>
 		);
 	}
-	// The server decides what "mine" means today — under ROTATION the babs a member reads
-	// are a different seat's block every round, so this can't be derived from assignment.
-	const myBabNumbers = detail.myBabNumbers;
-	const myBabNumberSet = new Set(myBabNumbers);
-	// The pool as the Havuz screen counts it — every block of an empty seat, whether or not
-	// somebody has already volunteered for it.
-	const poolCells = toPoolCells(babs, { poolAllBabNumbers: detail.poolAllBabNumbers, viewerUserId: userId ?? null });
+	// One card however many blocks were taken over — "27–39, 66–78" reads better than a
+	// stack of identical notices.
+	const poolReleaseRanges = detail.poolReleases.map(release => `${release.startBab}–${release.endBab}`).join(', ');
 	const myBabs = babs.filter(bab => myBabNumberSet.has(bab.number)).sort((a, b) => a.number - b.number);
-	const myRange = formatBabRange(myBabNumbers);
+	// The slice the reader is on, plus a count of the others — see `shareSlices`.
+	const mySlices = shareSlices(myBabNumbers, detail.myNextBabNumber);
 	const myReadCount = myBabs.filter(bab => bab.readAt !== null).length;
 	// The open-ended cycle is retired and can no longer be created, but a legacy group whose
 	// `endsAt` was never backfilled can still surface a null `daysLeft` here — fall back to
@@ -168,16 +263,6 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 	const leftValue = isDaily
 		? t('hoursLeft', { hours: untilReset.hours, minutes: untilReset.minutes })
 		: daysLeftLabel;
-
-	const canOpenBab = (bab: GroupBab) => myBabNumberSet.has(bab.number);
-
-	const handlePressBab = (babNumber: number) => {
-		const bab = babs.find(candidate => candidate.number === babNumber);
-
-		if (bab && canOpenBab(bab)) {
-			navigation.navigate('BabReader', { groupId, babNumber });
-		}
-	};
 
 	// One sheet swaps for the other rather than stacking: Yönet's members row is a way
 	// *into* the list, not a second surface on top of the settings it came from.
@@ -282,6 +367,9 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 				 */}
 				<CardSurface isFlush style={isMyBabsOpen ? null : { backgroundColor: theme.colors.accentSoft }}>
 					<Pressable
+						// The eyebrow and the sentence are gone from the row, so the label they carried
+						// has to come from here or it announces nothing but its numbers.
+						accessibilityLabel={`${t('assigned')} ${mySlices.current}`}
 						accessibilityRole='button'
 						accessibilityState={{ expanded: isMyBabsOpen }}
 						onPress={toggleMyBabs}
@@ -292,15 +380,30 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 								? {
 										borderBottomColor: theme.colors.divider,
 										borderBottomWidth: StyleSheet.hairlineWidth
-									}
+								  }
 								: null
 						]}
 					>
-						<View style={[styles.myBabsBadge, { backgroundColor: theme.colors.accent }]}>
-							<Typography color={theme.colors.onAccent} style={styles.myBabsBadgeLabel} variant='title'>
-								{myRange}
-							</Typography>
+						{/* The badge carries one slice, not the whole share, with the count of the
+						    others pinned to it — spelled out, "1–13, 27–39" ran the badge to twice
+						    the width and wrapped the sentence beside it onto three lines. The chip
+						    belongs *here*, against the range it is counting, rather than up beside
+						    the eyebrow where it read as a tag on the words. */}
+						<View style={styles.myBabsBadgeRow}>
+							<View style={[styles.myBabsBadge, { backgroundColor: theme.colors.accent }]}>
+								<Typography
+									color={theme.colors.onAccent}
+									style={styles.myBabsBadgeLabel}
+									variant='title'
+								>
+									{mySlices.current}
+								</Typography>
+							</View>
+							<SliceChip count={mySlices.moreCount} isCompact tone='surface' />
 						</View>
+						{/* The eyebrow stays; the sentence under it went. It named the range a second
+						    time and, once the share came in pieces, needed three lines to do it —
+						    while the badge beside it had already said where you are. */}
 						<View style={styles.myBabsCopy}>
 							<Typography
 								color={theme.colors.accent}
@@ -310,7 +413,6 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 							>
 								{t('assigned')}
 							</Typography>
-							<CaptionText>{t('assignedTo', { range: myRange })}</CaptionText>
 						</View>
 						<View style={styles.myBabsMeta}>
 							<CaptionText color={theme.colors.accent} weight='semibold'>{`${myReadCount} / ${
@@ -321,29 +423,64 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 							</Animated.View>
 						</View>
 					</Pressable>
-					{!isMyBabsOpen ? null : myBabNumbers.length === 0 ? (
-						<BodyText color={theme.colors.faintText} style={styles.noAssignedBabs}>
-							{t('noAssignedBabs')}
-						</BodyText>
-					) : (
-						myBabs.map(bab => {
-							const isRead = bab.readAt !== null;
+					{/* Clipped, and inert while closed: the rows stay mounted so the panel has a
+					    height to animate to, which also means they would otherwise still be
+					    reachable by a tap or by VoiceOver in a card that reads as shut. */}
+					<Animated.View
+						accessibilityElementsHidden={!isMyBabsOpen}
+						importantForAccessibility={isMyBabsOpen ? 'auto' : 'no-hide-descendants'}
+						pointerEvents={isMyBabsOpen ? 'auto' : 'none'}
+						style={[styles.myBabsBody, myBabsBodyStyle]}
+					>
+						{/*
+						 * The rows live in a scroller that fills the wrapper absolutely — which is
+						 * also what lets them be measured. As an ordinary child they inherited the
+						 * wrapper's animated height (nothing, while closed) and reported zero, so
+						 * the panel had no size to open to; a scroll view measures its content
+						 * unconstrained however short its own frame is.
+						 *
+						 * Scrolling turns on only when there is more than the cap, so a share that
+						 * fits can't swallow the page's own scroll.
+						 *
+						 * Not a `FlatList`: nesting a VirtualizedList inside the screen's
+						 * ScrollView is the thing React Native warns about, and a share is at most
+						 * a couple of dozen rows — the cap already stops it from being long, and
+						 * virtualising two dozen cheap rows would cost more than it saves.
+						 */}
+						<ScrollView
+							nestedScrollEnabled
+							scrollEnabled={isMyBabsOpen && myBabsHeight > MY_BABS_MAX_HEIGHT}
+							style={styles.myBabsScroll}
+						>
+							<View onLayout={event => setMyBabsHeight(event.nativeEvent.layout.height)}>
+								{myBabNumbers.length === 0 ? (
+									<BodyText color={theme.colors.faintText} style={styles.noAssignedBabs}>
+										{t('noAssignedBabs')}
+									</BodyText>
+								) : (
+									myBabs.map(bab => {
+										const isRead = bab.readAt !== null;
 
-							return (
-								<BabRow
-									isRead={isRead}
-									key={bab.number}
-									onOpen={() => navigation.navigate('BabReader', { groupId, babNumber: bab.number })}
-									onToggle={() =>
-										setBabRead.mutate({ babNumber: bab.number, groupId, read: !isRead })
-									}
-									openLabel={t('read')}
-									subtitle={isRead ? t('readToday') : t('notRead')}
-									title={t('babOrdinal', { n: bab.number })}
-								/>
-							);
-						})
-					)}
+										return (
+											<BabRow
+												isRead={isRead}
+												key={bab.number}
+												onOpen={() =>
+													navigation.navigate('BabReader', { groupId, babNumber: bab.number })
+												}
+												onToggle={() =>
+													setBabRead.mutate({ babNumber: bab.number, groupId, read: !isRead })
+												}
+												openLabel={t('read')}
+												subtitle={isRead ? t('readToday') : t('notRead')}
+												title={t('babOrdinal', { n: bab.number })}
+											/>
+										);
+									})
+								)}
+							</View>
+						</ScrollView>
+					</Animated.View>
 				</CardSurface>
 
 				{/*
@@ -387,6 +524,34 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 				) : null}
 
 				{/*
+				 * "A joiner took over the block you volunteered for." The push says it first,
+				 * but only if it could be delivered — permission may be denied and the phone
+				 * may have been off. This is the copy of that news which cannot go missing.
+				 * Dismissible, because it reports something already done rather than asking.
+				 */}
+				{detail.poolReleases.length > 0 ? (
+					<CardSurface style={[styles.releaseCard, { backgroundColor: theme.colors.sand }]}>
+						<View style={styles.releaseRow}>
+							<Icon color={theme.colors.sandText} name='info' size={19} strokeWidth={1.8} />
+							<View style={styles.releaseCopy}>
+								<CaptionText color={theme.colors.sandText} weight='semibold'>
+									{t('poolReleasedTitle')}
+								</CaptionText>
+								<CaptionText color={theme.colors.sandText} style={styles.releaseBody}>
+									{t('poolReleasedBody', { range: poolReleaseRanges })}
+								</CaptionText>
+							</View>
+						</View>
+						<AppButton
+							onPress={() => markPoolReleasesSeen.mutate(groupId)}
+							size='sm'
+							title={t('gotIt')}
+							variant='surface'
+						/>
+					</CardSurface>
+				) : null}
+
+				{/*
 				 * Only groups that started with seats to spare have a pool at all — but the
 				 * whole pool, not just the part still going. Counted off `poolBabNumbers`
 				 * this card used to shed cells as members claimed blocks and vanish once the
@@ -401,14 +566,14 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 					<GridSkeleton cellCount={detail.poolAllBabNumbers.length} style={styles.poolCard} />
 				) : poolCells.length > 0 ? (
 					<CardSurface isFlush style={styles.poolCard}>
-						<View style={[styles.poolHeader, { borderBottomColor: theme.colors.divider }]}>
+						<View style={[styles.sectionHeader, { borderBottomColor: theme.colors.divider }]}>
 							<TitleText>{t('pool')}</TitleText>
 							{/* Just "15 bab" — the card is already headed "Ortak havuz", so
 							    repeating "sahipsiz" here says it twice. The Havuz screen's own
 							    header carries the fuller wording, where it isn't redundant. */}
 							<Chip label={`${poolCells.length} ${t('babs')}`} tone='sand' />
 						</View>
-						<View style={styles.poolBody}>
+						<View style={styles.sectionBody}>
 							{/* Literally the Havuz screen's board, component and all — this card
 							    is the door to that screen, so the two cannot be allowed to
 							    describe the same babs differently. */}
@@ -424,15 +589,12 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 				) : null}
 
 				{/*
-				 * Both group actions are corner actions in the heading now, so the only
-				 * full-width button left is the one the owner can't have: 07d's way out. An
-				 * owner cannot leave a group they would strand, and has nothing here.
+				 * The hundred, in the same card the pool above it uses: heading and count on a
+				 * white surface, a divider, then the board and its legend in the body. The
+				 * heading used to sit outside on the page background with the board floating
+				 * under it, so two sections of the same screen — the same lattice, twice —
+				 * were built as two different kinds of thing.
 				 */}
-				{detail.isOwner ? null : <LeaveGroupButton groupId={groupId} />}
-
-				{/* The count is the group's own, so the heading is real either way. */}
-				<SectionHeader meta={`${detail.readCount} / 100`} title={t('groupProgress')} />
-
 				{babsQuery.isPending ? (
 					/*
 					 * The skeleton, not a blank hundred. `emptyBabCells` renders every cell in
@@ -440,23 +602,32 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 					 * having read anything, which is a claim about the data rather than an
 					 * admission that it hasn't arrived.
 					 */
-					<GridSkeleton cellCount={BAB_COUNT} hasHeader={false} legendCount={BAB_LEGEND_COUNT} />
+					<GridSkeleton cellCount={BAB_COUNT} legendCount={BAB_LEGEND_COUNT} />
 				) : (
-					<>
-						<CardSurface style={styles.gridCard}>
-							<BabGrid
-								cells={toBabCells(babs, {
-									viewerUserId: userId ?? null,
-									myBabNumbers: detail.myBabNumbers,
-									poolBabNumbers: detail.poolBabNumbers
-								})}
-								onPressBab={handlePressBab}
-							/>
-						</CardSurface>
-
-						<BabLegend />
-					</>
+					<CardSurface isFlush>
+						<View style={[styles.sectionHeader, { borderBottomColor: theme.colors.divider }]}>
+							<TitleText>{t('groupProgress')}</TitleText>
+							{/* The count is the group's own, so the heading is real either way. */}
+							<CaptionText color={theme.colors.faintText}>{`${detail.readCount} / 100`}</CaptionText>
+						</View>
+						<View style={styles.sectionBody}>
+							<BabGrid cells={babCells} onPressBab={handlePressBab} />
+							<BabLegend />
+						</View>
+					</CardSurface>
 				)}
+
+				{/*
+				 * Both group actions are corner actions in the heading now, so the only
+				 * full-width button left is the one the owner can't have: 07d's way out. An
+				 * owner cannot leave a group they would strand, and has nothing here.
+				 *
+				 * Last thing on the screen, under the board. It used to sit between the pool and
+				 * the hundred, which put an irreversible action in the middle of the page you
+				 * scroll through to read — you meet it on the way past rather than by going
+				 * looking for it.
+				 */}
+				{detail.isOwner ? null : <LeaveGroupButton groupId={groupId} style={styles.leaveButton} />}
 			</ScreenContainer>
 
 			<ShareSheet group={detail} isVisible={sheet === 'share'} onClose={() => setSheet(null)} />
@@ -494,18 +665,36 @@ const styles = StyleSheet.create({
 		flex: 1,
 		justifyContent: 'center'
 	},
-	gridCard: {
-		paddingHorizontal: 13,
-		paddingVertical: 14
+	// Set apart from the legend above it, so the last thing on the page doesn't read as
+	// belonging to the board.
+	leaveButton: {
+		marginTop: 18
 	},
-	poolBody: {
+	sectionBody: {
 		gap: 12,
 		padding: 15
 	},
 	poolCard: {
 		marginBottom: 12
 	},
-	poolHeader: {
+	releaseBody: {
+		marginTop: 3
+	},
+	releaseCard: {
+		gap: 12,
+		marginBottom: 12,
+		paddingHorizontal: 16,
+		paddingVertical: 15
+	},
+	releaseCopy: {
+		flex: 1,
+		minWidth: 0
+	},
+	releaseRow: {
+		flexDirection: 'row',
+		gap: 11
+	},
+	sectionHeader: {
 		alignItems: 'center',
 		borderBottomWidth: StyleSheet.hairlineWidth,
 		flexDirection: 'row',
@@ -530,10 +719,15 @@ const styles = StyleSheet.create({
 		fontSize: 15,
 		lineHeight: 19
 	},
-	myBabsCopy: {
-		flex: 1,
-		gap: 3,
-		minWidth: 0
+	// Clips the rows to whatever the animated height currently is; without it they spill out
+	// of the card and over the section below on the way open.
+	myBabsBody: {
+		overflow: 'hidden'
+	},
+	// Fills the clipped wrapper rather than sitting in its flow, so the rows keep their own
+	// height to be measured by even when the wrapper is animated down to nothing.
+	myBabsScroll: {
+		...StyleSheet.absoluteFillObject
 	},
 	myBabsHeader: {
 		alignItems: 'center',
@@ -542,8 +736,20 @@ const styles = StyleSheet.create({
 		paddingHorizontal: 16,
 		paddingVertical: 14
 	},
+	// Takes the slack between the range and the count, so the two ends stay put however long
+	// the label in the middle is.
+	myBabsCopy: {
+		flex: 1,
+		minWidth: 0
+	},
 	myBabsLabel: {
 		letterSpacing: 0.8
+	},
+	// Badge and chip travel together as the row's leading block.
+	myBabsBadgeRow: {
+		alignItems: 'center',
+		flexDirection: 'row',
+		gap: 6
 	},
 	myBabsMeta: {
 		alignItems: 'center',

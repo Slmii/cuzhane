@@ -7,9 +7,9 @@ const ALI = 'user_ali';
 const HASAN = 'user_hasan';
 
 const members = [
-	{ userId: ME, displayName: 'Ayşe Y.' },
-	{ userId: ALI, displayName: 'Ali D.' },
-	{ userId: HASAN, displayName: 'Hasan T.' }
+	{ userId: ME, displayName: 'Ayşe Y.', imageUrl: null },
+	{ userId: ALI, displayName: 'Ali D.', imageUrl: 'https://img.example/ali.jpg' },
+	{ userId: HASAN, displayName: 'Hasan T.', imageUrl: null }
 ];
 
 const bab = (overrides: Partial<RoundBab> & { number: number }): RoundBab => ({
@@ -71,6 +71,17 @@ describe('roundRows', () => {
 		expect(row?.name).toBe('Ali D.');
 		expect(row?.outstanding).toEqual([1, 2]);
 		expect(row?.rangeLabel).toBe('1–2');
+	});
+
+	it('carries a member’s photo onto their row, and leaves the pool without one', () => {
+		const round = {
+			babs: [bab({ number: 1, owedByUserId: ALI }), bab({ number: 2, owedByUserId: null })]
+		};
+		const rows = roundRows(round, members, ME);
+
+		expect(rows.find(row => row.name === 'Ali D.')?.imageUrl).toBe('https://img.example/ali.jpg');
+		// The pool is nobody — a face there would say a person owed those babs.
+		expect(rows.find(row => row.isPool)?.imageUrl).toBeNull();
 	});
 
 	it('names who covered another member’s babs rather than absorbing the credit', () => {

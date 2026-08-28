@@ -59,6 +59,8 @@ export type RoundRow = {
 	key: string;
 	/** Empty on the pool row, which the screen labels with `t('pool')`. */
 	name: string;
+	/** Their photo, when they have one. Null on the pool row, which is nobody. */
+	imageUrl: string | null;
 	isViewer: boolean;
 	isPool: boolean;
 	/** The block this person owed that round, e.g. "16–20". */
@@ -110,10 +112,11 @@ const settledKeyFor = (owed: RoundBab[], coveredByOthers: RoundBab[]): RoundRow[
  */
 export const roundRows = (
 	round: Pick<RoundDetail, 'babs'>,
-	members: Pick<GroupMember, 'userId' | 'displayName'>[],
+	members: Pick<GroupMember, 'userId' | 'displayName' | 'imageUrl'>[],
 	viewerUserId: string | null
 ): RoundRow[] => {
 	const nameByUserId = new Map(members.map(member => [member.userId, member.displayName]));
+	const photoByUserId = new Map(members.map(member => [member.userId, member.imageUrl]));
 	const owners = new Map<string, RoundBab[]>();
 	const poolBabs: RoundBab[] = [];
 
@@ -165,6 +168,7 @@ export const roundRows = (
 		rows.push({
 			key: userId,
 			name: nameByUserId.get(userId) ?? '',
+			imageUrl: photoByUserId.get(userId) ?? null,
 			isViewer,
 			isPool: false,
 			rangeLabel: rangeOf(owed.map(bab => bab.number)),
@@ -183,6 +187,8 @@ export const roundRows = (
 		rows.push({
 			key: 'pool',
 			name: '',
+			// The pool is nobody, so it keeps the generated mark rather than borrowing a face.
+			imageUrl: null,
 			isViewer: false,
 			isPool: true,
 			rangeLabel: rangeOf(poolBabs.map(bab => bab.number)),

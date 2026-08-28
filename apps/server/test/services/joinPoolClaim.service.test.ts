@@ -1,5 +1,6 @@
 import prisma from '@db/prisma';
 import { joinGroupForUser } from '@services/groupMembership.service';
+import { markPoolReleasesSeenForUser } from '@services/pool.service';
 import { babNumbersForRound } from '@utils/babs';
 import { DEFAULT_TIME_ZONE, ROUND_DAYS, roundEndsAt, roundStartedAtFor } from '@utils/rounds';
 import { civilDayNumber, startOfCivilDay } from '@utils/rounds';
@@ -42,7 +43,10 @@ const createGroup = async ({ readBabs = [] }: { readBabs?: number[] } = {}) => {
 		data: {
 			ownerUserId: OWNER,
 			name: 'Pool Claim Hatmi',
-			inviteCode: `P${Math.floor(performance.now() * 1000).toString(36).toUpperCase().slice(-7)}`,
+			inviteCode: `P${Math.floor(performance.now() * 1000)
+				.toString(36)
+				.toUpperCase()
+				.slice(-7)}`,
 			spots: SPOTS,
 			cycle: 'DAILY',
 			timezone: DEFAULT_TIME_ZONE,
@@ -79,7 +83,12 @@ const createGroup = async ({ readBabs = [] }: { readBabs?: number[] } = {}) => {
 
 	if (readBabs.length > 0) {
 		await prisma.babRead.createMany({
-			data: readBabs.map(babNumber => ({ groupId: group.id, babNumber, userId: VOLUNTEER, roundIndex: ROUND_INDEX }))
+			data: readBabs.map(babNumber => ({
+				groupId: group.id,
+				babNumber,
+				userId: VOLUNTEER,
+				roundIndex: ROUND_INDEX
+			}))
 		});
 	}
 
@@ -127,6 +136,58 @@ describe('joining a seat somebody had covered from the pool', () => {
 		await joinGroupForUser(JOINER, 'Joiner', group.id);
 
 		expect(await assignedIn(group.id, blockFor(UNTOUCHED_SLOT))).toBe(blockFor(UNTOUCHED_SLOT).length);
+	});
+
+	it('records the release against the volunteer, not the joiner', async () => {
+		const group = await createGroup();
+		const block = blockFor(JOINED_SLOT);
+
+		await joinGroupForUser(JOINER, 'Joiner', group.id);
+
+		const release = await prisma.poolClaimRelease.findFirstOrThrow({ where: { groupId: group.id } });
+
+		// The push may never arrive — denied permission, no token, phone off. This row is what
+		// the volunteer still finds, and the only record the claim existed at all.
+		expect(release.userId).toBe(VOLUNTEER);
+		expect(release.roundIndex).toBe(ROUND_INDEX);
+		expect(release.startBab).toBe(block[0]);
+		expect(release.endBab).toBe(block[block.length - 1]);
+		expect(release.seenAt).toBeNull();
+	});
+
+	it('records nothing when the seat was not covered', async () => {
+		const group = await createGroup();
+
+		await prisma.groupBab.updateMany({
+			where: { groupId: group.id, number: { in: blockFor(JOINED_SLOT) } },
+			data: { assignedUserId: null }
+		});
+
+		await joinGroupForUser(JOINER, 'Joiner', group.id);
+
+		expect(await prisma.poolClaimRelease.count({ where: { groupId: group.id } })).toBe(0);
+	});
+
+	it('marks the notices seen without deleting them', async () => {
+		const group = await createGroup();
+
+		await joinGroupForUser(JOINER, 'Joiner', group.id);
+		await markPoolReleasesSeenForUser(VOLUNTEER, group.id);
+
+		const release = await prisma.poolClaimRelease.findFirstOrThrow({ where: { groupId: group.id } });
+
+		expect(release.seenAt).not.toBeNull();
+	});
+
+	it('leaves another member’s notices alone', async () => {
+		const group = await createGroup();
+
+		await joinGroupForUser(JOINER, 'Joiner', group.id);
+		await markPoolReleasesSeenForUser(OWNER, group.id);
+
+		const release = await prisma.poolClaimRelease.findFirstOrThrow({ where: { groupId: group.id } });
+
+		expect(release.seenAt).toBeNull();
 	});
 
 	it('keeps the reads the volunteer already made, on the board and in the record', async () => {

@@ -2,7 +2,7 @@ import type { BabCellState } from '@/components/BabGrid/BabGrid.types';
 import type { ChipTone } from '@/components/ui/Chip/Chip.types';
 import type { StringKey } from '@/lib/i18n/strings';
 import type { GroupBab, GroupCycle, GroupSplitMode, GroupVisibility } from '@/lib/types/domain';
-import { BAB_COUNT } from '@/lib/utils/babs';
+import { BAB_COUNT, babRuns, formatRun } from '@/lib/utils/babs';
 
 export const CYCLE_OPTIONS: GroupCycle[] = ['DAILY', 'WEEKLY'];
 
@@ -122,8 +122,14 @@ export const toPoolCells = (
 		.sort((a, b) => a.number - b.number);
 };
 
-/** `pool-fill.html`'s `--fill-step`: the gap between one cell lighting up and the next. */
-export const FILL_STEP_MS = 70;
+/**
+ * The gap between one cell lighting up and the next.
+ *
+ * `pool-fill.html` sets `--fill-step` at 70ms; this runs it quicker on request. A 13-bab
+ * block is twelve of these before its last cell even starts, so the step is what decides
+ * whether a claim feels like a sweep or like waiting for one.
+ */
+export const FILL_STEP_MS = 50;
 
 /**
  * Per-cell delays that sweep each *run* of a grid left to right.
@@ -138,7 +144,18 @@ export const FILL_STEP_MS = 70;
  * Cells whose colour did not change transition to the value they already hold, so a delay
  * on them costs nothing.
  */
-export const staggerWithinRuns = (runKeys: (string | number)[], stepMs = FILL_STEP_MS): number[] => {
+export const staggerWithinRuns = (
+	runKeys: (string | number)[],
+	stepMs = FILL_STEP_MS,
+	/**
+	 * Runs to sweep the other way — the last cell first, back toward the start.
+	 *
+	 * Undoing a claim drains the block exactly as it filled, reversed, which is what makes
+	 * the two read as one action and its undo rather than as two separate fills. Same step,
+	 * opposite direction.
+	 */
+	reversedKeys?: ReadonlySet<string | number>
+): number[] => {
 	const delays: number[] = [];
 	let runStart = 0;
 
@@ -150,7 +167,67 @@ export const staggerWithinRuns = (runKeys: (string | number)[], stepMs = FILL_ST
 		delays.push((index - runStart) * stepMs);
 	});
 
+	if (reversedKeys === undefined || reversedKeys.size === 0) {
+		return delays;
+	}
+
+	// Flipping each reversed run in place keeps the run's own span — the last cell inherits
+	// the delay the first would have had, so the block still finishes when it always did.
+	let start = 0;
+
+	runKeys.forEach((key, index) => {
+		const isRunEnd = index === runKeys.length - 1 || runKeys[index + 1] !== key;
+
+		if (!isRunEnd) {
+			return;
+		}
+
+		if (reversedKeys.has(key)) {
+			for (let offset = 0; offset <= (index - start) / 2; offset += 1) {
+				const head = start + offset;
+				const tail = index - offset;
+				const swap = delays[head] as number;
+
+				delays[head] = delays[tail] as number;
+				delays[tail] = swap;
+			}
+		}
+
+		start = index + 1;
+	});
+
 	return delays;
+};
+
+export type ShareSlices = {
+	/** The stretch to put front and centre — the one holding the next bab still owed. */
+	current: string;
+	/** How many other stretches the reader holds. Zero for the ordinary single range. */
+	moreCount: number;
+};
+
+/**
+ * A share as design 01g states it: one slice large, and a count of the rest.
+ *
+ * Ranges stopped being a single stretch once the pool arrived — volunteering for a block
+ * hands you a second, unconnected range, and a reader can end a round holding several. Set
+ * out in full they run to "1–13, 27–39, 66–78", which wraps to three lines in the ring and
+ * pushes the group screen's heading to double height while saying nothing about what to
+ * read next.
+ *
+ * The slice shown is the one holding `nextBabNumber` — where the reader actually is, not
+ * simply the lowest number they own. A finished share has no next bab and falls back to the
+ * first, because by then the question is what they read, not what is left.
+ */
+export const shareSlices = (babNumbers: number[], nextBabNumber: number | null): ShareSlices => {
+	const runs = babRuns(babNumbers);
+	const found =
+		nextBabNumber === null ? -1 : runs.findIndex(run => nextBabNumber >= run.start && nextBabNumber <= run.end);
+	const current = runs[found === -1 ? 0 : found];
+
+	return current === undefined
+		? { current: '—', moreCount: 0 }
+		: { current: formatRun(current), moreCount: runs.length - 1 };
 };
 
 /** Placeholder board for the loading state so the card doesn't jump when data lands. */

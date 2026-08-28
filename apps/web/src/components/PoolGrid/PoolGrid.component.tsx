@@ -1,9 +1,12 @@
 import { CellGrid } from '@/components/ui/CellGrid/CellGrid.component';
+import type { CellGridItem } from '@/components/ui/CellGrid/CellGrid.types';
 import { Hatch } from '@/components/ui/Hatch/Hatch.component';
 import { Typography } from '@/components/ui/Typography/Typography.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import { staggerWithinRuns, type PoolCellState } from '@/lib/utils/groups';
+import type { AppTheme } from '@/lib/theme/tokens';
+import { FILL_STEP_MS, staggerWithinRuns, type PoolCellState } from '@/lib/utils/groups';
+import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { PoolGridProps } from './PoolGrid.types';
 
@@ -11,6 +14,34 @@ import type { PoolGridProps } from './PoolGrid.types';
 const SWATCH_RADIUS = 3;
 /** The design's ring on a bab you took — 1.5px, and the same width on every cell. */
 const RING_WIDTH = 1.5;
+
+/**
+ * At module scope, taking the theme as an argument, so the cells below can be memoised on
+ * `[cells, theme]` — a copy rebuilt per render would be a dependency that always changed,
+ * and `CellGrid`'s cells are memoised on the identity of the items they are handed.
+ */
+const paletteFor = (state: PoolCellState, theme: AppTheme) => {
+	switch (state) {
+		case 'takenByMe':
+			return {
+				backgroundColor: theme.colors.accent,
+				borderColor: theme.colors.text,
+				labelColor: theme.colors.onAccent
+			};
+		case 'takenByOthers':
+			return {
+				backgroundColor: theme.colors.poolTaken,
+				borderColor: theme.colors.poolTaken,
+				labelColor: theme.colors.poolTakenText
+			};
+		default:
+			return {
+				backgroundColor: theme.colors.poolFree,
+				borderColor: theme.colors.poolFree,
+				labelColor: theme.colors.faintText
+			};
+	}
+};
 
 /**
  * The pool board (07a/07b/07c): every bab of every empty seat, numbered, in one of three
@@ -27,36 +58,24 @@ const RING_WIDTH = 1.5;
  * the same border width — the unringed ones simply borrowing their own background colour —
  * keeps all the cells exactly the same size.
  */
-export const PoolGrid = ({ cells, style }: PoolGridProps) => {
+export const PoolGrid = ({ cells, drainingSlotIndexes, style }: PoolGridProps) => {
 	const { theme } = useThemeContext();
 	const { t } = useTranslation();
 
-	const paletteFor = (state: PoolCellState) => {
-		switch (state) {
-			case 'takenByMe':
-				return {
-					backgroundColor: theme.colors.accent,
-					borderColor: theme.colors.text,
-					labelColor: theme.colors.onAccent
-				};
-			case 'takenByOthers':
-				return {
-					backgroundColor: theme.colors.poolTaken,
-					borderColor: theme.colors.poolTaken,
-					labelColor: theme.colors.poolTakenText
-				};
-			default:
-				return {
-					backgroundColor: theme.colors.poolFree,
-					borderColor: theme.colors.poolFree,
-					labelColor: theme.colors.faintText
-				};
-		}
-	};
+	const items = useMemo<CellGridItem[]>(() => {
+		// Keyed on the slot where the caller knows it, otherwise on the state — a block is taken
+		// whole, so a run of one state is the same boundary.
+		const runKeys = cells.map(cell => cell.slotIndex ?? cell.state);
+		const fillDelays = staggerWithinRuns(runKeys, FILL_STEP_MS, new Set(drainingSlotIndexes ?? []));
 
-	// Keyed on the slot where the caller knows it, otherwise on the state — a block is taken
-	// whole, so a run of one state is the same boundary.
-	const fillDelays = staggerWithinRuns(cells.map(cell => cell.slotIndex ?? cell.state));
+		return cells.map((cell, index) => ({
+			...paletteFor(cell.state, theme),
+			fillDelay: fillDelays[index] ?? 0,
+			isHatched: cell.state === 'open',
+			key: cell.number,
+			label: cell.number
+		}));
+	}, [cells, drainingSlotIndexes, theme]);
 
 	const legend = [
 		{ isHatched: true, label: t('legendPool'), state: 'open' as const },
@@ -71,22 +90,10 @@ export const PoolGrid = ({ cells, style }: PoolGridProps) => {
 			 * taking a block repaints it left to right while everything else holds still —
 			 * `pool-fill.html`'s `--i × --fill-step`.
 			 */}
-			<CellGrid
-				borderWidth={RING_WIDTH}
-				columns={10}
-				gap={3}
-				items={cells.map((cell, index) => ({
-					...paletteFor(cell.state),
-					fillDelay: fillDelays[index],
-					isHatched: cell.state === 'open',
-					key: cell.number,
-					label: cell.number
-				}))}
-				radius={4}
-			/>
+			<CellGrid borderWidth={RING_WIDTH} columns={10} gap={3} items={items} radius={4} />
 			<View style={styles.legend}>
 				{legend.map(entry => {
-					const palette = paletteFor(entry.state);
+					const palette = paletteFor(entry.state, theme);
 
 					return (
 						<View key={entry.label} style={styles.entry}>

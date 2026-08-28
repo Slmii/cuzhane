@@ -89,6 +89,15 @@ export type AppTheme = {
 		poolFree: string;
 		poolTaken: string;
 		poolTakenText: string;
+		/** "Geri al" on a slot you took this session — an outline button, not a danger one. */
+		undoBorder: string;
+		undoText: string;
+		/**
+		 * Fill behind the "+2 aralık daha" chip *in a list row*. The hero chip on Home uses
+		 * `accentSoft`; on a card the design asks for a lighter wash in dark mode, where
+		 * `accentSoft` is a solid panel that would read as a second surface.
+		 */
+		sliceChip: string;
 		// Profile activity heatmap, coldest -> hottest.
 		heatEmpty: string;
 		heatLow: string;
@@ -174,6 +183,9 @@ export const lightTheme: AppTheme = {
 		poolFree: '#F2F0EA',
 		poolTaken: '#DCE7DF',
 		poolTakenText: '#2F5B4C',
+		undoBorder: 'rgba(28,29,26,0.16)',
+		undoText: '#3E6B5C',
+		sliceChip: '#E8EFEA',
 		heatEmpty: '#ECEAE4',
 		heatLow: '#DCE7DF',
 		heatMid: '#A9C7B6',
@@ -247,6 +259,9 @@ export const darkTheme: AppTheme = {
 		poolFree: 'rgba(242,240,234,0.08)',
 		poolTaken: '#2B3B33',
 		poolTakenText: '#8FB8A6',
+		undoBorder: 'rgba(242,240,234,0.18)',
+		undoText: '#8FB8A6',
+		sliceChip: 'rgba(143,184,166,0.16)',
 		heatEmpty: 'rgba(242,240,234,0.08)',
 		heatLow: 'rgba(143,184,166,0.25)',
 		heatMid: 'rgba(143,184,166,0.55)',

@@ -1,7 +1,7 @@
 import { CellGrid } from '@/components/ui/CellGrid/CellGrid.component';
 import type { CellGridItem } from '@/components/ui/CellGrid/CellGrid.types';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import type { BabCellState, BabGridProps } from './BabGrid.types';
 
 export const BabGrid = ({ cells, columns = 10, onPressBab, style }: BabGridProps) => {
@@ -67,13 +67,17 @@ export const BabGrid = ({ cells, columns = 10, onPressBab, style }: BabGridProps
 		});
 	}, [cells, theme]);
 
+	// Stable, so the memoised cells aren't handed a new handler every render — an inline
+	// closure here changed a prop on all hundred of them whenever this rendered at all.
+	const handlePressCell = useCallback((key: string | number) => onPressBab?.(Number(key)), [onPressBab]);
+
 	return (
 		<CellGrid
 			borderWidth={1.5}
 			columns={columns}
 			gap={4}
 			items={items}
-			onPressCell={onPressBab ? key => onPressBab(Number(key)) : undefined}
+			onPressCell={onPressBab ? handlePressCell : undefined}
 			radius={6}
 			style={style}
 		/>

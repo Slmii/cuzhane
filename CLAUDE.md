@@ -6,8 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 pnpm-workspaces monorepo with two apps:
 
-- `apps/server` — Express 5 + TypeScript (ESM), Clerk auth, Prisma/PostgreSQL
-- `apps/web` — Expo React Native client (iOS/Android/web) using Clerk Expo, TanStack Query, React Navigation
+-   `apps/server` — Express 5 + TypeScript (ESM), Clerk auth, Prisma/PostgreSQL
+-   `apps/web` — Expo React Native client (iOS/Android/web) using Clerk Expo, TanStack Query, React Navigation
 
 Root-level scripts live in the top `package.json`; run them from the repo root.
 
@@ -15,111 +15,111 @@ Root-level scripts live in the top `package.json`; run them from the repo root.
 
 From repo root:
 
-- `pnpm server` — API dev server (`tsx watch`)
-- `pnpm start` / `ios` / `android` / `web` — Expo dev client
-- `pnpm dev:ios` / `dev:android` / `dev:web` — server + client in parallel
-- `pnpm db:up` / `db:down` — local Postgres container
-- `pnpm test` / `lint` / `format` / `check-types` — across both workspaces
+-   `pnpm server` — API dev server (`tsx watch`)
+-   `pnpm start` / `ios` / `android` / `web` — Expo dev client
+-   `pnpm dev:ios` / `dev:android` / `dev:web` — server + client in parallel
+-   `pnpm db:up` / `db:down` — local Postgres container
+-   `pnpm test` / `lint` / `format` / `check-types` — across both workspaces
 
 Per workspace (`--filter @cuzhane/server` or `@cuzhane/web`):
 
-- `pnpm --filter <pkg> check-types` — `tsc --noEmit`
-- `pnpm --filter <pkg> test` — Vitest. Single file: `pnpm exec vitest run path/to/file.test.ts`
-  **The server suite needs Postgres running (`pnpm db:up`).** `test/support/globalSetup.ts` creates a
-  separate `cuzhane_test` database beside the dev one and runs `migrate deploy` into it, then
-  `setupEnv.ts` repoints each worker's `DATABASE_URL` at it — so `@db/prisma` and the services under
-  test hit the test database without any mocking. `assertIsTestDatabase` refuses to truncate a database
-  whose name doesn't end in `_test`, which is the only thing standing between a misconfigured URL and
-  your dev data; don't weaken it. Integration files truncate between tests, hence `fileParallelism: false`.
-- Server build: `pnpm --filter @cuzhane/server build` (tsc + `tsc-alias` — TS path aliases are
-  rewritten at build time, not runtime)
-- Prisma: `pnpm --filter @cuzhane/server db:migrate｜db:generate｜db:studio｜db:seed`
+-   `pnpm --filter <pkg> check-types` — `tsc --noEmit`
+-   `pnpm --filter <pkg> test` — Vitest. Single file: `pnpm exec vitest run path/to/file.test.ts`
+    **The server suite needs Postgres running (`pnpm db:up`).** `test/support/globalSetup.ts` creates a
+    separate `cuzhane_test` database beside the dev one and runs `migrate deploy` into it, then
+    `setupEnv.ts` repoints each worker's `DATABASE_URL` at it — so `@db/prisma` and the services under
+    test hit the test database without any mocking. `assertIsTestDatabase` refuses to truncate a database
+    whose name doesn't end in `_test`, which is the only thing standing between a misconfigured URL and
+    your dev data; don't weaken it. Integration files truncate between tests, hence `fileParallelism: false`.
+-   Server build: `pnpm --filter @cuzhane/server build` (tsc + `tsc-alias` — TS path aliases are
+    rewritten at build time, not runtime)
+-   Prisma: `pnpm --filter @cuzhane/server db:migrate｜db:generate｜db:studio｜db:seed`
 
 ## Domain model — read this before touching group logic
 
 The Cevşen is **100 babs**. A group divides those 100 across its members.
 
-- `Group` owns exactly 100 `GroupBab` rows, created up front in the same transaction as the group.
-- `GroupBab` is the single source of truth for BOTH assignment (`assignedUserId`) and progress
-  (`readByUserId` / `readAt`). A member's displayed range is **derived** from the babs assigned to
-  them — never store a range on the member, or the two will drift.
-- `GroupMember.slotIndex` is a stable 0-based seat. It caps membership at `Group.spots` and determines
-  the member's block. Leaving frees the seat; the next joiner takes the lowest free one.
-- Splitting 100 across `spots` seats: the first `100 % spots` seats get one extra bab. `rangeForSlot` /
-  `babNumbersForSlot` in `utils/babs.ts` are the only place this math lives, and it is duplicated
-  verbatim in `apps/web/src/lib/utils/babs.ts` — **change both together.** (`slotIndexForBab` is its
-  inverse; the rotation helpers below live in the same pair of files.)
-- **`splitMode` decides which block a seat reads on a given day, not which one it owns.**
-  `ROTATION` (default) advances a seat by one whole seat per day — seat `s` reads seat
-  `(s + dayIndex) % spots`. Advancing by a *block* rather than a fixed bab offset is what keeps the
-  hundred tiled exactly when `spots` doesn't divide evenly. `FIXED` never moves. `FREE` is retired:
-  the value survives in the DB enum because dropping one is destructive, but nothing can create it
-  and `toSplitMode` reads such a row as `FIXED`.
-- **Nothing stores who reads what.** A member's share is derived from their seat and the round —
-  `shareBabNumbersToday` (server) or `GroupSummary.myBabNumbers` (client). Joining writes no bab rows
-  and creating a group writes 100 bare ones. Never try to work out ownership from a column.
-- **`GroupBab.assignedUserId` means exactly one thing: "I volunteered for this bab out of the pool,
-  this round."** It is *not* seat ownership — it used to be both, and once the rotation moved the
-  leftovers onto a member's old block the pool started reporting it as claimed by whoever had held
-  that seat at join time. The rollover clears the whole column, so a non-null value always belongs to
-  the round in progress. Reading never writes it; only volunteering does.
-- **Joining a seat releases whatever was volunteered for it.** A claim means "I'll cover for an empty
-  seat this round"; filling the seat ends the errand, so `attemptJoin` clears `assignedUserId` across
-  the block that seat is offering — via `poolBlockFor`, the same helper the pool itself uses, so the
-  two can't disagree about which block a seat offers. Left standing, the claim stranded the volunteer:
-  the block stops being pool once the seat is filled and was never their own seat's, so `setBabRead`
-  refused it as "not yours to mark today" while their share still listed it — and the joiner was handed
-  the same babs, because a share is derived from seat + round and knows nothing about claims. **Reads
-  already made are never touched**: they happened, and `BabRead` keeps them. Only the claim comes off.
-- **Lifecycle.** A group is `GATHERING` until the owner starts it: no `startedAt`, no day index, and
-  nothing is counted. `startGroupForUser` stamps `startedAt` under a conditional `updateMany` guarded
-  on `status: 'GATHERING'`, so a double tap can't rewind everyone's rotation. `autoStartIfFull` runs
-  inside the join transaction when `autoStartWhenFull` is set, so the last joiner's own response
-  already says RUNNING.
-- **Shared pool.** The blocks nobody is reading this round, because their seat is empty. **The pool
-  rotates too** — an empty seat `e` leaves uncovered the block it would have been reading,
-  `(e + roundIndex) % spots`, not its own. Use `poolBlocks`; taking the standing block instead hands
-  one bab to two people and makes another unreachable, so 100/100 becomes impossible. A slot is taken
-  *whole*, sits on top of the taker's share, and **lasts one round**. A full group never has a pool.
-- **A round boundary is a local midnight, in the group's own zone.** `Group.timezone` is the owner's
-  IANA zone, captured at creation and immutable after it. All the zone-aware math lives in
-  `utils/rounds.ts` and is **server-only** — the client is handed a `roundIndex` and never computes
-  one, which is why `roundIndexSince`/`roundStartedAtFor` were moved out of `utils/babs.ts` and are
-  deliberately absent from its web mirror. The zone belongs to the group, not the member: a shared
-  board needs one shared day or two members disagree about whose reads the rollover may wipe. Personal
-  stats are the opposite case — `profile.service.ts` buckets the streak and heatmap in the **viewer's**
-  zone, sent per request. Day arithmetic goes through `civilDayNumber`/`startOfCivilDay`, which read
-  the wall-clock date via `Intl` rather than adding hours; that is what keeps a 23- or 25-hour DST day
-  counting as one day. Never reintroduce `Date.UTC(...getUTCDate())` bucketing — it put the reset at
-  20:00 the previous evening in New York.
-- **Rounds.** A group makes repeated passes at the hundred. `DAILY` rolls every day, `WEEKLY` every
-  seven (`ROUND_DAYS` in `utils/rounds.ts`). Those are the only two cycles — every one of them rolls,
-  so `ROUND_DAYS` is a `Record<CycleName, number>` with no null case, and `roundEndsAt` is always the
-  next boundary rather than an end date for the group. (`ONE_OFF` and `OPEN_ENDED` were both removed;
-  unlike `GroupSplitMode.FREE` these are gone from the DB enum too, each by its own migration.)
-  **The board resets at the boundary whether or not it was finished** — the cycle is a promise about
-  *when*, not about completing.
-  `Group.roundIndex` is also the rotation index, so a WEEKLY group holds one range for the whole week.
-- **The rollover is lazy, not scheduled.** There is no cron. `ensureCurrentRound` sits in front of
-  every path that reads or writes a group, and the first request after a boundary performs the reset:
-  clear the board, release pool claims, bump `roundIndex`, clear `completedAt`, recompute `endsAt`.
-  It is guarded on the round being left, so two simultaneous requests can't both roll. A group nobody
-  opens rolls when someone opens it — nothing observes a group except through these paths.
-- **A closed round can still be covered, and covering it is append-only.** "Üstlen" (someone
-  else's block or the pool) and "Okudum" (your own) are one write: `coverMissedBabForUser` inserts the
-  `BabRead` row that round never had. It does **not** reopen the round, touch `GroupBab`, or move the
-  read into the round now open — the unique key `(groupId, roundIndex, babNumber)` means a cover can
-  only fill a gap, never displace whoever read it first (that returns 409). Covering the *open* round
-  is refused with 403: the ordinary read paths own it, because they also keep the board and
-  `completedAt` in step. Who *owed* a bab in a past round is derived, never stored —
-  `owedSlotForBab` runs the rotation backwards — so a round shows both who owed each bab and who
-  ended up reading it.
-- **`GroupBab` is the current round; `BabRead` is the record.** The rollover wipes
-  `GroupBab.readByUserId/readAt`, so anything historical — a member's total, their streak, the 30-day
-  heatmap — must read `BabRead`, which is append-only and never cleared. Its unique key
-  `(groupId, roundIndex, babNumber)` says a bab is read once per round. Every read/unread path writes
-  it through `recordRead`; a new one must too, or the reset will quietly eat that history.
-- `spots`, `splitMode` and `cycle` are immutable after creation.
+-   `Group` owns exactly 100 `GroupBab` rows, created up front in the same transaction as the group.
+-   `GroupBab` is the single source of truth for BOTH assignment (`assignedUserId`) and progress
+    (`readByUserId` / `readAt`). A member's displayed range is **derived** from the babs assigned to
+    them — never store a range on the member, or the two will drift.
+-   `GroupMember.slotIndex` is a stable 0-based seat. It caps membership at `Group.spots` and determines
+    the member's block. Leaving frees the seat; the next joiner takes the lowest free one.
+-   Splitting 100 across `spots` seats: the first `100 % spots` seats get one extra bab. `rangeForSlot` /
+    `babNumbersForSlot` in `utils/babs.ts` are the only place this math lives, and it is duplicated
+    verbatim in `apps/web/src/lib/utils/babs.ts` — **change both together.** (`slotIndexForBab` is its
+    inverse; the rotation helpers below live in the same pair of files.)
+-   **`splitMode` decides which block a seat reads on a given day, not which one it owns.**
+    `ROTATION` (default) advances a seat by one whole seat per day — seat `s` reads seat
+    `(s + dayIndex) % spots`. Advancing by a _block_ rather than a fixed bab offset is what keeps the
+    hundred tiled exactly when `spots` doesn't divide evenly. `FIXED` never moves. `FREE` is retired:
+    the value survives in the DB enum because dropping one is destructive, but nothing can create it
+    and `toSplitMode` reads such a row as `FIXED`.
+-   **Nothing stores who reads what.** A member's share is derived from their seat and the round —
+    `shareBabNumbersToday` (server) or `GroupSummary.myBabNumbers` (client). Joining writes no bab rows
+    and creating a group writes 100 bare ones. Never try to work out ownership from a column.
+-   **`GroupBab.assignedUserId` means exactly one thing: "I volunteered for this bab out of the pool,
+    this round."** It is _not_ seat ownership — it used to be both, and once the rotation moved the
+    leftovers onto a member's old block the pool started reporting it as claimed by whoever had held
+    that seat at join time. The rollover clears the whole column, so a non-null value always belongs to
+    the round in progress. Reading never writes it; only volunteering does.
+-   **Joining a seat releases whatever was volunteered for it.** A claim means "I'll cover for an empty
+    seat this round"; filling the seat ends the errand, so `attemptJoin` clears `assignedUserId` across
+    the block that seat is offering — via `poolBlockFor`, the same helper the pool itself uses, so the
+    two can't disagree about which block a seat offers. Left standing, the claim stranded the volunteer:
+    the block stops being pool once the seat is filled and was never their own seat's, so `setBabRead`
+    refused it as "not yours to mark today" while their share still listed it — and the joiner was handed
+    the same babs, because a share is derived from seat + round and knows nothing about claims. **Reads
+    already made are never touched**: they happened, and `BabRead` keeps them. Only the claim comes off.
+-   **Lifecycle.** A group is `GATHERING` until the owner starts it: no `startedAt`, no day index, and
+    nothing is counted. `startGroupForUser` stamps `startedAt` under a conditional `updateMany` guarded
+    on `status: 'GATHERING'`, so a double tap can't rewind everyone's rotation. `autoStartIfFull` runs
+    inside the join transaction when `autoStartWhenFull` is set, so the last joiner's own response
+    already says RUNNING.
+-   **Shared pool.** The blocks nobody is reading this round, because their seat is empty. **The pool
+    rotates too** — an empty seat `e` leaves uncovered the block it would have been reading,
+    `(e + roundIndex) % spots`, not its own. Use `poolBlocks`; taking the standing block instead hands
+    one bab to two people and makes another unreachable, so 100/100 becomes impossible. A slot is taken
+    _whole_, sits on top of the taker's share, and **lasts one round**. A full group never has a pool.
+-   **A round boundary is a local midnight, in the group's own zone.** `Group.timezone` is the owner's
+    IANA zone, captured at creation and immutable after it. All the zone-aware math lives in
+    `utils/rounds.ts` and is **server-only** — the client is handed a `roundIndex` and never computes
+    one, which is why `roundIndexSince`/`roundStartedAtFor` were moved out of `utils/babs.ts` and are
+    deliberately absent from its web mirror. The zone belongs to the group, not the member: a shared
+    board needs one shared day or two members disagree about whose reads the rollover may wipe. Personal
+    stats are the opposite case — `profile.service.ts` buckets the streak and heatmap in the **viewer's**
+    zone, sent per request. Day arithmetic goes through `civilDayNumber`/`startOfCivilDay`, which read
+    the wall-clock date via `Intl` rather than adding hours; that is what keeps a 23- or 25-hour DST day
+    counting as one day. Never reintroduce `Date.UTC(...getUTCDate())` bucketing — it put the reset at
+    20:00 the previous evening in New York.
+-   **Rounds.** A group makes repeated passes at the hundred. `DAILY` rolls every day, `WEEKLY` every
+    seven (`ROUND_DAYS` in `utils/rounds.ts`). Those are the only two cycles — every one of them rolls,
+    so `ROUND_DAYS` is a `Record<CycleName, number>` with no null case, and `roundEndsAt` is always the
+    next boundary rather than an end date for the group. (`ONE_OFF` and `OPEN_ENDED` were both removed;
+    unlike `GroupSplitMode.FREE` these are gone from the DB enum too, each by its own migration.)
+    **The board resets at the boundary whether or not it was finished** — the cycle is a promise about
+    _when_, not about completing.
+    `Group.roundIndex` is also the rotation index, so a WEEKLY group holds one range for the whole week.
+-   **The rollover is lazy, not scheduled.** There is no cron. `ensureCurrentRound` sits in front of
+    every path that reads or writes a group, and the first request after a boundary performs the reset:
+    clear the board, release pool claims, bump `roundIndex`, clear `completedAt`, recompute `endsAt`.
+    It is guarded on the round being left, so two simultaneous requests can't both roll. A group nobody
+    opens rolls when someone opens it — nothing observes a group except through these paths.
+-   **A closed round can still be covered, and covering it is append-only.** "Üstlen" (someone
+    else's block or the pool) and "Okudum" (your own) are one write: `coverMissedBabForUser` inserts the
+    `BabRead` row that round never had. It does **not** reopen the round, touch `GroupBab`, or move the
+    read into the round now open — the unique key `(groupId, roundIndex, babNumber)` means a cover can
+    only fill a gap, never displace whoever read it first (that returns 409). Covering the _open_ round
+    is refused with 403: the ordinary read paths own it, because they also keep the board and
+    `completedAt` in step. Who _owed_ a bab in a past round is derived, never stored —
+    `owedSlotForBab` runs the rotation backwards — so a round shows both who owed each bab and who
+    ended up reading it.
+-   **`GroupBab` is the current round; `BabRead` is the record.** The rollover wipes
+    `GroupBab.readByUserId/readAt`, so anything historical — a member's total, their streak, the 30-day
+    heatmap — must read `BabRead`, which is append-only and never cleared. Its unique key
+    `(groupId, roundIndex, babNumber)` says a bab is read once per round. Every read/unread path writes
+    it through `recordRead`; a new one must too, or the reset will quietly eat that history.
+-   `spots`, `splitMode` and `cycle` are immutable after creation.
 
 Concurrency: claiming a bab and taking a pool slot both use a conditional `updateMany` guarded on
 `assignedUserId: null` and check `count === 0` — two simultaneous claims cannot both win. Seat
@@ -171,174 +171,216 @@ tidy up any rows left from before. Re-adding the feature means rebuilding that s
 
 ## Server Architecture (`apps/server`)
 
-- Entry: `src/index.ts` builds the app via `createApp()` in `src/app.ts`, and handles `SIGINT`/`SIGTERM`
-  to disconnect Prisma.
-- Middleware pipeline: `helmet` → `cors` → `express.json({ limit: '300kb' })` → `clerkMiddleware()`
-  (session parse, non-rejecting) → routers.
-- Public: `/health`. Everything else is under `/api` behind an auth gate + `populateAuthLocals`
-  (populates `res.locals.auth`).
-- Routes → services split: each `src/routes/*.route.ts` is a thin HTTP layer; logic lives in `src/services/*`.
-- Validation: Zod schemas in `src/schemas/`, applied via `middleware/validate.middleware.ts`.
-- Response shaping goes through `src/services/groupSerializers.ts` — routes must not hand raw Prisma
-  rows to the client. Those serializer types mirror `apps/web/src/lib/types/domain.ts` field-for-field;
-  the two workspaces share no package, so **changing one means changing the other.**
-- ESM with TS path aliases (`@app`, `@config/*`, `@middleware/*`, `@routes/*`, `@schemas/*`,
-  `@services/*`, `@db/*`, `@utils/*`, `@interfaces/*`). Dev uses `tsx`; the prod build relies on
-  `tsc-alias --resolve-full-paths`. Strict options on: `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`.
-- The Prisma schema is a **folder**, not a file: `prisma/schema/` holds `schema.prisma` (generator +
-  datasource only) plus one file per domain — `group`, `membership`, `bab`, `user`. Prisma merges them, so
-  models and enums are global across the folder regardless of which file they sit in; put a new model in
-  the domain file it belongs to rather than starting another one. `prisma.config.ts` points `schema` at
-  the folder — never back at a single file.
-- Generated Prisma client output is `src/generated/prisma` (custom path in `prisma/schema/schema.prisma`,
-  so its `output` is `../../src/generated/prisma`) and is gitignored — run `db:generate` after a fresh clone.
+-   Entry: `src/index.ts` builds the app via `createApp()` in `src/app.ts`, and handles `SIGINT`/`SIGTERM`
+    to disconnect Prisma.
+-   Middleware pipeline: `helmet` → `cors` → `express.json({ limit: '300kb' })` → `clerkMiddleware()`
+    (session parse, non-rejecting) → routers.
+-   Public: `/health`. Everything else is under `/api` behind an auth gate + `populateAuthLocals`
+    (populates `res.locals.auth`).
+-   Routes → services split: each `src/routes/*.route.ts` is a thin HTTP layer; logic lives in `src/services/*`.
+-   Validation: Zod schemas in `src/schemas/`, applied via `middleware/validate.middleware.ts`.
+-   Response shaping goes through `src/services/groupSerializers.ts` — routes must not hand raw Prisma
+    rows to the client. Those serializer types mirror `apps/web/src/lib/types/domain.ts` field-for-field;
+    the two workspaces share no package, so **changing one means changing the other.**
+-   ESM with TS path aliases (`@app`, `@config/*`, `@middleware/*`, `@routes/*`, `@schemas/*`,
+    `@services/*`, `@db/*`, `@utils/*`, `@interfaces/*`). Dev uses `tsx`; the prod build relies on
+    `tsc-alias --resolve-full-paths`. Strict options on: `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`.
+-   The Prisma schema is a **folder**, not a file: `prisma/schema/` holds `schema.prisma` (generator +
+    datasource only) plus one file per domain — `group`, `membership`, `bab`, `user`. Prisma merges them, so
+    models and enums are global across the folder regardless of which file they sit in; put a new model in
+    the domain file it belongs to rather than starting another one. `prisma.config.ts` points `schema` at
+    the folder — never back at a single file.
+-   Generated Prisma client output is `src/generated/prisma` (custom path in `prisma/schema/schema.prisma`,
+    so its `output` is `../../src/generated/prisma`) and is gitignored — run `db:generate` after a fresh clone.
 
 ## Web Architecture (`apps/web`)
 
-- Entry: `index.ts` → `src/AppRoot.tsx`. Provider order: `ClerkProvider` → `ThemeProvider` →
-  `I18nProvider` → `QueryClientProvider` → `AppContainer` (`GestureHandlerRootView` → `KeyboardProvider`
-  → `BottomSheetModalProvider` → `NavigationContainer`). Fonts load before render; splash held via
-  `expo-splash-screen`.
-- Navigation: `src/navigation/AppNavigator.tsx` — a 5-tab bottom navigator (Home, Groups, Discover,
-  Reminders, Profile) inside a native stack. The stack's initial route is `Onboarding` until
-  `userSettings.hasSeenOnboarding` is true, so the navigator waits for settings before mounting.
-- **The bottom bar stays visible on every screen behind the tabs.** Home, Groups and Discover each own a
-  stack (`sharedTabScreens()` registers `GroupDetail`, `BabReader`, the rounds screens and the Keşfet
-  preview in all three), so detail screens push *inside* a tab and each tab keeps its own back stack. Adding a pushed
-  screen means adding it to `sharedTabScreens`, not to the root stack — the root stack holds only
-  `Onboarding`, `Tabs` and sheet routes. Tabs carry `popToTopOnBlur`, so leaving a tab resets it to its
-  root — switching away from a group and back lands on the tab's list, not the group you were in. `TAB_BAR_HIDDEN_ROUTES` lists the exceptions (the reader);
-  it also zeroes `TabBarOffsetContext`, so never hide the bar without going through it. Those screens
-  **collapse** the bar (`BottomNavBar isCollapsed`), never unmount it: returning `null` from `tabBar`
-  removed it the moment you navigated, which reflowed the screen being pushed away and flashed its card
-  corner under the incoming one for a few frames.
-- **The reader walks the member's share, not the hundred.** `BabReader`'s arrows, its progress rail and
-  its "Bab 3 / 5" eyebrow all measure against `myBabNumbers`; stepping ±1 wandered into other members'
-  babs, which are readable to look at but not to mark. The rail replaced a dash per bab because fifty
-  dashes stopped reading as anything. `linking.ts` must keep `parse: { babNumber: Number }` — the share
-  is matched by identity, so a string from a deep link is not found in it.
-- The bottom bar is a **sibling below the scene, not an overlay** — the tab navigator already insets the
-  screen by the bar's height. `TabBarOffsetContext` is therefore just a small content gap, not the bar's
-  height; reserving the height again leaves a screenful of dead space under long content.
-- Screens inside a tab type their navigation with `TabStackParamList`, not `RootStackParamList`.
-- Home is a single-group view of "today's" round — the first entry from `useGetGroups()` (newest-first).
-  Its primary action marks the reader's whole share at once via `PATCH /babs/:groupId/read-all`; don't
-  replace that with a loop over the single-bab endpoint, which would fire one request per bab.
-- Data layer: `src/api/wrapper.api.ts` attaches the Clerk bearer token; feature APIs in `src/api/*.api.ts`
-  are wrapped by TanStack Query hooks in `src/lib/hooks/use*.ts`. `queryKeys.ts` centralises cache keys.
-  `useSetBabRead` and `useUpdateUserSettings` are optimistic — preserve the cancel/snapshot/rollback
-  pattern when editing them.
-- Theme: token system in `src/lib/theme/tokens.ts`, light + dark. **Never hardcode a hex in a component** —
-  every colour comes from `theme.colors.*` via `useThemeContext()`.
-- i18n: `src/lib/i18n/strings.ts` holds the full TR/EN table; `useTranslation()` gives `t(key, values)`
-  with `{token}` interpolation. TR is the default. **No user-facing string may be hardcoded** — add a key.
-  `en` is typed as `typeof tr`, so a key added to one language fails the build until added to the other.
-- Components: `src/components/<Name>/<Name>.component.tsx` + `<Name>.types.ts`, named exports only,
-  `StyleSheet.create` at the bottom. All text goes through `components/ui/Typography` — no bare `<Text>`.
-- **Icons**: every glyph comes from `components/ui/Icon` → `<Icon name size strokeWidth color />`, traced
-  from the design system's `Icon Set.dc.html`. All are drawn on a 24 grid, render at 21px, inherit
-  `currentColor` and carry **no fill** — activity is expressed by stroke weight (1.6 resting, 2.1 on the
-  active tab), never by a filled variant, and nothing goes below 14px. Never use a typographic character
-  (`←`, `×`, `+`, `›`, `✓`) as an icon — **including inside a string**: a label like `'Kopyalandı ✓'`
-  smuggles one past the rule, so the tick belongs in `AppButton`'s `icon` prop and the string stays
-  plain. The one exception the design keeps is the home ring's core mark (`۞`/`✓`), which is a
-  Newsreader display glyph the size of a heading and is animated as text. Pushed screens get their back
-  affordance from `ui/BackLink`.
-- Avatars are DiceBear `thumbs` (`@dicebear/core` + `@dicebear/styles`), seeded on the person's name so
-  they are stable, and re-tinted into the app palette — never DiceBear's default colours.
-- **Screen titles**: every screen heads with `components/ScreenTitle` → `<ScreenTitle label secondaryLabel
+-   Entry: `index.ts` → `src/AppRoot.tsx`. Provider order: `ClerkProvider` → `ThemeProvider` →
+    `I18nProvider` → `QueryClientProvider` → `AppContainer` (`GestureHandlerRootView` → `KeyboardProvider`
+    → `BottomSheetModalProvider` → `NavigationContainer`). Fonts load before render; splash held via
+    `expo-splash-screen`.
+-   Navigation: `src/navigation/AppNavigator.tsx` — a 5-tab bottom navigator (Home, Groups, Discover,
+    Reminders, Profile) inside a native stack. The stack's initial route is `Onboarding` until
+    `userSettings.hasSeenOnboarding` is true, so the navigator waits for settings before mounting.
+-   **The bottom bar stays visible on every screen behind the tabs.** Home, Groups and Discover each own a
+    stack (`sharedTabScreens()` registers `GroupDetail`, `BabReader`, the rounds screens and the Keşfet
+    preview in all three), so detail screens push _inside_ a tab and each tab keeps its own back stack. Adding a pushed
+    screen means adding it to `sharedTabScreens`, not to the root stack — the root stack holds only
+    `Onboarding`, `Tabs` and sheet routes. Tabs carry `popToTopOnBlur`, so leaving a tab resets it to its
+    root — switching away from a group and back lands on the tab's list, not the group you were in. `TAB_BAR_HIDDEN_ROUTES` lists the exceptions (the reader);
+    it also zeroes `TabBarOffsetContext`, so never hide the bar without going through it. Those screens
+    **collapse** the bar (`BottomNavBar isCollapsed`), never unmount it: returning `null` from `tabBar`
+    removed it the moment you navigated, which reflowed the screen being pushed away and flashed its card
+    corner under the incoming one for a few frames.
+-   **The reader walks the member's share, not the hundred.** `BabReader`'s arrows, its progress rail and
+    its "Bab 3 / 5" eyebrow all measure against `myBabNumbers`; stepping ±1 wandered into other members'
+    babs, which are readable to look at but not to mark. The rail replaced a dash per bab because fifty
+    dashes stopped reading as anything. `linking.ts` must keep `parse: { babNumber: Number }` — the share
+    is matched by identity, so a string from a deep link is not found in it.
+-   The bottom bar is a **sibling below the scene, not an overlay** — the tab navigator already insets the
+    screen by the bar's height. `TabBarOffsetContext` is therefore just a small content gap, not the bar's
+    height; reserving the height again leaves a screenful of dead space under long content.
+-   Screens inside a tab type their navigation with `TabStackParamList`, not `RootStackParamList`.
+-   Home is a single-group view of "today's" round — the first entry from `useGetGroups()` (newest-first).
+    Its primary action marks the reader's whole share at once via `PATCH /babs/:groupId/read-all`; don't
+    replace that with a loop over the single-bab endpoint, which would fire one request per bab.
+    **"Whole share" means the rotated block _and_ the pool blocks they volunteered for** — the same set
+    the serializer calls `myBabNumbers`, which is what the ring counts and offers to finish. It once
+    covered only the rotated half, on the reasoning that a volunteered block is extra; the screen
+    overruled that, since a tap on "33 bab · Bu grubu bitir" that moved seventeen of them read as
+    nothing having happened.
+-   Data layer: `src/api/wrapper.api.ts` attaches the Clerk bearer token; feature APIs in `src/api/*.api.ts`
+    are wrapped by TanStack Query hooks in `src/lib/hooks/use*.ts`. `queryKeys.ts` centralises cache keys.
+    `useSetBabRead` and `useUpdateUserSettings` are optimistic — preserve the cancel/snapshot/rollback
+    pattern when editing them.
+-   Theme: token system in `src/lib/theme/tokens.ts`, light + dark. **Never hardcode a hex in a component** —
+    every colour comes from `theme.colors.*` via `useThemeContext()`.
+-   i18n: `src/lib/i18n/strings.ts` holds the full TR/EN table; `useTranslation()` gives `t(key, values)`
+    with `{token}` interpolation. TR is the default. **No user-facing string may be hardcoded** — add a key.
+    `en` is typed as `typeof tr`, so a key added to one language fails the build until added to the other.
+-   Components: `src/components/<Name>/<Name>.component.tsx` + `<Name>.types.ts`, named exports only,
+    `StyleSheet.create` at the bottom. All text goes through `components/ui/Typography` — no bare `<Text>`.
+-   **Icons**: every glyph comes from `components/ui/Icon` → `<Icon name size strokeWidth color />`, traced
+    from the design system's `Icon Set.dc.html`. All are drawn on a 24 grid, render at 21px, inherit
+    `currentColor` and carry **no fill** — activity is expressed by stroke weight (1.6 resting, 2.1 on the
+    active tab), never by a filled variant, and nothing goes below 14px. Never use a typographic character
+    (`←`, `×`, `+`, `›`, `✓`) as an icon — **including inside a string**: a label like `'Kopyalandı ✓'`
+    smuggles one past the rule, so the tick belongs in `AppButton`'s `icon` prop and the string stays
+    plain. The one exception the design keeps is the home ring's core mark (`۞`/`✓`), which is a
+    Newsreader display glyph the size of a heading and is animated as text. Pushed screens get their back
+    affordance from `ui/BackLink`.
+-   Avatars are DiceBear `thumbs` (`@dicebear/core` + `@dicebear/styles`), seeded on the person's name so
+    they are stable, and re-tinted into the app palette — never DiceBear's default colours.
+-   **Screen titles**: every screen heads with `components/ScreenTitle` → `<ScreenTitle label secondaryLabel
 description leading action size />`; pushed screens get it via `ScreenHeader`, which stacks a back row on
-  top of the same block. It owns the design's `padding: 8px 0 18px`, so never hand-roll a heading or add
-  padding around one — screens that did drifted apart and the title visibly jumped when switching tabs.
-  `secondaryLabel` is the eyebrow above the label, `description` the caption below; `size` picks the three
-  scales the design uses (`page` 27px, `name` 22px beside an avatar, `compact` 17px for Home's group name).
-  The eyebrow row is **always laid out**, empty and at a fixed height, on screens without a
-  `secondaryLabel` — that is what keeps every title on one baseline, so don't make it conditional.
-  (`ScreenHeader` opts out via `hasReservedSecondaryLabel={false}`: its back row already fills that slot.)
-- **Forms**: any screen that collects values goes through `components/ui/Form` → `<Form<T> schema
+    top of the same block. It owns the design's `padding: 8px 0 18px`, so never hand-roll a heading or add
+    padding around one — screens that did drifted apart and the title visibly jumped when switching tabs.
+    `secondaryLabel` is the eyebrow above the label, `description` the caption below; `size` picks the three
+    scales the design uses (`page` 27px, `name` 22px beside an avatar, `compact` 17px for Home's group name).
+    The eyebrow row is **always laid out**, empty and at a fixed height, on screens without a
+    `secondaryLabel` — that is what keeps every title on one baseline, so don't make it conditional.
+    (`ScreenHeader` opts out via `hasReservedSecondaryLabel={false}`: its back row already fills that slot.)
+-   **Forms**: any screen that collects values goes through `components/ui/Form` → `<Form<T> schema
 defaultValues render={({ handleSubmit, watch, setValue }) => …} />`, which wires `react-hook-form` to the
-  zod resolver and puts the methods on context. Inside it use the bound controls — `Field` (text),
-  `Switch`, `ToggleRow`, `OptionGroup` (choice cards), `Select` (cycle chips / segmented), `Stepper` — each
-  binds by `name` and renders its own validation message. Don't hand-roll `useState` per input, and don't
-  render your own error text under a bound control.
-- Schemas live in `src/lib/schemas/*.schema.ts` and are **factories taking `t`** (`createGroupSchema(t)`),
-  not module constants — validation messages are user-facing and this app is bilingual. Build them with
-  `useMemo(() => createX(t), [t])`.
-- Base inputs are `components/ui/Input` → `AppInput` and `components/ui/Switch` → `AppSwitch`, both mirroring
-  React Native's own contracts (`value` / `onChangeText` / `onValueChange`) so the `Controller` wrappers can
-  bind them. Use these directly only outside a `Form` (e.g. the Discover search box).
-- Settings-style screens (Reminders) still use `Form`, but persist on change rather than submit — see the
-  `ReminderPersistence` component there, which subscribes via `watch`'s callback form so it never fires on
-  mount and never trips `react-hooks/set-state-in-effect`.
-- **Bottom sheets**: every modal surface in the app is `components/ui/BottomSheet` → `AppBottomSheet`, so
-  they all share one grabber, spring, fading backdrop and drag-to-dismiss. It's declarative — hold a state
-  flag on the screen and pass `isVisible`. There is **no close button**: the grabber, a downward drag and a
-  tap on the backdrop dismiss it; don't add an × back. Don't hand-roll a `Modal`, animate a sheet by hand,
-  or reach for the navigator's `pageSheet` presentation. Share, Manage, reader text-size, member-removal,
-  profile-photo, delete-account, feedback, members, join-by-code and create-group all use it.
-- **The group screen's two whole-group actions are corner actions in its heading, and nothing else.**
-  Owners get settings (which opens Yönet, and the members list from inside it) beside the filled Paylaş;
-  non-owners get a members icon in that same slot, because they have no settings to open and the list is
-  the one thing Yönet held for them. The old full-width "Yönet" button and the "Bu grupta kimler var" row
-  are both gone — don't reintroduce either as a second way to the same place. `MembersSheet` is a sheet,
-  not a route: `Members` was removed from `sharedTabScreens`, `TabDetailParamList` and `linking.ts`
-  together. It takes a 52pt `topInset` because a list of twenty members genuinely runs long; the join
-  flow deliberately does **not** — it sizes to its content like every other sheet, and a fixed detent
-  there left a screenful of dead space under eight code cells.
-- **An invitation is a code and nothing else.** There is no shareable URL anywhere — no QR, no
-  `cuzhane://join/...`, no `https://cuzhane.app/j/...`, and `linking.ts` deliberately registers no invite
-  path. The code is the hero of the share sheet and of the lobby, "Kodu kopyala" puts the bare (un-dashed)
-  code on the clipboard, and it is typed back in on the other side. Don't reintroduce a link as a
-  convenience: it was removed on purpose, and a second unadvertised way in is worse than none.
-- Joining by code is therefore a **sheet, not a route** — `screens/Join/JoinByCodeSheet`, one surface
-  holding all three steps (code entry → preview → group-full), opened over whatever screen you are on.
-  It is mounted from Gruplarım's key button, Gruplarım's empty state and Home's empty state; Onboarding's
-  "Davet kodum var" can't mount it directly, so it lands on the Groups tab with `shouldOpenJoinSheet` and
-  that screen opens it. `screens/Join/InvitePreviewScreen` is still a pushed screen, because browsing
-  Keşfet genuinely is navigation.
-- A sheet that needs to be a *route* (create-group, which is reachable from two screens) registers under
-  the `sheetRouteOptions` group — a `transparentModal` with `animation: 'none'`, because the sheet itself
-  owns the animation. Pass `snapPoints` for content taller than the screen and `hasScrollableContent` when
-  the body scrolls, so the sheet yields vertical gestures to it.
-- **Motion**: the design doc is an HTML prototype and expresses motion as CSS. Translate intent, not
-  syntax — `:hover` and `cursor:pointer` have no touch equivalent and become **press** feedback via
-  `Pressable`'s `({ pressed })`. Real motion uses Reanimated. Eased colour/width transitions already live
-  inside `ProgressBar`, `CellGrid` and `BabRow`'s checkbox, so callers get them for free; don't reimplement
-  them per screen.
-- **`Keyframe` is mutable — build one per animated element, never share a module constant.** `.delay()`
-  writes to the instance and returns the same object, so a shared `const POP = new Keyframe(...)` used
-  across a grid ends up carrying whatever delay the last cell asked for: every cell then animates on one
-  schedule, which is no stagger at all and reads as "the animation doesn't work". `CellGrid`'s `pop()` /
-  `shrink()` and `Stepper`'s `countPop()` are factories for exactly this reason.
-- **Grid motion follows `design_handoff_cuzhane/pool-fill.html`**, which is deliberate about *which*
-  channel moves. The **pool fill** (üstlen, on the havuz board and the Turlar grid) is **colour only** —
-  420ms a cell, no scale — because at forty cells a pop reads as noise while a colour sweep reads as
-  ownership. The **spots picker** is the opposite: the cell *count* changes there, so entrance and exit
-  have to be legible, and it pops (380ms) and ghosts out (300ms) instead. Both stagger by a cell's index
-  **within its own run** — `staggerWithinRuns` in `utils/groups.ts`, 70ms a step for the fill, 26ms for
-  the seats. Timed from the start of the whole grid, a late block would still be filling seconds after
-  the tap. Both honour `useReducedMotion`.
-- The square-lattice UI (100-bab board, spots picker, activity heatmap, pool board) all builds on the
-  single `components/ui/CellGrid` primitive, which derives cell size from measured width. Don't
-  reintroduce percentage-based grid sizing — it drifts a pixel per column.
-- **The pool board is `components/PoolGrid`, and there is exactly one of it.** Numbered cells in three
-  states — hatched "havuzda", a soft panel for "başkası üstlendi", solid accent with a `text` ring for
-  "sen üstlendin" — plus the matching three-item legend. The Havuz screen (07a/07b) and the group
-  screen's Havuz card (07c) both render it, because the card is the door to the screen and two
-  pictures of the same babs must not disagree. **07b is not a separate screen**: a crowded pool is the
-  same board with more slots. The ring is a per-cell `borderColor` at a uniform `borderWidth`, not the
-  design's outer `box-shadow` — `CellGrid` clips its cells, so an outset shadow would never show, and
-  a uniform width keeps every cell the same size. Cells are always **sorted by bab number**: under
-  ROTATION the slots arrive in rotated order, and the two surfaces build their cells from different
-  sources (slots on the Havuz screen, the hundred via `toPoolCells` on the group screen), so without
-  the sort the same pool would read in two different orders one tap apart.
-- The Havuz screen's header counts **free** babs and **free** slots — what you could still take on —
-  while the group screen's card chip counts the **whole** pool. Two questions, deliberately two
-  numbers; `GroupInvitePreview.poolBabNumbers` is the whole pool too, `GroupSummary.poolBabNumbers`
-  only the unclaimed part (it feeds the board, where a claimed bab is someone's work).
-- Environment: `EXPO_PUBLIC_API_URL` (localhost auto-resolves to the Metro host for devices) and
-  `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`.
-- Path alias: `@/*` → `src/*`.
+    zod resolver and puts the methods on context. Inside it use the bound controls — `Field` (text),
+    `Switch`, `ToggleRow`, `OptionGroup` (choice cards), `Select` (cycle chips / segmented), `Stepper` — each
+    binds by `name` and renders its own validation message. Don't hand-roll `useState` per input, and don't
+    render your own error text under a bound control.
+-   Schemas live in `src/lib/schemas/*.schema.ts` and are **factories taking `t`** (`createGroupSchema(t)`),
+    not module constants — validation messages are user-facing and this app is bilingual. Build them with
+    `useMemo(() => createX(t), [t])`.
+-   Base inputs are `components/ui/Input` → `AppInput` and `components/ui/Switch` → `AppSwitch`, both mirroring
+    React Native's own contracts (`value` / `onChangeText` / `onValueChange`) so the `Controller` wrappers can
+    bind them. Use these directly only outside a `Form` (e.g. the Discover search box).
+-   Settings-style screens (Reminders) still use `Form`, but persist on change rather than submit — see the
+    `ReminderPersistence` component there, which subscribes via `watch`'s callback form so it never fires on
+    mount and never trips `react-hooks/set-state-in-effect`.
+-   **Bottom sheets**: every modal surface in the app is `components/ui/BottomSheet` → `AppBottomSheet`, so
+    they all share one grabber, spring, fading backdrop and drag-to-dismiss. It's declarative — hold a state
+    flag on the screen and pass `isVisible`. There is **no close button**: the grabber, a downward drag and a
+    tap on the backdrop dismiss it; don't add an × back. Don't hand-roll a `Modal`, animate a sheet by hand,
+    or reach for the navigator's `pageSheet` presentation. Share, Manage, reader text-size, member-removal,
+    profile-photo, delete-account, feedback, members, join-by-code and create-group all use it.
+-   **The group screen's two whole-group actions are corner actions in its heading, and nothing else.**
+    Owners get settings (which opens Yönet, and the members list from inside it) beside the filled Paylaş;
+    non-owners get a members icon in that same slot, because they have no settings to open and the list is
+    the one thing Yönet held for them. The old full-width "Yönet" button and the "Bu grupta kimler var" row
+    are both gone — don't reintroduce either as a second way to the same place. `MembersSheet` is a sheet,
+    not a route: `Members` was removed from `sharedTabScreens`, `TabDetailParamList` and `linking.ts`
+    together. It takes a 52pt `topInset` because a list of twenty members genuinely runs long; the join
+    flow deliberately does **not** — it sizes to its content like every other sheet, and a fixed detent
+    there left a screenful of dead space under eight code cells.
+-   **An invitation is a code and nothing else.** There is no shareable URL anywhere — no QR, no
+    `cuzhane://join/...`, no `https://cuzhane.app/j/...`, and `linking.ts` deliberately registers no invite
+    path. The code is the hero of the share sheet and of the lobby, "Kodu kopyala" puts the bare (un-dashed)
+    code on the clipboard, and it is typed back in on the other side. Don't reintroduce a link as a
+    convenience: it was removed on purpose, and a second unadvertised way in is worse than none.
+-   Joining by code is therefore a **sheet, not a route** — `screens/Join/JoinByCodeSheet`, one surface
+    holding all three steps (code entry → preview → group-full), opened over whatever screen you are on.
+    It is mounted from Gruplarım's key button, Gruplarım's empty state and Home's empty state; Onboarding's
+    "Davet kodum var" can't mount it directly, so it lands on the Groups tab with `shouldOpenJoinSheet` and
+    that screen opens it. `screens/Join/InvitePreviewScreen` is still a pushed screen, because browsing
+    Keşfet genuinely is navigation.
+-   A sheet that needs to be a _route_ (create-group, which is reachable from two screens) registers under
+    the `sheetRouteOptions` group — a `transparentModal` with `animation: 'none'`, because the sheet itself
+    owns the animation. Pass `snapPoints` for content taller than the screen and `hasScrollableContent` when
+    the body scrolls, so the sheet yields vertical gestures to it.
+-   **Motion**: the design doc is an HTML prototype and expresses motion as CSS. Translate intent, not
+    syntax — `:hover` and `cursor:pointer` have no touch equivalent and become **press** feedback via
+    `Pressable`'s `({ pressed })`. Real motion uses Reanimated. Eased colour/width transitions already live
+    inside `ProgressBar`, `CellGrid` and `BabRow`'s checkbox, so callers get them for free; don't reimplement
+    them per screen.
+-   **`Keyframe` is mutable — build one per animated element, never share a module constant.** `.delay()`
+    writes to the instance and returns the same object, so a shared `const POP = new Keyframe(...)` used
+    across a grid ends up carrying whatever delay the last cell asked for: every cell then animates on one
+    schedule, which is no stagger at all and reads as "the animation doesn't work". `CellGrid`'s `pop()` /
+    `shrink()` and `Stepper`'s `countPop()` are factories for exactly this reason.
+-   **Grid motion follows `design_handoff_cuzhane/pool-fill.html`**, which is deliberate about _which_
+    channel moves. The **pool fill** (üstlen, on the havuz board and the Turlar grid) is **colour only** —
+    420ms a cell, no scale — because at forty cells a pop reads as noise while a colour sweep reads as
+    ownership. The **spots picker** is the opposite: the cell _count_ changes there, so entrance and exit
+    have to be legible, and it pops (380ms) and ghosts out (300ms) instead. Both stagger by a cell's index
+    **within its own run** — `staggerWithinRuns` in `utils/groups.ts`, 70ms a step for the fill, 26ms for
+    the seats. Timed from the start of the whole grid, a late block would still be filling seconds after
+    the tap. Both honour `useReducedMotion`.
+-   The square-lattice UI (100-bab board, spots picker, activity heatmap, pool board) all builds on the
+    single `components/ui/CellGrid` primitive, which derives cell size from measured width. Don't
+    reintroduce percentage-based grid sizing — it drifts a pixel per column.
+-   **The cells ease their colours with a Reanimated CSS transition, never `useAnimatedStyle`.** A mapper
+    per cell is what made the board unscrollable: measured on the group screen with RN's performance
+    monitor, a fling held the **JS thread at 17–24fps and the UI thread at 35–40** with a hundred
+    `useAnimatedStyle` cells, and **59–60 on both** once the same easing was declared as
+    `transitionProperty`/`transitionDuration`/`transitionDelay` on a flat style object. Bisected by
+    hiding the board (JS back to 60), then by removing the cells' `Pressable`s (no change — not the
+    touch targets), then by swapping the animated style for a plain `View` (JS back to 60). The
+    transition properties must sit on **one flat style object**, not inside a style array, or Reanimated
+    never sees them. A transition also only animates a _change_, which is why the old `hasPainted`
+    shared value — a hand-rolled guard so the first paint snapped instead of fading in from nothing —
+    could go.
+-   **A hundred cells is a lot of views, and both things that keep it cheap are easy to undo.** A `Cell`
+    mounts a `Hatch` only if it is hatched _or has been_ — the stripes are eight rotated views apiece, so
+    mounting one on every cell made three quarters of the board invisible scenery and it scrolled like it.
+    Keeping the node after the hatch comes off is deliberate: that is what lets taking a pool bab fade the
+    stripes out on the fill's own curve. And `Cell` is `memo`'d, which only pays if `items` and
+    `onPressCell` hold their identity — build them with `useMemo`/`useCallback`, above the early returns
+    where the screen has them (`GroupDetailScreen`, `RoundDetailScreen`). An inline `.map` in the JSX
+    hands every cell a new object per render and silently restores the old cost.
+-   **The pool board is `components/PoolGrid`, and there is exactly one of it.** Numbered cells in three
+    states — hatched "havuzda", a soft panel for "başkası üstlendi", solid accent with a `text` ring for
+    "sen üstlendin" — plus the matching three-item legend. The Havuz screen (07a/07b) and the group
+    screen's Havuz card (07c) both render it, because the card is the door to the screen and two
+    pictures of the same babs must not disagree. **07b is not a separate screen**: a crowded pool is the
+    same board with more slots. The ring is a per-cell `borderColor` at a uniform `borderWidth`, not the
+    design's outer `box-shadow` — `CellGrid` clips its cells, so an outset shadow would never show, and
+    a uniform width keeps every cell the same size. Cells are always **sorted by bab number**: under
+    ROTATION the slots arrive in rotated order, and the two surfaces build their cells from different
+    sources (slots on the Havuz screen, the hundred via `toPoolCells` on the group screen), so without
+    the sort the same pool would read in two different orders one tap apart.
+-   **A share is one slice plus a count, never a list of ranges** (design 01g). Volunteering for a pool
+    block gives a member a second, unconnected range, so "1–13, 27–39, 66–78" is now an ordinary share —
+    and spelled out it wrapped Home's ring onto three lines and doubled the group heading. `shareSlices`
+    in `utils/groups.ts` picks the stretch holding `myNextBabNumber` (where the reader actually is, not
+    their lowest number) and counts the rest; `components/SliceChip` renders the "+2 aralık daha" chip.
+    Three surfaces use the pair and must keep using it: Home's ring — where the chip lives _inside_ the
+    flying range node so it rides the docking transform rather than being kept in step by hand — Home's
+    shelf rows (`isCompact`, just "+2", because that column is 56pt), and the group screen's "Sana
+    atanan" heading. `babRuns`/`formatRun` underneath live in the **mirrored** `utils/babs.ts` pair, so
+    they change on both sides together.
+-   **Üstlen can be undone, but only in the session that did it.** A row you claimed on this visit keeps
+    an avatar _and_ a "Geri al" beside it, sub-lined "az önce üstlendin"; older claims don't, because by
+    then it is a commitment other people can see rather than a slip. The state is deliberately memory
+    (`takenHere` on the Havuz screen) and not a stored timestamp. The board **drains the block the way it
+    filled, reversed** — last bab first, same `FILL_STEP_MS` — via `staggerWithinRuns`'s `reversedKeys`
+    argument and `PoolGrid`'s `drainingSlotIndexes`. The draining slot is cleared on a timer sized to the
+    sweep, or a later claim would play backwards too. Both the take and the release are optimistic: the
+    sweep _is_ the confirmation, so it has to start on the tap, not on the response.
+-   The Havuz screen's header counts **free** babs and **free** slots — what you could still take on —
+    while the group screen's card chip counts the **whole** pool. Two questions, deliberately two
+    numbers; `GroupInvitePreview.poolBabNumbers` is the whole pool too, `GroupSummary.poolBabNumbers`
+    only the unclaimed part (it feeds the board, where a claimed bab is someone's work).
+-   Environment: `EXPO_PUBLIC_API_URL` (localhost auto-resolves to the Metro host for devices) and
+    `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`.
+-   Path alias: `@/*` → `src/*`.
 
 ## Content gap
 
@@ -367,18 +409,22 @@ carrying this app's `kind` are ever cancelled.
 
 Four rules the reconciler must keep — each of them was a real bug found in audit:
 
-- **Serialise runs, never drop them.** A request arriving mid-run sets a rerun flag and the
-  loop goes round again, reading the desired state from a ref. Returning early instead meant
-  that on a cold start — where settings and groups resolve moments apart — the first run
-  cancelled (no group yet) and the second was discarded, leaving *nothing* scheduled.
-- **Act only when the answer is known.** `isReady` needs both queries, or signed-out.
-  Reconciling on settings alone cancels a good notification in the gap before groups arrive.
-- **Signed out is a known answer, not an unknown one.** It means "cancel". Otherwise the
-  previous account's reminder — with their group's name in it — keeps arriving on a
-  signed-out device, because clearing the cache leaves no successful query to reconcile.
-- **Read permission, never request it.** The reconciler runs on every launch; prompting from
-  there throws the system dialog at someone who merely opened the app. `RemindersScreen`
-  owns the prompt, at the moment the switch is turned on.
+-   **Serialise runs, never drop them.** A request arriving mid-run sets a rerun flag and the
+    loop goes round again, reading the desired state from a ref. Returning early instead meant
+    that on a cold start — where settings and groups resolve moments apart — the first run
+    cancelled (no group yet) and the second was discarded, leaving _nothing_ scheduled.
+-   **Act only when the answer is known.** `isReady` needs both queries, or signed-out.
+    Reconciling on settings alone cancels a good notification in the gap before groups arrive.
+-   **Signed out is a known answer, not an unknown one.** It means "cancel". Otherwise the
+    previous account's reminder — with their group's name in it — keeps arriving on a
+    signed-out device, because clearing the cache leaves no successful query to reconcile.
+-   **The reconciler reads permission and never requests it.** It runs on every launch, so
+    prompting from there would throw the system dialog at someone who merely reopened the app.
+    Two screens own the asking, and nothing else may: `HomeScreen` via
+    `useNotificationPermissionPrompt` — once per session, and only when `canAskAgain` says a
+    dialog would actually appear — and `RemindersScreen`, at the moment the switch is turned
+    on. Home asks because it is the screen the reminder is _about_; onboarding would ask before
+    any of it means anything.
 
 The Android channel is declared inside `scheduleReminder`, immediately before the schedule
 that needs it — from a mount effect it raced the first schedule, and Android silently drops
@@ -393,6 +439,59 @@ the scheduler and the Reminders screen's preview so the two can never name diffe
 `setNotificationHandler` is set at module scope in `AppRoot`, before any component mounts —
 without it a reminder arriving while the app is open is delivered silently.
 
+## Push notifications
+
+The daily reminder above is **local**. Separately there is now a **server push** path, for
+things only the server can know about — the first is a pool claim released because somebody
+joined the seat it was covering.
+
+-   `push.service.ts` → `sendPushToUser(userId, payload)` fans out across the user's devices via
+    `expo-server-sdk`, and **never throws**: callers reach it from inside domain flows where the
+    write is the point and the push is a courtesy. It prunes `DeviceNotRegistered` tokens, which
+    is the only receipt error meaning "stop trying" — kept, a stale token is retried forever.
+-   Send **after the commit, never inside the transaction**, and `await` it rather than leaving
+    it dangling: an unawaited rejection would escape the request as an unhandled one.
+-   Copy lives in `utils/pushCopy.ts`, not the client's strings table — the phone is not involved
+    in composing a notification it receives while closed. The language is resolved per send from
+    `UserSettings`. That makes it a second, smaller copy table to keep in step by hand.
+-   `usePushTokenRegistration` (in `NotificationOrchestrator`) registers this device's Expo token
+    on sign-in and **withdraws it on sign-out** — left behind, the account's next notification
+    arrives on a phone somebody else is now using. It only registers a device that already has
+    permission; `registerDeviceForPush` is shared with the Home prompt so a newly-granted
+    permission registers immediately rather than at the next launch.
+-   A notification carrying a `groupId` in its `data` opens that group; the local reminder, which
+    counts every group, still lands on Ana sayfa.
+-   **A push is never the only channel.** `PoolClaimRelease` records the same event so the group
+    screen can show it regardless — permission may be denied, the token may be missing, the phone
+    may be off. Anything worth pushing is worth leaving a trace of.
+-   **The simulator can register a token but cannot receive a real push.** `getExpoPushTokenAsync`
+    succeeds there and the row lands in `PushToken`, which makes it look like the whole path
+    works — it doesn't. APNs rejects that token with `BadDeviceToken` (400).
+    **`"ios": { "simulator": true }` in the EAS profile does not help**: a simulator build is
+    ad-hoc signed (`flags=0x2(adhoc)`) with no provisioning profile, and the `aps-environment`
+    entitlement comes from the profile — so it has no push capability either. Verified by
+    `codesign -d --entitlements - <app>` on both a local `expo run:ios` build and an EAS
+    simulator build; neither has it. **Delivery needs a device build**: `eas device:create` to
+    register the phone, `"simulator": false`, then `eas build --profile development -p ios`.
+    Confirmed working that way — receipt `{"status":"ok"}`.
+-   **A ticket is not a delivery.** `sendPushToUser` returning a count only means Expo _queued_
+    the message. Failures like `BadDeviceToken` appear later in the **receipt**, fetched by ticket
+    id from `/--/api/v2/push/getReceipts`. When a send looks successful and nothing arrives, the
+    receipt is where the answer is — the sender does not currently poll them.
+-   **What delivery actually needs is an APNs key on the Expo project.** Without one, Expo accepts
+    the request and answers `InvalidCredentials` — "Could not find APNs credentials for
+    com.cuzhaneapp.app (@devsc05/cuzhane)". Fix it once with `eas credentials -p ios` → _Push
+    Notifications: Manage your Apple Push Notifications Key_; it needs the Apple Developer login,
+    so it can't be scripted. **This is the first thing to check when a send silently does nothing.**
+-   That error is also why `sendPushToUser` prunes on `DeviceNotRegistered` _specifically_ rather
+    than on any error: a project-level misconfiguration must not delete every user's good token.
+-   Two ways to test without waiting on Expo: `xcrun simctl push <device> <bundle-id> file.apns`
+    posts a payload straight to the app, which verifies the receiving and tap-handling half; and
+    calling `sendPushToUser` from a scratch script verifies the sending half against the real
+    Expo API. Resetting notification permission to re-see the prompt needs an **uninstall and
+    reinstall** — `simctl privacy` has no notifications service, and toggling it off in Settings
+    sets _denied_, which the prompt deliberately skips.
+
 There is **no account-wide notifications switch.** `UserSettings.notificationsEnabled` was
 a column with an update endpoint and no control in any screen, so nothing ever wrote
 anything but its `true` default — while a row holding `false` would have stopped every
@@ -403,10 +502,10 @@ only one the app gives anybody a way to set; add a column back only alongside it
 
 ## Cross-Cutting
 
-- Auth: Clerk is the source of truth in both apps. Server needs `CLERK_PUBLISHABLE_KEY` +
-  `CLERK_SECRET_KEY`; client needs `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`.
-- Shared versions (`package.json` `overrides`): `react`/`react-dom` pinned to `19.1.0`,
-  `@react-navigation/native` to `7.2.2`.
-- Formatting: Prettier, tabs, width 120, single quotes, no trailing commas. ESLint 9 flat configs per app.
-- `design-reference.html` at the repo root is the original design doc every screen was built from.
-  Treat it as the spec when changing screen layout.
+-   Auth: Clerk is the source of truth in both apps. Server needs `CLERK_PUBLISHABLE_KEY` +
+    `CLERK_SECRET_KEY`; client needs `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`.
+-   Shared versions (`package.json` `overrides`): `react`/`react-dom` pinned to `19.1.0`,
+    `@react-navigation/native` to `7.2.2`.
+-   Formatting: Prettier, tabs, width 120, single quotes, no trailing commas. ESLint 9 flat configs per app.
+-   `design-reference.html` at the repo root is the original design doc every screen was built from.
+    Treat it as the spec when changing screen layout.

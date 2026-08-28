@@ -139,6 +139,19 @@ describe('staggerWithinRuns', () => {
 		expect(delays[5]).toBe(70);
 	});
 
+	it('drains a reversed run the way it filled, backwards', () => {
+		// Undo is the üstlen sweep played in reverse: the block's last cell goes first and the
+		// wave retreats to where it started, over the same span.
+		expect(staggerWithinRuns(['a', 'a', 'a', 'b', 'b'], 70, new Set(['a']))).toEqual([140, 70, 0, 0, 70]);
+	});
+
+	it('reverses only the runs it is asked to', () => {
+		const delays = staggerWithinRuns([0, 0, 1, 1, 1], 70, new Set([1]));
+
+		expect(delays.slice(0, 2)).toEqual([0, 70]);
+		expect(delays.slice(2)).toEqual([140, 70, 0]);
+	});
+
 	it('treats a repeated key after a break as a new run', () => {
 		expect(staggerWithinRuns(['a', 'b', 'a'], 70)).toEqual([0, 0, 0]);
 	});

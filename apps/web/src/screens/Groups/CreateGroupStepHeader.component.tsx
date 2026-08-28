@@ -1,6 +1,7 @@
 import { StepProgress } from '@/components/ui/StepProgress/StepProgress.component';
 import { EyebrowText, Header1 } from '@/components/ui/Typography/Typography.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
+import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { BackLink } from '@/components/ui/BackLink/BackLink.component';
 import type { StringKey } from '@/lib/i18n/strings';
 import { StyleSheet, View } from 'react-native';
@@ -26,9 +27,13 @@ const TITLE_KEY_BY_STEP: Record<CreateGroupStep, StringKey> = {
 
 export const CreateGroupStepHeader = ({ onBack, step }: CreateGroupStepHeaderProps) => {
 	const { t } = useTranslation();
+	const { theme } = useThemeContext();
 
 	return (
-		<View style={styles.container}>
+		// Opaque, because this is pinned: a sticky header is transparent by default, and the
+		// form would scroll visibly through the title it is meant to stay under. The sheet's
+		// own colour, so the join is invisible.
+		<View style={[styles.container, { backgroundColor: theme.colors.sheet }]}>
 			<BackLink onPress={onBack} style={styles.back} />
 			<StepProgress current={step} style={styles.progress} total={3} />
 			<EyebrowText style={styles.eyebrow}>{t(EYEBROW_KEY_BY_STEP[step])}</EyebrowText>

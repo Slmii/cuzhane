@@ -2,6 +2,8 @@ import type { StyleProp, ViewStyle } from 'react-native';
 
 export interface MemberRowProps {
 	name: string;
+	/** The member's own photo, when they have one. Falls back to the generated avatar. */
+	imageUrl?: string | null;
 	/** "you" / "owner" pill next to the name. */
 	tag?: string;
 	rangeLabel: string;

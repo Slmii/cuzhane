@@ -14,8 +14,13 @@ import type { LeaveGroupButtonProps } from './LeaveGroupButton.types';
  * The confirmation is the platform dialog rather than the design's arm-and-tap-again
  * button. This sits in the open on a screen people scroll past, where a second stray tap
  * would be all it took — and leaving forfeits a seat that someone else can take before
- * you're back. The dialog also states the cost at the moment of deciding, which is the
- * one moment the hint under the button is not being read.
+ * you're back.
+ *
+ * No `hint`, so no caption under the button. The dialog carries the same sentence as its
+ * body and states the cost at the moment of deciding, which is the one moment it is
+ * actually read; on the page it was three lines of small print under the last thing on the
+ * screen. `DangerConfirmButton` still passes one, because arm-and-tap-again has no dialog
+ * and the line is the only warning there is.
  */
 export const LeaveGroupButton = ({ groupId, style }: LeaveGroupButtonProps) => {
 	const { t } = useTranslation();
@@ -24,7 +29,24 @@ export const LeaveGroupButton = ({ groupId, style }: LeaveGroupButtonProps) => {
 
 	const confirmLeave = () => {
 		leaveGroup.mutate(groupId, {
-			onSuccess: () => navigation.navigate('Tabs', { screen: 'Groups' })
+			/*
+			 * Straight to Gruplarım, by name.
+			 *
+			 * A group screen is pushed *inside* a tab, so the two obvious calls both leave you
+			 * looking at the group you just left: `navigate('Tabs', { screen: 'Groups' })`
+			 * selects a tab that is usually already selected, and `popToTop()` reaches whichever
+			 * navigator happens to be nearest. Naming the route is what actually moves — 'Groups'
+			 * is the root of the Gruplarım stack, and navigating to a route already below you in
+			 * a stack pops everything above it rather than pushing a second copy.
+			 *
+			 * From the Home or Keşfet stack there is no such route to pop to, so the request
+			 * rises to the tab navigator, which switches tabs — and `popToTopOnBlur` resets the
+			 * stack being left behind. One call covers all three ways in.
+			 */
+			onSuccess: () => navigation.navigate('Groups'),
+			// Leaving failed silently before: the rollback put the card back and nothing was
+			// said, which is indistinguishable from the screen refusing to move.
+			onError: () => Alert.alert(t('genericError'))
 		});
 	};
 
@@ -37,8 +59,8 @@ export const LeaveGroupButton = ({ groupId, style }: LeaveGroupButtonProps) => {
 
 	return (
 		<DangerButton
-			hint={t('leaveHint')}
 			isDisabled={leaveGroup.isPending}
+			isFilled
 			label={t('leaveGroup')}
 			onPress={handlePress}
 			style={style}

@@ -8,13 +8,15 @@ import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
 import { Hatch } from '@/components/ui/Hatch/Hatch.component';
 import { BodyStrongText, CaptionText, NumericText, Typography } from '@/components/ui/Typography/Typography.component';
-import { useGetPoolSlots, useTakePoolSlot } from '@/lib/hooks/useGroup';
+import { useGetPoolSlots, useReleasePoolSlot, useTakePoolSlot } from '@/lib/hooks/useGroup';
+import { useViewerIdentity } from '@/lib/hooks/useViewerIdentity';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { PoolSlot } from '@/lib/types/domain';
-import type { PoolCell } from '@/lib/utils/groups';
+import { FILL_STEP_MS, type PoolCell } from '@/lib/utils/groups';
 import type { TabStackParamList } from '@/navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 type Props = NativeStackScreenProps<TabStackParamList, 'Pool'>;
@@ -31,6 +33,40 @@ const AVATAR_SIZE = 31;
 const SKELETON_CELL_COUNT = 15;
 
 /**
+ * How long a block takes to drain: the last cell's stagger plus its own colour change, and a
+ * frame's grace. `CellGrid` eases a cell over 300ms; the step is shared with the üstlen fill,
+ * because the undo *is* that fill reversed.
+ */
+const CELL_COLOR_MS = 300;
+const BLOCK_DRAIN_MS = (babCount: number) => Math.max(0, babCount - 1) * FILL_STEP_MS + CELL_COLOR_MS + 32;
+
+/**
+ * Slots claimed since the app started, by group — the ones whose sub-line reads "az önce
+ * üstlendin" rather than a bare count.
+ *
+ * Module scope rather than component state, because "this session" means the app's, not this
+ * screen's: stepping back to the group to look at what you took and returning is the ordinary
+ * thing to do, and held in the screen the wording changed under you when you did.
+ *
+ * It no longer decides whether the *button* appears — that follows from holding the slot, so
+ * a reload can't take away your way back. This only decides the wording, which really is a
+ * claim about the last minute. Nothing here is authoritative: the server decides who holds
+ * what.
+ */
+const claimedThisSession = new Map<string, Set<number>>();
+
+const rememberClaim = (groupId: string, slotIndex: number) => {
+	const claims = claimedThisSession.get(groupId) ?? new Set<number>();
+
+	claims.add(slotIndex);
+	claimedThisSession.set(groupId, claims);
+};
+
+const forgetClaim = (groupId: string, slotIndex: number) => {
+	claimedThisSession.get(groupId)?.delete(slotIndex);
+};
+
+/**
  * The share of the seats nobody took (design 07a, and 07b once the pool grows — one screen,
  * since a crowded pool is the same board with more slots). Slots are offered whole rather
  * than bab by bab, so taking one hands you exactly what joining that seat would have.
@@ -43,7 +79,95 @@ export const PoolScreen = ({ navigation, route }: Props) => {
 	const { theme } = useThemeContext();
 	const { t } = useTranslation();
 	const pool = useGetPoolSlots(groupId);
+	// Your own name and photo: a row you just claimed can draw your avatar before the server
+	// echoes the name back, and it draws the picture you actually set rather than a generated
+	// face — see `useViewerIdentity`.
+	const viewer = useViewerIdentity();
 	const takeSlot = useTakePoolSlot();
+	const releaseSlot = useReleasePoolSlot();
+
+	/** Seeded from the session store above, so the wording survives leaving and coming back. */
+	const [takenHere, setTakenHere] = useState<number[]>(() => [...(claimedThisSession.get(groupId) ?? [])]);
+	/**
+	 * The slot draining right now. Held only for as long as the sweep lasts: it exists to tell
+	 * the board which run to play backwards, and a stale one would reverse a later claim.
+	 */
+	const [drainingSlot, setDrainingSlot] = useState<number | null>(null);
+	const drainTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	useEffect(
+		() => () => {
+			if (drainTimeout.current) {
+				clearTimeout(drainTimeout.current);
+			}
+		},
+		[]
+	);
+
+	const handleTake = (slotIndex: number) => {
+		rememberClaim(groupId, slotIndex);
+		setTakenHere(current => (current.includes(slotIndex) ? current : [...current, slotIndex]));
+		takeSlot.mutate({ groupId, slotIndex });
+	};
+
+	const handleUndo = (slotIndex: number) => {
+		/*
+		 * The board is told to drain *before* the request goes out, and the optimistic release
+		 * repaints the cells a frame later — so the reversed sweep is what the eye follows all
+		 * the way through rather than something that starts once the server has agreed.
+		 */
+		setDrainingSlot(slotIndex);
+		forgetClaim(groupId, slotIndex);
+		setTakenHere(current => current.filter(index => index !== slotIndex));
+		releaseSlot.mutate({ groupId, slotIndex });
+
+		if (drainTimeout.current) {
+			clearTimeout(drainTimeout.current);
+		}
+
+		// Cleared once the last cell has finished, so the next claim sweeps forwards again.
+		drainTimeout.current = setTimeout(
+			() => setDrainingSlot(null),
+			BLOCK_DRAIN_MS(pool.data?.find(slot => slot.slotIndex === slotIndex)?.babNumbers.length ?? 0)
+		);
+	};
+
+	/*
+	 * Slot state carried down to the bab, memoised above the early returns with the query.
+	 * A whole block is taken at once, so every cell in it shares its slot's state — which is
+	 * why this can be built from the slots rather than from the board.
+	 *
+	 * Memoised because `CellGrid` keeps a cell only while the item it was handed keeps its
+	 * identity, and üstlen is exactly the moment that matters: taking a slot re-renders this
+	 * screen two or three times in a row, and rebuilt inline that handed all forty cells a new
+	 * object each time — re-rendering the whole board underneath the fill it was running.
+	 *
+	 * Sorted by bab number, not left in slot order. Under ROTATION a seat's block this round
+	 * is not its standing one, so the slots arrive as (say) 69–84, 85–100, 1–17 — and the
+	 * group screen's card, which builds the same board from the hundred, would draw those
+	 * same babs ascending. Two pictures of one pool in two different orders, one tap apart.
+	 * The rows below stay in slot order: each is a labelled range, so it reads either way.
+	 */
+	const cells = useMemo<PoolCell[]>(
+		() =>
+			(pool.data ?? [])
+				.flatMap(slot =>
+					slot.babNumbers.map(number => ({
+						number,
+						// Carried so the fill can be timed from the start of *this* block: claiming
+						// one slot should sweep its own cells, not run the length of the pool.
+						slotIndex: slot.slotIndex,
+						state:
+							slot.takenByUserId === null
+								? ('open' as const)
+								: slot.takenByMe
+								? ('takenByMe' as const)
+								: ('takenByOthers' as const)
+					}))
+				)
+				.sort((a, b) => a.number - b.number),
+		[pool.data]
+	);
 
 	if (pool.isLoading) {
 		return (
@@ -78,56 +202,51 @@ export const PoolScreen = ({ navigation, route }: Props) => {
 	// stays in the rows below, where its owner is named.
 	const freeSlots = slots.filter(slot => slot.takenByUserId === null);
 	const freeBabCount = freeSlots.reduce((total, slot) => total + slot.babNumbers.length, 0);
-	/*
-	 * Slot state carried down to the bab. A whole block is taken at once, so every cell in
-	 * it shares its slot's state — which is why this can be built from the slots rather
-	 * than from the board.
-	 *
-	 * Sorted by bab number, not left in slot order. Under ROTATION a seat's block this round
-	 * is not its standing one, so the slots arrive as (say) 69–84, 85–100, 1–17 — and the
-	 * group screen's card, which builds the same board from the hundred, would draw those
-	 * same babs ascending. Two pictures of one pool in two different orders, one tap apart.
-	 * The rows below stay in slot order: each is a labelled range, so it reads either way.
-	 */
-	const cells: PoolCell[] = slots
-		.flatMap(slot =>
-			slot.babNumbers.map(number => ({
-				number,
-				// Carried so the fill can be timed from the start of *this* block: claiming
-				// one slot should sweep its own cells, not run the length of the pool.
-				slotIndex: slot.slotIndex,
-				state:
-					slot.takenByUserId === null
-						? ('open' as const)
-						: slot.takenByMe
-							? ('takenByMe' as const)
-							: ('takenByOthers' as const)
-			}))
-		)
-		.sort((a, b) => a.number - b.number);
 
 	const renderSlot = (slot: PoolSlot) => {
 		const isTaken = slot.takenByUserId !== null;
+		// "This session" is deliberately memory, not a stored timestamp: the offer to undo is
+		// about the tap you just made, and it should not survive leaving the screen.
+		/*
+		 * Two different questions, and they were one for a while.
+		 *
+		 * *Can* you hand it back — true of any slot you hold, because the server lets you
+		 * release your own claim for as long as the round is open. Gating the button on the
+		 * session instead meant it vanished on every reload: the memory is this app run's, so
+		 * blocks you took yesterday, or ten minutes before a restart, had no way back at all.
+		 *
+		 * *Did you just take it* — the sub-line's claim, and that one really is about this
+		 * run, because "az önce üstlendin" is a statement about the last minute.
+		 */
+		const canUndo = isTaken && slot.takenByMe;
+		const isJustTaken = canUndo && takenHere.includes(slot.slotIndex);
 		const takerLabel = slot.takenByMe ? t('poolMine') : `${slot.takenByDisplayName ?? ''} ${t('takenBy')}`.trim();
 		// The badge wears the state its cells do, so a range reads the same in the row as it
 		// does on the board above it.
 		const badgeBackgroundColor = slot.takenByMe
 			? theme.colors.accent
 			: isTaken
-				? theme.colors.poolTaken
-				: theme.colors.surface;
+			? theme.colors.poolTaken
+			: theme.colors.surface;
 		const badgeLabelColor = slot.takenByMe
 			? theme.colors.onAccent
 			: isTaken
-				? theme.colors.poolTakenText
-				: theme.colors.accent;
+			? theme.colors.poolTakenText
+			: theme.colors.accent;
 
 		return (
-			<CardSurface key={slot.slotIndex} style={[styles.slotCard, isTaken ? styles.slotCardTaken : null]}>
+			/*
+			 * The wash for a claimed row sits on what it *describes* — the range and the label —
+			 * and never on the controls beside them. Applied to the whole card it took the
+			 * avatar and the button down with it, and a dark green button at 62% comes out pale
+			 * enough to read as disabled, which is the opposite of what that row offers.
+			 */
+			<CardSurface key={slot.slotIndex} style={styles.slotCard}>
 				{isTaken ? null : <Hatch radius={theme.radius.lg} />}
 				<View
 					style={[
 						styles.slotBadge,
+						isTaken ? styles.claimed : null,
 						{
 							backgroundColor: badgeBackgroundColor,
 							borderColor: isTaken ? theme.colors.transparent : theme.colors.border
@@ -138,22 +257,56 @@ export const PoolScreen = ({ navigation, route }: Props) => {
 						{`${slot.start}–${slot.end}`}
 					</Typography>
 				</View>
-				<View style={styles.slotText}>
-					<BodyStrongText>{isTaken ? takerLabel : t('poolOwnerless')}</BodyStrongText>
-					<CaptionText color={theme.colors.subtext} style={styles.slotSub}>
-						{isTaken
+				{/* One line each, always. The undo row carries an avatar *and* a button where the
+				    free one carries only a button, so the text column is narrower there — left to
+				    wrap, the sub-line went to two lines and the whole row grew as you undid it. */}
+				<View style={[styles.slotText, isTaken ? styles.claimed : null]}>
+					<BodyStrongText numberOfLines={1}>{isTaken ? takerLabel : t('poolOwnerless')}</BodyStrongText>
+					<CaptionText color={theme.colors.subtext} numberOfLines={1} style={styles.slotSub}>
+						{isJustTaken
+							? `${slot.babNumbers.length} ${t('babs')} · ${t('poolUndoHint')}`
+							: isTaken
 							? `${slot.babNumbers.length} ${t('babs')}`
 							: `${slot.babNumbers.length} ${t('babs')} · ${t('poolExtra')}`}
 					</CaptionText>
 				</View>
-				{isTaken ? (
+				{canUndo ? (
+					/*
+					 * A way back out. Taking a block is one tap and adds thirteen babs to your
+					 * evening, so every block you hold keeps an undo beside its avatar for as long
+					 * as the round is open — which is exactly as long as the server will accept
+					 * the release.
+					 */
+					<>
+						<Avatar imageUrl={viewer.imageUrl} name={viewer.displayName} size={AVATAR_SIZE} tone='accent' />
+						{/*
+						 * The same button as "Üstlen", down to the fill — it stands in the same slot
+						 * and swaps with it, so a different colour or height made the row twitch as
+						 * you undid what you had just done. Only the glyph and the word change.
+						 */}
+						<AppButton
+							fullWidth={false}
+							icon='undo'
+							isLoading={releaseSlot.isPending && releaseSlot.variables?.slotIndex === slot.slotIndex}
+							onPress={() => handleUndo(slot.slotIndex)}
+							size='sm'
+							title={t('poolUndo')}
+							variant='accent'
+						/>
+					</>
+				) : isTaken ? (
 					/*
 					 * Whose block this is, rather than a tick saying only "claimed". The design
 					 * draws initials here; this is the app's avatar, seeded on the same name the
 					 * members list seeds on, so one person looks like themselves everywhere.
 					 */
 					<Avatar
-						name={slot.takenByDisplayName ?? ''}
+						/* Everyone's real photo, the server's for other members and Clerk's own for
+						   you — yours comes from the client because an optimistic row is drawn
+						   before the server has said anything, and a seed that changes afterwards
+						   redraws as a different face. */
+						imageUrl={slot.takenByMe ? viewer.imageUrl : slot.takenByImageUrl}
+						name={slot.takenByMe ? viewer.displayName : slot.takenByDisplayName ?? ''}
 						size={AVATAR_SIZE}
 						tone={slot.takenByMe ? 'accent' : 'sand'}
 					/>
@@ -166,7 +319,7 @@ export const PoolScreen = ({ navigation, route }: Props) => {
 						// one mutation the whole screen shares, so read bare it spins every free
 						// row's button at once — a crowded pool looks like you took all of them.
 						isLoading={takeSlot.isPending && takeSlot.variables?.slotIndex === slot.slotIndex}
-						onPress={() => takeSlot.mutate({ groupId, slotIndex: slot.slotIndex })}
+						onPress={() => handleTake(slot.slotIndex)}
 						size='sm'
 						title={t('poolTake')}
 						variant='accent'
@@ -202,12 +355,9 @@ export const PoolScreen = ({ navigation, route }: Props) => {
 						 * the card underneath and left this grid — the thing you actually look
 						 * at — saying nothing had happened.
 						 */}
-						<PoolGrid cells={cells} />
+						<PoolGrid cells={cells} drainingSlotIndexes={drainingSlot === null ? [] : [drainingSlot]} />
 					</CardSurface>
 					<View style={styles.slots}>{slots.map(renderSlot)}</View>
-					<CaptionText color={theme.colors.faintText} style={styles.hint}>
-						{t('poolHint')}
-					</CaptionText>
 				</>
 			)}
 		</ScreenContainer>
@@ -215,9 +365,6 @@ export const PoolScreen = ({ navigation, route }: Props) => {
 };
 
 const styles = StyleSheet.create({
-	hint: {
-		marginTop: 14
-	},
 	// Square at 44pt for a short range, widening rather than wrapping for one like
 	// "96–100". The height stays fixed so the row keeps its rhythm either way.
 	slotBadge: {
@@ -236,7 +383,9 @@ const styles = StyleSheet.create({
 		paddingHorizontal: 16,
 		paddingVertical: 15
 	},
-	slotCardTaken: {
+	// The design's dimming for a block that is no longer on offer. Applied to the range and
+	// the label only — see the card above.
+	claimed: {
 		opacity: 0.62
 	},
 	slotSub: {

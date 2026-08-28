@@ -1,3 +1,4 @@
+import { SliceChip } from '@/components/SliceChip/SliceChip.component';
 import { ShelfEmptyState } from '@/components/ShelfEmptyState/ShelfEmptyState.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
@@ -7,10 +8,11 @@ import { ProgressBar } from '@/components/ui/ProgressBar/ProgressBar.component';
 import { CaptionText, EyebrowText, Typography } from '@/components/ui/Typography/Typography.component';
 import { useSetAllBabsRead } from '@/lib/hooks/useBab';
 import { useGetGroups } from '@/lib/hooks/useGroup';
+import { useNotificationPermissionPrompt } from '@/lib/hooks/useNotificationPermissionPrompt';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { toAlphaColor } from '@/lib/theme/tokens';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import { formatBabRange } from '@/lib/utils/babs';
+import { shareSlices } from '@/lib/utils/groups';
 import { TabStackParamList } from '@/navigation/types';
 import { TabBarOffsetContext } from '@/navigation/TabBarOffsetContext';
 import { useNavigation } from '@react-navigation/native';
@@ -51,6 +53,10 @@ export const HomeScreen = () => {
 	const { theme } = useThemeContext();
 	const { t } = useTranslation();
 	const tabBarHeight = useContext(TabBarOffsetContext);
+	// Asked here rather than at launch or in onboarding: this is the screen the reminder is
+	// about, so the dialog arrives next to the thing it is for. Fires once, and only when
+	// iOS would actually show it.
+	useNotificationPermissionPrompt();
 
 	const { data: groups, isError, isPending, refetch } = useGetGroups();
 	const setAllBabsRead = useSetAllBabsRead();
@@ -84,14 +90,21 @@ export const HomeScreen = () => {
 		() =>
 			(groups ?? [])
 				.filter(group => group.status === 'RUNNING' && group.myBabNumbers.length > 0)
-				.map(group => ({
-					id: group.id,
-					name: group.name,
-					range: formatBabRange(group.myBabNumbers),
-					total: group.myBabNumbers.length,
-					done: group.myReadCount,
-					nextBabNumber: group.myNextBabNumber
-				})),
+				.map(group => {
+					// One slice large, the rest counted — a share held in several pieces would
+					// otherwise wrap the ring's range onto three lines.
+					const slices = shareSlices(group.myBabNumbers, group.myNextBabNumber);
+
+					return {
+						id: group.id,
+						name: group.name,
+						range: slices.current,
+						moreCount: slices.moreCount,
+						total: group.myBabNumbers.length,
+						done: group.myReadCount,
+						nextBabNumber: group.myNextBabNumber
+					};
+				}),
 		[groups]
 	);
 
@@ -264,9 +277,20 @@ export const HomeScreen = () => {
 											}
 										]}
 									/>
-									<Typography color={theme.colors.subtext} style={styles.rowRange} variant='mono'>
-										{row.range}
-									</Typography>
+									{/* The slice, then how many others — the row is one of twenty, so a
+									    share in three pieces has to state itself inside its own column
+									    or every row grows to fit the busiest one. */}
+									<View style={styles.rowRangeColumn}>
+										<Typography
+											color={theme.colors.subtext}
+											numberOfLines={1}
+											style={styles.rowRange}
+											variant='mono'
+										>
+											{row.range}
+										</Typography>
+										<SliceChip count={row.moreCount} isCompact style={styles.rowChip} tone='wash' />
+									</View>
 									<Typography
 										color={isFull && !isSelected ? theme.colors.subtext : theme.colors.text}
 										numberOfLines={1}
@@ -300,6 +324,7 @@ export const HomeScreen = () => {
 									) : (
 										<Typography
 											color={theme.colors.subtext}
+											numberOfLines={1}
 											style={styles.rowAmount}
 											variant='mono'
 										>
@@ -440,9 +465,14 @@ const styles = StyleSheet.create({
 		paddingVertical: 9
 	},
 	rowAmount: {
+		// `minWidth` and no shrinking, not a fixed 26: a share of 49 makes "16/49" five
+		// characters wide, which broke across two lines in a slot sized for three and pushed
+		// the row to double height. The name beside it has the flex, so it gives up the
+		// difference instead.
+		flexShrink: 0,
 		fontSize: 10.5,
-		textAlign: 'right',
-		width: 26
+		minWidth: 34,
+		textAlign: 'right'
 	},
 	// `textAlign` does nothing to a view, so the icon gets the same right edge this way.
 	rowDone: {
@@ -471,9 +501,20 @@ const styles = StyleSheet.create({
 		fontSize: 11.5,
 		fontWeight: '600'
 	},
+	rowChip: {
+		flexShrink: 0
+	},
 	rowRange: {
-		fontSize: 10.5,
-		width: 38
+		fontSize: 10.5
+	},
+	// Fixed, so twenty rows keep one left edge for their names however many slices each
+	// share is cut into.
+	rowRangeColumn: {
+		alignItems: 'center',
+		flexDirection: 'row',
+		flexShrink: 0,
+		gap: 4,
+		width: 56
 	},
 	safeArea: {
 		flex: 1

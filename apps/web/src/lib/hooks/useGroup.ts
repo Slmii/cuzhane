@@ -8,6 +8,7 @@ import {
 	getGroups,
 	getPoolSlots,
 	regenerateInviteCode,
+	markPoolReleasesSeen,
 	releasePoolSlot,
 	startGroup,
 	takePoolSlot,
@@ -15,6 +16,7 @@ import {
 	updateGroup,
 	type UpdateGroupInput
 } from '@/api/groups.api';
+import type { PoolSlot } from '@/lib/types/domain';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLiveRefetchInterval } from './useLiveRefetchInterval';
 import { groupQueryKeys } from './queryKeys';
@@ -125,22 +127,98 @@ export const useGetPoolSlots = (groupId: string) => {
 	});
 };
 
+/**
+ * Üstlen, painted before the server agrees.
+ *
+ * Optimistic because the fill *is* the feedback: the block sweeps to your colour a cell at a
+ * time, and waiting on the round trip to start it made the tap feel like it had missed. The
+ * same cancel/snapshot/rollback shape as `useSetBabRead`.
+ *
+ * Only the slot's own three fields are written. Everything else the claim touches — the
+ * board, the group's pool counts — is left to the invalidation, because a slot is taken whole
+ * and those are derived from it rather than guessable here. Two people racing for one slot is
+ * settled by the server's conditional update; the loser's optimistic fill is rolled back and
+ * the refetch puts the winner's name on it.
+ */
 export const useTakePoolSlot = () => {
 	const queryClient = useQueryClient();
 
 	return useMutation({
 		mutationFn: (input: TakePoolSlotInput) => takePoolSlot(input),
+		onMutate: async ({ groupId, slotIndex }) => {
+			await queryClient.cancelQueries({ queryKey: groupQueryKeys.pool(groupId) });
+
+			const previousSlots = queryClient.getQueryData<PoolSlot[]>(groupQueryKeys.pool(groupId));
+
+			if (previousSlots) {
+				queryClient.setQueryData<PoolSlot[]>(
+					groupQueryKeys.pool(groupId),
+					previousSlots.map(slot =>
+						slot.slotIndex === slotIndex ? { ...slot, takenByMe: true, takenByUserId: 'optimistic' } : slot
+					)
+				);
+			}
+
+			return { previousSlots };
+		},
+		onError: (_error, { groupId }, context) => {
+			if (context?.previousSlots) {
+				queryClient.setQueryData(groupQueryKeys.pool(groupId), context.previousSlots);
+			}
+		},
 		onSettled: async () => {
 			await queryClient.invalidateQueries({ queryKey: groupQueryKeys.root() });
 		}
 	});
 };
 
+/**
+ * Handing a slot back — optimistic, like taking one, and for the same reason.
+ *
+ * The board drains the block the way it filled, reversed, and that sweep has to start on the
+ * tap: run only once the server had answered, the undo sat still for a round trip and then
+ * played to somebody who had already looked away.
+ */
 export const useReleasePoolSlot = () => {
 	const queryClient = useQueryClient();
 
 	return useMutation({
 		mutationFn: (input: TakePoolSlotInput) => releasePoolSlot(input),
+		onMutate: async ({ groupId, slotIndex }) => {
+			await queryClient.cancelQueries({ queryKey: groupQueryKeys.pool(groupId) });
+
+			const previousSlots = queryClient.getQueryData<PoolSlot[]>(groupQueryKeys.pool(groupId));
+
+			if (previousSlots) {
+				queryClient.setQueryData<PoolSlot[]>(
+					groupQueryKeys.pool(groupId),
+					previousSlots.map(slot =>
+						slot.slotIndex === slotIndex
+							? { ...slot, takenByDisplayName: null, takenByMe: false, takenByUserId: null }
+							: slot
+					)
+				);
+			}
+
+			return { previousSlots };
+		},
+		onError: (_error, { groupId }, context) => {
+			if (context?.previousSlots) {
+				queryClient.setQueryData(groupQueryKeys.pool(groupId), context.previousSlots);
+			}
+		},
+		onSettled: async () => {
+			await queryClient.invalidateQueries({ queryKey: groupQueryKeys.root() });
+		}
+	});
+};
+
+/** Dismisses the notices telling the viewer a joiner took over a block they volunteered for. */
+export const useMarkPoolReleasesSeen = () => {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		mutationFn: (groupId: string) => markPoolReleasesSeen(groupId),
 		onSettled: async () => {
 			await queryClient.invalidateQueries({ queryKey: groupQueryKeys.root() });
 		}

@@ -1,12 +1,14 @@
 import { babNumbersForRound, babNumbersForSlot, progressPercent, rangeForRound, rangeForSlot } from '@utils/babs';
 import { formatInviteCode } from '@utils/inviteCode';
+import { FALLBACK_DISPLAY_NAME, type MemberProfile } from '@utils/memberProfiles';
 import { civilDayNumber, roundEndsAt } from '@utils/rounds';
 import type { CycleName } from '@utils/rounds';
 import type {
 	Cheer,
 	Group,
 	GroupBab as GroupBabModel,
-	GroupMember as GroupMemberModel
+	GroupMember as GroupMemberModel,
+	PoolClaimRelease as PoolClaimReleaseModel
 } from '../generated/prisma/client';
 
 // These mirror apps/web/src/lib/types/domain.ts exactly — the server has no shared types
@@ -31,6 +33,14 @@ export type GroupMember = {
 	id: string;
 	userId: string;
 	displayName: string;
+	/**
+	 * The member's own profile photo, when they have set one. Null otherwise, and the client
+	 * draws its generated face instead.
+	 *
+	 * Members only. It is never on `GroupInvitePreview` — someone deciding whether to join a
+	 * group has not been let into it, and a list of faces is more than a name and a count.
+	 */
+	imageUrl: string | null;
 	role: GroupMemberRole;
 	slotIndex: number;
 	joinedAt: string;
@@ -107,6 +117,15 @@ export type GroupDetail = GroupSummary & {
 	startsAt: string;
 	babs: GroupBab[];
 	members: GroupMember[];
+	/** Blocks the viewer volunteered for that a joiner took over, not yet acknowledged. */
+	poolReleases: PoolClaimReleaseNotice[];
+};
+
+/** One "the block you took has passed to a new member" notice, for the viewer. */
+export type PoolClaimReleaseNotice = {
+	id: string;
+	startBab: number;
+	endBab: number;
 };
 
 export type GroupInvitePreview = {
@@ -372,7 +391,10 @@ export const toGroupMember = (
 	member: GroupMemberModel,
 	babs: GroupBabModel[],
 	cheers: Cheer[],
-	viewerUserId: string
+	viewerUserId: string,
+	/** Live names and photos by user id — see `getMemberProfiles`. Absent where a caller has
+	 *  not looked them up, in which case the stored name stands on its own. */
+	profiles?: Map<string, MemberProfile>
 ): GroupMember => {
 	// The member list shows what each person is reading *today*, so it goes through the same
 	// rotation the viewer's own share does. Filtering by `assignedUserId` would show every
@@ -382,10 +404,19 @@ export const toGroupMember = (
 	const memberBabs = babs.filter(bab => babNumberSet.has(bab.number));
 	const readCount = memberBabs.filter(bab => bab.readAt !== null).length;
 
+	const profile = profiles?.get(member.userId);
+
 	return {
 		id: member.id,
 		userId: member.userId,
-		displayName: member.displayName,
+		/*
+		 * Clerk first, the stored name second, and "Member" only when neither has anything.
+		 * `GroupMember.displayName` is written once at join time from whatever the session
+		 * claims held then, so anyone who signed up before filling in their profile was stored
+		 * as "Member" and stayed that way however often they set a name afterwards.
+		 */
+		displayName: profile?.displayName ?? member.displayName ?? FALLBACK_DISPLAY_NAME,
+		imageUrl: profile?.imageUrl ?? null,
 		role: member.role,
 		slotIndex: member.slotIndex,
 		joinedAt: member.joinedAt.toISOString(),
@@ -401,14 +432,39 @@ export const toGroupDetail = (
 	babs: GroupBabModel[],
 	members: GroupMemberModel[],
 	cheers: Cheer[],
-	viewerUserId: string
+	viewerUserId: string,
+	poolReleases: PoolClaimReleaseModel[] = [],
+	/** Members' live names and photos, looked up by the caller — see `getMemberProfiles`. */
+	profiles?: Map<string, MemberProfile>
 ): GroupDetail => {
 	const summary = toGroupSummary(group, babs, members, viewerUserId);
+	const roundIndex = roundIndexFor(group) ?? 0;
 
 	return {
 		...summary,
+		/*
+		 * Blocks the viewer had volunteered for that a joiner took over, still unacknowledged.
+		 *
+		 * Filtered to the round in progress: the rollover clears the board and reassigns
+		 * everything anyway, so a release from a closed round is no longer something anyone
+		 * can act on — surfacing it would describe a rota that no longer runs.
+		 */
+		poolReleases: poolReleases
+			.filter(release => release.userId === viewerUserId && release.seenAt === null)
+			.filter(release => release.roundIndex === roundIndex)
+			.map(release => ({ id: release.id, startBab: release.startBab, endBab: release.endBab })),
 		ownerUserId: group.ownerUserId,
-		inviteCode: summary.isOwner ? formatInviteCode(group.inviteCode) : null,
+		/*
+		 * Every member's to share, not just the owner's.
+		 *
+		 * This detail is only ever built for somebody who is in the group, so reaching it at
+		 * all is the permission. Owner-only left the Paylaş sheet — which the group screen
+		 * offers to members and owners alike — with an empty card and a copy button that did
+		 * nothing. Withholding it protected nothing either: an OPEN group is already listed in
+		 * Keşfet, and filling the empty seats is the whole group's business, which is the same
+		 * premise the shared pool rests on. Regenerating the code stays the owner's alone.
+		 */
+		inviteCode: formatInviteCode(group.inviteCode),
 		reminderEnabled: group.reminderEnabled,
 		reminderTime: group.reminderTime,
 		autoStartWhenFull: group.autoStartWhenFull,
@@ -420,7 +476,7 @@ export const toGroupDetail = (
 		members: members
 			.slice()
 			.sort((a, b) => a.slotIndex - b.slotIndex)
-			.map(member => toGroupMember(group, member, babs, cheers, viewerUserId))
+			.map(member => toGroupMember(group, member, babs, cheers, viewerUserId, profiles))
 	};
 };
 

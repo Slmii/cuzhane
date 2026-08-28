@@ -16,6 +16,22 @@ model GroupBab {
     @@index([readByUserId, readAt])
 }
 
+model PoolClaimRelease {
+    id         String    @id @default(cuid())
+    groupId    String
+    userId     String
+    roundIndex Int
+    startBab   Int
+    endBab     Int
+    createdAt  DateTime  @default(now())
+    seenAt     DateTime?
+
+    group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+    @@index([userId, seenAt])
+    @@index([groupId, roundIndex])
+}
+
 model BabRead {
     id         String   @id @default(cuid())
     groupId    String
