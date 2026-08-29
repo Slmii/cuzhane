@@ -279,7 +279,7 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 													style={styles.pickerDone}
 												>
 													<BodyStrongText color={theme.colors.accent}>
-														{t('done')}
+														{t('confirm')}
 													</BodyStrongText>
 												</Pressable>
 											) : null}

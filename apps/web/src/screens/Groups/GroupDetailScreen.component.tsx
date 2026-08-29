@@ -324,7 +324,7 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 				 * exactly. Split apart, the countdown reads as the reader's own clock when it
 				 * never was.
 				 */}
-				<CardSurface isFlush style={styles.statsCard}>
+				<CardSurface isFlush>
 					<View style={styles.statsRow}>
 						<View
 							style={[
@@ -563,9 +563,9 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 				 * while the rest of the screen is real.
 				 */}
 				{isPoolPending ? (
-					<GridSkeleton cellCount={detail.poolAllBabNumbers.length} style={styles.poolCard} />
+					<GridSkeleton cellCount={detail.poolAllBabNumbers.length} />
 				) : poolCells.length > 0 ? (
-					<CardSurface isFlush style={styles.poolCard}>
+					<CardSurface isFlush>
 						<View style={[styles.sectionHeader, { borderBottomColor: theme.colors.divider }]}>
 							<TitleText>{t('pool')}</TitleText>
 							{/* Just "15 bab" — the card is already headed "Ortak havuz", so
@@ -674,15 +674,11 @@ const styles = StyleSheet.create({
 		gap: 12,
 		padding: 15
 	},
-	poolCard: {
-		marginBottom: 12
-	},
 	releaseBody: {
 		marginTop: 3
 	},
 	releaseCard: {
 		gap: 12,
-		marginBottom: 12,
 		paddingHorizontal: 16,
 		paddingVertical: 15
 	},
@@ -781,7 +777,6 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		flexDirection: 'row',
 		gap: 13,
-		marginBottom: 12,
 		paddingHorizontal: 16,
 		paddingVertical: 15
 	},
@@ -802,9 +797,6 @@ const styles = StyleSheet.create({
 	},
 	statLabel: {
 		marginTop: 4
-	},
-	statsCard: {
-		marginBottom: 12
 	},
 	statsReset: {
 		borderTopWidth: StyleSheet.hairlineWidth

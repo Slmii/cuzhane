@@ -138,7 +138,9 @@ const tr = {
 	readDone: 'Okudun',
 	readDoneSub: 'Mâşallah — bugün tamam',
 	resetsTomorrow: 'Yarın yeni tur · halka sıfırlanır',
+	/** Reads mid-sentence — "3 / 5 tamam" — so it stays lowercase. `confirm` is the button. */
 	done: 'tamam',
+	confirm: 'Tamam',
 	home: 'Ana sayfa',
 	groups: 'Gruplar',
 	reminders: 'Hatırlatma',
@@ -213,6 +215,15 @@ const tr = {
 	dailyReminderHint: 'Her gün seçtiğin saatte bildirim gelir',
 	preview: 'Önizleme',
 	notifBody: 'Bugün {unread} babın kaldı. Şimdi okumak için dokun.',
+	/** When more than one group still owes something — otherwise the count reads as one group's. */
+	notifBodyGroups: '{groups} grupta toplam {unread} babın kaldı. Şimdi okumak için dokun.',
+	/**
+	 * Under the time picker. A repeating daily trigger fires at the *next* match, so a time
+	 * already past today first arrives tomorrow — unsaid, that reads as a reminder that
+	 * simply didn't work.
+	 */
+	nextReminderToday: 'İlk bildirim bugün {time}',
+	nextReminderTomorrow: 'İlk bildirim yarın {time}',
 	memberSince: '{date} tarihinden beri',
 	babsRead: 'okunan bab',
 	roundsDone: 'tamamlanan hatim',
@@ -574,6 +585,7 @@ const en: Strings = {
 	readDoneSub: 'Mashallah — done for today',
 	resetsTomorrow: 'New round tomorrow · the ring resets',
 	done: 'done',
+	confirm: 'Done',
 	home: 'Home',
 	groups: 'Groups',
 	reminders: 'Reminders',
@@ -648,6 +660,9 @@ const en: Strings = {
 	dailyReminderHint: 'A notification at the time you choose',
 	preview: 'Preview',
 	notifBody: 'You have {unread} babs left today. Tap to read now.',
+	notifBodyGroups: 'You have {unread} babs left across {groups} groups. Tap to read now.',
+	nextReminderToday: 'First reminder today at {time}',
+	nextReminderTomorrow: 'First reminder tomorrow at {time}',
 	memberSince: 'Member since {date}',
 	babsRead: 'babs read',
 	roundsDone: 'rounds done',

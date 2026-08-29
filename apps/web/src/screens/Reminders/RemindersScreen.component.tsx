@@ -1,3 +1,4 @@
+import { isNextReminderTomorrow, reminderTotals } from '@/lib/utils/reminder';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenTitle } from '@/components/ScreenTitle/ScreenTitle.component';
 import { BrandMark } from '@/components/ui/BrandMark/BrandMark.component';
@@ -18,6 +19,7 @@ import { createRemindersSchema, RemindersForm } from '@/lib/schemas/profile.sche
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { toAlphaColor } from '@/lib/theme/tokens';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { useIsFocused } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { UseFormWatch } from 'react-hook-form';
@@ -138,6 +140,25 @@ export const RemindersScreen = () => {
 
 	const [hasNotifPermission, setHasNotifPermission] = useState(true);
 	const [isTimePickerVisible, setIsTimePickerVisible] = useState(false);
+	/**
+	 * Only ever read to say whether the chosen time still lies ahead today. Refreshed at the
+	 * three moments the answer can have changed — picking a time, returning to the
+	 * foreground, and coming back to this tab — rather than ticking, which would rerender
+	 * the screen every second to move a line that changes once a day.
+	 */
+	const [now, setNow] = useState(() => new Date());
+	const isFocused = useIsFocused();
+	const [wasFocused, setWasFocused] = useState(isFocused);
+
+	// Adjusting state during render, rather than in an effect: switching tabs doesn't touch
+	// AppState, so without this the line kept claiming "bugün 09:52" at 09:54.
+	if (isFocused !== wasFocused) {
+		setWasFocused(isFocused);
+
+		if (isFocused) {
+			setNow(new Date());
+		}
+	}
 
 	const remindersSchema = useMemo(() => createRemindersSchema(), []);
 
@@ -159,6 +180,7 @@ export const RemindersScreen = () => {
 		const subscription = AppState.addEventListener('change', state => {
 			if (state === 'active') {
 				readPermission();
+				setNow(new Date());
 			}
 		});
 
@@ -202,13 +224,9 @@ export const RemindersScreen = () => {
 		);
 	}
 
-	// The same sum the scheduler makes, so this preview is the notification that will
-	// actually arrive rather than an illustration of one.
-	const runningGroups = (groups ?? []).filter(group => group.status === 'RUNNING' && group.myBabNumbers.length > 0);
-	const unreadCount = runningGroups.reduce(
-		(total, group) => total + Math.max(0, group.myBabNumbers.length - group.myReadCount),
-		0
-	);
+	// The scheduler's own sum, through the same helper, so this preview is the notification
+	// that will actually arrive rather than an illustration of one.
+	const { participatingGroups, pendingGroups, unread: unreadCount } = reminderTotals(groups);
 
 	return (
 		<ScreenContainer shouldIncludeTabBarOffset>
@@ -221,6 +239,13 @@ export const RemindersScreen = () => {
 				}}
 				render={({ setValue, watch }) => {
 					const time = parseTime(watch('reminderTime'));
+					const reminderTime = formatTime(time);
+					// Only claimed when something will actually arrive: switched off, or with
+					// permission refused, naming a delivery time would be a straight lie.
+					const hasNextReminder = watch('reminderEnabled') && hasNotifPermission;
+					const nextReminderHint = isNextReminderTomorrow(reminderTime, now)
+						? t('nextReminderTomorrow', { time: reminderTime })
+						: t('nextReminderToday', { time: reminderTime });
 
 					// Android's picker is a dialog that closes itself; iOS keeps the spinner
 					// inline until the reader dismisses it.
@@ -234,6 +259,9 @@ export const RemindersScreen = () => {
 								'reminderTime',
 								formatTime({ hour: selectedDate.getHours(), minute: selectedDate.getMinutes() })
 							);
+							// This picks between "today" and "tomorrow", so it has to be answered
+							// against the clock as it is now, not as it was when the screen mounted.
+							setNow(new Date());
 						}
 					};
 
@@ -257,6 +285,11 @@ export const RemindersScreen = () => {
 										{pad(time.hour)}:{pad(time.minute)}
 									</Typography>
 								</Pressable>
+								{hasNextReminder ? (
+									<CaptionText color={theme.colors.faintText} style={styles.nextReminder}>
+										{nextReminderHint}
+									</CaptionText>
+								) : null}
 								{isTimePickerVisible ? (
 									<View style={styles.pickerWrap}>
 										<DateTimePicker
@@ -265,14 +298,17 @@ export const RemindersScreen = () => {
 											onChange={handleTimeChange}
 											value={toDate(time)}
 										/>
-										{Platform.OS === 'ios' ? (
-											<Pressable
-												onPress={() => setIsTimePickerVisible(false)}
-												style={styles.pickerDone}
-											>
-												<BodyStrongText color={theme.colors.accent}>{t('done')}</BodyStrongText>
-											</Pressable>
-										) : null}
+										{/*
+										 * Closes the picker; it does not save. The value is written
+										 * on every turn of the spinner and debounced, so leaving
+										 * without tapping this keeps the time either way.
+										 */}
+										<Pressable
+											onPress={() => setIsTimePickerVisible(false)}
+											style={styles.pickerDone}
+										>
+											<BodyStrongText color={theme.colors.accent}>{t('confirm')}</BodyStrongText>
+										</Pressable>
 									</View>
 								) : null}
 							</CardSurface>
@@ -291,7 +327,7 @@ export const RemindersScreen = () => {
 			{hasNotifPermission ? null : (
 				<CaptionText color={theme.colors.subtext}>{t('notifPermissionHint')}</CaptionText>
 			)}
-			{runningGroups.length > 0 ? (
+			{participatingGroups > 0 ? (
 				<>
 					<FieldLabelText color={theme.colors.faintText}>{t('preview')}</FieldLabelText>
 					<CardSurface style={styles.previewCard}>
@@ -305,7 +341,11 @@ export const RemindersScreen = () => {
 						<View style={styles.previewTextColumn}>
 							<BodyStrongText>{t('notifTitle')}</BodyStrongText>
 							<CaptionText color={theme.colors.subtext} style={styles.previewBody}>
-								{unreadCount > 0 ? t('notifBody', { unread: unreadCount }) : t('notifBodyIdle')}
+								{unreadCount === 0
+									? t('notifBodyIdle')
+									: pendingGroups > 1
+									? t('notifBodyGroups', { groups: pendingGroups, unread: unreadCount })
+									: t('notifBody', { unread: unreadCount })}
 							</CaptionText>
 						</View>
 					</CardSurface>
@@ -338,6 +378,9 @@ const styles = StyleSheet.create({
 	},
 	previewTextColumn: {
 		flex: 1
+	},
+	nextReminder: {
+		marginTop: 2
 	},
 	pickerDone: {
 		alignItems: 'center',

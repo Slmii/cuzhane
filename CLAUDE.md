@@ -433,8 +433,33 @@ anything posted to a channel that doesn't exist yet.
 The body's bab count is a **snapshot taken when it was scheduled** — a local notification's
 text is fixed and nothing can recompute it at 21:30. Keeping the count in `contentSig` is
 what keeps it honest: reading a bab re-syncs and replaces the pending notification. It can
-only go stale if the reader progresses on another device. `pickReminderGroup` is shared by
-the scheduler and the Reminders screen's preview so the two can never name different groups.
+only go stale if the reader progresses on another device.
+
+**A repeating trigger fires at the next match, which may be tomorrow.** iOS resolves the
+hour/minute against the next date _strictly after_ now, so a time already reached today is
+scheduled for tomorrow — and because the picker write is debounced and round-trips the
+server, choosing a time a minute out routinely lands a second or two past it. Diagnosed from
+`PendingNotifications.plist` after a 09:29 reminder set at 09:29:02 never arrived and looked
+broken. `isNextReminderTomorrow` in `utils/reminder.ts` puts that on screen under the picker
+("İlk bildirim yarın 09:29"), which is the only thing distinguishing it from a reminder that
+simply doesn't work. The `now` it compares against is refreshed on focus (`useIsFocused`,
+adjusted during render), on foreground and on picking a time — a tab switch is none of the
+others, and without the focus case the line kept claiming "bugün 09:52" at 09:54.
+
+The picker's "Tamam" **closes the sheet and does not save.** The value is written on every
+turn of the spinner and debounced 600ms, with a flush on blur and on unmount, so leaving
+without tapping it keeps the time either way. It uses `confirm`, not `done` — `done` is the
+lowercase mid-sentence "3 / 5 tamam" on the group screen.
+
+**The reminder is about the day, not about one group.** `reminderTotals` in
+`utils/reminder.ts` sums what is still owed across every running group and is shared by the
+scheduler and the Reminders screen's preview, so the preview is the notification that will
+actually arrive rather than an illustration of one. It returns three numbers, and the
+difference between the last two is the whole point: `pendingGroups` (still owing) drives the
+copy — past one group the body names the count, because a bare "26 babın kaldı" over six
+groups reads as one group's — while `participatingGroups` (running, with a share, finished or
+not) decides whether there is anything to say at all. Nothing to remind about is not the same
+as having finished.
 
 `setNotificationHandler` is set at module scope in `AppRoot`, before any component mounts —
 without it a reminder arriving while the app is open is delivered silently.

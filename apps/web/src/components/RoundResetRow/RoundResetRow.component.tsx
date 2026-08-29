@@ -26,8 +26,9 @@ export const RoundResetRow = ({ groupLabel, localLabel, style, variant = 'card' 
 			</CaptionText>
 			{isPanel ? null : <CaptionText color={theme.colors.faintText}>·</CaptionText>}
 			<CaptionText
-				color={isPanel ? theme.colors.subtext : theme.colors.accent}
-				// On a card the local time is the emphasis — it is the one the reader acts on.
+				// The local time is the one the reader acts on, so it carries the accent in both
+				// variants — greyed on the panel it read as a footnote to the group's own clock.
+				color={theme.colors.accent}
 				style={isPanel ? styles.panelLocal : undefined}
 				weight={isPanel ? 'regular' : 'semibold'}
 			>
