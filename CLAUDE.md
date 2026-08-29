@@ -207,16 +207,43 @@ tidy up any rows left from before. Re-adding the feature means rebuilding that s
     preview in all three), so detail screens push _inside_ a tab and each tab keeps its own back stack. Adding a pushed
     screen means adding it to `sharedTabScreens`, not to the root stack — the root stack holds only
     `Onboarding`, `Tabs` and sheet routes. Tabs carry `popToTopOnBlur`, so leaving a tab resets it to its
-    root — switching away from a group and back lands on the tab's list, not the group you were in. `TAB_BAR_HIDDEN_ROUTES` lists the exceptions (the reader);
-    it also zeroes `TabBarOffsetContext`, so never hide the bar without going through it. Those screens
-    **collapse** the bar (`BottomNavBar isCollapsed`), never unmount it: returning `null` from `tabBar`
-    removed it the moment you navigated, which reflowed the screen being pushed away and flashed its card
-    corner under the incoming one for a few frames.
--   **The reader walks the member's share, not the hundred.** `BabReader`'s arrows, its progress rail and
-    its "Bab 3 / 5" eyebrow all measure against `myBabNumbers`; stepping ±1 wandered into other members'
-    babs, which are readable to look at but not to mark. The rail replaced a dash per bab because fifty
-    dashes stopped reading as anything. `linking.ts` must keep `parse: { babNumber: Number }` — the share
-    is matched by identity, so a string from a deep link is not found in it.
+    root — switching away from a group and back lands on the tab's list, not the group you were in.
+    `TAB_BAR_HIDDEN_ROUTES` lists the screens the bar steps aside for, and it also zeroes
+    `TabBarOffsetContext`, so never hide the bar without going through it. It is **currently empty**: the
+    reader was the one entry, on the grounds that reading should be immersive, and is being tried with the
+    bar left in. A screen that keeps the bar must not inset its own `bottom` safe-area edge — the bar is a
+    sibling below it and already clears the home indicator, and doing both stacks two gaps (which is exactly
+    what opened up under `BabReader`'s action bar). Listed screens **collapse** the bar (`BottomNavBar
+isCollapsed`), never unmount it: returning `null` from `tabBar` removed it the moment you navigated, which
+    reflowed the screen being pushed away and flashed its card corner under the incoming one for a few frames.
+-   **The reader walks the whole hundred; only the _marking_ is gated.** `BabReader`'s arrows step ±1
+    across 1–100, its eyebrow reads "Bab 87 / 100" and its rail spans the cevşen. It used to walk
+    `myBabNumbers` instead — arrows skipping 17→34, an eyebrow reading "Bab 3 / 5" — which did stop anyone
+    marking a bab that wasn't theirs, but only by making the other ninety-five unreachable. E2 moved the
+    guard onto the thing that actually belongs to someone: an **ownership chip** beside the bab name
+    (`ownMine` / `ownPool` / `ownOther`, coloured `accentSoft` / `sand` / `secondary`), a one-line hint
+    above the action bar, and a **disabled** Okudum reading `readLocked` for another member's bab. Disabled,
+    not merely muted — most babs are somebody else's most days. Pool babs stay live and still route through
+    `handleTakeAndRead`, because marking one claims it. The old full-width pool banner card is gone: the
+    chip and the hint say it twice already. `linking.ts` must still keep `parse: { babNumber: Number }`.
+-   **A verse ornament inside running Arabic is `۝` (ARABIC END OF AYAH) followed by its number —
+    a character, never a drawn view.** React Native cannot place an inline `<View>` inside right-to-left
+    text: the advance the line reserves and the frame the view is painted at disagree, so the rosette lands
+    on top of words with a gap where its box was. It looks font-specific and isn't — measured across Nesih,
+    Amiri and Şehrizad, every face broke on some babs and not others, purely on how that line's runs
+    reorder. It only appeared at all once the reader was given a real Arabic font: the iOS system fallback
+    never showed it, which is why this shipped fine before E2a. `۝` shapes and wraps with the words, so
+    it cannot be misplaced, and all three faces enclose the digits that follow — Latin `1` as readily as
+    Arabic-Indic `١`, so the numerals setting works either way. **Don't put a view back in that line.**
+-   **`ui/Ornament` is the drawn rosette, and it is still right where a `View` is legal** — the mark that
+    opens a bab and the settings preview's sample. Traced from the design system's Ornament Set page: eight
+    r3 petals 5.4 out on a 26 grid and an r6.3 centre disc **filled with the page colour** (that disc is
+    what cuts the petals into lobes, so `backgroundColor` must match whatever it sits on). The spec's r4.5
+    dotted ring is deliberately dropped — at reading size its dashes and the numeral's strokes were the same
+    weight and read as one texture. Colour is its own `theme.colors.ornament` token — `#A65D5D` light,
+    `#C97B7B` dark — deliberately not `danger`, which is the deeper `#8C3F3F` in light mode. Its numeral is
+    **SVG text on an explicit baseline**, not an overlaid `<Text>`: RN centres a text's _line box_, and Noto
+    Naskh's digits don't sit at the centre of theirs, so overlaid they rode high in the rosette.
 -   The bottom bar is a **sibling below the scene, not an overlay** — the tab navigator already insets the
     screen by the bar's height. `TabBarOffsetContext` is therefore just a small content gap, not the bar's
     height; reserving the height again leaves a screenful of dead space under long content.
@@ -534,3 +561,8 @@ only one the app gives anybody a way to set; add a column back only alongside it
 -   Formatting: Prettier, tabs, width 120, single quotes, no trailing commas. ESLint 9 flat configs per app.
 -   `design-reference.html` at the repo root is the original design doc every screen was built from.
     Treat it as the spec when changing screen layout.
+-   `design_handoff_cuzhane/` holds the designer's `.dc.html` exports, copied in **byte for byte** and
+    listed in `.prettierignore` — a reformatted copy can't be diffed against the next export to see what
+    actually changed. They are read as source, not opened: each one is a template needing the design
+    tool's `support.js` runtime (and React from a CDN), neither of which is vendored here.
+    `Ornament Set.dc.html` is the verse ornament's spec — grid, anatomy, the ١–١٢٠ set and the Kurallar.

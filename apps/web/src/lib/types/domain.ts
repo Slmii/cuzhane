@@ -180,10 +180,22 @@ export type UserSettings = {
 	reminderEnabled: boolean;
 	reminderTime: string;
 	hasSeenOnboarding: boolean;
+	// The reader's typography, set from E2a and applied to every bab.
 	readerFontScale: number;
+	readerNumerals: ReaderNumerals;
+	readerArabicFont: ReaderArabicFont;
 	createdAt: string;
 	updatedAt: string;
 };
+
+/** Which digits the verse ornaments carry. Mirrors the server's `ReaderNumerals` enum. */
+export type ReaderNumerals = 'arabic' | 'latin';
+
+/**
+ * The face the reader sets the Arabic in. Named after the script rather than the font file,
+ * so shipping a different family for `naskh` is a client change and not a migration.
+ */
+export type ReaderArabicFont = 'naskh' | 'amiri' | 'scheherazade';
 
 export type ProfileStats = {
 	babsRead: number;

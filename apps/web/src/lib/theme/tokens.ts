@@ -106,6 +106,13 @@ export type AppTheme = {
 		// Reader chrome sits over the page and blurs what scrolls beneath it.
 		readerSurface: string;
 		readerRule: string;
+		/**
+		 * The verse ornament's crimson — its own colour, not `danger`.
+		 *
+		 * They coincide in dark mode and diverge in light, where `danger` is the deeper
+		 * `#8C3F3F` a destructive action needs. A rosette closing a verse is not a warning.
+		 */
+		ornament: string;
 	};
 	spacing: Spacing;
 	radius: Radius;
@@ -191,7 +198,8 @@ export const lightTheme: AppTheme = {
 		heatMid: '#A9C7B6',
 		heatHigh: '#3E6B5C',
 		readerSurface: 'rgba(247,245,240,0.94)',
-		readerRule: 'rgba(28,29,26,0.07)'
+		readerRule: 'rgba(28,29,26,0.07)',
+		ornament: '#A65D5D'
 	},
 	spacing,
 	radius
@@ -267,7 +275,8 @@ export const darkTheme: AppTheme = {
 		heatMid: 'rgba(143,184,166,0.55)',
 		heatHigh: '#8FB8A6',
 		readerSurface: 'rgba(25,26,24,0.94)',
-		readerRule: 'rgba(242,240,234,0.09)'
+		readerRule: 'rgba(242,240,234,0.09)',
+		ornament: '#C97B7B'
 	},
 	spacing,
 	radius

@@ -20,7 +20,9 @@ export const updateUserSettingsForUser = async (userId: string, input: UpdateUse
 		...(input.reminderEnabled !== undefined ? { reminderEnabled: input.reminderEnabled } : {}),
 		...(input.reminderTime !== undefined ? { reminderTime: input.reminderTime } : {}),
 		...(input.hasSeenOnboarding !== undefined ? { hasSeenOnboarding: input.hasSeenOnboarding } : {}),
-		...(input.readerFontScale !== undefined ? { readerFontScale: input.readerFontScale } : {})
+		...(input.readerFontScale !== undefined ? { readerFontScale: input.readerFontScale } : {}),
+		...(input.readerNumerals !== undefined ? { readerNumerals: input.readerNumerals } : {}),
+		...(input.readerArabicFont !== undefined ? { readerArabicFont: input.readerArabicFont } : {})
 	};
 
 	if (Object.keys(updateData).length === 0) {

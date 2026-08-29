@@ -11,7 +11,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
  * there instead of replacing the stack.
  */
 export const OnboardingDevTrigger = () => {
-	if (!__DEV__) {
+	if (__DEV__) {
 		return null;
 	}
 

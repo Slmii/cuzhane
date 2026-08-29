@@ -7,5 +7,12 @@ export const appFonts = {
 	headingMedium: 'Newsreader_500Medium',
 	headingSemibold: 'Newsreader_600SemiBold',
 	mono: 'IBMPlexMono_400Regular',
-	monoMedium: 'IBMPlexMono_500Medium'
+	monoMedium: 'IBMPlexMono_500Medium',
+	arabicNumeral: 'NotoNaskhArabic_500Medium'
+} as const;
+
+export const arabicReaderFonts = {
+	naskh: 'NotoNaskhArabic_400Regular',
+	amiri: 'AmiriQuran_400Regular',
+	scheherazade: 'ScheherazadeNew_400Regular'
 } as const;

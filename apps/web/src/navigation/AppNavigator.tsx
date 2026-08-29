@@ -37,8 +37,15 @@ import { ActivityIndicator, View } from 'react-native';
  */
 const TAB_BAR_CONTENT_GAP = 18;
 
-/** The reader is meant to be immersive, so the bar steps out of its way. */
-const TAB_BAR_HIDDEN_ROUTES = new Set<string>(['BabReader']);
+/**
+ * Screens the bar steps out of the way for.
+ *
+ * Empty at the moment: the reader used to be listed here on the grounds that reading should
+ * be immersive, and it is being tried with the bar left in — it stacks directly under the
+ * reader's own prev · Okudum · next bar, so the two are worth looking at together before
+ * deciding. Put `'BabReader'` back to restore the immersive version.
+ */
+const TAB_BAR_HIDDEN_ROUTES = new Set<string>([]);
 
 type AnyNavigationState = NavigationState | PartialState<NavigationState>;
 

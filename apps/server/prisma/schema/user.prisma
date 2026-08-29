@@ -6,6 +6,20 @@ enum AppLanguage {
     en
 }
 
+/// Which digits the reader's verse ornaments carry.
+enum ReaderNumerals {
+    arabic
+    latin
+}
+
+/// The face the reader sets the Arabic in. Named after the script, not the font file, so
+/// swapping which family ships for `naskh` doesn't need a migration.
+enum ReaderArabicFont {
+    naskh
+    amiri
+    scheherazade
+}
+
 model UserSettings {
     id                String      @id @default(cuid())
     userId            String      @unique
@@ -15,6 +29,11 @@ model UserSettings {
     nudgeEnabled      Boolean     @default(true)
     hasSeenOnboarding Boolean     @default(false)
     readerFontScale   Int         @default(1)
+    // Set from E2a, the reader's own settings sheet, and applied to every bab.
+    readerNumerals    ReaderNumerals   @default(arabic)
+    // Şehrizad (Scheherazade New) by default: of the three it reads closest to a printed
+    // Turkish Cevşen, matched against a page of one.
+    readerArabicFont  ReaderArabicFont @default(scheherazade)
     createdAt         DateTime    @default(now())
     updatedAt         DateTime    @updatedAt
 }

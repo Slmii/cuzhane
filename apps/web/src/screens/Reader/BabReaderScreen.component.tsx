@@ -1,27 +1,71 @@
 import { BackLink } from '@/components/ui/BackLink/BackLink.component';
 import { ReaderSkeleton } from './ReaderSkeleton.component';
 import { AppBottomSheet } from '@/components/ui/BottomSheet/BottomSheet.component';
-import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
+import { Hatch } from '@/components/ui/Hatch/Hatch.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
-import { BodyStrongText, CaptionText, EyebrowText, Typography } from '@/components/ui/Typography/Typography.component';
-import { BISMILLAH, getBab, READER_FONT_SIZES, readerFontSize } from '@/lib/content/cevsen';
+import { Ornament } from '@/components/ui/Ornament/Ornament.component';
+import { EyebrowText, Typography } from '@/components/ui/Typography/Typography.component';
+import { BISMILLAH, CEVSEN_AFTER_HUNDREDTH, getBab, readerFontSize, toOrnamentDigits } from '@/lib/content/cevsen';
 import { useGetBabs, useSetBabRead } from '@/lib/hooks/useBab';
 import { useGetGroupById, useTakePoolSlot } from '@/lib/hooks/useGroup';
 import { useGetUserSettings, useUpdateUserSettings } from '@/lib/hooks/useUserSettings';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { toAlphaColor } from '@/lib/theme/tokens';
-import { BAB_COUNT, slotIndexForBab } from '@/lib/utils/babs';
+import { BAB_COUNT, babRuns, slotIndexForBab } from '@/lib/utils/babs';
+import { arabicReaderFonts } from '@/lib/theme/fonts';
+import type { ReaderNumerals } from '@/lib/types/domain';
 import type { TabStackParamList } from '@/navigation/types';
-import { TextSizeOption } from '@/screens/Reader/TextSizeOption.component';
+import { ReaderSettings } from '@/screens/Reader/ReaderSettings.component';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { BlurView } from 'expo-blur';
-import { useState } from 'react';
+import { Fragment, useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, { runOnJS, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type Props = NativeStackScreenProps<TabStackParamList, 'BabReader'>;
+
+/**
+ * The verse ornament that closes an invocation: **U+06DD, ARABIC END OF AYAH**, followed by
+ * the number it encloses.
+ *
+ * It is a character, not a picture, and that is the whole point. `ui/Ornament` draws the
+ * design's rosette beautifully, but React Native could not place it *inside* right-to-left
+ * text: the advance the line reserved and the frame the view was painted at disagreed, so
+ * rosettes landed on top of words with gaps where their boxes had been. It looked
+ * font-specific and wasn't — measured across three faces, every one of them broke on some
+ * babs and not others, depending only on how that line's runs happened to reorder. The
+ * system fallback face never did, which is why this only appeared once the reader was given
+ * a real Arabic font to set.
+ *
+ * U+06DD is what a printed mushaf uses and what every Arabic face draws for itself, so it
+ * shapes and wraps with the words around it and cannot be misplaced. The one cost is that
+ * the mark now belongs to the chosen typeface rather than to the design system, so it looks
+ * a little different in each of the three.
+ *
+ * It costs **nothing else**, which was the surprise: all three faces enclose the following
+ * digits, and all three do it for Latin `1` as readily as for Arabic-Indic `١`, so the
+ * numerals setting survived intact. Verified on bab 66 — the bab the drawn rosette broke on
+ * in every font — across Nesih, Amiri and Şehrizad, and in both numeral systems.
+ *
+ * The rosette is **not gone**: it still opens each bab and heads the settings preview, both
+ * of which sit in a `View` rather than in a line of text, where it places correctly.
+ */
+const END_OF_AYAH = '\u06DD';
+
+const ayahMark = (n: number, numerals: ReaderNumerals) => `${END_OF_AYAH}${toOrnamentDigits(n, numerals)}`;
+
+/** The design's "bölüm başı" size — the largest of its three, for the mark opening a bab. */
+const ORNAMENT_SECTION_SIZE = 40;
+
+/** Where a run of babs sits along the rail, as a fraction of the whole cevşen. */
+const railRunBounds = (run: { end: number; start: number }) => ({
+	left: `${((run.start - 1) / BAB_COUNT) * 100}%` as const,
+	width: `${((run.end - run.start + 1) / BAB_COUNT) * 100}%` as const
+});
 
 /** The header's progress rail — 148×5 with an 11pt head inside a 3pt ring. */
 const RAIL_HEIGHT = 5;
@@ -40,7 +84,110 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 	const settingsQuery = useGetUserSettings();
 	const updateSettings = useUpdateUserSettings();
 	const setBabRead = useSetBabRead();
-	const [isTextSizeSheetOpen, setIsTextSizeSheetOpen] = useState(false);
+	const [isSettingsSheetOpen, setIsSettingsSheetOpen] = useState(false);
+
+	/**
+	 * The rail is a scrubber: dragging it walks the hundred far faster than the arrows can,
+	 * which are ninety-nine taps end to end.
+	 *
+	 * **The number moves under the finger; the Arabic lands once, on release.** The obvious
+	 * build — `setParams` each time the finger crosses a bab — re-renders a screenful of
+	 * Arabic and eleven rosettes up to a hundred times in one swipe, which is the same shape
+	 * of stall the bab board hit with a hundred animated cells.
+	 *
+	 * So the drag is split across the two things it moves. The head is pure UI thread, one
+	 * `useAnimatedStyle` and no React at all — the same easing budget `CellGrid` refuses to
+	 * spend per-cell, which is exactly what that rule leaves room for. The bab *number* costs
+	 * a header re-render per bab crossed, which is affordable because the page below is still
+	 * rendering `babNumber` and the rosettes are `memo`'d. Only `setParams` waits for release.
+	 *
+	 * `scrubRatio` is `-1` when nobody is dragging, which is how the head knows to sit at the
+	 * open bab instead. Width is **measured, not assumed** — the rail is `flex: 1` up to the
+	 * design's 148, so a long bab name squeezes it and a hardcoded 148 would land the finger
+	 * several babs off.
+	 */
+	const [railWidth, setRailWidth] = useState(0);
+	const scrubRatio = useSharedValue(-1);
+
+	/**
+	 * The number counts up under the finger; the Arabic does not follow until you let go.
+	 *
+	 * `scrubBab` is only ever read by the header — the page below keeps rendering `babNumber`
+	 * — so a scrub costs a header re-render and nothing more. Setting it on every frame is
+	 * safe: React bails out of a `useState` write that matches the current value, and a bab
+	 * is a hundredth of the rail wide, so the overwhelming majority of frames are exactly
+	 * that. No hand-rolled dedupe is needed, and none is wanted — one would have to live in a
+	 * shared value, which the compiler then won't let a worklet write to.
+	 */
+	const [scrubBab, setScrubBab] = useState<number | null>(null);
+	const displayBab = scrubBab ?? babNumber;
+
+	/**
+	 * Where the head sits when nobody is dragging. Half a slice in, so it lands on the bab
+	 * rather than on the boundary before it.
+	 *
+	 * Derived from `displayBab`, **not** `babNumber`, and that is the whole trick. Releasing
+	 * the drag clears `scrubRatio` on the UI thread immediately, but `setParams` needs a JS
+	 * round trip to land — so against `babNumber` the head snapped back to where the drag
+	 * started for a frame and then jumped forward to where it was let go. `displayBab` is
+	 * already the scrubbed bab at that moment, so the fallback it computes is the position
+	 * the head is *already* at, and the handover is invisible.
+	 */
+	const restingRatio = (displayBab - 0.5) / BAB_COUNT;
+
+	const railHeadStyle = useAnimatedStyle(() => ({
+		left: `${(scrubRatio.value < 0 ? restingRatio : scrubRatio.value) * 100}%`
+	}));
+
+	// Both halves of landing, in one JS call so they batch into a single render — clearing
+	// the scrub separately would blink the old bab number between the two.
+	const commitScrub = useCallback(
+		(next: number) => {
+			setScrubBab(null);
+			navigation.setParams({ babNumber: next });
+		},
+		[navigation]
+	);
+
+	const trackScrub = (x: number) => {
+		'worklet';
+
+		if (railWidth <= 0) {
+			return;
+		}
+
+		const ratio = Math.min(1, Math.max(0, x / railWidth));
+
+		scrubRatio.value = ratio;
+		runOnJS(setScrubBab)(Math.round(ratio * (BAB_COUNT - 1)) + 1);
+	};
+
+	/**
+	 * Rebuilt each render rather than memoised, which is safe **because** the body doesn't
+	 * re-render mid-drag: only the header does, and a replaced gesture object with identical
+	 * handlers is something `GestureDetector` absorbs. Memoising would mean naming
+	 * `scrubRatio` as a dependency, and a value handed to a hook is one the compiler will not
+	 * let a worklet write to.
+	 */
+	const railGesture = Gesture.Pan()
+		// Fires on touch-down, so a tap anywhere along the rail jumps there rather than
+		// needing a drag first.
+		.minDistance(0)
+		// The rail is 5pt tall. Without this it is a real but nearly unhittable target.
+		.hitSlop({ bottom: 18, top: 18 })
+		.onBegin(event => trackScrub(event.x))
+		.onUpdate(event => trackScrub(event.x))
+		// `onFinalize`, not `onEnd`: a cancelled gesture has to release the head too, or it
+		// would stay parked wherever the finger was lost.
+		.onFinalize(() => {
+			const ratio = scrubRatio.value;
+
+			scrubRatio.value = -1;
+
+			if (ratio >= 0) {
+				runOnJS(commitScrub)(Math.round(ratio * (BAB_COUNT - 1)) + 1);
+			}
+		});
 
 	if (babsQuery.isPending || settingsQuery.isPending) {
 		return (
@@ -74,35 +221,65 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 	const poolSlotIndex = isPoolBab && groupQuery.data ? slotIndexForBab(babNumber, groupQuery.data.spots) : null;
 	const currentBab = babs.find(bab => bab.number === babNumber);
 	const isRead = Boolean(currentBab?.readAt);
-	const fontScale = settingsQuery.data?.readerFontScale ?? 0;
-	const fontSize = readerFontSize(fontScale);
+	/**
+	 * The reader's typography, from E2a. Defaulted here rather than trusted from the server,
+	 * because the sheet reads these back to show what is currently selected and `undefined`
+	 * would leave all three groups looking unset on a first paint.
+	 */
+	const readerSettings = {
+		// Must match `ReaderArabicFont`'s Prisma default — this only stands in for the frame
+		// before settings arrive, and a different guess would repaint the page underneath.
+		readerArabicFont: settingsQuery.data?.readerArabicFont ?? 'scheherazade',
+		readerFontScale: settingsQuery.data?.readerFontScale ?? 0,
+		readerNumerals: settingsQuery.data?.readerNumerals ?? 'arabic'
+	} as const;
+	const fontSize = readerFontSize(readerSettings.readerFontScale);
+	const arabicFont = arabicReaderFonts[readerSettings.readerArabicFont];
 	const cevsenBab = getBab(babNumber);
 	const blurTint = mode === 'dark' ? 'dark' : 'light';
-	const fontSizeLabels = [t('fsSmall'), t('fsMed'), t('fsLarge')];
 
 	/**
-	 * The reader moves through *your share*, not through the hundred. Stepping by ±1 walked
-	 * into babs belonging to other members — readable to look at but not to mark — and made
-	 * "3 / 100" the header of a five-bab round. `readableBabNumbers` is the ordered list the
-	 * arrows, the rail and the count all measure against.
+	 * **The reader walks the whole cevşen.** All hundred babs are readable; only your own and
+	 * the pool's are markable.
 	 *
-	 * A pool bab is included when it is the one being read: it isn't part of the share until
-	 * it's taken, but arriving on it from the pool screen and finding no rail would be worse.
+	 * It used to walk the member's share instead, so the arrows skipped from bab 17 to bab 34
+	 * and the header read "Bab 3 / 5". That kept anyone from marking a bab that wasn't theirs,
+	 * but it did so by making the other ninety-five unreachable — and the cevşen is a hundred
+	 * babs whoever happens to be reciting them. The ownership chip and the gated button below
+	 * are what replaced it: the guard now sits on the *marking*, which is the thing that
+	 * actually belongs to somebody, rather than on the walking.
 	 */
-	const readableBabNumbers =
-		myBabNumbers.length > 0 && !myBabNumbers.includes(babNumber)
-			? [...myBabNumbers, babNumber].sort((a, b) => a - b)
-			: myBabNumbers;
-	const currentIndex = readableBabNumbers.indexOf(babNumber);
-	const readableTotal = readableBabNumbers.length;
-	const readableDoneCount = readableBabNumbers.filter(number =>
-		babs.some(bab => bab.number === number && bab.readAt !== null)
-	).length;
-	const donePercent = readableTotal === 0 ? 0 : (readableDoneCount / readableTotal) * 100;
-	// Half a slice in, so the head sits on the bab rather than on the boundary before it.
-	const positionPercent = readableTotal === 0 || currentIndex < 0 ? 0 : ((currentIndex + 0.5) / readableTotal) * 100;
-	const previousBabNumber = currentIndex > 0 ? readableBabNumbers[currentIndex - 1] : undefined;
-	const nextBabNumber = currentIndex >= 0 ? readableBabNumbers[currentIndex + 1] : undefined;
+	const readableTotal = BAB_COUNT;
+	const previousBabNumber = babNumber > 1 ? babNumber - 1 : undefined;
+	const nextBabNumber = babNumber < BAB_COUNT ? babNumber + 1 : undefined;
+
+	/**
+	 * Who this bab belongs to *this round* — the one question the reader's chip, its hint line
+	 * and its button all answer. Three states and no fourth: it is in your share, it is in the
+	 * pool and nobody's yet, or it is another member's.
+	 */
+	const isMine = myBabNumbers.includes(babNumber);
+	const canMark = isMine || isPoolBab;
+	/**
+	 * What the rail is coloured with, in the **pool board's own vocabulary** — solid accent
+	 * for your babs, hatched `poolFree` for the pool's, bare track for everyone else's. The
+	 * hatch means "a seat nobody took" on the hundred-bab board, on the Havuz screen and in
+	 * their legends, so it has to mean the same thing here rather than inventing a second
+	 * colour language for the same three states.
+	 *
+	 * Runs rather than a flat list of numbers: a share of forty draws two or three segments
+	 * instead of forty abutting slivers.
+	 */
+	const shareRuns = babRuns(myBabNumbers);
+	const poolRuns = babRuns(groupQuery.data?.poolBabNumbers ?? []);
+	const ownershipLabel = isMine ? t('ownMine') : isPoolBab ? t('ownPool') : t('ownOther');
+	const ownershipChip = isMine
+		? { background: theme.colors.accentSoft, foreground: theme.colors.accent }
+		: isPoolBab
+		? { background: theme.colors.sand, foreground: theme.colors.sandText }
+		: { background: theme.colors.secondary, foreground: theme.colors.subtext };
+	// Nothing to say when the bab is already yours — the chip has said it.
+	const readHint = isMine ? null : isPoolBab ? t('poolReadHint') : t('lockedHint');
 
 	const goToBab = (nextNumber: number | undefined) => {
 		if (nextNumber === undefined) {
@@ -112,13 +289,20 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 		navigation.setParams({ babNumber: Math.max(1, Math.min(BAB_COUNT, nextNumber)) });
 	};
 
-	const handlePickFontScale = (nextScale: number) => {
-		updateSettings.mutate({ readerFontScale: nextScale });
-		setIsTextSizeSheetOpen(false);
-	};
-
+	/**
+	 * Marking one read carries you to the next, because that is what you were going to do
+	 * anyway — the alternative is finishing a bab and then reaching for the arrow every time.
+	 *
+	 * **Only on the way in.** "Geri al" holds still: undoing is a correction, and being
+	 * carried off the bab you were fixing is the opposite of what was asked for. Nor does it
+	 * move on the hundredth, where there is no next.
+	 */
 	const toggleCurrentRead = () => {
 		setBabRead.mutate({ babNumber, groupId, read: !isRead });
+
+		if (!isRead) {
+			goToBab(nextBabNumber);
+		}
 	};
 
 	// Taking the slot is what makes the bab readable — marking it read is only allowed
@@ -130,13 +314,27 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 
 		takePoolSlot.mutate(
 			{ groupId, slotIndex: poolSlotIndex },
-			{ onSuccess: () => setBabRead.mutate({ babNumber, groupId, read: true }) }
+			{
+				// Advancing waits for the take, unlike the plain read above. That one is
+				// optimistic locally, but a pool slot is contested — someone else can have taken
+				// it a moment earlier — and being carried to the next bab before finding that out
+				// would hide the failure behind a page turn.
+				onSuccess: () => {
+					setBabRead.mutate({ babNumber, groupId, read: true });
+					goToBab(nextBabNumber);
+				}
+			}
 		);
 	};
 
+	/*
+	 * No `bottom` edge: the tab bar is a sibling below this screen and already clears the
+	 * home indicator, so insetting here too stacked two gaps between the reader's action bar
+	 * and the tab bar. Restore `'bottom'` if the bar is ever hidden on this screen again.
+	 */
 	return (
 		<SafeAreaView
-			edges={['top', 'bottom', 'left', 'right']}
+			edges={['top', 'left', 'right']}
 			style={[styles.safeArea, { backgroundColor: theme.colors.background }]}
 		>
 			<View style={[styles.header, { borderBottomColor: theme.colors.readerRule }]}>
@@ -147,26 +345,26 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 						<BackLink onPress={navigation.goBack} />
 					</View>
 					<View style={styles.headerCenter}>
-						{/* Your position in your own share — "Bab 3 / 5", not "Bab 87 / 100". The
-						    hundred is the group's business; the reader is only ever yours. */}
-						<EyebrowText>{`${t('bab')} ${currentIndex + 1} / ${readableTotal}`}</EyebrowText>
+						{/* Position in the cevşen, not in your share — "Bab 87 / 100". Which of
+						    those hundred are yours is the chip's job, one line below. */}
+						<EyebrowText>{`${t('bab')} ${displayBab} / ${readableTotal}`}</EyebrowText>
 					</View>
 					<View style={[styles.headerSide, styles.headerSideEnd]}>
 						<Pressable
 							accessibilityRole='button'
-							onPress={() => setIsTextSizeSheetOpen(true)}
+							onPress={() => setIsSettingsSheetOpen(true)}
 							style={[
 								styles.fsButton,
 								{
-									backgroundColor: isTextSizeSheetOpen
+									backgroundColor: isSettingsSheetOpen
 										? theme.colors.accentSoft
 										: theme.colors.surface,
-									borderColor: isTextSizeSheetOpen ? theme.colors.accent : theme.colors.border
+									borderColor: isSettingsSheetOpen ? theme.colors.accent : theme.colors.border
 								}
 							]}
 						>
 							<Typography
-								color={isTextSizeSheetOpen ? theme.colors.accent : undefined}
+								color={isSettingsSheetOpen ? theme.colors.accent : undefined}
 								variant='bodyStrong'
 							>
 								Aa
@@ -176,67 +374,211 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 				</View>
 				<View style={styles.headerBottomRow}>
 					<Typography variant='title' weight='regular'>
-						{t('babOrdinal', { n: babNumber })}
+						{t('babOrdinal', { n: displayBab })}
 					</Typography>
 					{/*
-					 * One rail, not one dash per bab. A share of five drew five fat dashes and a
-					 * share of fifty drew fifty hairlines that stopped reading as anything; a
-					 * proportional bar looks the same at either size. The filled part is what's
-					 * read, and the dot is where you are — centred on its own slice, so the first
-					 * of five sits at 10% rather than hard against the left end.
+					 * Whose bab this is, in one word. It sits against the bab's name rather than
+					 * in the rail's row because it qualifies the name — "27. Bab, senin payın".
 					 */}
-					<View style={[styles.rail, { backgroundColor: theme.colors.switchTrackOff }]}>
-						<View
-							style={[
-								styles.railFill,
-								{ backgroundColor: theme.colors.accentMid, width: `${donePercent}%` }
-							]}
-						/>
-						<View
-							style={[
-								styles.railHead,
-								{
-									backgroundColor: toAlphaColor(theme.colors.accent, RAIL_HEAD_RING_ALPHA),
-									left: `${positionPercent}%`
-								}
-							]}
-						>
-							<View style={[styles.railDot, { backgroundColor: theme.colors.accent }]} />
-						</View>
+					<View style={[styles.ownershipChip, { backgroundColor: ownershipChip.background }]}>
+						<Typography color={ownershipChip.foreground} variant='caption' weight='semibold'>
+							{ownershipLabel}
+						</Typography>
 					</View>
+					{/*
+					 * One rail, not one dash per bab — a hundred dashes stopped reading as
+					 * anything. It spans the whole cevşen, and the dot is where you are in it.
+					 *
+					 * Drag it to scrub. The arrows step one bab at a time, which is ninety-nine
+					 * taps end to end; the rail already showed where you were in the hundred, so
+					 * letting it *set* that costs no new furniture.
+					 *
+					 * **The green marks where your babs are, not how far the group has read.**
+					 * It was a progress bar filling from the left, which said something true and
+					 * useless: the rail's whole job now is getting you somewhere, and what you
+					 * want to get to is your own share. A share can be several runs — a
+					 * volunteered pool block is a second, unconnected range — so this is one
+					 * segment per run rather than one bar.
+					 */}
+					<GestureDetector gesture={railGesture}>
+						<View
+							accessibilityRole='adjustable'
+							accessibilityValue={{ max: BAB_COUNT, min: 1, now: babNumber }}
+							onLayout={event => setRailWidth(event.nativeEvent.layout.width)}
+							style={[styles.rail, { backgroundColor: theme.colors.switchTrackOff }]}
+						>
+							{/* Pool first, yours over it: taking a pool block puts it in your share,
+							    and for the frame before the board catches up your green should win. */}
+							{poolRuns.map(run => (
+								<View
+									key={`pool-${run.start}`}
+									style={[
+										styles.railRun,
+										{ backgroundColor: theme.colors.poolFree },
+										railRunBounds(run)
+									]}
+								>
+									<Hatch radius={RAIL_HEIGHT / 2} />
+								</View>
+							))}
+							{shareRuns.map(run => (
+								<View
+									key={`mine-${run.start}`}
+									style={[
+										styles.railRun,
+										{ backgroundColor: theme.colors.accent },
+										railRunBounds(run)
+									]}
+								/>
+							))}
+							<Animated.View
+								style={[
+									styles.railHead,
+									{ backgroundColor: toAlphaColor(theme.colors.accent, RAIL_HEAD_RING_ALPHA) },
+									railHeadStyle
+								]}
+							>
+								<View style={[styles.railDot, { backgroundColor: theme.colors.accent }]} />
+							</Animated.View>
+						</View>
+					</GestureDetector>
 				</View>
 			</View>
 
 			<ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
-				{/* Says why this bab isn't in your own range before you read a word of it. */}
-				{isPoolBab ? (
-					<CardSurface style={styles.poolBanner}>
-						<View style={[styles.poolIcon, { backgroundColor: theme.colors.sand }]}>
-							<Icon color={theme.colors.sandText} name='info' size={17} />
-						</View>
-						<View style={styles.poolBannerText}>
-							<BodyStrongText>{t('poolBanner')}</BodyStrongText>
-							<CaptionText color={theme.colors.subtext} style={styles.poolBannerSub}>
-								{t('poolBannerSub')}
-							</CaptionText>
-						</View>
-					</CardSurface>
-				) : null}
-				<Typography color={theme.colors.accent} style={styles.glyph} textAlign='center'>
-					۞
-				</Typography>
+				{/*
+				 * No pool banner here any more. It was a card at the top of the page saying
+				 * this bab wasn't in your range — which the header's chip now says in one word
+				 * and the footer's hint says again right where it matters, next to the button
+				 * it explains. Three of them would have been two too many.
+				 */}
+				{/*
+				 * The mark that opens the bab: the same rosette the verses end on, drawn at the
+				 * design's section-head size and left **empty** — it starts a reading rather
+				 * than closing a numbered verse, so it has nothing to count.
+				 *
+				 * It was a green `۞` glyph, which was the one place in the reader still using a
+				 * typographic character where the page has an ornament.
+				 */}
+				<View style={styles.glyph}>
+					<Ornament color={theme.colors.accent} size={ORNAMENT_SECTION_SIZE} />
+				</View>
 				{BISMILLAH ? (
 					<Typography style={styles.bismillah} textAlign='right'>
 						{BISMILLAH}
 					</Typography>
 				) : null}
-				{cevsenBab?.arabic ? (
-					<Typography
-						style={[styles.arabic, { fontSize, lineHeight: fontSize * 2, writingDirection: 'rtl' }]}
-						textAlign='right'
-					>
-						{cevsenBab.arabic}
-					</Typography>
+				{cevsenBab && cevsenBab.invocations.length > 0 ? (
+					<>
+						{/*
+						 * The whole bab as **one flowing paragraph**, the invocations run together
+						 * and punctuated by their ornaments, wrapping to the column like prose.
+						 *
+						 * Not a line per invocation. Two earlier attempts tried to hold a fixed
+						 * shape — the printed page's two-to-a-line, then one centred line each —
+						 * and both fought the column: the page's type is narrower against its
+						 * measure than ours, so its pairs overran, and centring left every line
+						 * ragged at both ends with the ornaments scattered down the middle.
+						 * Flowed, the text fills the measure at any of the three reading sizes and
+						 * the ornaments fall wherever the words put them, which is what a printed
+						 * Cevşen actually does.
+						 *
+						 * The words stay breakable. Bound with non-breaking spaces they couldn't
+						 * wrap at all, so anything wider than the column fell back to character
+						 * wrapping and split a word down the middle — the thing that binding
+						 * existed to prevent. Ordinary spaces break between words only.
+						 */}
+						<Typography
+							style={[
+								styles.arabic,
+								{ fontFamily: arabicFont, fontSize, lineHeight: fontSize * 2, writingDirection: 'rtl' }
+							]}
+							textAlign='center'
+						>
+							{cevsenBab.invocations.map(invocation => (
+								// A Fragment, not a nested Typography: that would apply its own
+								// variant's `fontSize` and shrink the Arabic back to body size.
+								<Fragment key={invocation.n}>
+									{invocation.text}
+									{/*
+									 * Real spaces around the ornament, not just its margin — the
+									 * invocations are concatenated with no separator of their own.
+									 *
+									 * The leading one is **non-breaking**, so the ornament can never
+									 * wrap away from the invocation it closes and start the next
+									 * line on its own. The trailing one is ordinary, which is where
+									 * the line is meant to break.
+									 */}
+									{' '}
+									<Typography
+										color={theme.colors.accent}
+										style={{ fontFamily: arabicFont, fontSize }}
+									>
+										{ayahMark(invocation.n, readerSettings.readerNumerals)}
+									</Typography>{' '}
+								</Fragment>
+							))}
+						</Typography>
+						{/*
+						 * The refrain starts its own line and is set in the page's red. Run on from
+						 * the last name it reads as one more of them, where it is actually the
+						 * formula that ends every bab.
+						 *
+						 * **Its ornament is the only red one.** The verses' are the page's green,
+						 * so the crimson marks the sübhâneke and nothing else — which is what
+						 * separates the closing formula from the hundred names above it at a
+						 * glance, without reading a word.
+						 */}
+						<Typography
+							color={theme.colors.danger}
+							style={[
+								styles.arabic,
+								styles.closing,
+								{ fontFamily: arabicFont, fontSize, lineHeight: fontSize * 2, writingDirection: 'rtl' }
+							]}
+							textAlign='center'
+						>
+							{cevsenBab.closing.text}
+							{ayahMark(cevsenBab.closing.n, readerSettings.readerNumerals)}
+						</Typography>
+
+						{/*
+						 * The supplication the edition prints after the hundredth bab. **Shown
+						 * whenever bab 100 is open, to everyone**, with no ownership test.
+						 *
+						 * It was gated twice and wrong both times — first on `myBabNumbers`, then
+						 * on `canMark` — and each gate hid it from someone sitting on the page it
+						 * belongs to. The reader walks all hundred now, so whose *turn* bab 100
+						 * is has nothing to do with whether the du'a printed after it should be
+						 * legible: it is part of the text, like the refrain, not a reward for
+						 * having marked something.
+						 */}
+						{babNumber === BAB_COUNT ? (
+							<View style={styles.afterHundredth}>
+								<EyebrowText color={theme.colors.faintText} textAlign='center'>
+									{t('afterHundredth')}
+								</EyebrowText>
+								{CEVSEN_AFTER_HUNDREDTH.map(line => (
+									<Typography
+										key={line}
+										style={[
+											styles.arabic,
+											styles.afterHundredthLine,
+											{
+												fontFamily: arabicFont,
+												fontSize,
+												lineHeight: fontSize * 2,
+												writingDirection: 'rtl'
+											}
+										]}
+										textAlign='center'
+									>
+										{line}
+									</Typography>
+								))}
+							</View>
+						) : null}
+					</>
 				) : (
 					<Typography color={theme.colors.faintText} style={styles.missing} textAlign='center'>
 						{t('readerMissing')}
@@ -247,70 +589,113 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 			<View style={[styles.footer, { borderTopColor: theme.colors.readerRule }]}>
 				<BlurView intensity={30} style={StyleSheet.absoluteFill} tint={blurTint} />
 				<View style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.readerSurface }]} />
-				<Pressable
-					accessibilityRole='button'
-					disabled={previousBabNumber === undefined}
-					onPress={() => goToBab(previousBabNumber)}
-					style={[
-						styles.navButton,
-						{
-							backgroundColor: theme.colors.surface,
-							borderColor: theme.colors.border,
-							opacity: previousBabNumber === undefined ? 0.4 : 1
-						}
-					]}
-				>
-					<Icon name='back' size={17} />
-				</Pressable>
-				<Pressable
-					accessibilityRole='button'
-					onPress={isPoolBab ? handleTakeAndRead : toggleCurrentRead}
-					style={[
-						styles.markButton,
-						{
-							backgroundColor: isRead ? theme.colors.surface : theme.colors.accent,
-							borderColor: theme.colors.accent
-						}
-					]}
-				>
-					<Typography color={isRead ? theme.colors.accent : theme.colors.onAccent} variant='bodyStrong'>
-						{isPoolBab ? t('takeAndRead') : isRead ? t('markUnread') : t('markRead')}
+				{/*
+				 * One line saying why the button below reads the way it does — and only when
+				 * there is something to say. A bab already in your share gets no line at all.
+				 */}
+				{readHint ? (
+					<Typography
+						color={isPoolBab ? theme.colors.sandText : theme.colors.faintText}
+						style={styles.readHint}
+						variant='caption'
+					>
+						{readHint}
 					</Typography>
-				</Pressable>
-				<Pressable
-					accessibilityRole='button'
-					disabled={nextBabNumber === undefined}
-					onPress={() => goToBab(nextBabNumber)}
-					style={[
-						styles.navButton,
-						{
-							backgroundColor: theme.colors.surface,
-							borderColor: theme.colors.border,
-							opacity: nextBabNumber === undefined ? 0.4 : 1
-						}
-					]}
-				>
-					<Icon name='chevron' size={17} />
-				</Pressable>
+				) : null}
+				<View style={styles.footerRow}>
+					<Pressable
+						accessibilityRole='button'
+						disabled={previousBabNumber === undefined}
+						onPress={() => goToBab(previousBabNumber)}
+						style={[
+							styles.navButton,
+							{
+								backgroundColor: theme.colors.surface,
+								borderColor: theme.colors.border,
+								opacity: previousBabNumber === undefined ? 0.4 : 1
+							}
+						]}
+					>
+						<Icon name='back' size={17} />
+					</Pressable>
+					{/*
+					 * Live for your own babs and for the pool's; muted otherwise.
+					 *
+					 * `disabled` as well as muted — the reader now walks all hundred, so most
+					 * babs on most days are somebody else's, and a button that merely looked
+					 * inert but still fired would let anyone mark anyone's work. The server
+					 * refuses it too; this is so the screen never asks.
+					 */}
+					<Pressable
+						accessibilityRole='button'
+						disabled={!canMark}
+						onPress={isPoolBab ? handleTakeAndRead : toggleCurrentRead}
+						style={[
+							styles.markButton,
+							canMark
+								? {
+										backgroundColor: isRead ? theme.colors.surface : theme.colors.accent,
+										borderColor: theme.colors.accent
+								  }
+								: { backgroundColor: theme.colors.secondary, borderColor: theme.colors.border }
+						]}
+					>
+						<Typography
+							color={
+								!canMark ? theme.colors.faintText : isRead ? theme.colors.accent : theme.colors.onAccent
+							}
+							variant='bodyStrong'
+						>
+							{/*
+							 * A pool bab says **"Üstlen ve oku"**, not "Okudum".
+							 *
+							 * The design binds pool to the plain mark-read label, but its model
+							 * is simpler than ours: here the tap takes the whole slot — eight to
+							 * thirteen babs, taken whole and held for the round — and only then
+							 * marks this one. "Okudum" would name the smaller half of what the
+							 * button actually does. Once the slot is taken the bab is yours, so
+							 * the label falls back to Okudum · Geri al on the next render.
+							 */}
+							{!canMark
+								? t('readLocked')
+								: isPoolBab
+								? t('takeAndRead')
+								: isRead
+								? t('markUnread')
+								: t('markRead')}
+						</Typography>
+					</Pressable>
+					<Pressable
+						accessibilityRole='button'
+						disabled={nextBabNumber === undefined}
+						onPress={() => goToBab(nextBabNumber)}
+						style={[
+							styles.navButton,
+							{
+								backgroundColor: theme.colors.surface,
+								borderColor: theme.colors.border,
+								opacity: nextBabNumber === undefined ? 0.4 : 1
+							}
+						]}
+					>
+						<Icon name='chevron' size={17} />
+					</Pressable>
+				</View>
 			</View>
 
+			{/*
+			 * E2a. It **stays open** as you pick — every control shows its result in the
+			 * sheet's own preview, so closing on the first tap would take the comparison away
+			 * at the moment it became useful. The old text-size sheet closed on pick because
+			 * there was nothing to compare.
+			 */}
 			<AppBottomSheet
-				description={t('textSizeHint')}
-				isVisible={isTextSizeSheetOpen}
-				onClose={() => setIsTextSizeSheetOpen(false)}
-				title={t('textSize')}
+				description={t('readerSettingsHint')}
+				isVisible={isSettingsSheetOpen}
+				onClose={() => setIsSettingsSheetOpen(false)}
+				title={t('readerSettings')}
 			>
-				<View style={styles.textSizeOptions}>
-					{READER_FONT_SIZES.map((sizePx, index) => (
-						<TextSizeOption
-							isSelected={fontScale === index}
-							key={sizePx}
-							label={fontSizeLabels[index]}
-							onPress={() => handlePickFontScale(index)}
-							sample={sizePx}
-						/>
-					))}
-				</View>
+				<ReaderSettings onChange={patch => updateSettings.mutate(patch)} settings={readerSettings} />
 			</AppBottomSheet>
 		</SafeAreaView>
 	);
@@ -319,6 +704,20 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 const styles = StyleSheet.create({
 	arabic: {
 		marginBottom: 22
+	},
+	// Set apart from the refrain above it — this one really is a separate reading, so it gets
+	// more air than the refrain does from the names.
+	afterHundredth: {
+		gap: 14,
+		marginTop: 26
+	},
+	afterHundredthLine: {
+		marginBottom: 0
+	},
+	// Set apart from the names above it, without a rule: the refrain is part of the bab, not
+	// a separate section.
+	closing: {
+		marginTop: 4
 	},
 	bismillah: {
 		marginBottom: 20
@@ -346,10 +745,10 @@ const styles = StyleSheet.create({
 		height: RAIL_DOT_SIZE,
 		width: RAIL_DOT_SIZE
 	},
-	railFill: {
+	// One stretch of your share, laid over the rail at the babs it covers.
+	railRun: {
 		borderRadius: 3,
 		bottom: 0,
-		left: 0,
 		position: 'absolute',
 		top: 0
 	},
@@ -365,15 +764,32 @@ const styles = StyleSheet.create({
 		top: (RAIL_HEIGHT - RAIL_HEAD_SIZE) / 2,
 		width: RAIL_HEAD_SIZE
 	},
+	// A column now, not a row: the hint line sits above the buttons it explains.
+	// Even top and bottom. The 16 below was there to clear the home indicator when this bar
+	// was the last thing on the screen; the tab bar handles that now, so it read as a gap.
 	footer: {
-		alignItems: 'center',
 		borderTopWidth: StyleSheet.hairlineWidth,
-		flexDirection: 'row',
-		gap: 8,
+		gap: 9,
 		overflow: 'hidden',
-		paddingBottom: 16,
+		paddingBottom: 12,
 		paddingHorizontal: 20,
 		paddingTop: 12
+	},
+	footerRow: {
+		alignItems: 'center',
+		flexDirection: 'row',
+		gap: 8
+	},
+	// Centred over the bar it explains, rather than hanging off the left of a row whose
+	// middle is the button the sentence is about.
+	readHint: {
+		lineHeight: 16,
+		textAlign: 'center'
+	},
+	ownershipChip: {
+		borderRadius: 7,
+		paddingHorizontal: 8,
+		paddingVertical: 3
 	},
 	fsButton: {
 		alignItems: 'center',
@@ -382,28 +798,8 @@ const styles = StyleSheet.create({
 		paddingHorizontal: 9,
 		paddingVertical: 5
 	},
-	poolBanner: {
-		alignItems: 'center',
-		flexDirection: 'row',
-		gap: 11,
-		marginBottom: 12
-	},
-	poolBannerSub: {
-		marginTop: 2
-	},
-	poolBannerText: {
-		flex: 1,
-		minWidth: 0
-	},
-	poolIcon: {
-		alignItems: 'center',
-		borderRadius: 11,
-		height: 34,
-		justifyContent: 'center',
-		width: 34
-	},
 	glyph: {
-		fontSize: 15,
+		alignItems: 'center',
 		marginBottom: 22
 	},
 	header: {
@@ -417,6 +813,9 @@ const styles = StyleSheet.create({
 	headerBottomRow: {
 		alignItems: 'center',
 		flexDirection: 'row',
+		// The design's 10, and it needs all of it: the chip is a filled panel, so without a
+		// real gap it reads as attached to the bab's name rather than as a note beside it.
+		gap: 10,
 		justifyContent: 'space-between'
 	},
 	headerCenter: {
@@ -454,8 +853,5 @@ const styles = StyleSheet.create({
 	},
 	safeArea: {
 		flex: 1
-	},
-	textSizeOptions: {
-		gap: 9
 	}
 });

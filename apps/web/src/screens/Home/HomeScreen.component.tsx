@@ -1,5 +1,5 @@
-import { SliceChip } from '@/components/SliceChip/SliceChip.component';
 import { ShelfEmptyState } from '@/components/ShelfEmptyState/ShelfEmptyState.component';
+import { SliceChip } from '@/components/SliceChip/SliceChip.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
@@ -10,21 +10,21 @@ import { useSetAllBabsRead } from '@/lib/hooks/useBab';
 import { useGetGroups } from '@/lib/hooks/useGroup';
 import { useNotificationPermissionPrompt } from '@/lib/hooks/useNotificationPermissionPrompt';
 import { useTranslation } from '@/lib/i18n/I18n.context';
-import { toAlphaColor } from '@/lib/theme/tokens';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
+import { toAlphaColor } from '@/lib/theme/tokens';
 import { shareSlices } from '@/lib/utils/groups';
-import { TabStackParamList } from '@/navigation/types';
 import { TabBarOffsetContext } from '@/navigation/TabBarOffsetContext';
+import { TabStackParamList } from '@/navigation/types';
+import { JoinByCodeSheet } from '@/screens/Join/JoinByCodeSheet.component';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useCallback, useContext, useMemo, useRef, useState } from 'react';
 import { LayoutChangeEvent, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { JoinByCodeSheet } from '@/screens/Join/JoinByCodeSheet.component';
-import { DockRing, DOCK_DISTANCE } from './DockRing.component';
-import { HomeSkeleton } from './HomeSkeleton.component';
+import { DOCK_DISTANCE, DockRing } from './DockRing.component';
 import type { DockRingGroup } from './DockRing.types';
+import { HomeSkeleton } from './HomeSkeleton.component';
 
 type HomeNavigationProp = NativeStackNavigationProp<TabStackParamList>;
 
@@ -257,8 +257,10 @@ export const HomeScreen = () => {
 									accessibilityRole='button'
 									accessibilityState={{ selected: isSelected }}
 									key={row.id}
-									// Selecting only rebinds the ring — it never marks anything.
-									onPress={() => setSelectedId(row.id)}
+									onPress={() => {
+										setSelectedId(row.id);
+										navigation.navigate('GroupDetail', { groupId: row.id });
+									}}
 									style={[
 										styles.row,
 										isSelected ? { backgroundColor: theme.colors.accentSoft } : null
