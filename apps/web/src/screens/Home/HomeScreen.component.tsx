@@ -18,11 +18,12 @@ import { TabBarOffsetContext } from '@/navigation/TabBarOffsetContext';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useCallback, useContext, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, LayoutChangeEvent, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { LayoutChangeEvent, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { JoinByCodeSheet } from '@/screens/Join/JoinByCodeSheet.component';
 import { DockRing, DOCK_DISTANCE } from './DockRing.component';
+import { HomeSkeleton } from './HomeSkeleton.component';
 import type { DockRingGroup } from './DockRing.types';
 
 type HomeNavigationProp = NativeStackNavigationProp<TabStackParamList>;
@@ -127,9 +128,7 @@ export const HomeScreen = () => {
 	if (isPending) {
 		return (
 			<SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
-				<View style={styles.centerFill}>
-					<ActivityIndicator color={theme.colors.accent} />
-				</View>
+				<HomeSkeleton />
 			</SafeAreaView>
 		);
 	}

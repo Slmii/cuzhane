@@ -1,4 +1,6 @@
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
+import { GroupDetailSkeleton } from './GroupDetailSkeleton.component';
+import { LobbySkeleton } from './LobbySkeleton.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
@@ -22,7 +24,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Clipboard from 'expo-clipboard';
 import { useState } from 'react';
 import { useEffect } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 type Props = NativeStackScreenProps<TabStackParamList, 'Lobby'>;
 
@@ -55,7 +57,7 @@ export const LobbyScreen = ({ navigation, route }: Props) => {
 	if (group.isLoading) {
 		return (
 			<ScreenContainer isScrollable={false}>
-				<ActivityIndicator color={theme.colors.accent} style={styles.loading} />
+				<LobbySkeleton />
 			</ScreenContainer>
 		);
 	}
@@ -112,13 +114,12 @@ export const LobbyScreen = ({ navigation, route }: Props) => {
 		</CardSurface>
 	);
 
-	// The redirect above has already fired; hold rather than flash the creator's lobby.
+	// The redirect above has already fired; hold rather than flash the creator's lobby. It
+	// shows the *group* screen's skeleton, since that is where a non-owner is being sent.
 	if (!detail.isOwner) {
 		return (
-			<ScreenContainer isScrollable={false}>
-				<View style={styles.centered}>
-					<ActivityIndicator color={theme.colors.accent} />
-				</View>
+			<ScreenContainer>
+				<GroupDetailSkeleton />
 			</ScreenContainer>
 		);
 	}

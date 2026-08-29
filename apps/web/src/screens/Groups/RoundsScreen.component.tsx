@@ -1,4 +1,5 @@
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
+import { RoundsSkeleton } from './RoundsSkeleton.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Chip } from '@/components/ui/Chip/Chip.component';
@@ -12,7 +13,7 @@ import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { GroupCycle, RoundSummary } from '@/lib/types/domain';
 import type { TabStackParamList } from '@/navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 type Props = NativeStackScreenProps<TabStackParamList, 'Rounds'>;
 
@@ -36,10 +37,8 @@ export const RoundsScreen = ({ navigation, route }: Props) => {
 
 	if (groupQuery.isPending || roundsQuery.isPending) {
 		return (
-			<ScreenContainer isScrollable={false}>
-				<View style={styles.centered}>
-					<ActivityIndicator color={theme.colors.accent} />
-				</View>
+			<ScreenContainer>
+				<RoundsSkeleton />
 			</ScreenContainer>
 		);
 	}

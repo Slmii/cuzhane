@@ -2,6 +2,7 @@ import { GroupBrowseBar } from '@/components/GroupBrowseBar/GroupBrowseBar.compo
 import { GroupCard } from '@/components/GroupCard/GroupCard.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenTitle } from '@/components/ScreenTitle/ScreenTitle.component';
+import { GroupCardSkeleton } from '@/components/Skeleton/GroupCardSkeleton.component';
 import { ShelfEmptyState } from '@/components/ShelfEmptyState/ShelfEmptyState.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import type { ChipTone } from '@/components/ui/Chip/Chip.types';
@@ -22,7 +23,7 @@ import { TabStackParamList } from '@/navigation/types';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeOut, LinearTransition, useReducedMotion } from 'react-native-reanimated';
 
 type DiscoverNavigationProp = NativeStackNavigationProp<TabStackParamList>;
@@ -108,9 +109,7 @@ export const DiscoverScreen = () => {
 			{header}
 
 			{isPending ? (
-				<View style={styles.loader}>
-					<ActivityIndicator color={theme.colors.accent} />
-				</View>
+				<GroupCardSkeleton statusLabel={t('loadingDiscover')} />
 			) : isError ? (
 				<EmptyState actionLabel={t('retry')} onAction={refetch} title={t('genericError')} />
 			) : visibleGroups.length === 0 ? (

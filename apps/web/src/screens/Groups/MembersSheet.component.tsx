@@ -1,4 +1,5 @@
 import { MemberRow } from '@/components/MemberRow/MemberRow.component';
+import { MembersSkeleton } from './MembersSkeleton.component';
 import { AppBottomSheet } from '@/components/ui/BottomSheet/BottomSheet.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
@@ -14,7 +15,7 @@ import type { GroupMember } from '@/lib/types/domain';
 import { formatBabRange } from '@/lib/utils/babs';
 import { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import type { MembersSheetProps } from './MembersSheet.types';
 
 /**
@@ -123,9 +124,7 @@ export const MembersSheet = ({ groupId, isVisible, onClose }: MembersSheetProps)
 					<Header2 style={styles.title}>{t('membersTitle')}</Header2>
 
 					{isPending ? (
-						<View style={styles.centered}>
-							<ActivityIndicator color={theme.colors.accent} />
-						</View>
+						<MembersSkeleton />
 					) : isError ? (
 						<View style={styles.centered}>
 							<EmptyState

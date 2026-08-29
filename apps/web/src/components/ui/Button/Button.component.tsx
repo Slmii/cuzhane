@@ -1,7 +1,7 @@
 import { Icon } from '@/components/ui/Icon/Icon.component';
 import { Typography } from '@/components/ui/Typography/Typography.component';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import { ActivityIndicator, Pressable, StyleSheet, TextStyle, ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, TextStyle, ViewStyle } from 'react-native';
 import { AppButtonProps, ButtonSize } from './Button.types';
 
 const sizeStyleMap: Record<ButtonSize, ViewStyle> = {
@@ -102,21 +102,21 @@ export const AppButton = ({
 				style
 			]}
 		>
-			{isLoading ? (
-				<ActivityIndicator color={toneByVariant.textColor} size='small' />
-			) : (
-				<>
-					{/* Leads the label, in the label's own colour — the row's `gap` already
-					    spaces it. A confirmation like "Yapıştırıldı" is a tick and a word, and
-					    the tick has to be the icon set's, never a ✓ typed into the string. */}
-					{icon ? (
-						<Icon color={toneByVariant.textColor} name={icon} size={iconSizeMap[size]} strokeWidth={1.9} />
-					) : null}
-					<Typography color={toneByVariant.textColor} style={labelSizeStyleMap[size]} variant='bodyStrong'>
-						{title}
-					</Typography>
-				</>
-			)}
+			{/*
+			 * `isLoading` dims the button to 0.45 and blocks the press — that dimming *is* the
+			 * feedback. There is deliberately no spinner: the app shows waiting as a skeleton
+			 * or a sheet, and a spinner here would be the one place that still contradicted it.
+			 * The label stays put so the button keeps its width and nothing reflows.
+			 */}
+			{/* The icon leads the label, in the label's own colour — the row's `gap` already
+			    spaces it. A confirmation like "Yapıştırıldı" is a tick and a word, and the tick
+			    has to be the icon set's, never a ✓ typed into the string. */}
+			{icon ? (
+				<Icon color={toneByVariant.textColor} name={icon} size={iconSizeMap[size]} strokeWidth={1.9} />
+			) : null}
+			<Typography color={toneByVariant.textColor} style={labelSizeStyleMap[size]} variant='bodyStrong'>
+				{title}
+			</Typography>
 		</Pressable>
 	);
 };

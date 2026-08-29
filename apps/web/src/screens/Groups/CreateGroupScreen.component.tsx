@@ -1,4 +1,5 @@
 import { AppBottomSheet } from '@/components/ui/BottomSheet/BottomSheet.component';
+import { CreatingGroupOverlay } from './CreatingGroupOverlay.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Field } from '@/components/ui/Form/Field/Field.component';
@@ -286,8 +287,13 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 										</View>
 									) : null}
 
+									{/*
+									 * No `isLoading` spinner: `CreatingGroupOverlay` covers the whole
+									 * sheet the moment this is pressed, so a spinner in the button
+									 * would be a second wait indicator underneath the first. The
+									 * button stays disabled via `isDisabled` on the step above.
+									 */}
 									<AppButton
-										isLoading={createGroup.isPending}
 										onPress={handleSubmit(handleCreate)}
 										style={styles.primaryButton}
 										title={t('createGroup')}
@@ -298,6 +304,12 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 					);
 				}}
 			/>
+			{/*
+			 * Over the form rather than replacing it: the sheet is already open, and swapping
+			 * its body would collapse it to the overlay's height and then grow again when the
+			 * group lands.
+			 */}
+			{createGroup.isPending ? <CreatingGroupOverlay /> : null}
 		</AppBottomSheet>
 	);
 };

@@ -1,5 +1,5 @@
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
-import { GridSkeleton } from '@/components/GridSkeleton/GridSkeleton.component';
+import { RoundDetailSkeleton } from './RoundDetailSkeleton.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
 import { Avatar } from '@/components/ui/Avatar/Avatar.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
@@ -16,7 +16,7 @@ import { useCoverBabs, useGetRoundDetail } from '@/lib/hooks/useRounds';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { AppTheme } from '@/lib/theme/tokens';
-import { BAB_COUNT, formatBabRange } from '@/lib/utils/babs';
+import { formatBabRange } from '@/lib/utils/babs';
 import { staggerWithinRuns } from '@/lib/utils/groups';
 import { roundRows, type RoundCellState, roundCellStates, type RoundRow } from '@/lib/utils/rounds';
 import type { TabStackParamList } from '@/navigation/types';
@@ -25,9 +25,6 @@ import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 type Props = NativeStackScreenProps<TabStackParamList, 'RoundDetail'>;
-
-/** Entries in `legend` below — the skeleton stubs the same number so the card keeps its height. */
-const LEGEND_COUNT = 5;
 
 /** Stable empty, so the memo below doesn't hand the grid a new array on every render. */
 const NO_ITEMS: CellGridItem[] = [];
@@ -113,7 +110,7 @@ export const RoundDetailScreen = ({ navigation, route }: Props) => {
 					onBack={navigation.goBack}
 					title={t('missedTitle')}
 				/>
-				<GridSkeleton cellCount={BAB_COUNT} hasHeader={false} legendCount={LEGEND_COUNT} />
+				<RoundDetailSkeleton />
 			</ScreenContainer>
 		);
 	}
@@ -156,8 +153,19 @@ export const RoundDetailScreen = ({ navigation, route }: Props) => {
 	/** The row's second line. Which shape it takes is decided in `roundRows` and tested there. */
 	const detailLine = (row: RoundRow) => {
 		switch (row.detailKind) {
-			case 'settled':
-				return `${row.rangeLabel} · ${t(row.settledKey ?? 'noMisses')}`;
+			case 'settled': {
+				const settled = t(row.settledKey ?? 'noMisses');
+
+				/*
+				 * The accent line underneath already names who covered the range, and when
+				 * that was you both lines resolve to "sen üstlendin" — the row said it twice,
+				 * once stacked directly above the other. Compared rather than special-cased on
+				 * the key, so any future pair that collides is caught the same way.
+				 */
+				return row.covered && coveredByLabel(row) === settled
+					? row.rangeLabel
+					: `${row.rangeLabel} · ${settled}`;
+			}
 			case 'poolLeft':
 				return `${row.rangeLabel} · ${t('poolLeft')}`;
 			case 'wholeBlock':

@@ -3,6 +3,8 @@ import { BabLegend } from '@/components/BabLegend/BabLegend.component';
 import { SliceChip } from '@/components/SliceChip/SliceChip.component';
 import { BabRow } from '@/components/BabRow/BabRow.component';
 import { GridSkeleton } from '@/components/GridSkeleton/GridSkeleton.component';
+import { GroupDetailSkeleton } from './GroupDetailSkeleton.component';
+import { LobbySkeleton } from './LobbySkeleton.component';
 import { PoolGrid } from '@/components/PoolGrid/PoolGrid.component';
 import { RoundResetRow } from '@/components/RoundResetRow/RoundResetRow.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
@@ -39,7 +41,7 @@ import { MembersSheet } from '@/screens/Groups/MembersSheet.component';
 import { ShareSheet } from '@/screens/Groups/ShareSheet.component';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, withTiming } from 'react-native-reanimated';
 
 type Sheet = 'share' | 'manage' | 'members' | null;
@@ -205,10 +207,8 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 	// it no longer blanks the whole page.
 	if (groupQuery.isPending) {
 		return (
-			<ScreenContainer isScrollable={false}>
-				<View style={styles.centered}>
-					<ActivityIndicator color={theme.colors.accent} />
-				</View>
+			<ScreenContainer>
+				<GroupDetailSkeleton />
 			</ScreenContainer>
 		);
 	}
@@ -235,14 +235,13 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 	// holds each bab comes from the board.
 	const isPoolPending = babsQuery.isPending && detail.poolAllBabNumbers.length > 0;
 
-	// The redirect above has already fired; hold the spinner rather than render a board
-	// for a group that has no progress yet.
+	// The redirect above has already fired; hold rather than render a board for a group that
+	// has no progress yet. It shows the *lobby's* skeleton, because that is where the redirect
+	// is going — holding this screen's own shape would flash a layout that never arrives.
 	if (detail.status === 'GATHERING') {
 		return (
-			<ScreenContainer isScrollable={false}>
-				<View style={styles.centered}>
-					<ActivityIndicator color={theme.colors.accent} />
-				</View>
+			<ScreenContainer>
+				<LobbySkeleton />
 			</ScreenContainer>
 		);
 	}

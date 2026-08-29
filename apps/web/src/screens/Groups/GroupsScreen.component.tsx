@@ -2,6 +2,7 @@ import { GroupBrowseBar } from '@/components/GroupBrowseBar/GroupBrowseBar.compo
 import { GroupCard } from '@/components/GroupCard/GroupCard.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenTitle } from '@/components/ScreenTitle/ScreenTitle.component';
+import { GroupCardSkeleton } from '@/components/Skeleton/GroupCardSkeleton.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { ShelfEmptyState } from '@/components/ShelfEmptyState/ShelfEmptyState.component';
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
@@ -27,7 +28,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeOut, LinearTransition, useReducedMotion } from 'react-native-reanimated';
 
 type GroupsNavigationProp = NativeStackNavigationProp<TabStackParamList>;
@@ -127,9 +128,7 @@ export const GroupsScreen = () => {
 				{header}
 
 				{isPending ? (
-					<View style={styles.loader}>
-						<ActivityIndicator color={theme.colors.accent} />
-					</View>
+					<GroupCardSkeleton statusLabel={t('loadingGroups')} />
 				) : isError ? (
 					<EmptyState actionLabel={t('retry')} onAction={refetch} title={t('genericError')} />
 				) : !groups || groups.length === 0 ? (

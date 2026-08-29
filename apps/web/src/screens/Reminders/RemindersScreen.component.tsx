@@ -1,4 +1,5 @@
 import { isNextReminderTomorrow, reminderTotals } from '@/lib/utils/reminder';
+import { RemindersSkeleton } from './RemindersSkeleton.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenTitle } from '@/components/ScreenTitle/ScreenTitle.component';
 import { BrandMark } from '@/components/ui/BrandMark/BrandMark.component';
@@ -23,7 +24,7 @@ import { useIsFocused } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { UseFormWatch } from 'react-hook-form';
-import { ActivityIndicator, AppState, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { AppState, Platform, Pressable, StyleSheet, View } from 'react-native';
 
 const REMINDER_TIME_WRITE_DELAY_MS = 600;
 
@@ -209,9 +210,8 @@ export const RemindersScreen = () => {
 	if (isPending) {
 		return (
 			<ScreenContainer shouldIncludeTabBarOffset>
-				<View style={styles.centerFill}>
-					<ActivityIndicator color={theme.colors.accent} />
-				</View>
+				<ScreenTitle label={t('reminders')} />
+				<RemindersSkeleton />
 			</ScreenContainer>
 		);
 	}

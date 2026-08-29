@@ -1,4 +1,5 @@
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
+import { JoinedWelcomeSkeleton } from './JoinedWelcomeSkeleton.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { BackLink } from '@/components/ui/BackLink/BackLink.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
@@ -22,7 +23,7 @@ import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { formatBabRange } from '@/lib/utils/babs';
 import type { TabStackParamList } from '@/navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 type Props = NativeStackScreenProps<TabStackParamList, 'JoinedWelcome'>;
 
@@ -42,7 +43,7 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 	if (group.isLoading) {
 		return (
 			<ScreenContainer isScrollable={false}>
-				<ActivityIndicator color={theme.colors.accent} style={styles.loading} />
+				<JoinedWelcomeSkeleton />
 			</ScreenContainer>
 		);
 	}

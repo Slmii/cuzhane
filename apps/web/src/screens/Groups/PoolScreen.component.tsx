@@ -1,4 +1,7 @@
 import { GridSkeleton } from '@/components/GridSkeleton/GridSkeleton.component';
+import { SkeletonStatusRow } from '@/components/Skeleton/SkeletonStatusRow.component';
+import { formatBabRange } from '@/lib/utils/babs';
+import { ReleasingSlotOverlay } from './ReleasingSlotOverlay.component';
 import { PoolGrid } from '@/components/PoolGrid/PoolGrid.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
@@ -95,6 +98,17 @@ export const PoolScreen = ({ navigation, route }: Props) => {
 	const [drainingSlot, setDrainingSlot] = useState<number | null>(null);
 	const drainTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+	/**
+	 * The range currently going back to the pool, or null. Read from the in-flight mutation
+	 * rather than held in its own state: the sheet must disappear when the request settles,
+	 * and a second source of truth would need clearing on success, error and unmount.
+	 */
+	const releasingSlotIndex = releaseSlot.isPending ? releaseSlot.variables?.slotIndex ?? null : null;
+	const releasingRange =
+		releasingSlotIndex === null
+			? null
+			: formatBabRange(pool.data?.find(slot => slot.slotIndex === releasingSlotIndex)?.babNumbers ?? []);
+
 	useEffect(
 		() => () => {
 			if (drainTimeout.current) {
@@ -184,6 +198,7 @@ export const PoolScreen = ({ navigation, route }: Props) => {
 					title={t('poolTitle')}
 				/>
 				<GridSkeleton cellCount={SKELETON_CELL_COUNT} />
+				<SkeletonStatusRow label={t('loadingPool')} />
 			</ScreenContainer>
 		);
 	}
@@ -284,10 +299,14 @@ export const PoolScreen = ({ navigation, route }: Props) => {
 						 * and swaps with it, so a different colour or height made the row twitch as
 						 * you undid what you had just done. Only the glyph and the word change.
 						 */}
+						{/*
+						 * No `isLoading` spinner: `ReleasingSlotOverlay` takes the screen as soon
+						 * as this is pressed, and the board drains behind it — two indicators for
+						 * one wait, one of them hidden under the sheet.
+						 */}
 						<AppButton
 							fullWidth={false}
 							icon='undo'
-							isLoading={releaseSlot.isPending && releaseSlot.variables?.slotIndex === slot.slotIndex}
 							onPress={() => handleUndo(slot.slotIndex)}
 							size='sm'
 							title={t('poolUndo')}
@@ -360,6 +379,7 @@ export const PoolScreen = ({ navigation, route }: Props) => {
 					<View style={styles.slots}>{slots.map(renderSlot)}</View>
 				</>
 			)}
+			{releasingRange === null ? null : <ReleasingSlotOverlay range={releasingRange} />}
 		</ScreenContainer>
 	);
 };

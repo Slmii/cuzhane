@@ -1,6 +1,6 @@
 import { Typography } from '@/components/ui/Typography/Typography.component';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import type { SocialAuthButtonProps } from './SocialAuthButton.types';
 
@@ -65,26 +65,24 @@ export const SocialAuthButton = ({
 				style
 			]}
 		>
-			{isLoading ? (
-				<ActivityIndicator color={textColor} size='small' />
-			) : (
-				<>
-					{isApple ? (
-						// U+F8FF is Apple's logo glyph — private-use, so it only renders on
-						// Apple platforms. That's fine: this button is iOS-only by design.
-						<Typography color={textColor} style={styles.appleGlyph}>
-							{'\uF8FF'}
-						</Typography>
-					) : (
-						<View style={styles.googleMark}>
-							<GoogleMark size={isCompact ? 15 : 16} />
-						</View>
-					)}
-					<Typography color={textColor} style={isCompact ? styles.compactLabel : styles.label}>
-						{label}
+			{/* No spinner: `isLoading` already dims this to 0.6 and blocks the press, and that
+			    dimming is the app's one way of showing a control is busy. See `AppButton`. */}
+			<>
+				{isApple ? (
+					// U+F8FF is Apple's logo glyph — private-use, so it only renders on
+					// Apple platforms. That's fine: this button is iOS-only by design.
+					<Typography color={textColor} style={styles.appleGlyph}>
+						{'\uF8FF'}
 					</Typography>
-				</>
-			)}
+				) : (
+					<View style={styles.googleMark}>
+						<GoogleMark size={isCompact ? 15 : 16} />
+					</View>
+				)}
+				<Typography color={textColor} style={isCompact ? styles.compactLabel : styles.label}>
+					{label}
+				</Typography>
+			</>
 		</Pressable>
 	);
 };

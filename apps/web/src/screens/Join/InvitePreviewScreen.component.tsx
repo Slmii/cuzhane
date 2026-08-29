@@ -1,4 +1,5 @@
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
+import { InvitePreviewSkeleton } from './InvitePreviewSkeleton.component';
 import { BackLink } from '@/components/ui/BackLink/BackLink.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
@@ -15,7 +16,7 @@ import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { cycleLabelKey, splitModeLabelKey } from '@/lib/utils/groups';
 import type { TabStackParamList } from '@/navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 type Props = NativeStackScreenProps<TabStackParamList, 'InvitePreview'>;
 
@@ -51,8 +52,8 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 
 	if (preview.isLoading) {
 		return (
-			<ScreenContainer isScrollable={false}>
-				<ActivityIndicator color={theme.colors.accent} style={styles.loading} />
+			<ScreenContainer>
+				<InvitePreviewSkeleton />
 			</ScreenContainer>
 		);
 	}

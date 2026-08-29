@@ -1,4 +1,5 @@
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
+import { ProfileSkeleton } from './ProfileSkeleton.component';
 import { ScreenTitle } from '@/components/ScreenTitle/ScreenTitle.component';
 import { ActivityHeatmap } from '@/components/ui/ActivityHeatmap/ActivityHeatmap.component';
 import { Avatar } from '@/components/ui/Avatar/Avatar.component';
@@ -29,7 +30,7 @@ import Constants from 'expo-constants';
 import { File } from 'expo-file-system';
 import { useCallback, useMemo, useState } from 'react';
 import { Controller } from 'react-hook-form';
-import { ActivityIndicator, Image, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Image, Platform, Pressable, StyleSheet, View } from 'react-native';
 
 export const ProfileScreen = () => {
 	const { mode, setMode, theme } = useThemeContext();
@@ -132,9 +133,7 @@ export const ProfileScreen = () => {
 	if (isPending) {
 		return (
 			<ScreenContainer shouldIncludeTabBarOffset>
-				<View style={styles.centerFill}>
-					<ActivityIndicator color={theme.colors.accent} />
-				</View>
+				<ProfileSkeleton />
 			</ScreenContainer>
 		);
 	}

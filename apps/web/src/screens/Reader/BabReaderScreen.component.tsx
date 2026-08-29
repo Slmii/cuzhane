@@ -1,4 +1,5 @@
 import { BackLink } from '@/components/ui/BackLink/BackLink.component';
+import { ReaderSkeleton } from './ReaderSkeleton.component';
 import { AppBottomSheet } from '@/components/ui/BottomSheet/BottomSheet.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
@@ -17,7 +18,7 @@ import { TextSizeOption } from '@/screens/Reader/TextSizeOption.component';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { BlurView } from 'expo-blur';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type Props = NativeStackScreenProps<TabStackParamList, 'BabReader'>;
@@ -43,8 +44,8 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 
 	if (babsQuery.isPending || settingsQuery.isPending) {
 		return (
-			<SafeAreaView style={[styles.safeArea, styles.centered, { backgroundColor: theme.colors.background }]}>
-				<ActivityIndicator color={theme.colors.accent} />
+			<SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
+				<ReaderSkeleton />
 			</SafeAreaView>
 		);
 	}
