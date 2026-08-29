@@ -6,11 +6,15 @@ import { useTranslation } from '@/lib/i18n/I18n.context';
 import { StyleSheet, View } from 'react-native';
 
 /**
- * The post-join confirmation, while the group is still being read.
+ * D13 · the post-join confirmation, while the group is still being read.
  *
- * Centred and spinner-led like the lobby: this screen is a moment of arrival rather than a
- * page of content, so a column of bones down the left would misrepresent what is coming.
- * The range card is the one thing the reader is actually waiting to see.
+ * The design calls that frame "Lobi yükleniyor", but it sits immediately before D14
+ * *Katıldın* — the lobby it loads is the waiting **member's**, which in this app is this
+ * screen. The creator's lobby is C6 and looks nothing like it; see `LobbySkeleton`.
+ *
+ * Centred and spinner-led: this is a moment of arrival rather than a page of content, so a
+ * column of bones down the left would misrepresent what is coming. The range card is the one
+ * thing the reader is actually waiting to see.
  */
 export const JoinedWelcomeSkeleton = () => {
 	const { t } = useTranslation();

@@ -1,6 +1,4 @@
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
-import { GroupDetailSkeleton } from './GroupDetailSkeleton.component';
-import { LobbySkeleton } from './LobbySkeleton.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
@@ -22,9 +20,10 @@ import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { TabStackParamList } from '@/navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Clipboard from 'expo-clipboard';
-import { useState } from 'react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { GroupDetailSkeleton } from './GroupDetailSkeleton.component';
+import { LobbySkeleton } from './LobbySkeleton.component';
 
 type Props = NativeStackScreenProps<TabStackParamList, 'Lobby'>;
 

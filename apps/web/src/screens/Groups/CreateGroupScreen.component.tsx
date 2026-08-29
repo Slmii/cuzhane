@@ -1,5 +1,5 @@
 import { AppBottomSheet } from '@/components/ui/BottomSheet/BottomSheet.component';
-import { CreatingGroupOverlay } from './CreatingGroupOverlay.component';
+import { CreatingGroupStep } from './CreatingGroupStep.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Field } from '@/components/ui/Form/Field/Field.component';
@@ -159,10 +159,24 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 						<BottomSheetScrollView
 							contentContainerStyle={styles.sheetContent}
 							showsVerticalScrollIndicator={false}
-							stickyHeaderIndices={STICKY_HEADER_INDICES}
+							{...(createGroup.isPending ? {} : { stickyHeaderIndices: STICKY_HEADER_INDICES })}
 						>
-							<CreateGroupStepHeader onBack={handleBack} step={step} />
-							{step === 1 ? (
+							{/*
+							 * Step 4 takes the header's place rather than nesting under it. Kept as a
+							 * flat sibling, never wrapped in a fragment: `stickyHeaderIndices` counts
+							 * React children, so a fragment here becomes child 0 and the sheet tries
+							 * to apply a style to it — and the container's `gap` collapses to that one
+							 * child, which strips the spacing out of the whole form.
+							 *
+							 * The step header goes with the form: its dashes count the three things
+							 * left to fill in, and there is nothing left to fill in here.
+							 */}
+							{createGroup.isPending ? (
+								<CreatingGroupStep />
+							) : (
+								<CreateGroupStepHeader onBack={handleBack} step={step} />
+							)}
+							{!createGroup.isPending && step === 1 ? (
 								<>
 									<Field
 										label={t('groupName')}
@@ -195,7 +209,7 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 								</>
 							) : null}
 
-							{step === 2 ? (
+							{!createGroup.isPending && step === 2 ? (
 								<>
 									<FieldLabelText style={styles.fieldLabel}>{t('spots')}</FieldLabelText>
 									<CardSurface style={styles.spotsCard}>
@@ -240,7 +254,7 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 								</>
 							) : null}
 
-							{step === 3 ? (
+							{!createGroup.isPending && step === 3 ? (
 								<>
 									<FieldLabelText style={styles.fieldLabel}>{t('cycle')}</FieldLabelText>
 									<Select
@@ -304,12 +318,6 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 					);
 				}}
 			/>
-			{/*
-			 * Over the form rather than replacing it: the sheet is already open, and swapping
-			 * its body would collapse it to the overlay's height and then grow again when the
-			 * group lands.
-			 */}
-			{createGroup.isPending ? <CreatingGroupOverlay /> : null}
 		</AppBottomSheet>
 	);
 };
@@ -334,8 +342,18 @@ const styles = StyleSheet.create({
 	planPreview: {
 		marginTop: 11
 	},
+	/**
+	 * Sits at the bottom of the sheet on a short step, and travels with the content on a long
+	 * one. `marginTop: 'auto'` does both: with slack in the column it absorbs all of it and
+	 * the button lands at the bottom; once the content overflows there is no slack to absorb,
+	 * so it collapses and the button simply follows the last field.
+	 *
+	 * Kept inside the scrollable rather than pinned beneath it — a sibling below the scroll
+	 * view breaks this sheet's `keyboardBehavior='interactive'`, which shrinks the scrollable
+	 * on the assumption that it *is* the content.
+	 */
 	primaryButton: {
-		marginTop: 8
+		marginTop: 'auto'
 	},
 	reminderCard: {
 		marginBottom: 4
@@ -346,7 +364,13 @@ const styles = StyleSheet.create({
 	spotsNote: {
 		marginBottom: 4
 	},
+	/**
+	 * `flexGrow` so a short step still fills the sheet — that is what lets the primary button
+	 * take the slack below it (see `primaryButton`). Without it the container is only as tall
+	 * as its content and there is no slack to take.
+	 */
 	sheetContent: {
+		flexGrow: 1,
 		gap: 12,
 		paddingBottom: 8
 	},

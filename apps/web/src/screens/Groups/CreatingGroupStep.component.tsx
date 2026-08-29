@@ -3,7 +3,6 @@ import { Icon } from '@/components/ui/Icon/Icon.component';
 import { BodyText, CaptionText, Typography } from '@/components/ui/Typography/Typography.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import { toAlphaColor } from '@/lib/theme/tokens';
 import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, {
@@ -19,12 +18,16 @@ const FILL_MS = 2400;
 const STEP_DOT = 22;
 
 /**
- * C1 · Grup kuruluyor.
+ * C1 · Grup kuruluyor — the create flow's fourth step.
+ *
+ * It **replaces** the form inside the same sheet rather than covering it. As an overlay it
+ * drew its own backdrop and grabber inside a sheet that already had both, so it read as a
+ * second sheet stacked on the first — two grabbers, and a dim that stopped at the sheet's
+ * edge instead of covering the page. The flow is already stepped (1/3, 2/3, 3/3); this is
+ * simply what the sheet shows once there is nothing left to fill in.
  *
  * Creating a group writes the group, its hundred babs and the owner's seat in one
- * transaction, which is long enough that a disabled button reads as a dropped tap. This
- * covers the form with the design's waiting sheet: a title, an indeterminate bar and a
- * three-step checklist.
+ * transaction, which is long enough that a disabled button reads as a dropped tap.
  *
  * The steps are **illustrative, not reported** — the server does the whole thing in one
  * transaction and never tells the client which part it is on. They are ordered the way the
@@ -32,7 +35,7 @@ const STEP_DOT = 22;
  * should be read as progress. If the API ever does report stages, drive them from that
  * rather than adding timers.
  */
-export const CreatingGroupOverlay = () => {
+export const CreatingGroupStep = () => {
 	const { t } = useTranslation();
 	const { theme } = useThemeContext();
 	const isReducedMotion = useReducedMotion();
@@ -50,11 +53,7 @@ export const CreatingGroupOverlay = () => {
 
 	return (
 		<View style={styles.root}>
-			<View style={[StyleSheet.absoluteFill, { backgroundColor: toAlphaColor(theme.colors.text, 0.34) }]} />
-
-			<View style={[styles.sheet, { backgroundColor: theme.colors.sheet }]}>
-				<View style={[styles.grabber, { backgroundColor: toAlphaColor(theme.colors.text, 0.16) }]} />
-
+			<View>
 				<Typography variant='title'>{t('creatingTitle')}</Typography>
 				<CaptionText color={theme.colors.subtext} style={styles.subtitle}>
 					{t('creatingSub')}
@@ -103,23 +102,9 @@ const styles = StyleSheet.create({
 		borderRadius: 2,
 		height: '100%'
 	},
-	grabber: {
-		alignSelf: 'center',
-		borderRadius: 2,
-		height: 4,
-		marginBottom: 18,
-		width: 38
-	},
 	root: {
-		...StyleSheet.absoluteFillObject,
-		justifyContent: 'flex-end'
-	},
-	sheet: {
-		borderTopLeftRadius: 26,
-		borderTopRightRadius: 26,
-		paddingBottom: 26,
-		paddingHorizontal: 20,
-		paddingTop: 10
+		paddingBottom: 8,
+		paddingTop: 4
 	},
 	step: {
 		alignItems: 'center',
