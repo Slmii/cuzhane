@@ -1,5 +1,4 @@
 import { BackLink } from '@/components/ui/BackLink/BackLink.component';
-import { ReaderSkeleton } from './ReaderSkeleton.component';
 import { AppBottomSheet } from '@/components/ui/BottomSheet/BottomSheet.component';
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
 import { Hatch } from '@/components/ui/Hatch/Hatch.component';
@@ -11,11 +10,11 @@ import { useGetBabs, useSetBabRead } from '@/lib/hooks/useBab';
 import { useGetGroupById, useTakePoolSlot } from '@/lib/hooks/useGroup';
 import { useGetUserSettings, useUpdateUserSettings } from '@/lib/hooks/useUserSettings';
 import { useTranslation } from '@/lib/i18n/I18n.context';
+import { arabicReaderFonts } from '@/lib/theme/fonts';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { toAlphaColor } from '@/lib/theme/tokens';
-import { BAB_COUNT, babRuns, slotIndexForBab } from '@/lib/utils/babs';
-import { arabicReaderFonts } from '@/lib/theme/fonts';
 import type { ReaderNumerals } from '@/lib/types/domain';
+import { BAB_COUNT, babRuns, slotIndexForBab } from '@/lib/utils/babs';
 import type { TabStackParamList } from '@/navigation/types';
 import { ReaderSettings } from '@/screens/Reader/ReaderSettings.component';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -25,6 +24,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ReaderSkeleton } from './ReaderSkeleton.component';
 
 type Props = NativeStackScreenProps<TabStackParamList, 'BabReader'>;
 
@@ -272,12 +272,15 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 	 */
 	const shareRuns = babRuns(myBabNumbers);
 	const poolRuns = babRuns(groupQuery.data?.poolBabNumbers ?? []);
-	const ownershipLabel = isMine ? t('ownMine') : isPoolBab ? t('ownPool') : t('ownOther');
-	const ownershipChip = isMine
-		? { background: theme.colors.accentSoft, foreground: theme.colors.accent }
-		: isPoolBab
-		? { background: theme.colors.sand, foreground: theme.colors.sandText }
-		: { background: theme.colors.secondary, foreground: theme.colors.subtext };
+
+	const ownership = (n: number) =>
+		myBabNumbers.includes(n)
+			? { background: theme.colors.accentSoft, foreground: theme.colors.accent, label: t('ownMine') }
+			: groupQuery.data?.poolBabNumbers.includes(n) ?? false
+			? { background: theme.colors.sand, foreground: theme.colors.sandText, label: t('ownPool') }
+			: { background: theme.colors.secondary, foreground: theme.colors.subtext, label: t('ownOther') };
+
+	const ownershipChip = ownership(displayBab);
 	// Nothing to say when the bab is already yours — the chip has said it.
 	const readHint = isMine ? null : isPoolBab ? t('poolReadHint') : t('lockedHint');
 
@@ -382,7 +385,7 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 					 */}
 					<View style={[styles.ownershipChip, { backgroundColor: ownershipChip.background }]}>
 						<Typography color={ownershipChip.foreground} variant='caption' weight='semibold'>
-							{ownershipLabel}
+							{ownershipChip.label}
 						</Typography>
 					</View>
 					{/*
