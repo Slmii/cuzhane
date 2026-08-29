@@ -38,14 +38,18 @@ export type TabDetailParamList = {
 
 export type GroupsScreenParams = { shouldOpenJoinSheet?: boolean } | undefined;
 
-/** The three tabs that own a stack accept a nested target, e.g. from Onboarding. */
+/** The three tabs that own a stack accept a nested target. */
 export type RootTabParamList = {
 	Home: NavigatorScreenParams<TabDetailParamList & { Home: undefined }> | undefined;
 	/**
-	 * `shouldOpenJoinSheet` is how Onboarding's "Davet kodum var" arrives: the join flow is
-	 * a sheet rather than a route now, so it can't be navigated to — the tab that owns it
-	 * is, and it opens the sheet on arrival. The screen clears the flag once it has acted,
-	 * so coming back to the tab doesn't reopen it.
+	 * `shouldOpenJoinSheet` asks the Groups tab to open the join sheet on arrival: the flow
+	 * is a sheet rather than a route, so it can't be navigated to — the tab that owns it is.
+	 * The screen clears the flag once it has acted, so returning to the tab doesn't reopen it.
+	 *
+	 * **Nothing sets it at the moment.** Onboarding's "Davet kodum var" was its only caller,
+	 * and the five-page tour has no such button — the join sheet is still reached from
+	 * Gruplarım's key button and from the two empty states. Kept because it is the wiring any
+	 * future "I have a code" entry point would need, not because something is using it.
 	 */
 	Groups: NavigatorScreenParams<TabDetailParamList & { Groups: GroupsScreenParams }> | undefined;
 	Discover: NavigatorScreenParams<TabDetailParamList & { Discover: undefined }> | undefined;

@@ -22,8 +22,13 @@ import { useFonts } from 'expo-font';
 import * as Notifications from 'expo-notifications';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { navigationRef } from '@/navigation/navigationRef';
+import { OnboardingDevTrigger } from '@/screens/Onboarding/OnboardingDevTrigger.component';
+// Aliased: `SplashScreen` above is Expo's native-splash controller, this is the animated
+// brand screen that takes over once it hides.
+import { SplashScreen as AnimatedSplash } from '@/screens/Splash/SplashScreen.component';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 
@@ -45,21 +50,42 @@ Notifications.setNotificationHandler({
 	})
 });
 
+/**
+ * How long the animated splash is held. The mark's columns alone take ~940ms to finish
+ * growing, so anything shorter cuts the brand off mid-gesture — and on a warm start the app
+ * is ready long before the animation is.
+ */
+const SPLASH_MIN_DURATION_MS = 2000;
+
 const AppContainer = () => {
 	const { theme } = useThemeContext();
+	const [isSplashVisible, setIsSplashVisible] = useState(true);
 	useAuthTokenSync();
 	useAppFocusSync();
 
 	const navigationTheme = useMemo(() => buildNavigationTheme(theme), [theme]);
 
+	useEffect(() => {
+		const timeout = setTimeout(() => setIsSplashVisible(false), SPLASH_MIN_DURATION_MS);
+
+		return () => clearTimeout(timeout);
+	}, []);
+
 	return (
 		<GestureHandlerRootView style={[styles.root, { backgroundColor: theme.colors.background }]}>
 			<KeyboardProvider>
 				<BottomSheetModalProvider>
-					<NavigationContainer linking={linking} theme={navigationTheme}>
-						<StatusBar style={theme.mode === 'dark' ? 'light' : 'dark'} />
+					<NavigationContainer linking={linking} ref={navigationRef} theme={navigationTheme}>
+						<StatusBar style={theme.mode === 'dark' || isSplashVisible ? 'light' : 'dark'} />
 						<AppNavigator />
 						<NotificationOrchestrator />
+						<OnboardingDevTrigger />
+						{/*
+						 * Over the app rather than in front of it: the navigator mounts and starts
+						 * fetching underneath, so the splash is spending time the app needed
+						 * anyway instead of adding to it.
+						 */}
+						{isSplashVisible ? <AnimatedSplash /> : null}
 					</NavigationContainer>
 				</BottomSheetModalProvider>
 			</KeyboardProvider>
