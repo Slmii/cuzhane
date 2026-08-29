@@ -1,7 +1,5 @@
 import { GridSkeleton } from '@/components/GridSkeleton/GridSkeleton.component';
 import { SkeletonStatusRow } from '@/components/Skeleton/SkeletonStatusRow.component';
-import { formatBabRange } from '@/lib/utils/babs';
-import { ReleasingSlotOverlay } from './ReleasingSlotOverlay.component';
 import { PoolGrid } from '@/components/PoolGrid/PoolGrid.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
@@ -97,17 +95,6 @@ export const PoolScreen = ({ navigation, route }: Props) => {
 	 */
 	const [drainingSlot, setDrainingSlot] = useState<number | null>(null);
 	const drainTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-	/**
-	 * The range currently going back to the pool, or null. Read from the in-flight mutation
-	 * rather than held in its own state: the sheet must disappear when the request settles,
-	 * and a second source of truth would need clearing on success, error and unmount.
-	 */
-	const releasingSlotIndex = releaseSlot.isPending ? releaseSlot.variables?.slotIndex ?? null : null;
-	const releasingRange =
-		releasingSlotIndex === null
-			? null
-			: formatBabRange(pool.data?.find(slot => slot.slotIndex === releasingSlotIndex)?.babNumbers ?? []);
 
 	useEffect(
 		() => () => {
@@ -300,9 +287,10 @@ export const PoolScreen = ({ navigation, route }: Props) => {
 						 * you undid what you had just done. Only the glyph and the word change.
 						 */}
 						{/*
-						 * No `isLoading` spinner: `ReleasingSlotOverlay` takes the screen as soon
-						 * as this is pressed, and the board drains behind it — two indicators for
-						 * one wait, one of them hidden under the sheet.
+						 * No `isLoading` spinner: the release is optimistic and the board starts
+						 * draining on the tap, last bab first. That sweep *is* the confirmation —
+						 * a spinner here would report a wait the reader has already been shown
+						 * the end of.
 						 */}
 						<AppButton
 							fullWidth={false}
@@ -379,7 +367,6 @@ export const PoolScreen = ({ navigation, route }: Props) => {
 					<View style={styles.slots}>{slots.map(renderSlot)}</View>
 				</>
 			)}
-			{releasingRange === null ? null : <ReleasingSlotOverlay range={releasingRange} />}
 		</ScreenContainer>
 	);
 };
