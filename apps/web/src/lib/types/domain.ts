@@ -181,7 +181,8 @@ export type UserSettings = {
 	reminderTime: string;
 	hasSeenOnboarding: boolean;
 	// The reader's typography, set from E2a and applied to every bab.
-	readerFontScale: number;
+	/** The Arabic's point size in the reader, 16–40. */
+	readerFontSize: number;
 	readerNumerals: ReaderNumerals;
 	readerArabicFont: ReaderArabicFont;
 	createdAt: string;
@@ -195,7 +196,7 @@ export type ReaderNumerals = 'arabic' | 'latin';
  * The face the reader sets the Arabic in. Named after the script rather than the font file,
  * so shipping a different family for `naskh` is a client change and not a migration.
  */
-export type ReaderArabicFont = 'naskh' | 'amiri' | 'scheherazade';
+export type ReaderArabicFont = 'naskh' | 'amiri' | 'madinah';
 
 export type ProfileStats = {
 	babsRead: number;

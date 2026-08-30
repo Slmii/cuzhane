@@ -8,7 +8,7 @@ export type UpdateUserSettingsInput = Partial<
 		| 'reminderEnabled'
 		| 'reminderTime'
 		| 'hasSeenOnboarding'
-		| 'readerFontScale'
+		| 'readerFontSize'
 		| 'readerNumerals'
 		| 'readerArabicFont'
 	>

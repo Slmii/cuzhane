@@ -6,6 +6,15 @@ export type CevsenInvocation = {
 	/** Its number in the printed ornament, 1-based within the bab. */
 	n: number;
 	text: string;
+	/**
+	 * The Turkish meal, from the same edition's *Mealli Cevşen*.
+	 *
+	 * **Turkish only, and optional on purpose.** There is no English meal in that source —
+	 * its translated editions are `tr`, `es`, `oz` and `uz` — and one invocation (bab 44's
+	 * ninth) is missing even in Turkish, because the two files of the same edition disagree
+	 * about that line. The reader says so rather than inventing one.
+	 */
+	tr?: string;
 };
 
 export type CevsenBab = {
@@ -27,6 +36,7 @@ export type CevsenBab = {
 type CevsenData = {
 	babs: CevsenBab[];
 	afterHundredth: string[];
+	bismillah: string;
 };
 
 const data = cevsenData as unknown as CevsenData;
@@ -56,8 +66,14 @@ export const CEVSEN_BABS: CevsenBab[] = Array.from({ length: BAB_COUNT }, (_, in
  */
 export const CEVSEN_AFTER_HUNDREDTH: string[] = data.afterHundredth;
 
-/** Recited before each bab. Not set apart in the source, so the reader omits it. */
-export const BISMILLAH = '';
+/**
+ * The besmele that opens the work.
+ *
+ * The source sets it **once**, as bab 1's second line, not before each bab — so the reader
+ * shows it on bab 1 alone. It was empty for a long time because the PDF this text used to
+ * come from never set it apart from the running text.
+ */
+export const BISMILLAH = data.bismillah;
 
 export const getBab = (babNumber: number): CevsenBab | undefined => CEVSEN_BABS.find(bab => bab.number === babNumber);
 
@@ -81,15 +97,32 @@ export const toOrnamentDigits = (value: number, numerals: ReaderNumerals = 'arab
 				.map(digit => EASTERN_ARABIC[Number(digit)] ?? digit)
 				.join('');
 
-/**
- * Küçük · Orta · Büyük.
- *
- * Down from 26/32/40. Those were set when the reader broke a bab into one short centred
- * line per invocation, which left the column mostly empty and could carry the size; flowing
- * the whole bab as a paragraph fills it, and at 26 the smallest setting was no longer the
- * small one.
- */
-export const READER_FONT_SIZES = [19, 23, 28] as const;
+/** `U+06DD`, ARABIC END OF AYAH — the mark the chosen typeface draws around the number. */
+const END_OF_AYAH = '۝';
 
-export const readerFontSize = (scale: number) =>
-	READER_FONT_SIZES[Math.max(0, Math.min(READER_FONT_SIZES.length - 1, scale))] ?? READER_FONT_SIZES[0];
+/**
+ * A verse mark as the font sets it: the character, then the digits it encloses.
+ *
+ * Lives here rather than in the reader because the meal sheet heads itself with the same
+ * mark. Two rosettes for one idea is what it replaced — the sheet used to draw the design
+ * system's `ui/Ornament` while the text beside it used the typeface's, so the same ayah
+ * carried two different marks a tap apart.
+ *
+ * The face it is set in still matters and is the caller's problem: see `ornamentFaceFor`.
+ */
+export const ayahMark = (n: number, numerals: ReaderNumerals = 'arabic') =>
+	`${END_OF_AYAH}${toOrnamentDigits(n, numerals)}`;
+
+/**
+ * The reader's size range, in points.
+ *
+ * Was three presets — 19 / 23 / 28 — behind Küçük · Orta · Büyük. The sheet offers a slider
+ * now, so the setting stores the size itself and these are only its ends. 23 remains the
+ * default because it was the middle preset.
+ */
+export const READER_FONT_SIZE_MIN = 16;
+export const READER_FONT_SIZE_MAX = 40;
+export const READER_FONT_SIZE_DEFAULT = 23;
+
+export const clampReaderFontSize = (size: number) =>
+	Math.round(Math.min(READER_FONT_SIZE_MAX, Math.max(READER_FONT_SIZE_MIN, size)));

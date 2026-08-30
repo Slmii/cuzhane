@@ -17,9 +17,8 @@ import {
 	Manrope_700Bold
 } from '@expo-google-fonts/manrope';
 import { Newsreader_400Regular, Newsreader_500Medium, Newsreader_600SemiBold } from '@expo-google-fonts/newsreader';
-import { NotoNaskhArabic_400Regular, NotoNaskhArabic_500Medium } from '@expo-google-fonts/noto-naskh-arabic';
+import { NotoNaskhArabic_500Medium } from '@expo-google-fonts/noto-naskh-arabic';
 import { AmiriQuran_400Regular } from '@expo-google-fonts/amiri-quran';
-import { ScheherazadeNew_400Regular } from '@expo-google-fonts/scheherazade-new';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { NavigationContainer } from '@react-navigation/native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -108,17 +107,18 @@ export const AppRoot = () => {
 		IBMPlexMono_400Regular,
 		IBMPlexMono_500Medium,
 		/*
-		 * The reader's Arabic. The Naskh medium is the ornament numeral; the three regulars
-		 * are the faces E2a offers for the text itself.
+		 * The reader's Arabic. The Naskh medium is the drawn rosette's numeral; the rest are
+		 * the faces E2a offers for the text itself.
 		 *
-		 * All four load up front with everything else rather than on demand when someone picks
+		 * All load up front with everything else rather than on demand when someone picks
 		 * one — they are what the splash is already waiting on, and a face arriving after the
 		 * page did would reflow a screen of Arabic under the reader's eyes.
 		 */
 		NotoNaskhArabic_500Medium,
-		NotoNaskhArabic_400Regular,
 		AmiriQuran_400Regular,
-		ScheherazadeNew_400Regular
+		// Local files rather than packages — see `arabicReaderFonts`.
+		Kitab_400Regular: require('@/assets/fonts/Kitab-Regular.ttf'),
+		UthmanicHafs_400Regular: require('@/assets/fonts/UthmanicHafs-Regular.otf')
 	});
 
 	useEffect(() => {

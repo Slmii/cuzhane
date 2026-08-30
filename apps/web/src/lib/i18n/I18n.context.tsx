@@ -13,7 +13,12 @@ type I18nContextValue = {
 
 const I18nContext = createContext<I18nContextValue | undefined>(undefined);
 const LANGUAGE_STORAGE_KEY = 'cuzhane.language';
-const DEFAULT_LANGUAGE: AppLanguage = 'tr';
+/**
+ * The language before anything is known — no stored choice, no settings from the server.
+ * `UserSettings.language` defaults to `en` too, so the two agree and signing in doesn't
+ * switch the app out from under someone who never chose.
+ */
+const DEFAULT_LANGUAGE: AppLanguage = 'en';
 
 const readStoredLanguage = async (): Promise<AppLanguage | null> => {
 	if (Platform.OS === 'web') {

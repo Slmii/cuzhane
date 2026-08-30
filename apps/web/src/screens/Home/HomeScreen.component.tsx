@@ -257,10 +257,15 @@ export const HomeScreen = () => {
 									accessibilityRole='button'
 									accessibilityState={{ selected: isSelected }}
 									key={row.id}
-									onPress={() => {
-										setSelectedId(row.id);
-										navigation.navigate('GroupDetail', { groupId: row.id });
-									}}
+									/*
+									 * Selects the group for the ring above, and does not leave the
+									 * screen. The row briefly navigated to the group as well, which
+									 * made the selection pointless — you never saw the ring change,
+									 * because you were already on another screen by the time it did.
+									 * Home has exactly one job here: pick which group the ring counts.
+									 * "Oku" is still the way out, into that group's next bab.
+									 */
+									onPress={() => setSelectedId(row.id)}
 									style={[
 										styles.row,
 										isSelected ? { backgroundColor: theme.colors.accentSoft } : null

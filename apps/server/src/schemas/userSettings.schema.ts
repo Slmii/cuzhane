@@ -16,12 +16,12 @@ export const UpdateUserSettingsBodySchema = z
 		reminderEnabled: z.boolean().optional(),
 		hasSeenOnboarding: z.boolean().optional(),
 		reminderTime: TimeStringSchema.optional(),
-		readerFontScale: z.number().int().min(0).max(2).optional(),
+		readerFontSize: z.number().int().min(16).max(40).optional(),
 		// Mirrors the `ReaderNumerals` / `ReaderArabicFont` enums. Kept as literal unions
 		// rather than imported from the generated client so the request contract is readable
 		// here and a schema change has to be made deliberately on both sides.
 		readerNumerals: z.enum(['arabic', 'latin']).optional(),
-		readerArabicFont: z.enum(['naskh', 'amiri', 'scheherazade']).optional()
+		readerArabicFont: z.enum(['naskh', 'amiri', 'madinah']).optional()
 	})
 	.refine(body => Object.values(body).some(value => value !== undefined), {
 		message: 'At least one field is required'

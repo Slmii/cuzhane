@@ -137,7 +137,9 @@ export const Typography = ({
 	children,
 	color,
 	numberOfLines,
+	onLongPress,
 	style,
+	suppressHighlighting,
 	textAlign,
 	variant = 'body',
 	weight
@@ -153,6 +155,8 @@ export const Typography = ({
 	return (
 		<Text
 			numberOfLines={numberOfLines}
+			onLongPress={onLongPress}
+			suppressHighlighting={suppressHighlighting}
 			style={[
 				styles.base,
 				variantStyleMap[variant],

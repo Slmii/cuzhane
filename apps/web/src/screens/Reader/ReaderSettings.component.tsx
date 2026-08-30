@@ -1,12 +1,14 @@
 import { Icon } from '@/components/ui/Icon/Icon.component';
 import { Ornament } from '@/components/ui/Ornament/Ornament.component';
 import { EyebrowText, Typography } from '@/components/ui/Typography/Typography.component';
-import { READER_FONT_SIZES } from '@/lib/content/cevsen';
+import { READER_FONT_SIZE_MAX, READER_FONT_SIZE_MIN } from '@/lib/content/cevsen';
 import { useTranslation } from '@/lib/i18n/I18n.context';
-import { arabicReaderFonts } from '@/lib/theme/fonts';
+import { arabicReaderFonts, arabicReaderFontScale } from '@/lib/theme/fonts';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { ReaderArabicFont, ReaderNumerals } from '@/lib/types/domain';
+import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { ReaderSizeSlider } from './ReaderSizeSlider.component';
 import type { ReaderSettingsProps } from './ReaderSettings.types';
 
 /**
@@ -24,34 +26,28 @@ const PREVIEW_LINE = 'بِسْمِ اللَّهِ الرَّحْمَٰنِ ال�
 const PREVIEW_ORNAMENT_SIZE = 26;
 const PREVIEW_ORNAMENT_NUMBER = 3;
 
-/** "Aa" at each of the three settings, scaled down so all three fit one row of cards. */
-const SIZE_SAMPLE_PX = [13, 16, 20];
-
 const NUMERAL_OPTIONS: { glyph: string; key: ReaderNumerals }[] = [
 	{ glyph: '١٢٣', key: 'arabic' },
 	{ glyph: '123', key: 'latin' }
 ];
 
-/**
- * Şehrizad leads because it is the default, and it is the default because it is the one that
- * reads closest to a printed Turkish Cevşen — it was matched against a page of one.
- */
-const FONT_OPTIONS: ReaderArabicFont[] = ['scheherazade', 'naskh', 'amiri'];
+/** Nesih leads because it is the default. */
+const FONT_OPTIONS: ReaderArabicFont[] = ['naskh', 'amiri', 'madinah'];
 
-/** The sample every typeface card sets, so the three are compared on the same word. */
+/** The sample every typeface card sets, so both are compared on the same word. */
 const FONT_SAMPLE = 'بِسْمِ';
 
 /**
  * The typeface's real family name, under its localised one and untranslated in either
  * language — these are proper nouns.
  *
- * Both are shown because neither alone is enough: "Şehrizad" doesn't tell you what you are
- * choosing, and "Scheherazade New" doesn't tell a Turkish reader it is the naskh they know.
+ * Both are shown because neither alone is enough: "Nesih" doesn't tell you which naskh you
+ * are choosing, and "Kitab" doesn't tell a Turkish reader it is the nesih they know.
  */
 const FONT_FAMILY_NAMES: Record<ReaderArabicFont, string> = {
 	amiri: 'Amiri Quran',
-	naskh: 'Noto Naskh',
-	scheherazade: 'Scheherazade New'
+	madinah: 'KFGQPC Uthmanic HAFS',
+	naskh: 'Kitab'
 };
 
 /**
@@ -69,10 +65,24 @@ export const ReaderSettings = ({ onChange, settings }: ReaderSettingsProps) => {
 	const { t } = useTranslation();
 	const { theme } = useThemeContext();
 
+	/*
+	 * The size under the finger. The slider reports every frame so the preview can follow,
+	 * but only its release is persisted; `settings.readerFontSize` therefore lags a drag by
+	 * design, and this holds what the sheet should be showing meanwhile. It re-syncs when the
+	 * stored value changes underneath — on first load, or if another device saves one.
+	 */
+	const [draftSize, setDraftSize] = useState(settings.readerFontSize);
+	const [lastStoredSize, setLastStoredSize] = useState(settings.readerFontSize);
+
+	if (settings.readerFontSize !== lastStoredSize) {
+		setLastStoredSize(settings.readerFontSize);
+		setDraftSize(settings.readerFontSize);
+	}
+
 	const fontLabels: Record<ReaderArabicFont, string> = {
 		amiri: t('fontAmiri'),
-		naskh: t('fontNaskh'),
-		scheherazade: t('fontScheherazade')
+		madinah: t('fontMadinah'),
+		naskh: t('fontNaskh')
 	};
 
 	// Selected reads as a filled, accented card; the rest as plain surfaces.
@@ -83,7 +93,22 @@ export const ReaderSettings = ({ onChange, settings }: ReaderSettingsProps) => {
 	const cardText = (isSelected: boolean) => (isSelected ? theme.colors.text : theme.colors.subtext);
 
 	const previewFont = arabicReaderFonts[settings.readerArabicFont];
-	const previewSize = READER_FONT_SIZES[settings.readerFontScale] ?? READER_FONT_SIZES[0];
+	const previewBaseSize = draftSize;
+	// Corrected the same way the reader corrects it, or the sample would be a different size
+	// from the page it is previewing.
+	const previewSize = Math.round(previewBaseSize * arabicReaderFontScale[settings.readerArabicFont]);
+	/*
+	 * Leading and row height come from the **base** size, not the corrected one, so the card
+	 * is exactly as tall for every face. Keyed to the corrected size they differed by a few
+	 * points each, and the whole sheet grew and shrank as you tapped along the typefaces —
+	 * which reads as the sheet glitching rather than as the preview doing its job.
+	 *
+	 * This has to reach the `Typography`'s own `lineHeight`, not just the row's `minHeight`.
+	 * Pinning the row alone left the line itself still keyed to the corrected size — 51 / 50
+	 * / 47 points across Madinah / Nesih / Amiri at the default — and a floor cannot hold a
+	 * height down, so the sheet went on resizing.
+	 */
+	const previewLineHeight = Math.round(previewBaseSize * 1.95);
 
 	return (
 		<View style={styles.root}>
@@ -94,7 +119,7 @@ export const ReaderSettings = ({ onChange, settings }: ReaderSettingsProps) => {
 			 */}
 			<View style={[styles.preview, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
 				<EyebrowText color={theme.colors.faintText}>{t('previewLabel')}</EyebrowText>
-				<View style={styles.previewRow}>
+				<View style={[styles.previewRow, { minHeight: previewLineHeight }]}>
 					{/*
 					 * Green, and on the left. It stands for a verse ornament in the running
 					 * text, and those are the page's green — the crimson is reserved for the
@@ -111,7 +136,7 @@ export const ReaderSettings = ({ onChange, settings }: ReaderSettingsProps) => {
 					<Typography
 						style={[
 							styles.previewLine,
-							{ fontFamily: previewFont, fontSize: previewSize, lineHeight: previewSize * 1.95 }
+							{ fontFamily: previewFont, fontSize: previewSize, lineHeight: previewLineHeight }
 						]}
 					>
 						{PREVIEW_LINE}
@@ -120,40 +145,20 @@ export const ReaderSettings = ({ onChange, settings }: ReaderSettingsProps) => {
 			</View>
 
 			<View style={styles.group}>
-				<EyebrowText color={theme.colors.faintText}>{t('textSize')}</EyebrowText>
-				<View style={styles.row}>
-					{READER_FONT_SIZES.map((size, index) => {
-						const isSelected = settings.readerFontScale === index;
-
-						return (
-							<Pressable
-								accessibilityRole='button'
-								accessibilityState={{ selected: isSelected }}
-								key={size}
-								onPress={() => onChange({ readerFontScale: index })}
-								style={({ pressed }) => [
-									styles.stackCard,
-									cardColors(isSelected),
-									{ opacity: pressed ? 0.9 : 1 }
-								]}
-							>
-								<Typography
-									color={cardText(isSelected)}
-									style={{
-										fontSize: SIZE_SAMPLE_PX[index],
-										lineHeight: (SIZE_SAMPLE_PX[index] ?? 0) * 1.1
-									}}
-									variant='title'
-								>
-									Aa
-								</Typography>
-								<Typography color={cardText(isSelected)} variant='caption' weight='semibold'>
-									{[t('fsSmall'), t('fsMed'), t('fsLarge')][index]}
-								</Typography>
-							</Pressable>
-						);
-					})}
+				{/* The size and its readout share a row — the number is the label's answer. */}
+				<View style={styles.groupHeader}>
+					<EyebrowText color={theme.colors.faintText}>{t('textSize')}</EyebrowText>
+					<Typography color={theme.colors.subtext} variant='mono'>
+						{`${draftSize} px`}
+					</Typography>
 				</View>
+				<ReaderSizeSlider
+					max={READER_FONT_SIZE_MAX}
+					min={READER_FONT_SIZE_MIN}
+					onChange={size => onChange({ readerFontSize: size })}
+					onDraft={setDraftSize}
+					value={draftSize}
+				/>
 			</View>
 
 			<View style={styles.group}>
@@ -215,7 +220,7 @@ export const ReaderSettings = ({ onChange, settings }: ReaderSettingsProps) => {
 
 			<View style={styles.group}>
 				<EyebrowText color={theme.colors.faintText}>{t('arabicFont')}</EyebrowText>
-				<View style={styles.row}>
+				<View style={[styles.row, styles.fontRow]}>
 					{FONT_OPTIONS.map(font => {
 						const isSelected = settings.readerArabicFont === font;
 
@@ -227,6 +232,7 @@ export const ReaderSettings = ({ onChange, settings }: ReaderSettingsProps) => {
 								onPress={() => onChange({ readerArabicFont: font })}
 								style={({ pressed }) => [
 									styles.stackCard,
+									styles.fontCard,
 									cardColors(isSelected),
 									{ opacity: pressed ? 0.9 : 1 }
 								]}
@@ -234,7 +240,14 @@ export const ReaderSettings = ({ onChange, settings }: ReaderSettingsProps) => {
 								{/* Each card sets its own face — that *is* the label. */}
 								<Typography
 									color={cardText(isSelected)}
-									style={[styles.fontSample, { fontFamily: arabicReaderFonts[font] }]}
+									style={[
+										styles.fontSample,
+										{
+											fontFamily: arabicReaderFonts[font],
+											fontSize: Math.round(18 * arabicReaderFontScale[font]),
+											lineHeight: Math.round(27 * arabicReaderFontScale[font])
+										}
+									]}
 								>
 									{FONT_SAMPLE}
 								</Typography>
@@ -265,6 +278,17 @@ export const ReaderSettings = ({ onChange, settings }: ReaderSettingsProps) => {
 const styles = StyleSheet.create({
 	// Smaller than `caption`, because it is the footnote to the name above it and the cards
 	// are only a third of the sheet wide.
+	/**
+	 * Three to a row, wrapping — five faces squeezed into one row left each card too narrow
+	 * for its own sample. A fixed basis rather than `flex: 1` so the second row's two cards
+	 * keep the width of the three above them instead of stretching to half the sheet each.
+	 */
+	fontRow: {
+		flexWrap: 'wrap'
+	},
+	fontCard: {
+		flexBasis: '31.5%'
+	},
 	fontFamilyName: {
 		fontSize: 9.5,
 		lineHeight: 13
@@ -275,6 +299,11 @@ const styles = StyleSheet.create({
 	},
 	group: {
 		gap: 8
+	},
+	groupHeader: {
+		alignItems: 'center',
+		flexDirection: 'row',
+		justifyContent: 'space-between'
 	},
 	// Centred like the cards above it. The label used to be `flex: 1`, which shoved the tick
 	// to the far edge and left the glyph and its label sitting off to one side.
@@ -348,10 +377,13 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		borderRadius: 14,
 		borderWidth: 1.5,
-		flex: 1,
 		gap: 4,
 		justifyContent: 'center',
 		paddingHorizontal: 8,
 		paddingVertical: 10
+	},
+	/** Three equal cards filling one row — the text sizes. */
+	stackCardEven: {
+		flex: 1
 	}
 });

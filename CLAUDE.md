@@ -409,11 +409,36 @@ defaultValues render={({ handleSubmit, watch, setValue }) => …} />`, which wir
     `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`.
 -   Path alias: `@/*` → `src/*`.
 
-## Content gap
+## The Cevşen text
 
-`src/lib/content/cevsen.ts` ships 100 bab entries with **empty** `arabic` fields — the Cevşen text is not
-bundled. The reader renders the `readerMissing` string for any empty bab. Do not generate, transliterate
-or approximate this text; it must be supplied from an authoritative source.
+`cevsen.data.json` holds the whole hundred — 100 babs, 999 invocations, a closing refrain each, and the
+du'a that follows the hundredth. **Do not generate, transliterate or approximate any of it.** The reader
+still renders `readerMissing` for an empty bab, which should now never happen.
+
+It comes from the **Risale-i Nur Kütüphanesi** app (`org.feyyaz.Risale-iNur-Kutuphanesi`, FEYYAZ Bilim ve
+Gelişim Derneği), which ships the Cevşen as a delimited text file rather than a scan — so this is the
+publisher's own digital text, not something rebuilt from glyph geometry. That app is **available on Apple
+Silicon Macs**, which is how it was read: install it, open the Cevşen once so it downloads, and the file
+lands at `~/Library/Containers/org.feyyaz.Risale-iNur-Kutuphanesi/Data/Documents/kitaplar/cevsen/cevsen.txt`.
+Its format is `#N` per bab, `~…|@` per line, `❁` between invocations; bab 1 carries the title and the
+besmele, bab 100 carries the du'a as a third line. `meta` in the JSON records all of this.
+
+It **replaced** an earlier extraction rebuilt from a PDF's per-character geometry. Two things made the
+swap safe, and a future one should clear the same bar: the structures matched exactly (both sources give
+100 babs and 999 invocations with identical per-bab counts, from wholly unrelated origins), and the du'a
+acted as a control — it had already been pasted in by hand from this same app, and matched.
+
+**The orthography is Ottoman/Turkish, and that is not incidental.** The long î is `U+06EA` plus yâ
+(`رَح۪يمُ`) rather than a kasra — **549 of them across 70 of the 100 babs** — final yâ is dotless
+(`وَلِىَّ`), and hamza sits on its Turkish carrier (`اَسْئَلُكَ`). The old PDF extraction had normalised all
+of this to standard Arabic. Don't normalise it back: it is what this edition sets.
+
+That count is why **Nesih is the default and Medine Mushaf is not.** KFGQPC draws `U+06EA` as a _spacing_
+glyph — 1442-unit advance, a 0.61 em body on the baseline — so it becomes a black disc standing between
+words at nearly verse-ornament size, and `BabReaderScreen`'s `arabicFor` has to strip it for that face.
+Stripping 549 marks is a defensible thing to opt into and a bad thing to default to. Madinah was briefly
+the default and was reverted for exactly this. Amiri and Kitab both treat the mark correctly (zero
+advance, small, below the baseline), verified by shaping through HarfBuzz.
 
 ## Notifications
 
