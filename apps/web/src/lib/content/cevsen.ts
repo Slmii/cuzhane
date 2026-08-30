@@ -103,12 +103,28 @@ const END_OF_AYAH = '۝';
 /**
  * A verse mark as the font sets it: the character, then the digits it encloses.
  *
- * Lives here rather than in the reader because the meal sheet heads itself with the same
- * mark. Two rosettes for one idea is what it replaced — the sheet used to draw the design
- * system's `ui/Ornament` while the text beside it used the typeface's, so the same ayah
- * carried two different marks a tap apart.
+ * **It is a character, not a picture, and that is the whole point.** `ui/Ornament` draws the
+ * design's rosette beautifully, but React Native cannot place it *inside* right-to-left text:
+ * the advance the line reserves and the frame the view is painted at disagree, so rosettes
+ * land on top of words with gaps where their boxes were. It looks font-specific and isn't —
+ * measured across three faces, every one broke on some babs and not others, purely on how
+ * that line's runs happened to reorder. The iOS system fallback never did, which is why this
+ * only appeared once the reader was given a real Arabic font.
  *
- * The face it is set in still matters and is the caller's problem: see `ornamentFaceFor`.
+ * `U+06DD` is what a printed mushaf uses and what every Arabic face draws for itself, so it
+ * shapes and wraps with the words and cannot be misplaced. The cost is that the mark now
+ * belongs to the chosen typeface rather than to the design system, so it differs a little in
+ * each. It costs nothing else: all three faces enclose the digits, and all three do it for
+ * Latin `1` as readily as Arabic-Indic `١`, so the numerals setting survived intact.
+ *
+ * **A new face must be checked for this, and coverage is not the test** — enclosing is a
+ * shaping decision made across the mark *and* its digits, so a face can carry `U+06DD` and
+ * still strand the number beside a hollow ring, as Hüsrev Hattı did. See `ornamentFaceFor`,
+ * which is where the faces that decline are named.
+ *
+ * `ui/Ornament` is still the right thing wherever a `View` is legal — the meal sheet heads
+ * itself with one. It no longer opens each bab: that mark was removed once the header carried
+ * the number, the ownership chip and the tick strip between them.
  */
 export const ayahMark = (n: number, numerals: ReaderNumerals = 'arabic') =>
 	`${END_OF_AYAH}${toOrnamentDigits(n, numerals)}`;

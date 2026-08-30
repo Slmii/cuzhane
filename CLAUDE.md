@@ -433,12 +433,27 @@ acted as a control — it had already been pasted in by hand from this same app,
 (`وَلِىَّ`), and hamza sits on its Turkish carrier (`اَسْئَلُكَ`). The old PDF extraction had normalised all
 of this to standard Arabic. Don't normalise it back: it is what this edition sets.
 
-That count is why **Nesih is the default and Medine Mushaf is not.** KFGQPC draws `U+06EA` as a _spacing_
-glyph — 1442-unit advance, a 0.61 em body on the baseline — so it becomes a black disc standing between
-words at nearly verse-ornament size, and `BabReaderScreen`'s `arabicFor` has to strip it for that face.
-Stripping 549 marks is a defensible thing to opt into and a bad thing to default to. Madinah was briefly
-the default and was reverted for exactly this. Amiri and Kitab both treat the mark correctly (zero
-advance, small, below the baseline), verified by shaping through HarfBuzz.
+**The long î is `U+0656` (subscript alef), not the `U+06EA` the source file writes** — 549 of
+them across 70 babs, converted at ingestion. This is worth knowing before "fixing" it back.
+The publisher's file uses `U+06EA` (ARABIC EMPTY CENTRE LOW STOP) and then relies on its own
+fonts to draw something else: **Osman Taha, the face that app actually renders with, maps
+`U+06EA` straight onto its `uni0656` glyph**, and so do the other three it ships. So the
+codepoint in the file is not what the edition prints — the glyph is, and that glyph is the
+subscript alef. Any font not in on the arrangement renders `U+06EA` faithfully as the small
+empty diamond its name describes, which is what Kitab, Amiri and Noto Naskh all did (2
+contours, 0 curves, ~1:1). Writing the codepoint the edition _means_ fixes every face at once:
+all three of ours carry `U+0656` as a zero-width curved stroke, Kitab's within a hair of the
+reference (0.093×0.304 em against 0.080×0.254 em).
+
+It also retired a workaround. KFGQPC gave `U+06EA` a **1442-unit advance and a 0.61 em body on
+the baseline** — a black disc standing between words, at nearly verse-ornament size — so the
+reader used to strip the mark for that face. Its `U+0656` is an ordinary zero-advance mark, so
+`arabicFor` and its face set are gone. **`ornamentFaceFor` stays**: KFGQPC's `U+06DD` is still
+a wide standalone rosette that the number sits beside, so Madinah still borrows Nesih for the
+verse mark.
+
+Nesih is the default. Medine Mushaf was briefly made the default and reverted, back when the
+`U+06EA` stripping made it the wrong face to hand someone first.
 
 ## Notifications
 

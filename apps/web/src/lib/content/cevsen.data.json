@@ -3,6 +3,7 @@
 		"text": "Cevşen-i Kebir",
 		"source": "Risale-i Nur Kütüphanesi (org.feyyaz.Risale-iNur-Kutuphanesi, FEYYAZ Bilim ve Gelişim Derneği), Documents/kitaplar/cevsen/cevsen.txt",
 		"extraction": "The app's own delimited text, read verbatim: '#N' per bab, '~...|@' per line, '❁' between invocations. Nothing is reconstructed — this replaces an earlier extraction rebuilt from the PDF's per-character geometry.",
+		"marks": "The long î is written U+0656 (subscript alef), not the U+06EA the source file uses. Osman Taha — the face that app actually renders with — maps U+06EA onto its uni0656 glyph, so the subscript alef is what the edition prints; fonts not in on that arrangement draw U+06EA as the empty diamond its name describes.",
 		"orthography": "Ottoman/Turkish printing conventions, which is what this edition sets and what the previous extraction had normalised away: the long î is U+06EA plus yâ (رَح۪يمُ, 549 of them across 70 babs) rather than a kasra, final yâ is dotless (وَلِىَّ), and hamza sits on its Turkish carrier (اَسْئَلُكَ).",
 		"verified": "Structure checked against the previous extraction, which came from an unrelated source: both give 100 babs and 999 invocations with identical per-bab counts. The du'a is the control — it had been pasted in by hand from this same app and matches what the file contains.",
 		"afterHundredthSource": "Bab 100's third line in the same file; separators normalised from ❁ to ۞, which is what the reader splits on.",
@@ -15,7 +16,7 @@
 			"invocations": [
 				{
 					"n": 1,
-					"text": "اَللّٰهُمَّ اِنّ۪ٓى اَسْئَلُكَ بِاَسْمَٓائِكَ يَا اَللّٰهُ",
+					"text": "اَللّٰهُمَّ اِنّٖٓى اَسْئَلُكَ بِاَسْمَٓائِكَ يَا اَللّٰهُ",
 					"tr": "Allah’ım! Senden şu isimlerinin hakkı için istiyor ve yalvarıyorum: Ey her şeyin gerçek Mâbudu olan Allah,"
 				},
 				{
@@ -25,42 +26,42 @@
 				},
 				{
 					"n": 3,
-					"text": "يَا رَح۪يمُ",
+					"text": "يَا رَحٖيمُ",
 					"tr": "Ey itaatkar kullarına hususi rahmet eden Rahîm,"
 				},
 				{
 					"n": 4,
-					"text": "يَا عَل۪يمُ",
+					"text": "يَا عَلٖيمُ",
 					"tr": "Ey her şeyi bilen Alîm,"
 				},
 				{
 					"n": 5,
-					"text": "يَا حَل۪يمُ",
+					"text": "يَا حَلٖيمُ",
 					"tr": "Ey yumuşak muamele eden Halîm,"
 				},
 				{
 					"n": 6,
-					"text": "يَا عَظ۪يمُ",
+					"text": "يَا عَظٖيمُ",
 					"tr": "Ey sonsuz büyüklük ve yücelik sahibi olan Azîm,"
 				},
 				{
 					"n": 7,
-					"text": "يَا حَك۪يمُ",
+					"text": "يَا حَكٖيمُ",
 					"tr": "Ey her şeyi hikmetle yaratan Hakîm,"
 				},
 				{
 					"n": 8,
-					"text": "يَا قَد۪يمُ",
+					"text": "يَا قَدٖيمُ",
 					"tr": "Ey varlığının başlangıcı olmayan Kadîm,"
 				},
 				{
 					"n": 9,
-					"text": "يَا مُق۪يمُ",
+					"text": "يَا مُقٖيمُ",
 					"tr": "Ey her şeyi ayakta tutan Mukîm,"
 				},
 				{
 					"n": 10,
-					"text": "يَا كَر۪يمُ",
+					"text": "يَا كَرٖيمُ",
 					"tr": "Ey iyilik ve ikramı bol olan Kerîm,"
 				}
 			],
@@ -85,7 +86,7 @@
 				},
 				{
 					"n": 2,
-					"text": "يَا مُج۪يبَ الدَّعَوَاتِ",
+					"text": "يَا مُجٖيبَ الدَّعَوَاتِ",
 					"tr": "Ey dualara cevap veren,"
 				},
 				{
@@ -95,17 +96,17 @@
 				},
 				{
 					"n": 4,
-					"text": "يَا رَف۪يعَ الدَّرَجَاتِ",
+					"text": "يَا رَفٖيعَ الدَّرَجَاتِ",
 					"tr": "Ey dereceleri yükselten,"
 				},
 				{
 					"n": 5,
-					"text": "يَا عَظ۪يمَ الْبَرَكَاتِ",
+					"text": "يَا عَظٖيمَ الْبَرَكَاتِ",
 					"tr": "Ey bereketleri büyük olan,"
 				},
 				{
 					"n": 6,
-					"text": "يَا غَافِرَ الْخَط۪ٓيئَاتِ",
+					"text": "يَا غَافِرَ الْخَطٖٓيئَاتِ",
 					"tr": "Ey hataları bağışlayan,"
 				},
 				{
@@ -147,52 +148,52 @@
 			"invocations": [
 				{
 					"n": 1,
-					"text": "يَا خَيْرَ الْغَافِر۪ينَ",
+					"text": "يَا خَيْرَ الْغَافِرٖينَ",
 					"tr": "Ey bağışlayanların en hayırlısı,"
 				},
 				{
 					"n": 2,
-					"text": "يَا خَيْرَ النَّاصِر۪ينَ",
+					"text": "يَا خَيْرَ النَّاصِرٖينَ",
 					"tr": "Ey yardım edenlerin en hayırlısı,"
 				},
 				{
 					"n": 3,
-					"text": "يَا خَيْرَ الْحَاكِم۪ينَ",
+					"text": "يَا خَيْرَ الْحَاكِمٖينَ",
 					"tr": "Ey hükmedenlerin en hayırlısı,"
 				},
 				{
 					"n": 4,
-					"text": "يَا خَيْرَ الْفَاتِح۪ينَ",
+					"text": "يَا خَيْرَ الْفَاتِحٖينَ",
 					"tr": "Ey her şeyi açan ve fethedenlerin en hayırlısı,"
 				},
 				{
 					"n": 5,
-					"text": "يَا خَيْرَ الذَّاكِر۪ينَ",
+					"text": "يَا خَيْرَ الذَّاكِرٖينَ",
 					"tr": "Ey zikredenlerin ve zikredenleri mükafatlandıranların en hayırlısı,"
 				},
 				{
 					"n": 6,
-					"text": "يَا خَيْرَ الْوَارِث۪ينَ",
+					"text": "يَا خَيْرَ الْوَارِثٖينَ",
 					"tr": "Ey vârislerin en hayırlısı,"
 				},
 				{
 					"n": 7,
-					"text": "يَا خَيْرَ الْحَامِد۪ينَ",
+					"text": "يَا خَيْرَ الْحَامِدٖينَ",
 					"tr": "Ey övenlerin ve övenleri mükafatlandıranların en hayırlısı,"
 				},
 				{
 					"n": 8,
-					"text": "يَا خَيْرَ الرَّازِق۪ينَ",
+					"text": "يَا خَيْرَ الرَّازِقٖينَ",
 					"tr": "Ey rızık verenlerin en hayırlısı,"
 				},
 				{
 					"n": 9,
-					"text": "يَا خَيْرَ الْفَاصِل۪ينَ",
+					"text": "يَا خَيْرَ الْفَاصِلٖينَ",
 					"tr": "Ey zor işleri halledenlerin en hayırlısı,"
 				},
 				{
 					"n": 10,
-					"text": "يَا خَيْرَ الْمُحْسِن۪ينَ",
+					"text": "يَا خَيْرَ الْمُحْسِنٖينَ",
 					"tr": "Ey ihsan edenlerin en hayırlısı,"
 				}
 			],
@@ -229,22 +230,22 @@
 				},
 				{
 					"n": 4,
-					"text": "يَا مَنْ هُوَ الْكَب۪يرُ الْمُتَعَالِ",
+					"text": "يَا مَنْ هُوَ الْكَبٖيرُ الْمُتَعَالِ",
 					"tr": "Ey büyük ve yüce olan,"
 				},
 				{
 					"n": 5,
-					"text": "يَا مَنْ هُوَ شَد۪يدُ الْمِحَالِ",
+					"text": "يَا مَنْ هُوَ شَدٖيدُ الْمِحَالِ",
 					"tr": "Ey şiddetli azap sahibi olan,"
 				},
 				{
 					"n": 6,
-					"text": "يَا مَنْ هُوَ شَد۪يدُ الْعِقَابِ",
+					"text": "يَا مَنْ هُوَ شَدٖيدُ الْعِقَابِ",
 					"tr": "Ey ikâbı şiddetli olan,"
 				},
 				{
 					"n": 7,
-					"text": "يَا مَنْ هُوَ سَر۪يعُ الْحِسَابِ",
+					"text": "يَا مَنْ هُوَ سَرٖيعُ الْحِسَابِ",
 					"tr": "Ey hesâbı süratli gören,"
 				},
 				{
@@ -340,52 +341,52 @@
 			"invocations": [
 				{
 					"n": 1,
-					"text": "يَا مَنْ تَوَاضَعَ كُلُّ شَىْءٍ لِعَظَمَتِه۪",
+					"text": "يَا مَنْ تَوَاضَعَ كُلُّ شَىْءٍ لِعَظَمَتِهٖ",
 					"tr": "Ey azametine her şeyin boyun eğdiği,"
 				},
 				{
 					"n": 2,
-					"text": "يَا مَنِ اسْتَسْلَمَ كُلُّ شَىْءٍ لِقُدْرَتِه۪",
+					"text": "يَا مَنِ اسْتَسْلَمَ كُلُّ شَىْءٍ لِقُدْرَتِهٖ",
 					"tr": "Ey kudretine her şeyin teslim olduğu,"
 				},
 				{
 					"n": 3,
-					"text": "يَا مَنْ ذَلَّ كُلُّ شَىْءٍ لِعِزَّتِه۪",
+					"text": "يَا مَنْ ذَلَّ كُلُّ شَىْءٍ لِعِزَّتِهٖ",
 					"tr": "Ey izzetine karşı her şeyin zelîl olduğu,"
 				},
 				{
 					"n": 4,
-					"text": "يَا مَنْ خَضَعَ كُلُّ شَىْءٍ لِهَيْبَتِه۪",
+					"text": "يَا مَنْ خَضَعَ كُلُّ شَىْءٍ لِهَيْبَتِهٖ",
 					"tr": "Ey heybetine her şeyin itaat ettiği,"
 				},
 				{
 					"n": 5,
-					"text": "يَا مَنِ انْقَادَ كُلُّ شَىْءٍ لِمُلْكَتِه۪",
+					"text": "يَا مَنِ انْقَادَ كُلُّ شَىْءٍ لِمُلْكَتِهٖ",
 					"tr": "Ey saltanatına karşı her şeyin inkıyat ettiği,"
 				},
 				{
 					"n": 6,
-					"text": "يَا مَنْ دَانَ كُلُّ شَىْءٍ مِنْ مَخَافَتِه۪",
+					"text": "يَا مَنْ دَانَ كُلُّ شَىْءٍ مِنْ مَخَافَتِهٖ",
 					"tr": "Ey korkusundan her şeyin kendisine boyun eğdiği,"
 				},
 				{
 					"n": 7,
-					"text": "يَا مَنِ انْشَقَّتِ الْجِبَالُ مِنْ خَشْيَتِه۪",
+					"text": "يَا مَنِ انْشَقَّتِ الْجِبَالُ مِنْ خَشْيَتِهٖ",
 					"tr": "Ey korkusundan dağların yarıldığı ve parçalandığı,"
 				},
 				{
 					"n": 8,
-					"text": "يَا مَنْ قَامَتِ السَّمٰوَاتُ بِاَمْرِه۪",
+					"text": "يَا مَنْ قَامَتِ السَّمٰوَاتُ بِاَمْرِهٖ",
 					"tr": "Ey emriyle göklerin ayakta durduğu,"
 				},
 				{
 					"n": 9,
-					"text": "يَا مَنِ اسْتَقَرَّتِ الْاَرْضُ بِاِذْنِه۪",
+					"text": "يَا مَنِ اسْتَقَرَّتِ الْاَرْضُ بِاِذْنِهٖ",
 					"tr": "Ey izniyle yerin karar kıldığı,"
 				},
 				{
 					"n": 10,
-					"text": "يَا مَنْ لَا يَعْتَد۪ى عَلىٰٓ اَهْلِ مَمْلَكَتِه۪",
+					"text": "يَا مَنْ لَا يَعْتَدٖى عَلىٰٓ اَهْلِ مَمْلَكَتِهٖ",
 					"tr": "Ey memleketinin ahâlisine zulmetmeyen,"
 				}
 			],
@@ -667,52 +668,52 @@
 			"invocations": [
 				{
 					"n": 1,
-					"text": "يَا عِدَّت۪ى عِنْدَ شِدَّت۪ى",
+					"text": "يَا عِدَّتٖى عِنْدَ شِدَّتٖى",
 					"tr": "Ey sıkıntım ânında hazırlığım,"
 				},
 				{
 					"n": 2,
-					"text": "يَا رَجَٓائ۪ى عِنْدَ مُص۪يبَت۪ى",
+					"text": "يَا رَجَٓائٖى عِنْدَ مُصٖيبَتٖى",
 					"tr": "Ey musîbetim ânında ümidim,"
 				},
 				{
 					"n": 3,
-					"text": "يَا مُونِس۪ى عِنْدَ وَحْشَت۪ى",
+					"text": "يَا مُونِسٖى عِنْدَ وَحْشَتٖى",
 					"tr": "Ey yalnızlığım ânında arkadaşım,"
 				},
 				{
 					"n": 4,
-					"text": "يَا صَاحِب۪ى عِنْدَ غُرْبَت۪ى",
+					"text": "يَا صَاحِبٖى عِنْدَ غُرْبَتٖى",
 					"tr": "Ey gurbetliğimde dostum,"
 				},
 				{
 					"n": 5,
-					"text": "يَا وَلِيّ۪ى عِنْدَ نِعْمَت۪ى",
+					"text": "يَا وَلِيّٖى عِنْدَ نِعْمَتٖى",
 					"tr": "Ey nîmetlendiğim anda sahibim,"
 				},
 				{
 					"n": 6,
-					"text": "يَا كَاشِف۪ى عِنْدَ كُرْبَت۪ى",
+					"text": "يَا كَاشِفٖى عِنْدَ كُرْبَتٖى",
 					"tr": "Ey kederim ânında ferahlatıcım,"
 				},
 				{
 					"n": 7,
-					"text": "يَا غِيَاث۪ى عِنْدَ افْتِقَار۪ى",
+					"text": "يَا غِيَاثٖى عِنْدَ افْتِقَارٖى",
 					"tr": "Ey ihtiyacım ânında yardımıma koşan,"
 				},
 				{
 					"n": 8,
-					"text": "يَا مَلْجَئ۪ى عِنْدَ اضْطِرَار۪ى",
+					"text": "يَا مَلْجَئٖى عِنْدَ اضْطِرَارٖى",
 					"tr": "Ey zor durumumda sığınağım,"
 				},
 				{
 					"n": 9,
-					"text": "يَا مُع۪ين۪ى عِنْدَ فَزَع۪ى",
+					"text": "يَا مُعٖينٖى عِنْدَ فَزَعٖى",
 					"tr": "Ey korkum ânında yardımcım,"
 				},
 				{
 					"n": 10,
-					"text": "يَا دَل۪يل۪ى عِنْدَ حَيْرَت۪ى",
+					"text": "يَا دَلٖيلٖى عِنْدَ حَيْرَتٖى",
 					"tr": "Ey şaşkınlığım ânında yol göstericim,"
 				}
 			],
@@ -769,17 +770,17 @@
 				},
 				{
 					"n": 8,
-					"text": "يَا طَب۪يبَ الْقُلُوبِ",
+					"text": "يَا طَبٖيبَ الْقُلُوبِ",
 					"tr": "Ey kalplerin tabibi,"
 				},
 				{
 					"n": 9,
-					"text": "يَا حَب۪يبَ الْقُلُوبِ",
+					"text": "يَا حَبٖيبَ الْقُلُوبِ",
 					"tr": "Ey kalplerin sevgilisi,"
 				},
 				{
 					"n": 10,
-					"text": "يَٓا اَن۪يسَ الْقُلُوبِ",
+					"text": "يَٓا اَنٖيسَ الْقُلُوبِ",
 					"tr": "Ey kalplerin dostu,"
 				}
 			],
@@ -801,52 +802,52 @@
 			"invocations": [
 				{
 					"n": 1,
-					"text": "وَ اَسْئَلُكَ بِاَسْمَٓائِكَ يَا جَل۪يلُ",
+					"text": "وَ اَسْئَلُكَ بِاَسْمَٓائِكَ يَا جَلٖيلُ",
 					"tr": "Allah’ım! Senden şu isimlerinin hakkı için istiyor ve yalvarıyorum: Ey yücelik ve ululuk sahibi Celîl,"
 				},
 				{
 					"n": 2,
-					"text": "يَا جَم۪يلُ",
+					"text": "يَا جَمٖيلُ",
 					"tr": "Ey gerçek güzellik sahibi Cemîl,"
 				},
 				{
 					"n": 3,
-					"text": "يَا وَك۪يلُ",
+					"text": "يَا وَكٖيلُ",
 					"tr": "Ey kendine güvenen kullarının işini en iyi yoluna koyan Vekîl,"
 				},
 				{
 					"n": 4,
-					"text": "يَا كَف۪يلُ",
+					"text": "يَا كَفٖيلُ",
 					"tr": "Ey kullarının tâkatini aşan işlerini üzerine alan Kefîl,"
 				},
 				{
 					"n": 5,
-					"text": "يَا دَل۪يلُ",
+					"text": "يَا دَلٖيلُ",
 					"tr": "Ey kullarına yol gösteren Delîl,"
 				},
 				{
 					"n": 6,
-					"text": "يَا مُق۪يلُ",
+					"text": "يَا مُقٖيلُ",
 					"tr": "Ey kullarının hatâ ve yanlışlarını bağışlayan Mukîl,"
 				},
 				{
 					"n": 7,
-					"text": "يَا خَب۪يرُ",
+					"text": "يَا خَبٖيرُ",
 					"tr": "Ey her şeyden haberdar olan Habîr,"
 				},
 				{
 					"n": 8,
-					"text": "يَا لَط۪يفُ",
+					"text": "يَا لَطٖيفُ",
 					"tr": "Ey lütuf ve keremi bol olan Latîf,"
 				},
 				{
 					"n": 9,
-					"text": "يَا عَز۪يزُ",
+					"text": "يَا عَزٖيزُ",
 					"tr": "Ey sonsuz izzet sahibi Azîz,"
 				},
 				{
 					"n": 10,
-					"text": "يَا مَل۪يكُ",
+					"text": "يَا مَلٖيكُ",
 					"tr": "Ey bütün mevcudâtın gerçek sahibi ve hükümdarı olan Melik,"
 				}
 			],
@@ -866,52 +867,52 @@
 			"invocations": [
 				{
 					"n": 1,
-					"text": "يَا دَل۪يلَ الْمُتَحَيِّر۪ينَ",
+					"text": "يَا دَلٖيلَ الْمُتَحَيِّرٖينَ",
 					"tr": "Ey şaşkınların yol göstericisi,"
 				},
 				{
 					"n": 2,
-					"text": "يَا غِيَاثَ الْمُسْتَغ۪يث۪ينَ",
+					"text": "يَا غِيَاثَ الْمُسْتَغٖيثٖينَ",
 					"tr": "Ey yardım isteyenlerin yardımcısı,"
 				},
 				{
 					"n": 3,
-					"text": "يَا صَر۪يخَ الْمُسْتَصْرِخ۪ينَ",
+					"text": "يَا صَرٖيخَ الْمُسْتَصْرِخٖينَ",
 					"tr": "Ey medet isteyenlerin imdat edicisi,"
 				},
 				{
 					"n": 4,
-					"text": "يَا جَارَ الْمُسْتَج۪ير۪ينَ",
+					"text": "يَا جَارَ الْمُسْتَجٖيرٖينَ",
 					"tr": "Ey korunmak isteyenlerin koruyucusu,"
 				},
 				{
 					"n": 5,
-					"text": "يَا مَلْجَأَ الْعَاص۪ينَ",
+					"text": "يَا مَلْجَأَ الْعَاصٖينَ",
 					"tr": "Ey âsilerin sığınağı,"
 				},
 				{
 					"n": 6,
-					"text": "يَا غَافِرَ الْمُذْنِب۪ينَ",
+					"text": "يَا غَافِرَ الْمُذْنِبٖينَ",
 					"tr": "Ey günahkârların bağışlayıcısı,"
 				},
 				{
 					"n": 7,
-					"text": "يَٓا اَمَانَ الْخَٓائِف۪ينَ",
+					"text": "يَٓا اَمَانَ الْخَٓائِفٖينَ",
 					"tr": "Ey korkanlara emniyet veren,"
 				},
 				{
 					"n": 8,
-					"text": "يَا رَاحِمَ الْمَسَاك۪ينَ",
+					"text": "يَا رَاحِمَ الْمَسَاكٖينَ",
 					"tr": "Ey miskinlere merhamet eden,"
 				},
 				{
 					"n": 9,
-					"text": "يَٓا اَن۪يسَ الْمُسْتَوْحِش۪ينَ",
+					"text": "يَٓا اَنٖيسَ الْمُسْتَوْحِشٖينَ",
 					"tr": "Ey yalnızlık duyanların dostu,"
 				},
 				{
 					"n": 10,
-					"text": "يَا مُج۪يبَ دَعْوَةِ الْمُضْطَرّ۪ينَ",
+					"text": "يَا مُجٖيبَ دَعْوَةِ الْمُضْطَرّٖينَ",
 					"tr": "Ey darda kalanların duâlarına cevap veren,"
 				}
 			],
@@ -1126,52 +1127,52 @@
 			"invocations": [
 				{
 					"n": 1,
-					"text": "يَا مَنْ هُوَ ف۪ى مُلْكِه۪ مُق۪يمٌ",
+					"text": "يَا مَنْ هُوَ فٖى مُلْكِهٖ مُقٖيمٌ",
 					"tr": "Ey mülkünde dâim olan,"
 				},
 				{
 					"n": 2,
-					"text": "يَا مَنْ هُوَ ف۪ى جَلَالِه۪ عَظ۪يمٌ",
+					"text": "يَا مَنْ هُوَ فٖى جَلَالِهٖ عَظٖيمٌ",
 					"tr": "Ey celâlinde azîm olan,"
 				},
 				{
 					"n": 3,
-					"text": "يَا مَنْ هُوَ ف۪ى سُلْطَانِه۪ قَد۪يمٌ",
+					"text": "يَا مَنْ هُوَ فٖى سُلْطَانِهٖ قَدٖيمٌ",
 					"tr": "Ey saltanatında kadîm olan,"
 				},
 				{
 					"n": 4,
-					"text": "يَا مَنْ هُوَ عَلٰى عَبْدِه۪ رَح۪يمٌ",
+					"text": "يَا مَنْ هُوَ عَلٰى عَبْدِهٖ رَحٖيمٌ",
 					"tr": "Ey kullarına rahmet eden,"
 				},
 				{
 					"n": 5,
-					"text": "يَا مَنْ هُوَ بِكُلِّ شَىْءٍ عَل۪يمٌ",
+					"text": "يَا مَنْ هُوَ بِكُلِّ شَىْءٍ عَلٖيمٌ",
 					"tr": "Ey her şeyi bilen,"
 				},
 				{
 					"n": 6,
-					"text": "يَا مَنْ هُوَ لِمَنْ جَفَاهُ حَل۪يمٌ",
+					"text": "يَا مَنْ هُوَ لِمَنْ جَفَاهُ حَلٖيمٌ",
 					"tr": "Ey emirlerine uymayana halîm olan,"
 				},
 				{
 					"n": 7,
-					"text": "يَا مَنْ هُوَ لِمَنْ تَرَجَّاهُ كَر۪يمٌ",
+					"text": "يَا مَنْ هُوَ لِمَنْ تَرَجَّاهُ كَرٖيمٌ",
 					"tr": "Ey kendisine ümit bağlayana kerîm olan,"
 				},
 				{
 					"n": 8,
-					"text": "يَا مَنْ هُوَ ف۪ى مَقَاد۪يرِه۪ حَك۪يمٌ",
+					"text": "يَا مَنْ هُوَ فٖى مَقَادٖيرِهٖ حَكٖيمٌ",
 					"tr": "Ey ölçülerinde hikmetli olan,"
 				},
 				{
 					"n": 9,
-					"text": "يَا مَنْ هُوَ ف۪ى حُكْمِه۪ لَط۪يفٌ",
+					"text": "يَا مَنْ هُوَ فٖى حُكْمِهٖ لَطٖيفٌ",
 					"tr": "Ey hükmünde lütuf sahibi olan,"
 				},
 				{
 					"n": 10,
-					"text": "يَا مَنْ هُوَ ف۪ى لُطْفِه۪ قَد۪يرٌ",
+					"text": "يَا مَنْ هُوَ فٖى لُطْفِهٖ قَدٖيرٌ",
 					"tr": "Ey lütfünde kadîr olan,"
 				}
 			],
@@ -1227,7 +1228,7 @@
 				},
 				{
 					"n": 9,
-					"text": "يَا مَنْ سَبَقَتْ رَحْمَتُهُ عَلٰى غَضَبِه۪",
+					"text": "يَا مَنْ سَبَقَتْ رَحْمَتُهُ عَلٰى غَضَبِهٖ",
 					"tr": "Ey rahmeti gazabını geçmiş olan,"
 				},
 				{
@@ -1374,17 +1375,17 @@
 			"invocations": [
 				{
 					"n": 1,
-					"text": "يَا مَنْ اَظْهَرَ الْجَم۪يلَ",
+					"text": "يَا مَنْ اَظْهَرَ الْجَمٖيلَ",
 					"tr": "Ey güzeli açığa çıkaran,"
 				},
 				{
 					"n": 2,
-					"text": "يَا مَنْ سَتَرَ عَلَى الْقَب۪يحِ",
+					"text": "يَا مَنْ سَتَرَ عَلَى الْقَبٖيحِ",
 					"tr": "Ey çirkinin üzerini örten,"
 				},
 				{
 					"n": 3,
-					"text": "يَا مَنْ لَا يُؤَاخِذُ بِالْجَر۪يمَةِ",
+					"text": "يَا مَنْ لَا يُؤَاخِذُ بِالْجَرٖيمَةِ",
 					"tr": "Ey suç sebebiyle hemen azarlamayan,"
 				},
 				{
@@ -1394,7 +1395,7 @@
 				},
 				{
 					"n": 5,
-					"text": "يَا عَظ۪يمَ الْعَفْوِ",
+					"text": "يَا عَظٖيمَ الْعَفْوِ",
 					"tr": "Ey affı büyük olan,"
 				},
 				{
@@ -1481,7 +1482,7 @@
 				},
 				{
 					"n": 9,
-					"text": "يَا ذَا الْقُوَّةِ الْمَت۪ينَةِ",
+					"text": "يَا ذَا الْقُوَّةِ الْمَتٖينَةِ",
 					"tr": "Ey metin kuvvet sahibi,"
 				},
 				{
@@ -1508,57 +1509,57 @@
 			"invocations": [
 				{
 					"n": 1,
-					"text": "يَٓا اَحْكَمَ الْحَاكِم۪ينَ",
+					"text": "يَٓا اَحْكَمَ الْحَاكِمٖينَ",
 					"tr": "Ey hükmedenlerin en hükmedicisi,"
 				},
 				{
 					"n": 2,
-					"text": "يَٓا اَعْدَلَ الْعَادِل۪ينَ",
+					"text": "يَٓا اَعْدَلَ الْعَادِلٖينَ",
 					"tr": "Ey âdillerin en adâletlisi,"
 				},
 				{
 					"n": 3,
-					"text": "يَٓا اَصْدَقَ الصَّادِق۪ينَ",
+					"text": "يَٓا اَصْدَقَ الصَّادِقٖينَ",
 					"tr": "Ey doğruların en doğrusu,"
 				},
 				{
 					"n": 4,
-					"text": "يَٓا اَظْهَرَ الظَّاهِر۪ينَ",
+					"text": "يَٓا اَظْهَرَ الظَّاهِرٖينَ",
 					"tr": "Ey varlığı açık olanların en açığı,"
 				},
 				{
 					"n": 5,
-					"text": "يَٓا اَطْهَرَ الطَّاهِر۪ينَ",
+					"text": "يَٓا اَطْهَرَ الطَّاهِرٖينَ",
 					"tr": "Ey temiz olanların en temizi,"
 				},
 				{
 					"n": 6,
-					"text": "يَٓا اَحْسَنَ الْخَالِق۪ينَ",
+					"text": "يَٓا اَحْسَنَ الْخَالِقٖينَ",
 					"tr": "Ey yaratıcılık mertebelerinin en güzelinde olan,"
 				},
 				{
 					"n": 7,
-					"text": "يَٓا اَسْرَعَ الْحَاسِب۪ينَ",
+					"text": "يَٓا اَسْرَعَ الْحَاسِبٖينَ",
 					"tr": "Ey hesaba çekenlerin en süratlisi,"
 				},
 				{
 					"n": 8,
-					"text": "يَٓا اَسْمَعَ السَّامِع۪ينَ",
+					"text": "يَٓا اَسْمَعَ السَّامِعٖينَ",
 					"tr": "Ey işitenlerin en iyi işiticisi,"
 				},
 				{
 					"n": 9,
-					"text": "يَٓا اَكْرَمَ الْاَكْرَم۪ينَ",
+					"text": "يَٓا اَكْرَمَ الْاَكْرَمٖينَ",
 					"tr": "Ey ikram edenlerin en iyi ikram edicisi,"
 				},
 				{
 					"n": 10,
-					"text": "يَٓا اَرْحَمَ الرَّاحِم۪ينَ",
+					"text": "يَٓا اَرْحَمَ الرَّاحِمٖينَ",
 					"tr": "Ey merhamet edenlerin en merhametlisi,"
 				},
 				{
 					"n": 11,
-					"text": "يَٓا اَشْفَعَ الشَّافِع۪ينَ",
+					"text": "يَٓا اَشْفَعَ الشَّافِعٖينَ",
 					"tr": "Ey şefaat edenlerin en şefaat edicisi,"
 				}
 			],
@@ -1574,7 +1575,7 @@
 			"invocations": [
 				{
 					"n": 1,
-					"text": "يَا بَد۪يعَ السَّمٰوَاتِ",
+					"text": "يَا بَدٖيعَ السَّمٰوَاتِ",
 					"tr": "Ey semâları yoktan yaratan,"
 				},
 				{
@@ -1619,7 +1620,7 @@
 				},
 				{
 					"n": 10,
-					"text": "يَا شَد۪يدَ النَّقَمَاتِ",
+					"text": "يَا شَدٖيدَ النَّقَمَاتِ",
 					"tr": "Ey asilere hak ettikleri büyük ceza ve şiddetli azabı veren,"
 				}
 			],
@@ -1808,12 +1809,12 @@
 				},
 				{
 					"n": 8,
-					"text": "يَا مُع۪ينَ مَنْ لَا مُع۪ينَ لَهُ",
+					"text": "يَا مُعٖينَ مَنْ لَا مُعٖينَ لَهُ",
 					"tr": "Ey yardımcısı olmayanların yardımcısı,"
 				},
 				{
 					"n": 9,
-					"text": "يَٓا اَن۪يسَ مَنْ لَٓا اَن۪يسَ لَهُ",
+					"text": "يَٓا اَنٖيسَ مَنْ لَٓا اَنٖيسَ لَهُ",
 					"tr": "Ey dostu olmayanların dostu,"
 				},
 				{
@@ -1935,17 +1936,17 @@
 				},
 				{
 					"n": 7,
-					"text": "يَا مُع۪ينَ مَنِ اسْتَعَانَهُ",
+					"text": "يَا مُعٖينَ مَنِ اسْتَعَانَهُ",
 					"tr": "Ey kendisinden inâyet isteyenlere inâyet eden,"
 				},
 				{
 					"n": 8,
-					"text": "يَا مُغ۪يثَ مَنِ اسْتَغَاثَهُ",
+					"text": "يَا مُغٖيثَ مَنِ اسْتَغَاثَهُ",
 					"tr": "Ey kendisinden imdat isteyenlere imdat eden,"
 				},
 				{
 					"n": 9,
-					"text": "يَا صَر۪يخَ مَنِ اسْتَصْرَخَهُ",
+					"text": "يَا صَرٖيخَ مَنِ اسْتَصْرَخَهُ",
 					"tr": "Ey feryat edenlerin feryâdına koşan,"
 				},
 				{
@@ -1972,27 +1973,27 @@
 			"invocations": [
 				{
 					"n": 1,
-					"text": "يَا كَر۪يمَ الصَّفْحِ",
+					"text": "يَا كَرٖيمَ الصَّفْحِ",
 					"tr": "Ey affı bol olan,"
 				},
 				{
 					"n": 2,
-					"text": "يَا عَظ۪يمَ الْمَنِّ",
+					"text": "يَا عَظٖيمَ الْمَنِّ",
 					"tr": "Ey iyiliği büyük olan,"
 				},
 				{
 					"n": 3,
-					"text": "يَا كَث۪يرَ الْخَيْرِ",
+					"text": "يَا كَثٖيرَ الْخَيْرِ",
 					"tr": "Ey hayrı çok olan,"
 				},
 				{
 					"n": 4,
-					"text": "يَا قَد۪يمَ الْفَضْلِ",
+					"text": "يَا قَدٖيمَ الْفَضْلِ",
 					"tr": "Ey fazlı kadîm olan,"
 				},
 				{
 					"n": 5,
-					"text": "يَا لَط۪يفَ الصُّنْعِ",
+					"text": "يَا لَطٖيفَ الصُّنْعِ",
 					"tr": "Ey sanatı güzel olan,"
 				},
 				{
@@ -2033,17 +2034,17 @@
 			"invocations": [
 				{
 					"n": 1,
-					"text": "يَا عَز۪يزًا لَا يُضَامُ",
+					"text": "يَا عَزٖيزًا لَا يُضَامُ",
 					"tr": "Ey mağlup edilmeyen Azîz,"
 				},
 				{
 					"n": 2,
-					"text": "يَا لَط۪يفًا لَا يُرَامُ",
+					"text": "يَا لَطٖيفًا لَا يُرَامُ",
 					"tr": "Ey kendisinden uzaklaşılmayan Lâtîf,"
 				},
 				{
 					"n": 3,
-					"text": "يَا رَق۪يبًا لَا يَنَامُ",
+					"text": "يَا رَقٖيبًا لَا يَنَامُ",
 					"tr": "Ey uyumayan gözetleyici,"
 				},
 				{
@@ -2139,7 +2140,7 @@
 				},
 				{
 					"n": 10,
-					"text": "يَا هَاد۪ى",
+					"text": "يَا هَادٖى",
 					"tr": "Ey kullarına hidayet veren Hâdi,"
 				}
 			],
@@ -2159,52 +2160,52 @@
 			"invocations": [
 				{
 					"n": 1,
-					"text": "يَٓا اَعْظَمُ مِنْ كُلِّ عَظ۪يمٍ",
+					"text": "يَٓا اَعْظَمُ مِنْ كُلِّ عَظٖيمٍ",
 					"tr": "Ey bütün azîmlerden daha Azîm,"
 				},
 				{
 					"n": 2,
-					"text": "يَٓا اَكْرَمُ مِنْ كُلِّ كَر۪يمٍ",
+					"text": "يَٓا اَكْرَمُ مِنْ كُلِّ كَرٖيمٍ",
 					"tr": "Ey bütün cömertlerden daha Kerîm,"
 				},
 				{
 					"n": 3,
-					"text": "يَٓا اَرْحَمُ مِنْ كُلِّ رَح۪يمٍ",
+					"text": "يَٓا اَرْحَمُ مِنْ كُلِّ رَحٖيمٍ",
 					"tr": "Ey bütün merhametlilerden daha Rahîm,"
 				},
 				{
 					"n": 4,
-					"text": "يَٓا اَحْكَمُ مِنْ كُلِّ حَك۪يمٍ",
+					"text": "يَٓا اَحْكَمُ مِنْ كُلِّ حَكٖيمٍ",
 					"tr": "Ey bütün hikmet sahiplerinden daha Hakîm,"
 				},
 				{
 					"n": 5,
-					"text": "يَٓا اَعْلَمُ مِنْ كُلِّ عَل۪يمٍ",
+					"text": "يَٓا اَعْلَمُ مِنْ كُلِّ عَلٖيمٍ",
 					"tr": "Ey bütün âlimlerden daha Alîm,"
 				},
 				{
 					"n": 6,
-					"text": "يَٓا اَقْدَمُ مِنْ كُلِّ قَد۪يمٍ",
+					"text": "يَٓا اَقْدَمُ مِنْ كُلِّ قَدٖيمٍ",
 					"tr": "Ey bütün önce yaratılanlardan daha evvel var olan Kadîm,"
 				},
 				{
 					"n": 7,
-					"text": "يَٓا اَكْبَرُ مِنْ كُلِّ كَب۪يرٍ",
+					"text": "يَٓا اَكْبَرُ مِنْ كُلِّ كَبٖيرٍ",
 					"tr": "Ey bütün büyüklerden daha büyük,"
 				},
 				{
 					"n": 8,
-					"text": "يَٓا اَجَلُّ مِنْ كُلِّ جَل۪يلٍ",
+					"text": "يَٓا اَجَلُّ مِنْ كُلِّ جَلٖيلٍ",
 					"tr": "Ey bütün yücelerden daha Celîl,"
 				},
 				{
 					"n": 9,
-					"text": "يَٓا اَعَزُّ مِنْ كُلِّ عَز۪يزٍ",
+					"text": "يَٓا اَعَزُّ مِنْ كُلِّ عَزٖيزٍ",
 					"tr": "Ey bütün izzet sahiplerinden daha Azîz,"
 				},
 				{
 					"n": 10,
-					"text": "يَٓا اَلْطَفُ مِنْ كُلِّ لَط۪يفٍ",
+					"text": "يَٓا اَلْطَفُ مِنْ كُلِّ لَطٖيفٍ",
 					"tr": "Ey bütün lütuf sahiplerinden daha Lâtif,"
 				}
 			],
@@ -2226,52 +2227,52 @@
 			"invocations": [
 				{
 					"n": 1,
-					"text": "يَا مَنْ هُوَ ف۪ى عَهْدِه۪ وَفِىٌّ",
+					"text": "يَا مَنْ هُوَ فٖى عَهْدِهٖ وَفِىٌّ",
 					"tr": "Ey ahdinde vefalı,"
 				},
 				{
 					"n": 2,
-					"text": "يَا مَنْ هُوَ ف۪ى وَفَٓائِه۪ قَوِىٌّ",
+					"text": "يَا مَنْ هُوَ فٖى وَفَٓائِهٖ قَوِىٌّ",
 					"tr": "Ey vefasında kuvvetli,"
 				},
 				{
 					"n": 3,
-					"text": "يَا مَنْ هُوَ ف۪ى قُوَّتِه۪ عَلِىٌّ",
+					"text": "يَا مَنْ هُوَ فٖى قُوَّتِهٖ عَلِىٌّ",
 					"tr": "Ey kuvvetinde yüce,"
 				},
 				{
 					"n": 4,
-					"text": "يَا مَنْ هُوَ ف۪ى عُلُوِّه۪ قَر۪يبٌ",
+					"text": "يَا مَنْ هُوَ فٖى عُلُوِّهٖ قَرٖيبٌ",
 					"tr": "Ey yüceliğinde yakın,"
 				},
 				{
 					"n": 5,
-					"text": "يَا مَنْ هُوَ ف۪ى قُرْبِه۪ لَط۪يفٌ",
+					"text": "يَا مَنْ هُوَ فٖى قُرْبِهٖ لَطٖيفٌ",
 					"tr": "Ey yakınlığında latîf,"
 				},
 				{
 					"n": 6,
-					"text": "يَا مَنْ هُوَ ف۪ى لُطْفِه۪ شَر۪يفٌ",
+					"text": "يَا مَنْ هُوَ فٖى لُطْفِهٖ شَرٖيفٌ",
 					"tr": "Ey lütfünde şerîf,"
 				},
 				{
 					"n": 7,
-					"text": "يَا مَنْ هُوَ ف۪ى شَرَفِه۪ عَز۪يزٌ",
+					"text": "يَا مَنْ هُوَ فٖى شَرَفِهٖ عَزٖيزٌ",
 					"tr": "Ey şerefinde azîz,"
 				},
 				{
 					"n": 8,
-					"text": "يَا مَنْ هُوَ ف۪ى عِزَّتِه۪ عَظ۪يمٌ",
+					"text": "يَا مَنْ هُوَ فٖى عِزَّتِهٖ عَظٖيمٌ",
 					"tr": "Ey izzetinde azîm,"
 				},
 				{
 					"n": 9,
-					"text": "يَا مَنْ هُوَ ف۪ى عَظَمَتِه۪ مَج۪يدٌ",
+					"text": "يَا مَنْ هُوَ فٖى عَظَمَتِهٖ مَجٖيدٌ",
 					"tr": "Ey azametinde mecîd,"
 				},
 				{
 					"n": 10,
-					"text": "يَا مَنْ هُوَ ف۪ى مَجْدِه۪ حَم۪يدٌ",
+					"text": "يَا مَنْ هُوَ فٖى مَجْدِهٖ حَمٖيدٌ",
 					"tr": "Ey yüceliğinde hamîd,"
 				}
 			],
@@ -2308,7 +2309,7 @@
 				},
 				{
 					"n": 4,
-					"text": "يَا مَنْ هُوَ كُلُّ شَىْءٍ مُن۪يبٌ لَهُ",
+					"text": "يَا مَنْ هُوَ كُلُّ شَىْءٍ مُنٖيبٌ لَهُ",
 					"tr": "Ey her şeyin kendisine döndüğü,"
 				},
 				{
@@ -2323,7 +2324,7 @@
 				},
 				{
 					"n": 7,
-					"text": "يَا مَنْ هُوَ كُلُّ شَىْءٍ قَٓائِمٌ بِه۪",
+					"text": "يَا مَنْ هُوَ كُلُّ شَىْءٍ قَٓائِمٌ بِهٖ",
 					"tr": "Ey her şey onunla ayakta olan,"
 				},
 				{
@@ -2354,52 +2355,52 @@
 			"invocations": [
 				{
 					"n": 1,
-					"text": "وَ اَسْئَلُكَ بِاَسْمَٓائِكَ يَا كَاف۪ى",
+					"text": "وَ اَسْئَلُكَ بِاَسْمَٓائِكَ يَا كَافٖى",
 					"tr": "Allah’ım! Senden şu isimlerinin hakkı için istiyor ve yalvarıyorum:Ey kullarına yeten Kâfi,"
 				},
 				{
 					"n": 2,
-					"text": "يَا شَاف۪ى",
+					"text": "يَا شَافٖى",
 					"tr": "Ey her türlü derde devâ veren Şâfi,"
 				},
 				{
 					"n": 3,
-					"text": "يَا وَاف۪ى",
+					"text": "يَا وَافٖى",
 					"tr": "Ey vaadinde duran Vâfi,"
 				},
 				{
 					"n": 4,
-					"text": "يَا مُعَاف۪ى",
+					"text": "يَا مُعَافٖى",
 					"tr": "Ey maddî ve mânevî dertlere âfiyet veren Muâfi,"
 				},
 				{
 					"n": 5,
-					"text": "يَا عَال۪ى",
+					"text": "يَا عَالٖى",
 					"tr": "Ey her şeyiyle yüce olan Âli,"
 				},
 				{
 					"n": 6,
-					"text": "يَا دَاع۪ى",
+					"text": "يَا دَاعٖى",
 					"tr": "Ey kullarını iyiliğe ve Cennete davet eden Dâi,"
 				},
 				{
 					"n": 7,
-					"text": "يَا رَاض۪ى",
+					"text": "يَا رَاضٖى",
 					"tr": "Ey iyi kullarından hoşnut olan Râzi,"
 				},
 				{
 					"n": 8,
-					"text": "يَا قَاض۪ى",
+					"text": "يَا قَاضٖى",
 					"tr": "Ey hikmet ve adâletle hükmeden Kâdi,"
 				},
 				{
 					"n": 9,
-					"text": "يَا بَاق۪ى",
+					"text": "يَا بَاقٖى",
 					"tr": "Ey varlığının sonu olmayan Bâkî,"
 				},
 				{
 					"n": 10,
-					"text": "يَا هَاد۪ى",
+					"text": "يَا هَادٖى",
 					"tr": "Ey dilediğini doğru yola ulaştıran Hâdi,"
 				}
 			],
@@ -2464,7 +2465,7 @@
 				},
 				{
 					"n": 10,
-					"text": "يَا مَنْ لَا حَوْلَ وَ لَا قُوَّةَ اِلَّا  بِه۪",
+					"text": "يَا مَنْ لَا حَوْلَ وَ لَا قُوَّةَ اِلَّا  بِهٖ",
 					"tr": "Ey kendisinden başka güç ve kuvvet sahibi bulunmayan,"
 				}
 			],
@@ -2486,52 +2487,52 @@
 			"invocations": [
 				{
 					"n": 1,
-					"text": "يَا خَيْرَ الْمَرْهُوب۪ينَ",
+					"text": "يَا خَيْرَ الْمَرْهُوبٖينَ",
 					"tr": "Ey kendisine kaçılanların en hayırlısı,"
 				},
 				{
 					"n": 2,
-					"text": "يَا خَيْرَ الْمَطْلُوب۪ينَ",
+					"text": "يَا خَيْرَ الْمَطْلُوبٖينَ",
 					"tr": "Ey matlupların en hayırlısı,"
 				},
 				{
 					"n": 3,
-					"text": "يَا خَيْرَ الْمَرْغُوب۪ينَ",
+					"text": "يَا خَيْرَ الْمَرْغُوبٖينَ",
 					"tr": "Ey rağbet edilenlerin en hayırlısı,"
 				},
 				{
 					"n": 4,
-					"text": "يَا خَيْرَ الْمَسْئُول۪ينَ",
+					"text": "يَا خَيْرَ الْمَسْئُولٖينَ",
 					"tr": "Ey kendisinden dilekte bulunulanların en hayırlısı,"
 				},
 				{
 					"n": 5,
-					"text": "يَا خَيْرَ الْمَقْصُود۪ينَ",
+					"text": "يَا خَيْرَ الْمَقْصُودٖينَ",
 					"tr": "Ey maksut olanların en hayırlısı,"
 				},
 				{
 					"n": 6,
-					"text": "يَا خَيْرَ الْمَذْكُور۪ينَ",
+					"text": "يَا خَيْرَ الْمَذْكُورٖينَ",
 					"tr": "Ey zikredilenlerin en hayırlısı,"
 				},
 				{
 					"n": 7,
-					"text": "يَا خَيْرَ الْمَشْكُور۪ينَ",
+					"text": "يَا خَيْرَ الْمَشْكُورٖينَ",
 					"tr": "Ey şükredilenlerin en hayırlısı,"
 				},
 				{
 					"n": 8,
-					"text": "يَا خَيْرَ الْمَحْبُوب۪ينَ",
+					"text": "يَا خَيْرَ الْمَحْبُوبٖينَ",
 					"tr": "Ey sevilenlerin en hayırlısı,"
 				},
 				{
 					"n": 9,
-					"text": "يَا خَيْرَ الْمُنْزِل۪ينَ",
+					"text": "يَا خَيْرَ الْمُنْزِلٖينَ",
 					"tr": "Ey indirenlerin en hayırlısı,"
 				},
 				{
 					"n": 10,
-					"text": "يَا خَيْرَ الْمُسْتَاْنِس۪ينَ",
+					"text": "يَا خَيْرَ الْمُسْتَاْنِسٖينَ",
 					"tr": "Ey kendisine ünsiyet edilenlerin en hayırlısı,"
 				}
 			],
@@ -2685,7 +2686,7 @@
 			"invocations": [
 				{
 					"n": 1,
-					"text": "يَا مَنْ هُوَ فِى الْبَرِّ وَ الْبَحْرِ سَب۪يلُهُ",
+					"text": "يَا مَنْ هُوَ فِى الْبَرِّ وَ الْبَحْرِ سَبٖيلُهُ",
 					"tr": "Ey karada ve denizde yolu olan,"
 				},
 				{
@@ -2720,7 +2721,7 @@
 				},
 				{
 					"n": 8,
-					"text": "يَا مَنْ هُوَ فِى الْم۪يزَانِ قَضَٓائُهُ",
+					"text": "يَا مَنْ هُوَ فِى الْمٖيزَانِ قَضَٓائُهُ",
 					"tr": "Ey Mîzanda hükmü olan,"
 				},
 				{
@@ -2756,7 +2757,7 @@
 				},
 				{
 					"n": 3,
-					"text": "يَا مَنْ هُوَ اِلَيْهِ يَقْصِدُ الْمُن۪يبُونَ",
+					"text": "يَا مَنْ هُوَ اِلَيْهِ يَقْصِدُ الْمُنٖيبُونَ",
 					"tr": "Ey tövbe edenlerin kendisine yöneldiği,"
 				},
 				{
@@ -2771,12 +2772,12 @@
 				},
 				{
 					"n": 6,
-					"text": "يَا مَنْ هُوَ ف۪يهِ يَطْمَعُ الْخَاطِؤُنَ",
+					"text": "يَا مَنْ هُوَ فٖيهِ يَطْمَعُ الْخَاطِؤُنَ",
 					"tr": "Ey hatâlıların kendisine ümit beslediği,"
 				},
 				{
 					"n": 7,
-					"text": "يَا مَنْ هُوَ يَسْتَاْنِسُ بِهِ الْمُر۪يدُونَ",
+					"text": "يَا مَنْ هُوَ يَسْتَاْنِسُ بِهِ الْمُرٖيدُونَ",
 					"tr": "Ey kendisini arzulayanların onunla ünsiyet bulduğu,"
 				},
 				{
@@ -2807,22 +2808,22 @@
 			"invocations": [
 				{
 					"n": 1,
-					"text": "يَٓا اَقْرَبُ مِنْ كُلِّ قَر۪يبٍ",
+					"text": "يَٓا اَقْرَبُ مِنْ كُلِّ قَرٖيبٍ",
 					"tr": "Ey bütün yakınlardan daha yakın,"
 				},
 				{
 					"n": 2,
-					"text": "يَٓا اَحَبُّ مِنْ كُلِّ حَب۪يبٍ",
+					"text": "يَٓا اَحَبُّ مِنْ كُلِّ حَبٖيبٍ",
 					"tr": "Ey bütün sevilenlerden daha sevgili,"
 				},
 				{
 					"n": 3,
-					"text": "يَٓا اَعْظَمُ مِنْ كُلِّ عَظ۪يمٍ",
+					"text": "يَٓا اَعْظَمُ مِنْ كُلِّ عَظٖيمٍ",
 					"tr": "Ey bütün büyüklerden daha büyük,"
 				},
 				{
 					"n": 4,
-					"text": "يَٓا اَعَزُّ مِنْ كُلِّ عَز۪يزٍ",
+					"text": "يَٓا اَعَزُّ مِنْ كُلِّ عَزٖيزٍ",
 					"tr": "Ey bütün izzet sahiplerinden daha azîz,"
 				},
 				{
@@ -2847,11 +2848,11 @@
 				},
 				{
 					"n": 9,
-					"text": "يَٓا اَرْحَمُ مِنْ كُلِّ رَح۪يمٍ"
+					"text": "يَٓا اَرْحَمُ مِنْ كُلِّ رَحٖيمٍ"
 				},
 				{
 					"n": 10,
-					"text": "يَٓا اَجَلُّ مِنْ كُلِّ جَل۪يلٍ",
+					"text": "يَٓا اَجَلُّ مِنْ كُلِّ جَلٖيلٍ",
 					"tr": "Ey bütün büyüklerden daha celil,"
 				}
 			],
@@ -2873,52 +2874,52 @@
 			"invocations": [
 				{
 					"n": 1,
-					"text": "وَ اَسْئَلُكَ بِاَسْمَٓائِكَ يَا قَر۪يبُ",
+					"text": "وَ اَسْئَلُكَ بِاَسْمَٓائِكَ يَا قَرٖيبُ",
 					"tr": "Allah’ım! Senden şu isimlerinin hakkı için istiyor ve yalvarıyorum:Ey her şeye her şeyden daha yakın olan Karîb,"
 				},
 				{
 					"n": 2,
-					"text": "يَا رَق۪يبُ",
+					"text": "يَا رَقٖيبُ",
 					"tr": "Ey bütün mahlûkatını gözetleyen Rakîb,"
 				},
 				{
 					"n": 3,
-					"text": "يَا حَب۪يبُ",
+					"text": "يَا حَبٖيبُ",
 					"tr": "Ey müminlerin sevgilisi olan Habîb,"
 				},
 				{
 					"n": 4,
-					"text": "يَا مُج۪يبُ",
+					"text": "يَا مُجٖيبُ",
 					"tr": "Ey kullarının duâlarına cevap veren Mucîb,"
 				},
 				{
 					"n": 5,
-					"text": "يَا حَس۪يبُ",
+					"text": "يَا حَسٖيبُ",
 					"tr": "Ey kullarının bütün fiillerinin hesâbını gören Hasîb,"
 				},
 				{
 					"n": 6,
-					"text": "يَا طَب۪يبُ",
+					"text": "يَا طَبٖيبُ",
 					"tr": "Ey bütün dertlere devâ veren Tabîb,"
 				},
 				{
 					"n": 7,
-					"text": "يَا بَص۪يرُ",
+					"text": "يَا بَصٖيرُ",
 					"tr": "Ey her şeyi bütün incelikleriyle gören Basîr,"
 				},
 				{
 					"n": 8,
-					"text": "يَا خَب۪يرُ",
+					"text": "يَا خَبٖيرُ",
 					"tr": "Ey her şeyden haberdar olan Habîr,"
 				},
 				{
 					"n": 9,
-					"text": "يَا مُن۪يرُ",
+					"text": "يَا مُنٖيرُ",
 					"tr": "Ey her şeyi nûruyla aydınlatan Münîr,"
 				},
 				{
 					"n": 10,
-					"text": "يَا مُب۪ينُ",
+					"text": "يَا مُبٖينُ",
 					"tr": "Ey kullarına gerekli her şeyi açıklayan Mübîn,"
 				}
 			],
@@ -2983,7 +2984,7 @@
 				},
 				{
 					"n": 10,
-					"text": "يَا قَر۪يبًا غَيْرَ بَع۪يدٍ",
+					"text": "يَا قَرٖيبًا غَيْرَ بَعٖيدٍ",
 					"tr": "Ey uzak olmayan yakın,"
 				}
 			],
@@ -3071,22 +3072,22 @@
 			"invocations": [
 				{
 					"n": 1,
-					"text": "يَا مَنْ عَطَٓاؤُهُ شَر۪يفٌ",
+					"text": "يَا مَنْ عَطَٓاؤُهُ شَرٖيفٌ",
 					"tr": "Ey bağış ve ihsânı şerefli olan,"
 				},
 				{
 					"n": 2,
-					"text": "يَا مَنْ فِعْلُهُ لَط۪يفٌ",
+					"text": "يَا مَنْ فِعْلُهُ لَطٖيفٌ",
 					"tr": "Ey fiili latîf olan,"
 				},
 				{
 					"n": 3,
-					"text": "يَا مَنْ لُطْفُهُ مُق۪يمٌ",
+					"text": "يَا مَنْ لُطْفُهُ مُقٖيمٌ",
 					"tr": "Ey lütfü dâim olan,"
 				},
 				{
 					"n": 4,
-					"text": "يَا مَنْ اِحْسَانُهُ قَد۪يمٌ",
+					"text": "يَا مَنْ اِحْسَانُهُ قَدٖيمٌ",
 					"tr": "Ey ihsânı kadîm olan,"
 				},
 				{
@@ -3116,7 +3117,7 @@
 				},
 				{
 					"n": 10,
-					"text": "يَا مَنْ اُنْسُهُ لَذ۪يذٌ",
+					"text": "يَا مَنْ اُنْسُهُ لَذٖيذٌ",
 					"tr": "Ey dostluğu lezzetli olan,"
 				}
 			],
@@ -3213,12 +3214,12 @@
 				},
 				{
 					"n": 3,
-					"text": "يَا مَنْ يَهْد۪ى وَ لَا يُهْدٰى",
+					"text": "يَا مَنْ يَهْدٖى وَ لَا يُهْدٰى",
 					"tr": "Ey her şeye yol gösteren, fakat kendisi yol gösterilmeye muhtaç olmayan,"
 				},
 				{
 					"n": 4,
-					"text": "يَا مَنْ يُحْي۪ى وَ لَا يُحْيٰى",
+					"text": "يَا مَنْ يُحْيٖى وَ لَا يُحْيٰى",
 					"tr": "Ey hayat veren, fakat kendisi hayat verilmeye muhtaç olmayan,"
 				},
 				{
@@ -3228,12 +3229,12 @@
 				},
 				{
 					"n": 6,
-					"text": "يَا مَنْ يُج۪يرُ وَ لَا يُجَارُ",
+					"text": "يَا مَنْ يُجٖيرُ وَ لَا يُجَارُ",
 					"tr": "Ey her şeyi koruyan, fakat kendisi korunmaya muhtaç olmayan,"
 				},
 				{
 					"n": 7,
-					"text": "يَا مَنْ يَقْض۪ى وَ لَا يُقْضٰى عَلَيْهِ",
+					"text": "يَا مَنْ يَقْضٖى وَ لَا يُقْضٰى عَلَيْهِ",
 					"tr": "Ey her şey hakkında karar veren, fakat kendisi hakkında hüküm verilmeyen,"
 				},
 				{
@@ -3264,42 +3265,42 @@
 			"invocations": [
 				{
 					"n": 1,
-					"text": "يَا نِعْمَ الْحَب۪يبُ",
+					"text": "يَا نِعْمَ الْحَبٖيبُ",
 					"tr": "Ey en güzel Sevgili,"
 				},
 				{
 					"n": 2,
-					"text": "يَا نِعْمَ الطَّب۪يبُ",
+					"text": "يَا نِعْمَ الطَّبٖيبُ",
 					"tr": "Ey en güzel Tabip,"
 				},
 				{
 					"n": 3,
-					"text": "يَا نِعْمَ الْحَس۪يبُ",
+					"text": "يَا نِعْمَ الْحَسٖيبُ",
 					"tr": "Ey en güzel hesap gören,"
 				},
 				{
 					"n": 4,
-					"text": "يَا نِعْمَ الْقَر۪يبُ",
+					"text": "يَا نِعْمَ الْقَرٖيبُ",
 					"tr": "Ey en güzel Yakın,"
 				},
 				{
 					"n": 5,
-					"text": "يَا نِعْمَ الرَّق۪يبُ",
+					"text": "يَا نِعْمَ الرَّقٖيبُ",
 					"tr": "Ey en güzel Gözetleyici,"
 				},
 				{
 					"n": 6,
-					"text": "يَا نِعْمَ الْمُج۪يبُ",
+					"text": "يَا نِعْمَ الْمُجٖيبُ",
 					"tr": "Ey en güzel Cevap Veren,"
 				},
 				{
 					"n": 7,
-					"text": "يَا نِعْمَ الْاَن۪يسُ",
+					"text": "يَا نِعْمَ الْاَنٖيسُ",
 					"tr": "Ey en güzel Dost,"
 				},
 				{
 					"n": 8,
-					"text": "يَا نِعْمَ الْوَك۪يلُ",
+					"text": "يَا نِعْمَ الْوَكٖيلُ",
 					"tr": "Ey en güzel Vekîl,"
 				},
 				{
@@ -3309,7 +3310,7 @@
 				},
 				{
 					"n": 10,
-					"text": "يَا نِعْمَ النَّص۪يرُ",
+					"text": "يَا نِعْمَ النَّصٖيرُ",
 					"tr": "Ey en güzel Yardımcı,"
 				}
 			],
@@ -3325,52 +3326,52 @@
 			"invocations": [
 				{
 					"n": 1,
-					"text": "يَا سُرُورَ الْعَارِف۪ينَ",
+					"text": "يَا سُرُورَ الْعَارِفٖينَ",
 					"tr": "Ey kendisini tanıyanların sevinci,"
 				},
 				{
 					"n": 2,
-					"text": "يَٓا اَن۪يسَ الْمُر۪يد۪ينَ",
+					"text": "يَٓا اَنٖيسَ الْمُرٖيدٖينَ",
 					"tr": "Ey kendisini arzulayanların dostu,"
 				},
 				{
 					"n": 3,
-					"text": "يَا مُغ۪يثَ الْمُشْتَاق۪ينَ",
+					"text": "يَا مُغٖيثَ الْمُشْتَاقٖينَ",
 					"tr": "Ey kendisine müştâk olanların imdâdına koşan,"
 				},
 				{
 					"n": 4,
-					"text": "يَا حَب۪يبَ التَّوَّاب۪ينَ",
+					"text": "يَا حَبٖيبَ التَّوَّابٖينَ",
 					"tr": "Ey tövbekârların sevgilisi,"
 				},
 				{
 					"n": 5,
-					"text": "يَا رَازِقَ الْمُقِلّ۪ينَ",
+					"text": "يَا رَازِقَ الْمُقِلّٖينَ",
 					"tr": "Ey ihtiyaç sahiplerine rızık veren,"
 				},
 				{
 					"n": 6,
-					"text": "يَا رَجَٓاءَ الْمُذْنِب۪ينَ",
+					"text": "يَا رَجَٓاءَ الْمُذْنِبٖينَ",
 					"tr": "Ey günahkârların ümidi,"
 				},
 				{
 					"n": 7,
-					"text": "يَا كَاشِفَ الْمَكْرُوب۪ينَ",
+					"text": "يَا كَاشِفَ الْمَكْرُوبٖينَ",
 					"tr": "Ey sıkıntıda olanların ferahlatıcısı,"
 				},
 				{
 					"n": 8,
-					"text": "يَا مُنَفِّسًا عَنِ الْمَغْمُوم۪ينَ",
+					"text": "يَا مُنَفِّسًا عَنِ الْمَغْمُومٖينَ",
 					"tr": "Ey gamlılara nefes aldıran,"
 				},
 				{
 					"n": 9,
-					"text": "يَا مُفَرِّجًا عَنِ الْمَحْزُون۪ينَ",
+					"text": "يَا مُفَرِّجًا عَنِ الْمَحْزُونٖينَ",
 					"tr": "Ey mahzunlara kurtuluş yolu gösteren,"
 				},
 				{
 					"n": 10,
-					"text": "يَٓا اِلٰهَ الْاَوَّل۪ينَ وَ اْلاٰخِر۪ينَ",
+					"text": "يَٓا اِلٰهَ الْاَوَّلٖينَ وَ اْلاٰخِرٖينَ",
 					"tr": "Ey evvel ve âhirlerin ilâhı,"
 				}
 			],
@@ -3397,12 +3398,12 @@
 				},
 				{
 					"n": 2,
-					"text": "يَا رَبَّ النَّبِيّ۪ينَ وَ الْاَخْيَارِ",
+					"text": "يَا رَبَّ النَّبِيّٖينَ وَ الْاَخْيَارِ",
 					"tr": "Ey peygamberler ve hayırlıların Rabbi,"
 				},
 				{
 					"n": 3,
-					"text": "يَا رَبَّ الصِّدّ۪يق۪ينَ وَ الْاَبْرَارِ",
+					"text": "يَا رَبَّ الصِّدّٖيقٖينَ وَ الْاَبْرَارِ",
 					"tr": "Ey Sıddıkların ve iyilerin Rabbi,"
 				},
 				{
@@ -3427,7 +3428,7 @@
 				},
 				{
 					"n": 8,
-					"text": "يَا رَبَّ الْعَب۪يدِ وَ الْاَحْرَارِ",
+					"text": "يَا رَبَّ الْعَبٖيدِ وَ الْاَحْرَارِ",
 					"tr": "Ey kölelerin ve hürlerin Rabbi,"
 				},
 				{
@@ -3459,7 +3460,7 @@
 			"invocations": [
 				{
 					"n": 1,
-					"text": "يَا مَنْ لَحِقَ ف۪ي كُلِّ شَىْءٍ عِلْمُهُ",
+					"text": "يَا مَنْ لَحِقَ فٖي كُلِّ شَىْءٍ عِلْمُهُ",
 					"tr": "Ey ilmi her şeye ulaşan,"
 				},
 				{
@@ -3662,7 +3663,7 @@
 				},
 				{
 					"n": 3,
-					"text": "يَا مَنْ هُوَ ف۪ى كُلِّ شَىْءٍ دَلَٓائِلُهُ",
+					"text": "يَا مَنْ هُوَ فٖى كُلِّ شَىْءٍ دَلَٓائِلُهُ",
 					"tr": "Ey her şeyde delilleri bulunan,"
 				},
 				{
@@ -3672,7 +3673,7 @@
 				},
 				{
 					"n": 5,
-					"text": "يَا مَنْ يَبْدَؤُ الْخَلْقَ ثُمَّ يُع۪يدُهُ",
+					"text": "يَا مَنْ يَبْدَؤُ الْخَلْقَ ثُمَّ يُعٖيدُهُ",
 					"tr": "Ey mahlûkatı ilk defa yaratıp, öldükten sonra tekrar dirilten,"
 				},
 				{
@@ -3692,7 +3693,7 @@
 				},
 				{
 					"n": 9,
-					"text": "يَا مَنْ ظَهَرَ ف۪ى كُلِّ شَىْءٍ لُطْفُهُ",
+					"text": "يَا مَنْ ظَهَرَ فٖى كُلِّ شَىْءٍ لُطْفُهُ",
 					"tr": "Ey her şeyde lütfü açıkça görünen,"
 				},
 				{
@@ -3713,42 +3714,42 @@
 			"invocations": [
 				{
 					"n": 1,
-					"text": "يَا حَب۪يبَ مَنْ لَا حَب۪يبَ لَهُ",
+					"text": "يَا حَبٖيبَ مَنْ لَا حَبٖيبَ لَهُ",
 					"tr": "Ey sevgilisi olmayanların sevgilisi,"
 				},
 				{
 					"n": 2,
-					"text": "يَا طَب۪يبَ مَنْ لَا طَب۪يبَ لَهُ",
+					"text": "يَا طَبٖيبَ مَنْ لَا طَبٖيبَ لَهُ",
 					"tr": "Ey tabibi olmayanların tabibi,"
 				},
 				{
 					"n": 3,
-					"text": "يَا مُج۪يبَ مَنْ لَا مُج۪يبَ لَهُ",
+					"text": "يَا مُجٖيبَ مَنْ لَا مُجٖيبَ لَهُ",
 					"tr": "Ey isteklerini dinleyip cevap verecek kimsesi olmayanların Mucîbi,"
 				},
 				{
 					"n": 4,
-					"text": "يَا شَف۪يقَ مَنْ لَا شَف۪يقَ لَهُ",
+					"text": "يَا شَفٖيقَ مَنْ لَا شَفٖيقَ لَهُ",
 					"tr": "Ey şefkat edecek kimsesi olmayanların şefkat edicisi,"
 				},
 				{
 					"n": 5,
-					"text": "يَا رَف۪يقَ مَنْ لَا رَف۪يقَ لَهُ",
+					"text": "يَا رَفٖيقَ مَنْ لَا رَفٖيقَ لَهُ",
 					"tr": "Ey arkadaşı olmayanların arkadaşı,"
 				},
 				{
 					"n": 6,
-					"text": "يَا شَف۪يعَ مَنْ لَا شَف۪يعَ لَهُ",
+					"text": "يَا شَفٖيعَ مَنْ لَا شَفٖيعَ لَهُ",
 					"tr": "Ey şefaat edecek kimsesi olmayanların Şefîi,"
 				},
 				{
 					"n": 7,
-					"text": "يَا مُغ۪يثَ مَنْ لَا مُغ۪يثَ لَهُ",
+					"text": "يَا مُغٖيثَ مَنْ لَا مُغٖيثَ لَهُ",
 					"tr": "Ey imdâdına koşacak kimsesi olmayanların imdat edicisi,"
 				},
 				{
 					"n": 8,
-					"text": "يَا دَل۪يلَ مَنْ لَا دَل۪يلَ لَهُ",
+					"text": "يَا دَلٖيلَ مَنْ لَا دَلٖيلَ لَهُ",
 					"tr": "Ey yol gösterecek kimsesi olmayanların yol göstericisi,"
 				},
 				{
@@ -3947,7 +3948,7 @@
 				},
 				{
 					"n": 8,
-					"text": "يَا مَنْ لَمْ يَكُنْ لَهُ شَر۪يكٌ فِى الْمُلْكِ",
+					"text": "يَا مَنْ لَمْ يَكُنْ لَهُ شَرٖيكٌ فِى الْمُلْكِ",
 					"tr": "Ey mülkünde hiçbir şerîki olmayan,"
 				},
 				{
@@ -3973,52 +3974,52 @@
 			"invocations": [
 				{
 					"n": 1,
-					"text": "يَا مَنْ يَعْلَمُ مُرَادَ الْمُر۪يد۪ينَ",
+					"text": "يَا مَنْ يَعْلَمُ مُرَادَ الْمُرٖيدٖينَ",
 					"tr": "Ey Kendisini arzulayanların murâdını bilen,"
 				},
 				{
 					"n": 2,
-					"text": "يَا مَنْ يَمْلِكُ حَوَٓائِجَ السَّٓائِل۪ينَ",
+					"text": "يَا مَنْ يَمْلِكُ حَوَٓائِجَ السَّٓائِلٖينَ",
 					"tr": "Ey Kendisinden dilekte bulunanların ihtiyaç duyduklarına sahip olan,"
 				},
 				{
 					"n": 3,
-					"text": "يَا مَنْ يَسْمَعُ اَن۪ينَ الْوَالِه۪ينَ",
+					"text": "يَا مَنْ يَسْمَعُ اَنٖينَ الْوَالِهٖينَ",
 					"tr": "Ey üzüntüsünden kendinden geçenlerin inlemelerini işiten,"
 				},
 				{
 					"n": 4,
-					"text": "يَا مَنْ يَرٰى بُكَٓاءَ الْخَٓائِف۪ينَ",
+					"text": "يَا مَنْ يَرٰى بُكَٓاءَ الْخَٓائِفٖينَ",
 					"tr": "Ey Kendisinden korkarak ağlayanların ağlayışını gören,"
 				},
 				{
 					"n": 5,
-					"text": "يَا مَنْ يَعْلَمُ ضَم۪يرَ الصَّامِت۪ينَ",
+					"text": "يَا مَنْ يَعْلَمُ ضَمٖيرَ الصَّامِتٖينَ",
 					"tr": "Ey suskunların içinden geçenleri bilen,"
 				},
 				{
 					"n": 6,
-					"text": "يَا مَنْ يَرٰى نَدَمَ النَّادِم۪ينَ",
+					"text": "يَا مَنْ يَرٰى نَدَمَ النَّادِمٖينَ",
 					"tr": "Ey günahlarından pişmanlık duyanların nedâmetini gören,"
 				},
 				{
 					"n": 7,
-					"text": "يَا مَنْ يَقْبَلُ عُذْرَ التَّٓائِب۪ينَ",
+					"text": "يَا مَنْ يَقْبَلُ عُذْرَ التَّٓائِبٖينَ",
 					"tr": "Ey tövbekârların özrünü kabul eden,"
 				},
 				{
 					"n": 8,
-					"text": "يَا مَنْ لَا يُصْلِحُ عَمَلَ الْمُفْسِد۪ينَ",
+					"text": "يَا مَنْ لَا يُصْلِحُ عَمَلَ الْمُفْسِدٖينَ",
 					"tr": "Ey fesatçıların işini düzeltmeyen,"
 				},
 				{
 					"n": 9,
-					"text": "يَا مَنْ لَا يُض۪يعُ اَجْرَ الْمُحْسِن۪ينَ",
+					"text": "يَا مَنْ لَا يُضٖيعُ اَجْرَ الْمُحْسِنٖينَ",
 					"tr": "Ey iyilik yapanların mükâfatını zâyi etmeyen,"
 				},
 				{
 					"n": 10,
-					"text": "يَا مَنْ لَا يَبْعُدُ عَنْ قُلُوبِ الْعَارِف۪ينَ",
+					"text": "يَا مَنْ لَا يَبْعُدُ عَنْ قُلُوبِ الْعَارِفٖينَ",
 					"tr": "Ey Kendisini tanıyanların kalplerinden uzaklaşmayan,"
 				}
 			],
@@ -4064,22 +4065,22 @@
 				},
 				{
 					"n": 7,
-					"text": "يَا عَظ۪يمَ الثَّنَٓاءِ",
+					"text": "يَا عَظٖيمَ الثَّنَٓاءِ",
 					"tr": "Ey medih ve senâsı büyük olan,"
 				},
 				{
 					"n": 8,
-					"text": "يَا قَد۪يمَ السَّنَٓاء",
+					"text": "يَا قَدٖيمَ السَّنَٓاء",
 					"tr": "Ey varlığının parıltısı kadîm olan,"
 				},
 				{
 					"n": 9,
-					"text": "يَا كَث۪يرَ الْوَفَٓاءِ",
+					"text": "يَا كَثٖيرَ الْوَفَٓاءِ",
 					"tr": "Ey vefâsı çok olan,"
 				},
 				{
 					"n": 10,
-					"text": "يَا شَر۪يفَ الْجَزَٓاءِ",
+					"text": "يَا شَرٖيفَ الْجَزَٓاءِ",
 					"tr": "Ey mükâfatı şerefli olan,"
 				}
 			],
@@ -4160,52 +4161,52 @@
 			"invocations": [
 				{
 					"n": 1,
-					"text": "يَا مَنْ خَلَقَن۪ى وَ سَوَّان۪ى",
+					"text": "يَا مَنْ خَلَقَنٖى وَ سَوَّانٖى",
 					"tr": "Ey beni yaratıp âzâlarımı düzene koyan,"
 				},
 				{
 					"n": 2,
-					"text": "يَا مَنْ رَزَقَن۪ى وَ رَبَّان۪ى",
+					"text": "يَا مَنْ رَزَقَنٖى وَ رَبَّانٖى",
 					"tr": "Ey bana rızık veren ve terbiye eden,"
 				},
 				{
 					"n": 3,
-					"text": "يَا مَنْ اَطْعَمَن۪ى وَ سَقَان۪ى",
+					"text": "يَا مَنْ اَطْعَمَنٖى وَ سَقَانٖى",
 					"tr": "Ey beni yedirip içiren,"
 				},
 				{
 					"n": 4,
-					"text": "يَا مَنْ قَرَّبَن۪ى وَ اَدْنَان۪ى",
+					"text": "يَا مَنْ قَرَّبَنٖى وَ اَدْنَانٖى",
 					"tr": "Ey beni kendisine yaklaştırıp yakın kılan,"
 				},
 				{
 					"n": 5,
-					"text": "يَا مَنْ عَصَمَن۪ى وَ كَفَان۪ى",
+					"text": "يَا مَنْ عَصَمَنٖى وَ كَفَانٖى",
 					"tr": "Ey beni günah tehlikelerinden koruyup bana kâfi gelen,"
 				},
 				{
 					"n": 6,
-					"text": "يَا مَنْ حَفِظَن۪ى وَ كَلَان۪ى",
+					"text": "يَا مَنْ حَفِظَنٖى وَ كَلَانٖى",
 					"tr": "Ey beni muhafaza edip ayıplarımı örten,"
 				},
 				{
 					"n": 7,
-					"text": "يَا مَنْ وَفَّقَن۪ى وَ هَدَان۪ى",
+					"text": "يَا مَنْ وَفَّقَنٖى وَ هَدَانٖى",
 					"tr": "Ey bana tevfîk edip hidâyet eden,"
 				},
 				{
 					"n": 8,
-					"text": "يَا مَنْ اَعَزَّن۪ى وَ اَغْنَان۪ى",
+					"text": "يَا مَنْ اَعَزَّنٖى وَ اَغْنَانٖى",
 					"tr": "Ey beni azîz kılıp ihtiyaçlarımı gideren,"
 				},
 				{
 					"n": 9,
-					"text": "يَا مَنْ اَمَاتَن۪ى وَ اَحْيَان۪ى",
+					"text": "يَا مَنْ اَمَاتَنٖى وَ اَحْيَانٖى",
 					"tr": "Ey beni öldürüp dirilten,"
 				},
 				{
 					"n": 10,
-					"text": "يَا مَنْ اٰنَسَن۪ى وَ اٰوَان۪ى",
+					"text": "يَا مَنْ اٰنَسَنٖى وَ اٰوَانٖى",
 					"tr": "Ey bana ünsiyet verip rızıklandıran,"
 				}
 			],
@@ -4227,52 +4228,52 @@
 			"invocations": [
 				{
 					"n": 1,
-					"text": "يَا مَنْ يُحِقُّ الْحَقَّ بِكَلِمَاتِه۪",
+					"text": "يَا مَنْ يُحِقُّ الْحَقَّ بِكَلِمَاتِهٖ",
 					"tr": "Ey kelimeleriyle hakkın hak olduğunu gösteren,"
 				},
 				{
 					"n": 2,
-					"text": "يَا مَنْ لَا مُعَقِّبَ لِحُكْمِه۪",
+					"text": "يَا مَنْ لَا مُعَقِّبَ لِحُكْمِهٖ",
 					"tr": "Ey hükmünü geri bıraktıracak kimse olmayan,"
 				},
 				{
 					"n": 3,
-					"text": "يَا مَنْ لَا رَٓادَّ لِقَضَٓائِه۪",
+					"text": "يَا مَنْ لَا رَٓادَّ لِقَضَٓائِهٖ",
 					"tr": "Ey kazâsını geri çevirecek kimse olmayan,"
 				},
 				{
 					"n": 4,
-					"text": "يَا مَنْ يَحُولُ بَيْنَ الْمَرْءِ وَ قَلْبِه۪",
+					"text": "يَا مَنْ يَحُولُ بَيْنَ الْمَرْءِ وَ قَلْبِهٖ",
 					"tr": "Ey kişiye kalbinden daha yakın olan,"
 				},
 				{
 					"n": 5,
-					"text": "يَا مَنْ يَقْبَلُ التَّوْبَةَ عَنْ عِبَادِه۪",
+					"text": "يَا مَنْ يَقْبَلُ التَّوْبَةَ عَنْ عِبَادِهٖ",
 					"tr": "Ey kullarından tövbeyi kabul eden,"
 				},
 				{
 					"n": 6,
-					"text": "يَا مَنْ لَا تَنْفَعُ الشَّفَاعَةُ اِلَّا  بِاِذْنِه۪",
+					"text": "يَا مَنْ لَا تَنْفَعُ الشَّفَاعَةُ اِلَّا  بِاِذْنِهٖ",
 					"tr": "Ey izni olmadan hiçbir şefaat fayda vermeyen,"
 				},
 				{
 					"n": 7,
-					"text": "يَا مَنِ السَّمٰوَاتُ مَطْوِيَّاتٌ بِيَم۪ينِه۪",
+					"text": "يَا مَنِ السَّمٰوَاتُ مَطْوِيَّاتٌ بِيَمٖينِهٖ",
 					"tr": "Ey bütün gökler kudretiyle dürülmüş olan,"
 				},
 				{
 					"n": 8,
-					"text": "يَا مَنْ هُوَ اَعْلَمُ بِمَنْ ضَلَّ عَنْ سَب۪يلِه۪",
+					"text": "يَا مَنْ هُوَ اَعْلَمُ بِمَنْ ضَلَّ عَنْ سَبٖيلِهٖ",
 					"tr": "Ey yolundan sapanları en iyi bilen,"
 				},
 				{
 					"n": 9,
-					"text": "يَا مَنْ يُسَبِّحُ الرَّعْدُ بِحَمْدِه۪ وَ الْمَلَٓئِكَةُ مِنْ خ۪يفَتِه۪",
+					"text": "يَا مَنْ يُسَبِّحُ الرَّعْدُ بِحَمْدِهٖ وَ الْمَلَٓئِكَةُ مِنْ خٖيفَتِهٖ",
 					"tr": "Ey gök gürültüsünün hamd ederek, meleklerin de korkusuyla Kendisini tesbih ettiği,"
 				},
 				{
 					"n": 10,
-					"text": "يَا مَنْ يُرْسِلُ الرِّيَاحَ بُشْرًا بَيْنَ يَدَىْ رَحْمَتِه۪",
+					"text": "يَا مَنْ يُرْسِلُ الرِّيَاحَ بُشْرًا بَيْنَ يَدَىْ رَحْمَتِهٖ",
 					"tr": "Ey rahmetinin önünde rüzgârları müjdeci gönderen,"
 				}
 			],
@@ -4349,47 +4350,47 @@
 			"invocations": [
 				{
 					"n": 1,
-					"text": "وَ اَسْئَلُكَ بِاَسْمَٓائِكَ يَا شَف۪يعُ",
+					"text": "وَ اَسْئَلُكَ بِاَسْمَٓائِكَ يَا شَفٖيعُ",
 					"tr": "Allah’ım! Senden şu isimlerinin hakkı için istiyor ve yalvarıyorum:Ey gerçek şefaat sahibi Şefî,"
 				},
 				{
 					"n": 2,
-					"text": "يَا سَم۪يعُ",
+					"text": "يَا سَمٖيعُ",
 					"tr": "Ey gizli açık her sesi işiten Semî,"
 				},
 				{
 					"n": 3,
-					"text": "يَا رَف۪يعُ",
+					"text": "يَا رَفٖيعُ",
 					"tr": "Ey istediğini yükselten Rafî,"
 				},
 				{
 					"n": 4,
-					"text": "يَا مَن۪يعُ",
+					"text": "يَا مَنٖيعُ",
 					"tr": "Ey istediğini engelleyen Menî,"
 				},
 				{
 					"n": 5,
-					"text": "يَا بَد۪يعُ",
+					"text": "يَا بَدٖيعُ",
 					"tr": "Ey kâinatı en güzel bir şekilde yoktan yaratan Bedî,"
 				},
 				{
 					"n": 6,
-					"text": "يَا سَر۪يعُ",
+					"text": "يَا سَرٖيعُ",
 					"tr": "Ey hesâbı en süratli bir şekilde gören Serî,"
 				},
 				{
 					"n": 7,
-					"text": "يَا بَش۪يرُ",
+					"text": "يَا بَشٖيرُ",
 					"tr": "Ey sevdiklerini Cennet ve çeşitli mükâfatlarla müjdeleyen Beşîr,"
 				},
 				{
 					"n": 8,
-					"text": "يَا نَذ۪يرُ",
+					"text": "يَا نَذٖيرُ",
 					"tr": "Ey kullarını itaate sevk etmek için azâbıyla korkutan Nezîr,"
 				},
 				{
 					"n": 9,
-					"text": "يَا قَد۪يرُ",
+					"text": "يَا قَدٖيرُ",
 					"tr": "Ey sonsuz kudret sahibi olan Kadîr,"
 				},
 				{
@@ -4424,42 +4425,42 @@
 				},
 				{
 					"n": 3,
-					"text": "يَا حَىُّ الَّذ۪ى لَا يُشْبِهُهُ شَىْءٌ",
+					"text": "يَا حَىُّ الَّذٖى لَا يُشْبِهُهُ شَىْءٌ",
 					"tr": "Ey hiçbir şeyin Kendisine benzemediği gerçek hayat sahibi,"
 				},
 				{
 					"n": 4,
-					"text": "يَا حَىُّ الَّذ۪ى لَيْسَ كَمِثْلِه۪ حَىٌّ",
+					"text": "يَا حَىُّ الَّذٖى لَيْسَ كَمِثْلِهٖ حَىٌّ",
 					"tr": "Ey hiçbir dirinin misli gibi olmadığı gerçek hayat sahibi,"
 				},
 				{
 					"n": 5,
-					"text": "يَا حَىُّ الَّذ۪ى لَا يُشَارِكُهُ حَىٌّ",
+					"text": "يَا حَىُّ الَّذٖى لَا يُشَارِكُهُ حَىٌّ",
 					"tr": "Ey hiçbir dirinin Kendisine ortak olmadığı gerçek hayat sahibi,"
 				},
 				{
 					"n": 6,
-					"text": "يَا حَىُّ الَّذ۪ى لَا يَحْتَاجُ اِلٰى حَىٍّ",
+					"text": "يَا حَىُّ الَّذٖى لَا يَحْتَاجُ اِلٰى حَىٍّ",
 					"tr": "Ey hiçbir diriye muhtaç olmayan gerçek hayat sahibi,"
 				},
 				{
 					"n": 7,
-					"text": "يَا حَىُّ الَّذ۪ى يُم۪يتُ كُلَّ حَىٍّ",
+					"text": "يَا حَىُّ الَّذٖى يُمٖيتُ كُلَّ حَىٍّ",
 					"tr": "Ey bütün dirileri öldüren gerçek hayat sahibi,"
 				},
 				{
 					"n": 8,
-					"text": "يَا حَىُّ الَّذ۪ى يَرْزُقُ كُلَّ حَىٍّ",
+					"text": "يَا حَىُّ الَّذٖى يَرْزُقُ كُلَّ حَىٍّ",
 					"tr": "Ey bütün dirileri rızıklandıran gerçek hayat sahibi,"
 				},
 				{
 					"n": 9,
-					"text": "يَا حَىُّ الَّذ۪ى يُحْيِى الْمَوْتٰى",
+					"text": "يَا حَىُّ الَّذٖى يُحْيِى الْمَوْتٰى",
 					"tr": "Ey ölüleri dirilten gerçek hayat sahibi,"
 				},
 				{
 					"n": 10,
-					"text": "يَا حَىُّ الَّذ۪ى لَا يَمُوتُ",
+					"text": "يَا حَىُّ الَّذٖى لَا يَمُوتُ",
 					"tr": "Ey hiç ölmeyecek olan gerçek hayat sahibi,"
 				}
 			],
@@ -4542,52 +4543,52 @@
 			"invocations": [
 				{
 					"n": 1,
-					"text": "يَا رَبَّ الْعَالَم۪ينَ",
+					"text": "يَا رَبَّ الْعَالَمٖينَ",
 					"tr": "Ey âlemlerin Rabbi,"
 				},
 				{
 					"n": 2,
-					"text": "يَا مَالِكَ يَوْمِ الدّ۪ينِ",
+					"text": "يَا مَالِكَ يَوْمِ الدّٖينِ",
 					"tr": "Ey amellerin karşılıklarının verildiği Kıyamet Gününün sahibi,"
 				},
 				{
 					"n": 3,
-					"text": "يَا مَنْ يُحِبُّ الصَّابِر۪ينَ",
+					"text": "يَا مَنْ يُحِبُّ الصَّابِرٖينَ",
 					"tr": "Ey sabredenleri seven,"
 				},
 				{
 					"n": 4,
-					"text": "يَا مَنْ يُحِبُّ التَّوَّاب۪ينَ",
+					"text": "يَا مَنْ يُحِبُّ التَّوَّابٖينَ",
 					"tr": "Ey tövbe edenleri seven,"
 				},
 				{
 					"n": 5,
-					"text": "يَا مَنْ يُحِبُّ الْمُتَطَهِّر۪ينَ",
+					"text": "يَا مَنْ يُحِبُّ الْمُتَطَهِّرٖينَ",
 					"tr": "Ey maddi ve manevi kirlerden temizlenenleri seven,"
 				},
 				{
 					"n": 6,
-					"text": "يَا مَنْ يُحِبُّ الْمُحْسِن۪ينَ",
+					"text": "يَا مَنْ يُحِبُّ الْمُحْسِنٖينَ",
 					"tr": "Ey Allah’ı görür gibi ibadet edenleri ve iyilik yapanları seven,"
 				},
 				{
 					"n": 7,
-					"text": "يَا مَنْ هُوَ خَيْرُ النَّاصِر۪ينَ",
+					"text": "يَا مَنْ هُوَ خَيْرُ النَّاصِرٖينَ",
 					"tr": "Ey yardım edenlerin en hayırlısı,"
 				},
 				{
 					"n": 8,
-					"text": "يَا مَنْ هُوَ خَيْرُ الْفَاصِل۪ينَ",
+					"text": "يَا مَنْ هُوَ خَيْرُ الْفَاصِلٖينَ",
 					"tr": "Ey müşkül meseleleri halledip hükme bağlayanların en hayırlısı,"
 				},
 				{
 					"n": 9,
-					"text": "يَا مَنْ هُوَ خَيْرُ الشَّاكِر۪ينَ",
+					"text": "يَا مَنْ هُوَ خَيْرُ الشَّاكِرٖينَ",
 					"tr": "Ey iyi amellere bol karşılık verenlerin en hayırlısı,"
 				},
 				{
 					"n": 10,
-					"text": "يَا مَنْ هُوَ اَعْلَمُ بِالْمُفْسِد۪ينَ",
+					"text": "يَا مَنْ هُوَ اَعْلَمُ بِالْمُفْسِدٖينَ",
 					"tr": "Ey ifsat edenleri en iyi bilen,"
 				}
 			],
@@ -4614,37 +4615,37 @@
 				},
 				{
 					"n": 2,
-					"text": "يَا مُع۪يدُ",
+					"text": "يَا مُعٖيدُ",
 					"tr": "Ey mahlûkatı öldükten sonra yeniden dirilten Muîd,"
 				},
 				{
 					"n": 3,
-					"text": "يَا حَف۪يظُ",
+					"text": "يَا حَفٖيظُ",
 					"tr": "Ey her şeyi muhafaza eden Hafîz,"
 				},
 				{
 					"n": 4,
-					"text": "يَا مُح۪يطُ",
+					"text": "يَا مُحٖيطُ",
 					"tr": "Ey her şeyi ilim ve kudretiyle kuşatan Muhît,"
 				},
 				{
 					"n": 5,
-					"text": "يَا حَم۪يدُ",
+					"text": "يَا حَمٖيدُ",
 					"tr": "Ey hamd ve senâya en çok layık olan ve çok övülen Hamîd,"
 				},
 				{
 					"n": 6,
-					"text": "يَا مَج۪يدُ",
+					"text": "يَا مَجٖيدُ",
 					"tr": "Ey azamet, şeref ve hâkimiyeti sonsuz Mecîd,"
 				},
 				{
 					"n": 7,
-					"text": "يَا مُق۪يتُ",
+					"text": "يَا مُقٖيتُ",
 					"tr": "Ey her türlü mahlûkata münasip rızık veren Mukît,"
 				},
 				{
 					"n": 8,
-					"text": "يَا مُغ۪يثُ",
+					"text": "يَا مُغٖيثُ",
 					"tr": "Ey darda kalan çaresizlerin imdadına koşan Mugîs,"
 				},
 				{
@@ -4694,7 +4695,7 @@
 				},
 				{
 					"n": 5,
-					"text": "يَا مَنْ هُوَ رَبٌّ بِلَا وَز۪يرٍ",
+					"text": "يَا مَنْ هُوَ رَبٌّ بِلَا وَزٖيرٍ",
 					"tr": "Ey veziri bulunmayan Rab,"
 				},
 				{
@@ -4709,7 +4710,7 @@
 				},
 				{
 					"n": 8,
-					"text": "يَا مَنْ هُوَ مَل۪يكٌ بِلَا عَجْزٍ",
+					"text": "يَا مَنْ هُوَ مَلٖيكٌ بِلَا عَجْزٍ",
 					"tr": "Ey aczden münezzeh olan Melîk,"
 				},
 				{
@@ -4730,52 +4731,52 @@
 			"invocations": [
 				{
 					"n": 1,
-					"text": "يَا مَنْ هُوَ ذِكْرُهُ شَرَفٌ لِلذَّاكِر۪ينَ",
+					"text": "يَا مَنْ هُوَ ذِكْرُهُ شَرَفٌ لِلذَّاكِرٖينَ",
 					"tr": "Ey zikri Kendisini zikredenlere büyük şeref olan,"
 				},
 				{
 					"n": 2,
-					"text": "يَا مَنْ هُوَ شُكْرُهُ فَوْزٌ لِلشَّاكِر۪ينَ",
+					"text": "يَا مَنْ هُوَ شُكْرُهُ فَوْزٌ لِلشَّاكِرٖينَ",
 					"tr": "Ey şükrü Kendisine şükredenlere büyük kurtuluş olan,"
 				},
 				{
 					"n": 3,
-					"text": "يَا مَنْ هُوَ حَمْدُهُ فَخْرٌ لِلْحَامِد۪ينَ",
+					"text": "يَا مَنْ هُوَ حَمْدُهُ فَخْرٌ لِلْحَامِدٖينَ",
 					"tr": "Ey hamdı Kendisini övenlere büyük iftihar vesilesi olan,"
 				},
 				{
 					"n": 4,
-					"text": "يَا مَنْ هُوَ طَاعَتُهُ نَجَاةٌ لِلْمُط۪يع۪ينَ",
+					"text": "يَا مَنْ هُوَ طَاعَتُهُ نَجَاةٌ لِلْمُطٖيعٖينَ",
 					"tr": "Ey tâati, Kendisine itaat edenlere necât olan,"
 				},
 				{
 					"n": 5,
-					"text": "يَا مَنْ هُوَ بَابُهُ مَفْتُوحٌ لِلطَّالِب۪ينَ",
+					"text": "يَا مَنْ هُوَ بَابُهُ مَفْتُوحٌ لِلطَّالِبٖينَ",
 					"tr": "Ey kapısı, Kendisini arayanlara açık olan,"
 				},
 				{
 					"n": 6,
-					"text": "يَا مَنْ هُوَ سَب۪يلُهُ وَاضِحٌ لِلْمُؤْمِن۪ينَ",
+					"text": "يَا مَنْ هُوَ سَبٖيلُهُ وَاضِحٌ لِلْمُؤْمِنٖينَ",
 					"tr": "Ey yolu müminlere zâhir ve belli olan,"
 				},
 				{
 					"n": 7,
-					"text": "يَا مَنْ هُوَ اٰيَاتُهُ بُرْهَانٌ لِلنَّاظِر۪ينَ",
+					"text": "يَا مَنْ هُوَ اٰيَاتُهُ بُرْهَانٌ لِلنَّاظِرٖينَ",
 					"tr": "Ey âyetleri bakanlar için kesin delil olan,"
 				},
 				{
 					"n": 8,
-					"text": "يَا مَنْ هُوَ كِتَابُهُ تَذْكِرَةٌ لِلْمُوقِن۪ينَ",
+					"text": "يَا مَنْ هُوَ كِتَابُهُ تَذْكِرَةٌ لِلْمُوقِنٖينَ",
 					"tr": "Ey kitabı kuvvetli îman sahipleri için öğüt olan,"
 				},
 				{
 					"n": 9,
-					"text": "يَا مَنْ هُوَ عَفْوُهُ مَلْجَأٌ لِلْمُذْنِب۪ينَ",
+					"text": "يَا مَنْ هُوَ عَفْوُهُ مَلْجَأٌ لِلْمُذْنِبٖينَ",
 					"tr": "Ey affı günahkarlar için sığınak olan,"
 				},
 				{
 					"n": 10,
-					"text": "يَا مَنْ هُوَ رَحْمَتُهُ قَر۪يبٌ لِلْمُحْسِن۪ينَ",
+					"text": "يَا مَنْ هُوَ رَحْمَتُهُ قَرٖيبٌ لِلْمُحْسِنٖينَ",
 					"tr": "Ey rahmeti muhsinler için yakın olan,"
 				}
 			],
@@ -4858,52 +4859,52 @@
 			"invocations": [
 				{
 					"n": 1,
-					"text": "وَ اَسْئَلُكَ بِاَسْمَٓائِكَ يَا مُع۪ينُ",
+					"text": "وَ اَسْئَلُكَ بِاَسْمَٓائِكَ يَا مُعٖينُ",
 					"tr": "Allah’ım! Senden şu isimlerinin hakkı için istiyor ve yalvarıyorum:Ey kullarına yardım eden Muîn,"
 				},
 				{
 					"n": 2,
-					"text": "يَا مُب۪ينُ",
+					"text": "يَا مُبٖينُ",
 					"tr": "Ey açıklanması gereken her şeyi beyan eden Mübîn,"
 				},
 				{
 					"n": 3,
-					"text": "يَٓا اَم۪ينُ",
+					"text": "يَٓا اَمٖينُ",
 					"tr": "Ey kullarına emniyet ve huzur veren Emîn,"
 				},
 				{
 					"n": 4,
-					"text": "يَا مَك۪ينُ",
+					"text": "يَا مَكٖينُ",
 					"tr": "Ey saltanatı muhkem, nüfuz ve iktidar sahibi Mekîn,"
 				},
 				{
 					"n": 5,
-					"text": "يَا مَت۪ينُ",
+					"text": "يَا مَتٖينُ",
 					"tr": "Ey hiçbir şey hükmünü sarsmayan ve Kendisine güvenilen Metîn,"
 				},
 				{
 					"n": 6,
-					"text": "يَا شَد۪يدُ",
+					"text": "يَا شَدٖيدُ",
 					"tr": "Ey azap ve ikâbı şiddetli olan Şedîd,"
 				},
 				{
 					"n": 7,
-					"text": "يَا شَه۪يدُ",
+					"text": "يَا شَهٖيدُ",
 					"tr": "Ey kullarının her yaptığını gören Şehîd,"
 				},
 				{
 					"n": 8,
-					"text": "يَا رَش۪يدُ",
+					"text": "يَا رَشٖيدُ",
 					"tr": "Ey bütün işlerini ezelî takdirine göre en güzel bir şekilde neticeye ulaştıran Raşîd,"
 				},
 				{
 					"n": 9,
-					"text": "يَا حَم۪يدُ",
+					"text": "يَا حَمٖيدُ",
 					"tr": "Ey en çok övülen ve en çok övgüye layık olan Hamîd,"
 				},
 				{
 					"n": 10,
-					"text": "يَا مَج۪يدُ",
+					"text": "يَا مَجٖيدُ",
 					"tr": "Ey sonsuz şeref sahibi Mecîd,"
 				}
 			],
@@ -4923,52 +4924,52 @@
 			"invocations": [
 				{
 					"n": 1,
-					"text": "يَا ذَا الْعَرْشِ الْمَج۪يدِ",
+					"text": "يَا ذَا الْعَرْشِ الْمَجٖيدِ",
 					"tr": "Ey yüce Arşın sahibi,"
 				},
 				{
 					"n": 2,
-					"text": "يَا ذَا الْقَوْلِ السَّد۪يدِ",
+					"text": "يَا ذَا الْقَوْلِ السَّدٖيدِ",
 					"tr": "Ey dosdoğru sözün sahibi,"
 				},
 				{
 					"n": 3,
-					"text": "يَا ذَا الْفَضْلِ الرَّش۪يدِ",
+					"text": "يَا ذَا الْفَضْلِ الرَّشٖيدِ",
 					"tr": "Ey yerli yerince yapılan fazıl ve kerem sahibi,"
 				},
 				{
 					"n": 4,
-					"text": "يَا ذَا الْبَطْشِ الشَّد۪يدِ",
+					"text": "يَا ذَا الْبَطْشِ الشَّدٖيدِ",
 					"tr": "Ey kıskıvrak yakalayan şiddetli azap sahibi,"
 				},
 				{
 					"n": 5,
-					"text": "يَا ذَا الْوَعْدِ وَ الْوَع۪يدِ",
+					"text": "يَا ذَا الْوَعْدِ وَ الْوَعٖيدِ",
 					"tr": "Ey vaad ve tehdit sahibi,"
 				},
 				{
 					"n": 6,
-					"text": "يَا قَر۪يبًا غَيْرَ بَع۪يدٍ",
+					"text": "يَا قَرٖيبًا غَيْرَ بَعٖيدٍ",
 					"tr": "Ey uzak olmayan yakın,"
 				},
 				{
 					"n": 7,
-					"text": "يَا مَنْ هُوَ الْوَلِىُّ الْحَم۪يدُ",
+					"text": "يَا مَنْ هُوَ الْوَلِىُّ الْحَمٖيدُ",
 					"tr": "Ey en fazla övgüye lâyık olan dost,"
 				},
 				{
 					"n": 8,
-					"text": "يَا مَنْ هُوَ عَلٰى كُلِّ شَىْءٍ شَه۪يدٌ",
+					"text": "يَا مَنْ هُوَ عَلٰى كُلِّ شَىْءٍ شَهٖيدٌ",
 					"tr": "Ey her şeyi müşahedesi altında tutan,"
 				},
 				{
 					"n": 9,
-					"text": "يَا مَنْ هُوَ لَيْسَ بِظَلَّامٍ لِلْعَب۪يدِ",
+					"text": "يَا مَنْ هُوَ لَيْسَ بِظَلَّامٍ لِلْعَبٖيدِ",
 					"tr": "Ey kullarına hiçbir şekilde zulmedici olmayan,"
 				},
 				{
 					"n": 10,
-					"text": "يَا مَنْ هُوَ اَقْرَبُ اِلَيْهِ مِنْ حَبْلِ الْوَر۪يدِ",
+					"text": "يَا مَنْ هُوَ اَقْرَبُ اِلَيْهِ مِنْ حَبْلِ الْوَرٖيدِ",
 					"tr": "Ey kuluna şah damarından daha yakın olan,"
 				}
 			],
@@ -4984,52 +4985,52 @@
 			"invocations": [
 				{
 					"n": 1,
-					"text": "يَا مَنْ لَا شَر۪يكَ لَهُ وَ لَا وَز۪يرَ",
+					"text": "يَا مَنْ لَا شَرٖيكَ لَهُ وَ لَا وَزٖيرَ",
 					"tr": "Ey hiçbir ortak ve veziri olmayan,"
 				},
 				{
 					"n": 2,
-					"text": "يَا مَنْ لَا شَب۪يهَ لَهُ وَ لَا نَظ۪يرَ",
+					"text": "يَا مَنْ لَا شَبٖيهَ لَهُ وَ لَا نَظٖيرَ",
 					"tr": "Ey hiçbir benzeri ve dengi olmayan,"
 				},
 				{
 					"n": 3,
-					"text": "يَا خَالِقَ الشَّمْسِ وَ الْقَمَرِ الْمُن۪يرِ",
+					"text": "يَا خَالِقَ الشَّمْسِ وَ الْقَمَرِ الْمُنٖيرِ",
 					"tr": "Ey güneş ve nurlu ayın yaratıcısı,"
 				},
 				{
 					"n": 4,
-					"text": "يَا مُغْنِىَ الْبَٓائِسِ الْفَق۪يرِ",
+					"text": "يَا مُغْنِىَ الْبَٓائِسِ الْفَقٖيرِ",
 					"tr": "Ey şiddetli sıkıntıya düşmüş fakirleri zenginleştiren,"
 				},
 				{
 					"n": 5,
-					"text": "يَا رَازِقَ الطِّفْلِ الصَّغ۪يرِ",
+					"text": "يَا رَازِقَ الطِّفْلِ الصَّغٖيرِ",
 					"tr": "Ey küçük yavrulara rızık veren,"
 				},
 				{
 					"n": 6,
-					"text": "يَا رَاحِمَ الشَّيْخِ الْكَب۪يرِ",
+					"text": "يَا رَاحِمَ الشَّيْخِ الْكَبٖيرِ",
 					"tr": "Ey düşkün ihtiyarlara merhamet eden,"
 				},
 				{
 					"n": 7,
-					"text": "يَا عِصْمَةَ الْخَٓائِفِ الْمُسْتَج۪يرِ",
+					"text": "يَا عِصْمَةَ الْخَٓائِفِ الْمُسْتَجٖيرِ",
 					"tr": "Ey korku içinde kurtuluş isteyenlerin sığınağı,"
 				},
 				{
 					"n": 8,
-					"text": "يَا مَنْ هُوَ بِعِبَادِه۪ بَص۪يرٌ",
+					"text": "يَا مَنْ هُوَ بِعِبَادِهٖ بَصٖيرٌ",
 					"tr": "Ey kullarının her halini gören,"
 				},
 				{
 					"n": 9,
-					"text": "يَا مَنْ هُوَ بِحَوَايِجِ الْعِبَادِ خَب۪يرٌ",
+					"text": "يَا مَنْ هُوَ بِحَوَايِجِ الْعِبَادِ خَبٖيرٌ",
 					"tr": "Ey kullarının ihtiyaçlarından haberdar olan,"
 				},
 				{
 					"n": 10,
-					"text": "يَا مَنْ هُوَ عَلٰى كُلِّ شَىْءٍ قَد۪يرٌ",
+					"text": "يَا مَنْ هُوَ عَلٰى كُلِّ شَىْءٍ قَدٖيرٌ",
 					"tr": "Ey her şeye gücü yeten,"
 				}
 			],
@@ -5171,52 +5172,52 @@
 			"invocations": [
 				{
 					"n": 1,
-					"text": "يَا مَنْ اَنْعَمَ بِحَوْلِه۪",
+					"text": "يَا مَنْ اَنْعَمَ بِحَوْلِهٖ",
 					"tr": "Ey güç ve havliyle nimet veren,"
 				},
 				{
 					"n": 2,
-					"text": "يَا مَنْ اَكْرَمَ بِطَوْلِه۪",
+					"text": "يَا مَنْ اَكْرَمَ بِطَوْلِهٖ",
 					"tr": "Ey geniş ve bol imkânlarıyla ikram eden,"
 				},
 				{
 					"n": 3,
-					"text": "يَا مَنْ عَادَ بِلُطْفِه۪",
+					"text": "يَا مَنْ عَادَ بِلُطْفِهٖ",
 					"tr": "Ey tekrar tekrar lütufta bulunan,"
 				},
 				{
 					"n": 4,
-					"text": "يَا مَنْ تَعَزَّزَ بِقُدْرَتِه۪",
+					"text": "يَا مَنْ تَعَزَّزَ بِقُدْرَتِهٖ",
 					"tr": "Ey kudretiyle her yerde izzetini gösteren,"
 				},
 				{
 					"n": 5,
-					"text": "يَا مَنْ قَدَّرَ بِحِكْمَتِه۪",
+					"text": "يَا مَنْ قَدَّرَ بِحِكْمَتِهٖ",
 					"tr": "Ey her şeyi hikmetiyle ölçüp biçen,"
 				},
 				{
 					"n": 6,
-					"text": "يَا مَنْ حَكَمَ بِتَدْب۪يرِه۪",
+					"text": "يَا مَنْ حَكَمَ بِتَدْبٖيرِهٖ",
 					"tr": "Ey tedbîriyle hükmeden,"
 				},
 				{
 					"n": 7,
-					"text": "يَا مَنْ دَبَّرَ بِعِلْمِه۪",
+					"text": "يَا مَنْ دَبَّرَ بِعِلْمِهٖ",
 					"tr": "Ey ilmiyle her şeyi idare eden,"
 				},
 				{
 					"n": 8,
-					"text": "يَا مَنْ تَجَاوَزَ بِحِلْمِه۪",
+					"text": "يَا مَنْ تَجَاوَزَ بِحِلْمِهٖ",
 					"tr": "Ey hilim ve yumuşaklığıyla kullarını cezalandırmaktan vazgeçen,"
 				},
 				{
 					"n": 9,
-					"text": "يَا مَنْ دَنَا ف۪ى عُلُوِّه۪",
+					"text": "يَا مَنْ دَنَا فٖى عُلُوِّهٖ",
 					"tr": "Ey yüceliğiyle beraber kullarına yakın olan,"
 				},
 				{
 					"n": 10,
-					"text": "يَا مَنْ عَلاٰ ف۪ى دُنُوِّه۪",
+					"text": "يَا مَنْ عَلاٰ فٖى دُنُوِّهٖ",
 					"tr": "Ey yakınlığında yüceliği tezâhür eden,"
 				}
 			],
@@ -5248,7 +5249,7 @@
 				},
 				{
 					"n": 3,
-					"text": "يَا مَنْ يَهْد۪ى مَنْ يَشَٓاءُ",
+					"text": "يَا مَنْ يَهْدٖى مَنْ يَشَٓاءُ",
 					"tr": "Ey dilediğine hidayet eden,"
 				},
 				{
@@ -5278,12 +5279,12 @@
 				},
 				{
 					"n": 9,
-					"text": "يَا مَنْ يَز۪يدُ فِى الْخَلْقِ مَا يَشَٓاءُ",
+					"text": "يَا مَنْ يَزٖيدُ فِى الْخَلْقِ مَا يَشَٓاءُ",
 					"tr": "Ey yaratıklarında dilediği şeyi ziyade kılan,"
 				},
 				{
 					"n": 10,
-					"text": "يَا مَنْ يَخْتَصُّ بِرَحْمَتِه۪ مَنْ يَشَٓاءُ",
+					"text": "يَا مَنْ يَخْتَصُّ بِرَحْمَتِهٖ مَنْ يَشَٓاءُ",
 					"tr": "Ey rahmetini dilediğine tahsis eden,"
 				}
 			],
@@ -5304,7 +5305,7 @@
 				},
 				{
 					"n": 2,
-					"text": "يَا مَنْ لَا يُشْرِكُ ف۪ى حُكْمِه۪ٓ اَحَدًا",
+					"text": "يَا مَنْ لَا يُشْرِكُ فٖى حُكْمِهٖٓ اَحَدًا",
 					"tr": "Ey kimseyi hükmüne ortak kılmayan,"
 				},
 				{
@@ -5314,7 +5315,7 @@
 				},
 				{
 					"n": 4,
-					"text": "يَا مَنْ لَمْ يَزَلْ رَح۪يمًا",
+					"text": "يَا مَنْ لَمْ يَزَلْ رَحٖيمًا",
 					"tr": "Ey şefkat ve merhameti zeval bulmayıp devam eden,"
 				},
 				{
@@ -5532,7 +5533,7 @@
 				},
 				{
 					"n": 9,
-					"text": "يَا مَنْ ظَهَرَ ف۪ى كُلِّ شَىْءٍ اٰيَاتُهُ",
+					"text": "يَا مَنْ ظَهَرَ فٖى كُلِّ شَىْءٍ اٰيَاتُهُ",
 					"tr": "Ey her şeyde Kendisini tanıtan deliller açıkça görülen,"
 				}
 			],
@@ -5548,52 +5549,52 @@
 			"invocations": [
 				{
 					"n": 1,
-					"text": "يَا حَب۪يبَ الْبَكَّٓائ۪ينَ",
+					"text": "يَا حَبٖيبَ الْبَكَّٓائٖينَ",
 					"tr": "Ey günahları için ve kendisine olan aşk ve muhabbetten dolayı ağlayanların sevgilisi,"
 				},
 				{
 					"n": 2,
-					"text": "يَا سَنَدَ الْمُتَوَكِّل۪ينَ",
+					"text": "يَا سَنَدَ الْمُتَوَكِّلٖينَ",
 					"tr": "Ey kendisine tevekkül edenlerin dayanağı,"
 				},
 				{
 					"n": 3,
-					"text": "يَا هَادِىَ الْمُضِلّ۪ينَ",
+					"text": "يَا هَادِىَ الْمُضِلّٖينَ",
 					"tr": "Ey hak yoldan sapanları hidayete erdiren,"
 				},
 				{
 					"n": 4,
-					"text": "يَا وَلِىَّ الْمُؤْمِن۪ينَ",
+					"text": "يَا وَلِىَّ الْمُؤْمِنٖينَ",
 					"tr": "Ey müminlerin dost ve sahibi,"
 				},
 				{
 					"n": 5,
-					"text": "يَٓا اَن۪يسَ الذَّاكِر۪ينَ",
+					"text": "يَٓا اَنٖيسَ الذَّاكِرٖينَ",
 					"tr": "Ey kendisini zikredenlerin can yoldaşı,"
 				},
 				{
 					"n": 6,
-					"text": "يَٓا اَقْدَرَ الْقَادِر۪ينَ",
+					"text": "يَٓا اَقْدَرَ الْقَادِرٖينَ",
 					"tr": "Ey bütün güçlülerden daha güçlü,"
 				},
 				{
 					"n": 7,
-					"text": "يَٓا اَبْصَرَ النَّاظِر۪ينَ",
+					"text": "يَٓا اَبْصَرَ النَّاظِرٖينَ",
 					"tr": "Ey bütün bakanlardan daha iyi gören,"
 				},
 				{
 					"n": 8,
-					"text": "يَٓا اَعْلَمَ الْعَالِم۪ينَ",
+					"text": "يَٓا اَعْلَمَ الْعَالِمٖينَ",
 					"tr": "Ey bütün ilim sahiplerinden daha âlim,"
 				},
 				{
 					"n": 9,
-					"text": "يَا مَفْزَعَ الْمَلْهُوف۪ينَ",
+					"text": "يَا مَفْزَعَ الْمَلْهُوفٖينَ",
 					"tr": "Ey kederli bîçarelerin kaçıp sığındığı,"
 				},
 				{
 					"n": 10,
-					"text": "يَٓا اَنْصَرَ النَّاصِر۪ينَ",
+					"text": "يَٓا اَنْصَرَ النَّاصِرٖينَ",
 					"tr": "Ey bütün yardım edenlerden daha çok yardım eden,"
 				}
 			],
@@ -5630,17 +5631,17 @@
 				},
 				{
 					"n": 4,
-					"text": "يَا مُعْط۪ى",
+					"text": "يَا مُعْطٖى",
 					"tr": "Ey mahlûkatına lâzım olan her şeyi veren Mu’ti,"
 				},
 				{
 					"n": 5,
-					"text": "يَا مُغْن۪ى",
+					"text": "يَا مُغْنٖى",
 					"tr": "Ey mahlûkatının ihtiyacını giderip zengin kılan Muğnî,"
 				},
 				{
 					"n": 6,
-					"text": "يَا مُحْي۪ى",
+					"text": "يَا مُحْيٖى",
 					"tr": "Ey canlılara hayat veren Muhyî,"
 				},
 				{
@@ -5650,12 +5651,12 @@
 				},
 				{
 					"n": 8,
-					"text": "يَا مُرْض۪ى",
+					"text": "يَا مُرْضٖى",
 					"tr": "Ey mahlûkatını nimetleriyle hoşnut kılan Murzî,"
 				},
 				{
 					"n": 9,
-					"text": "يَا مُنْج۪ى",
+					"text": "يَا مُنْجٖى",
 					"tr": "Ey mahlûkatı her türlü tehlikeden kurtaran Müncî,"
 				},
 				{
@@ -5695,12 +5696,12 @@
 				},
 				{
 					"n": 4,
-					"text": "يَا مَنْ لَا يَز۪يدُ ف۪ى مُلْكِهِ شَىْءٌ",
+					"text": "يَا مَنْ لَا يَزٖيدُ فٖى مُلْكِهِ شَىْءٌ",
 					"tr": "Ey mülkünde, irâdesi dışında hiçbir şey artmayan,"
 				},
 				{
 					"n": 5,
-					"text": "يَا مَنْ لَا يَنْقُصُ مِنْ خَزَٓائِنِه۪ شَىْءٌ",
+					"text": "يَا مَنْ لَا يَنْقُصُ مِنْ خَزَٓائِنِهٖ شَىْءٌ",
 					"tr": "Ey hazînelerinden hiçbir şey eksik olmayan,"
 				},
 				{
@@ -5710,12 +5711,12 @@
 				},
 				{
 					"n": 7,
-					"text": "يَا مَنْ لَيْسَ كَمِثْلِه۪ شَىْءٌ",
+					"text": "يَا مَنْ لَيْسَ كَمِثْلِهٖ شَىْءٌ",
 					"tr": "Ey misli ve benzeri hiçbir şey bulunmayan,"
 				},
 				{
 					"n": 8,
-					"text": "يَا مَنْ بِيَدِه۪ مَقَال۪يدُ كُلِّ شَىْءٍ",
+					"text": "يَا مَنْ بِيَدِهٖ مَقَالٖيدُ كُلِّ شَىْءٍ",
 					"tr": "Ey her şeyin anahtarı elinde olan,"
 				},
 				{
@@ -5786,7 +5787,7 @@
 				},
 				{
 					"n": 10,
-					"text": "يَا مَنْ لَا يُغْن۪ى عَلَى التَّحْق۪يقِ اِلَّا  هُوَ",
+					"text": "يَا مَنْ لَا يُغْنٖى عَلَى التَّحْقٖيقِ اِلَّا  هُوَ",
 					"tr": "Ey kullarını kendisinden başkası gerçek zengin kılamayan,"
 				}
 			],
@@ -5832,7 +5833,7 @@
 				},
 				{
 					"n": 7,
-					"text": "يَا نَاه۪ى",
+					"text": "يَا نَاهٖى",
 					"tr": "Ey her türlü kötülükten sakındıran Nâhî,"
 				},
 				{
@@ -5847,7 +5848,7 @@
 				},
 				{
 					"n": 10,
-					"text": "يَا عَظ۪يمَ الرَّجَا",
+					"text": "يَا عَظٖيمَ الرَّجَا",
 					"tr": "Ey kendisine büyük ümitler beslenen Azîmür-Recâ,"
 				}
 			],
@@ -5867,7 +5868,7 @@
 			"invocations": [
 				{
 					"n": 1,
-					"text": "يَا مُع۪ينَ الضُّعَفَٓاءِ",
+					"text": "يَا مُعٖينَ الضُّعَفَٓاءِ",
 					"tr": "Ey zayıfların yardımcısı,"
 				},
 				{
@@ -5902,12 +5903,12 @@
 				},
 				{
 					"n": 8,
-					"text": "يَٓا اَن۪يسَ الْاَوْلِيَٓاءِ",
+					"text": "يَٓا اَنٖيسَ الْاَوْلِيَٓاءِ",
 					"tr": "Ey dostların can yoldaşı,"
 				},
 				{
 					"n": 9,
-					"text": "يَا حَب۪يبَ الْاَتْقِيَٓاءِ",
+					"text": "يَا حَبٖيبَ الْاَتْقِيَٓاءِ",
 					"tr": "Ey takvâ sahiplerinin sevgilisi,"
 				},
 				{
@@ -5949,7 +5950,7 @@
 				},
 				{
 					"n": 4,
-					"text": "يَا فَاطِرَ كُلِّ شَىْءٍ وَ مَل۪يكَهُ",
+					"text": "يَا فَاطِرَ كُلِّ شَىْءٍ وَ مَلٖيكَهُ",
 					"tr": "Ey her şeyin yaratıcısı ve sultânı,"
 				},
 				{
@@ -5959,7 +5960,7 @@
 				},
 				{
 					"n": 6,
-					"text": "يَا مُبْدِىَٔ كُلِّ شَىْءٍ وَ مُع۪يدَهُ",
+					"text": "يَا مُبْدِىَٔ كُلِّ شَىْءٍ وَ مُعٖيدَهُ",
 					"tr": "Ey her şeyi ilk defa yaratan ve öldükten sonra tekrar iâde eden,"
 				},
 				{
@@ -5979,7 +5980,7 @@
 				},
 				{
 					"n": 10,
-					"text": "يَا مُحْيِىَ كُلِّ شَىْءٍ وَ مُم۪يتَهُ",
+					"text": "يَا مُحْيِىَ كُلِّ شَىْءٍ وَ مُمٖيتَهُ",
 					"tr": "Ey her şeyi dirilten ve öldüren,"
 				}
 			],
@@ -6020,17 +6021,17 @@
 				},
 				{
 					"n": 6,
-					"text": "يَا خَيْرَ مُج۪يبٍ وَ مُجَابٍ",
+					"text": "يَا خَيْرَ مُجٖيبٍ وَ مُجَابٍ",
 					"tr": "Ey cevap verenlerin ve cevap verilenlerin en hayırlısı,"
 				},
 				{
 					"n": 7,
-					"text": "يَا خَيْرَ مُونِسٍ وَ اَن۪يسٍ",
+					"text": "يَا خَيْرَ مُونِسٍ وَ اَنٖيسٍ",
 					"tr": "Ey ünsiyet verenlerin ve Kendisiyle ünsiyet edilenlerin en hayırlısı,"
 				},
 				{
 					"n": 8,
-					"text": "يَا خَيْرَ صَاحِبٍ وَ جَل۪يسٍ",
+					"text": "يَا خَيْرَ صَاحِبٍ وَ جَلٖيسٍ",
 					"tr": "Ey bütün dostların ve meclis arkadaşlarının en hayırlısı,"
 				},
 				{
@@ -6040,7 +6041,7 @@
 				},
 				{
 					"n": 10,
-					"text": "يَا خَيْرَ حَب۪يبٍ وَ مَحْبُوبٍ",
+					"text": "يَا خَيْرَ حَبٖيبٍ وَ مَحْبُوبٍ",
 					"tr": "Ey sevenlerin ve sevilenlerin en hayırlısı,"
 				}
 			],
@@ -6062,52 +6063,52 @@
 			"invocations": [
 				{
 					"n": 1,
-					"text": "يَا مَنْ هُوَ لِمَنْ دَعَاهُ مُج۪يبٌ",
+					"text": "يَا مَنْ هُوَ لِمَنْ دَعَاهُ مُجٖيبٌ",
 					"tr": "Ey kendisini çağıranlara cevap veren,"
 				},
 				{
 					"n": 2,
-					"text": "يَا مَنْ هُوَ لِمَنْ اَطَاعَهُ حَب۪يبٌ",
+					"text": "يَا مَنْ هُوَ لِمَنْ اَطَاعَهُ حَبٖيبٌ",
 					"tr": "Ey kendisine itaat edenleri seven,"
 				},
 				{
 					"n": 3,
-					"text": "يَا مَنْ هُوَ لِمَنْ اَحَبَّهُ قَر۪يبٌ",
+					"text": "يَا مَنْ هُوَ لِمَنْ اَحَبَّهُ قَرٖيبٌ",
 					"tr": "Ey kendisini sevenlere yakın olan,"
 				},
 				{
 					"n": 4,
-					"text": "يَا مَنْ هُوَ بِمَنْ اَرَادَهُ عَل۪يمٌ",
+					"text": "يَا مَنْ هُوَ بِمَنْ اَرَادَهُ عَلٖيمٌ",
 					"tr": "Ey kendisini arzulayanları çok iyi bilen,"
 				},
 				{
 					"n": 5,
-					"text": "يَا مَنْ هُوَ لِمَنْ رَجَاهُ كَر۪يمٌ",
+					"text": "يَا مَنْ هُوَ لِمَنْ رَجَاهُ كَرٖيمٌ",
 					"tr": "Ey kendisine ümit besleyenlere iyilik eden,"
 				},
 				{
 					"n": 6,
-					"text": "يَا مَنْ هُوَ بِمَنْ عَصَاهُ حَل۪يمٌ",
+					"text": "يَا مَنْ هُوَ بِمَنْ عَصَاهُ حَلٖيمٌ",
 					"tr": "Ey kendisine isyan edenlere yumuşak davranıp hemen cezalandırmayan,"
 				},
 				{
 					"n": 7,
-					"text": "يَا مَنْ هُوَ ف۪ى حِلْمِه۪ حَك۪يمٌ",
+					"text": "يَا مَنْ هُوَ فٖى حِلْمِهٖ حَكٖيمٌ",
 					"tr": "Ey yumuşaklığında hikmetli davranan,"
 				},
 				{
 					"n": 8,
-					"text": "يَا مَنْ هُوَ ف۪ى حُكْمِه۪ عَظ۪يمٌ",
+					"text": "يَا مَنْ هُوَ فٖى حُكْمِهٖ عَظٖيمٌ",
 					"tr": "Ey hükmünde büyük olan,"
 				},
 				{
 					"n": 9,
-					"text": "يَا مَنْ هُوَ ف۪ى عَظَمَتِه۪ رَح۪يمٌ",
+					"text": "يَا مَنْ هُوَ فٖى عَظَمَتِهٖ رَحٖيمٌ",
 					"tr": "Ey azametinde merhametli olan,"
 				},
 				{
 					"n": 10,
-					"text": "يَا مَنْ هُوَ ف۪ٓى اِحْسَانِه۪ قَد۪يمٌ",
+					"text": "يَا مَنْ هُوَ فٖٓى اِحْسَانِهٖ قَدٖيمٌ",
 					"tr": "Ey ihsânında kadîm olan,"
 				}
 			],
@@ -6198,7 +6199,7 @@
 				},
 				{
 					"n": 3,
-					"text": "يَا مَنْ لَا يُلْه۪يهِ قَوْلٌ عَنْ قَوْلٍ",
+					"text": "يَا مَنْ لَا يُلْهٖيهِ قَوْلٌ عَنْ قَوْلٍ",
 					"tr": "Ey bir söz, kendisini diğer bir sözden oyalamayan,"
 				},
 				{
@@ -6208,32 +6209,32 @@
 				},
 				{
 					"n": 5,
-					"text": "يَا مَنْ لَا يُبْرِمُهُ اِلْحَاحُ الْمُلِحّ۪ينَ",
+					"text": "يَا مَنْ لَا يُبْرِمُهُ اِلْحَاحُ الْمُلِحّٖينَ",
 					"tr": "Ey ısrarla istekte bulunanların ısrarı kendisini usandırmayan,"
 				},
 				{
 					"n": 6,
-					"text": "يَا مَنْ شَرَحَ بِاْلاِسْلَامِ صُدُورَ الْمُؤْمِن۪ينَ",
+					"text": "يَا مَنْ شَرَحَ بِاْلاِسْلَامِ صُدُورَ الْمُؤْمِنٖينَ",
 					"tr": "Ey müminlerin kalplerini İslâm’la genişleten,"
 				},
 				{
 					"n": 7,
-					"text": "يَا مَنْ اَطَابَ بِذِكْرِه۪ قُلُوبَ الْمُخْبِت۪ينَ",
+					"text": "يَا مَنْ اَطَابَ بِذِكْرِهٖ قُلُوبَ الْمُخْبِتٖينَ",
 					"tr": "Ey zikriyle mütevâzi ve huşû sahiplerinin kalplerini hoş eden,"
 				},
 				{
 					"n": 8,
-					"text": "يَا مَنْ لَا يَغ۪يبُ عَنْ قُلُوبِ الْمُشْتَاق۪ينَ",
+					"text": "يَا مَنْ لَا يَغٖيبُ عَنْ قُلُوبِ الْمُشْتَاقٖينَ",
 					"tr": "Ey kendisine iştiyak duyanların kalplerinden kaybolmayan,"
 				},
 				{
 					"n": 9,
-					"text": "يَا مَنْ هُوَ غَايَةُ مُرَادِ الْمُر۪يد۪ينَ",
+					"text": "يَا مَنْ هُوَ غَايَةُ مُرَادِ الْمُرٖيدٖينَ",
 					"tr": "Ey kendisini arzulayanların son arzusu,"
 				},
 				{
 					"n": 10,
-					"text": "يَا مَنْ لَا يَخْفٰى عَلَيْهِ شَىْءٌ فِى الْعَالَم۪ينَ",
+					"text": "يَا مَنْ لَا يَخْفٰى عَلَيْهِ شَىْءٌ فِى الْعَالَمٖينَ",
 					"tr": "Ey âlemde hiçbir şey kendisine gizli olmayan,"
 				}
 			],
@@ -6279,22 +6280,22 @@
 				},
 				{
 					"n": 7,
-					"text": "يَا مَنْ هُوَ قُرْاٰنُهُ مَج۪يدٌ",
+					"text": "يَا مَنْ هُوَ قُرْاٰنُهُ مَجٖيدٌ",
 					"tr": "Ey Kur’ân’ı yüce olan,"
 				},
 				{
 					"n": 8,
-					"text": "يَا مَنْ هُوَ مُلْكُهُ قَد۪يمٌ",
+					"text": "يَا مَنْ هُوَ مُلْكُهُ قَدٖيمٌ",
 					"tr": "Ey saltanatı kadîm olan,"
 				},
 				{
 					"n": 9,
-					"text": "يَا مَنْ هُوَ فَضْلُهُ مُق۪يمٌ",
+					"text": "يَا مَنْ هُوَ فَضْلُهُ مُقٖيمٌ",
 					"tr": "Ey fazıl ve keremi dâim olan,"
 				},
 				{
 					"n": 10,
-					"text": "يَا مَنْ هُوَ عَرْشُهُ عَظ۪يمٌ",
+					"text": "يَا مَنْ هُوَ عَرْشُهُ عَظٖيمٌ",
 					"tr": "Ey Arşı büyük olan,"
 				}
 			],
@@ -6346,12 +6347,12 @@
 				},
 				{
 					"n": 7,
-					"text": "يَا شَد۪يدَ الْعِقَابِ",
+					"text": "يَا شَدٖيدَ الْعِقَابِ",
 					"tr": "Ey azap ve ikabı şiddetli olan,"
 				},
 				{
 					"n": 8,
-					"text": "يَا سَر۪يعَ الْحِسَابِ",
+					"text": "يَا سَرٖيعَ الْحِسَابِ",
 					"tr": "Ey hesabı süratli gören,"
 				},
 				{
@@ -6423,12 +6424,12 @@
 				},
 				{
 					"n": 9,
-					"text": "يَا دَل۪يلَنَا",
+					"text": "يَا دَلٖيلَنَا",
 					"tr": "Ey Delilimiz"
 				},
 				{
 					"n": 10,
-					"text": "يَا مُغ۪يثَنَا",
+					"text": "يَا مُغٖيثَنَا",
 					"tr": "Ey Medetkârımız"
 				}
 			],
@@ -6444,8 +6445,8 @@
 			]
 		}
 	],
-	"bismillah": "بِسْمِ اللّٰهِ الرَّحْمٰنِ الرَّح۪يمِ",
+	"bismillah": "بِسْمِ اللّٰهِ الرَّحْمٰنِ الرَّحٖيمِ",
 	"afterHundredth": [
-		"اَللّٰهُمَّ رَبَّنَا ۞ خَلِّصْنَا ۞ وَ اَجِرْنَا ۞ وَ نَجِّنَا مِنَ النَّارِ ۞ وَ عَافِنَا وَ اعْفُ عَنَّا وَ اَدْخِلْنَا الْجَنَّةَ دَارَ قُدْسِكَ مَعَ الْاَبْرَارِ ۞ بِعَفْوِكَ يَا مُج۪يرُ ۞ بِفَضْلِكَ يَا غَفَّارُ ۞ وَ اَسْئَلُكَ بِحَقِّ هٰذِهِ الْاَسْمَٓاءِ الْكَر۪يمَةِ الشَّر۪يفَةِ وَ الصِّفَاتِ الْجَل۪يلَةِ الَّلط۪يفَةِ اَنْ تُصَلِّىَ عَلٰى سَيِّدِنَا مُحَمَّدٍ وَ عَلٰٓى اٰلِه۪ وَ صَحْبِه۪ بِعَدَدِ حَسَنَاتِ مُحَمَّدٍ بِسْمِ اللّٰهِ ۞ حَسْبِىَ اللّٰهُ ۞ لَٓا اِلٰهَ اِلَّا  اللّٰهُ ۞ شَهِدَ اللّٰهُ ۞ قُلْ هُوَ اللّٰهُ ۞ مَا شَٓاءَ اللّٰهُ ۞ رَبِّىَ اللّٰهُ ۞ تَبَارَكَ اللّٰهُ ۞ تَعَالَى اللّٰهُ ۞ تَوَكَّلْتُ عَلَى اللّٰهِ ۞ فَسَيَكْف۪يكَهُمُ اللّٰهُ وَ هُوَ السَّم۪يعُ الْعَل۪يمُ ۞ سُبْحَانَكَ يَا لَٓا اِلٰهَ اِلَّٓا اَنْتَ الْاَمَانُ الْاَمَانُ لَٓا اُحْص۪ى ثَنَٓاءً عَلَيْكَ اَنْتَ كَمَٓا اَثْنَيْتَ عَلٰى نَفْسِكَ ۞ يَٓا اَللّٰهُ ۞ يَا رَحْمٰنُ ۞ يَا رَح۪يمُ ۞ يَا غَفُورُ ۞ يَا شَكُورُ ۞ اَسْئَلُكَ بِمَٓا اَحْصَيْتَهُ عَلَيْكَ مِنْ اَسْمَٓائِكَ الْحُسْنٰى وَ صِفَاتِكَ الْعُلْيَا وَ كَلِمَاتِكَ التَّٓامَّةِ اَنْ تَغْفِرَل۪ى وَ لِوَالِدَىَّ وَ لِاُسْتَاذ۪ى سَع۪يدِ النُّورْس۪ى وَ لِطَلَبَةِ رَسَٓائِلِ النُّورِ وَ لِجَم۪يعِ الْمُؤْمِن۪ينَ وَ الْمُؤْمِنَاتِ وَ الْمُسْلِم۪ينَ وَ الْمُسْلِمَاتِ الْاَحْيَٓاءِ مِنْهُمْ وَ الْاَمْوَاتِ وَ تَرْحَمَنَا رَحْمَةً تُغْن۪ينَابِهَا عَنْ رَحْمَةِ مَنْ سِوَاكَ مِنْ خَلْقِكَ وَ اَنْ تَقْضِىَ حَوَايِجَنَا وَ تُعْطِيَنَا سُؤَالَنَا فِى الدُّنْيَا وَ اْلاٰخِرَةِ وَ تَخْتِمَ لَنَا بِالسَّعَادَةِ وَ الشَّهَادَةِ وَ الْكَرَامَةِ وَ الْبُشْرٰى عِنْدَ فِرَاقِ الدُّنْيَا وَ تَجْزِىَ مُحَمَّدًا صَلَّى اللّٰهُ عَلَيْهِ وَ سَلَّمَ عَنَّا مَا هُوَ اَهْلُهُ وَ مُسْتَحَقُّهُ وَ اَنْ لَا تَكِلَنَا عَلَٓى اَنْفُسِنَا طَرْفَةَ عَيْنٍ وَ لَٓا اِلَٓى اَحَدٍ مِنْ خَلْقِكَ وَ تُصْلِحَ لَنَا شَاْنَنَا وَ اَنْ تَحْرُسَنَا بِعَيْنِكَ الَّت۪ى لَا تَنَامُ وَ تَحْفَظَنَا بِرُكْنِكَ الَّذ۪ى لَا يُرَامُ يَا ذَا الْجَلَالِ وَ اْلاِكْرَامِ وَ اَنْ تَصْرِفَ عَنَّا وَ عَمَّنْ عُلِّقَ عَلَيْهِ هٰذِهِ الْاَسْمَٓاءُ اٰفَةَ الْجِنِّ وَ اْلاِنْسِ وَ الشَّيَاط۪ينِ وَ زَلْزَلَةَ الْاَرْضِ وَ دَكْدَكَةَ الْجِبَالِ مِنْ خَشْيَتِهِ وَ اٰفَةَ الطَّاعُونِ وَ الْوَبَٓاءِ وَ عَيْنَ السُّٓوءِ وَ وَجَعَ الْجَوَارِحِ وَسَٓائِرَ اْلاٰفَاتِ وَ تَحْفَظَنَا مِنْ كُلِّ شَرٍّ وَ سُٓوءٍ وَ تَرْزُقَنَا السَّلَامَةَ وَ الْعَافِيَةَ وَ الْخَيْرَ فِى الدُّنْيَا وَ اْلاٰخِرَةِ بِرَحْمَتِكَ يَٓا اَرْحَمَ الرَّاحِم۪ينَ وَ صَلَّى اللّٰهُ عَلٰى سَيِّدِنَا مُحَمَّدٍ وَ اٰلِه۪ وَ صَحْبِه۪ٓ اَجْمَع۪ينَ وَ الْحَمْدُ لِلّٰهِ رَبِّ الْعَالَم۪ينَ"
+		"اَللّٰهُمَّ رَبَّنَا ۞ خَلِّصْنَا ۞ وَ اَجِرْنَا ۞ وَ نَجِّنَا مِنَ النَّارِ ۞ وَ عَافِنَا وَ اعْفُ عَنَّا وَ اَدْخِلْنَا الْجَنَّةَ دَارَ قُدْسِكَ مَعَ الْاَبْرَارِ ۞ بِعَفْوِكَ يَا مُجٖيرُ ۞ بِفَضْلِكَ يَا غَفَّارُ ۞ وَ اَسْئَلُكَ بِحَقِّ هٰذِهِ الْاَسْمَٓاءِ الْكَرٖيمَةِ الشَّرٖيفَةِ وَ الصِّفَاتِ الْجَلٖيلَةِ الَّلطٖيفَةِ اَنْ تُصَلِّىَ عَلٰى سَيِّدِنَا مُحَمَّدٍ وَ عَلٰٓى اٰلِهٖ وَ صَحْبِهٖ بِعَدَدِ حَسَنَاتِ مُحَمَّدٍ بِسْمِ اللّٰهِ ۞ حَسْبِىَ اللّٰهُ ۞ لَٓا اِلٰهَ اِلَّا  اللّٰهُ ۞ شَهِدَ اللّٰهُ ۞ قُلْ هُوَ اللّٰهُ ۞ مَا شَٓاءَ اللّٰهُ ۞ رَبِّىَ اللّٰهُ ۞ تَبَارَكَ اللّٰهُ ۞ تَعَالَى اللّٰهُ ۞ تَوَكَّلْتُ عَلَى اللّٰهِ ۞ فَسَيَكْفٖيكَهُمُ اللّٰهُ وَ هُوَ السَّمٖيعُ الْعَلٖيمُ ۞ سُبْحَانَكَ يَا لَٓا اِلٰهَ اِلَّٓا اَنْتَ الْاَمَانُ الْاَمَانُ لَٓا اُحْصٖى ثَنَٓاءً عَلَيْكَ اَنْتَ كَمَٓا اَثْنَيْتَ عَلٰى نَفْسِكَ ۞ يَٓا اَللّٰهُ ۞ يَا رَحْمٰنُ ۞ يَا رَحٖيمُ ۞ يَا غَفُورُ ۞ يَا شَكُورُ ۞ اَسْئَلُكَ بِمَٓا اَحْصَيْتَهُ عَلَيْكَ مِنْ اَسْمَٓائِكَ الْحُسْنٰى وَ صِفَاتِكَ الْعُلْيَا وَ كَلِمَاتِكَ التَّٓامَّةِ اَنْ تَغْفِرَلٖى وَ لِوَالِدَىَّ وَ لِاُسْتَاذٖى سَعٖيدِ النُّورْسٖى وَ لِطَلَبَةِ رَسَٓائِلِ النُّورِ وَ لِجَمٖيعِ الْمُؤْمِنٖينَ وَ الْمُؤْمِنَاتِ وَ الْمُسْلِمٖينَ وَ الْمُسْلِمَاتِ الْاَحْيَٓاءِ مِنْهُمْ وَ الْاَمْوَاتِ وَ تَرْحَمَنَا رَحْمَةً تُغْنٖينَابِهَا عَنْ رَحْمَةِ مَنْ سِوَاكَ مِنْ خَلْقِكَ وَ اَنْ تَقْضِىَ حَوَايِجَنَا وَ تُعْطِيَنَا سُؤَالَنَا فِى الدُّنْيَا وَ اْلاٰخِرَةِ وَ تَخْتِمَ لَنَا بِالسَّعَادَةِ وَ الشَّهَادَةِ وَ الْكَرَامَةِ وَ الْبُشْرٰى عِنْدَ فِرَاقِ الدُّنْيَا وَ تَجْزِىَ مُحَمَّدًا صَلَّى اللّٰهُ عَلَيْهِ وَ سَلَّمَ عَنَّا مَا هُوَ اَهْلُهُ وَ مُسْتَحَقُّهُ وَ اَنْ لَا تَكِلَنَا عَلَٓى اَنْفُسِنَا طَرْفَةَ عَيْنٍ وَ لَٓا اِلَٓى اَحَدٍ مِنْ خَلْقِكَ وَ تُصْلِحَ لَنَا شَاْنَنَا وَ اَنْ تَحْرُسَنَا بِعَيْنِكَ الَّتٖى لَا تَنَامُ وَ تَحْفَظَنَا بِرُكْنِكَ الَّذٖى لَا يُرَامُ يَا ذَا الْجَلَالِ وَ اْلاِكْرَامِ وَ اَنْ تَصْرِفَ عَنَّا وَ عَمَّنْ عُلِّقَ عَلَيْهِ هٰذِهِ الْاَسْمَٓاءُ اٰفَةَ الْجِنِّ وَ اْلاِنْسِ وَ الشَّيَاطٖينِ وَ زَلْزَلَةَ الْاَرْضِ وَ دَكْدَكَةَ الْجِبَالِ مِنْ خَشْيَتِهِ وَ اٰفَةَ الطَّاعُونِ وَ الْوَبَٓاءِ وَ عَيْنَ السُّٓوءِ وَ وَجَعَ الْجَوَارِحِ وَسَٓائِرَ اْلاٰفَاتِ وَ تَحْفَظَنَا مِنْ كُلِّ شَرٍّ وَ سُٓوءٍ وَ تَرْزُقَنَا السَّلَامَةَ وَ الْعَافِيَةَ وَ الْخَيْرَ فِى الدُّنْيَا وَ اْلاٰخِرَةِ بِرَحْمَتِكَ يَٓا اَرْحَمَ الرَّاحِمٖينَ وَ صَلَّى اللّٰهُ عَلٰى سَيِّدِنَا مُحَمَّدٍ وَ اٰلِهٖ وَ صَحْبِهٖٓ اَجْمَعٖينَ وَ الْحَمْدُ لِلّٰهِ رَبِّ الْعَالَمٖينَ"
 	]
 }

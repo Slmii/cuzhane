@@ -2,7 +2,6 @@ import { BackLink } from '@/components/ui/BackLink/BackLink.component';
 import { AppBottomSheet } from '@/components/ui/BottomSheet/BottomSheet.component';
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
-import { Ornament } from '@/components/ui/Ornament/Ornament.component';
 import { EyebrowText, Typography } from '@/components/ui/Typography/Typography.component';
 import type { CevsenInvocation } from '@/lib/content/cevsen';
 import {
@@ -14,13 +13,13 @@ import {
 	READER_FONT_SIZE_DEFAULT
 } from '@/lib/content/cevsen';
 import { useGetBabs, useSetBabRead } from '@/lib/hooks/useBab';
-import { useGetGroupById, useTakePoolSlot } from '@/lib/hooks/useGroup';
+import { useGetGroupById, useGetPoolSlots, useTakePoolSlot } from '@/lib/hooks/useGroup';
 import { useGetUserSettings, useUpdateUserSettings } from '@/lib/hooks/useUserSettings';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { arabicReaderFonts, arabicReaderFontScale } from '@/lib/theme/fonts';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { ReaderArabicFont } from '@/lib/types/domain';
-import { BAB_COUNT, slotIndexForBab } from '@/lib/utils/babs';
+import { BAB_COUNT } from '@/lib/utils/babs';
 import type { TabStackParamList } from '@/navigation/types';
 import { MealSheet } from '@/screens/Reader/MealSheet.component';
 import { ReaderBabMap } from '@/screens/Reader/ReaderBabMap.component';
@@ -29,48 +28,15 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { useKeepAwake } from 'expo-keep-awake';
-import { Fragment, type ReactNode, useCallback, useState } from 'react';
+import { Fragment, type ReactNode, useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { runOnJS } from 'react-native-reanimated';
+import { runOnJS, useSharedValue } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ReaderSkeleton } from './ReaderSkeleton.component';
 
 type Props = NativeStackScreenProps<TabStackParamList, 'BabReader'>;
 
-/**
- * The verse ornament that closes an invocation: **U+06DD, ARABIC END OF AYAH**, followed by
- * the number it encloses.
- *
- * It is a character, not a picture, and that is the whole point. `ui/Ornament` draws the
- * design's rosette beautifully, but React Native could not place it *inside* right-to-left
- * text: the advance the line reserved and the frame the view was painted at disagreed, so
- * rosettes landed on top of words with gaps where their boxes had been. It looked
- * font-specific and wasn't — measured across three faces, every one of them broke on some
- * babs and not others, depending only on how that line's runs happened to reorder. The
- * system fallback face never did, which is why this only appeared once the reader was given
- * a real Arabic font to set.
- *
- * U+06DD is what a printed mushaf uses and what every Arabic face draws for itself, so it
- * shapes and wraps with the words around it and cannot be misplaced. The one cost is that
- * the mark now belongs to the chosen typeface rather than to the design system, so it looks
- * a little different in each of the three.
- *
- * It costs **nothing else**, which was the surprise: all three faces enclose the following
- * digits, and all three do it for Latin `1` as readily as for Arabic-Indic `١`, so the
- * numerals setting survived intact. Verified on bab 66 — the bab the drawn rosette broke on
- * in every font — across Nesih, Amiri and Şehrizad, and in both numeral systems.
- *
- * The rosette is **not gone**: it still opens each bab and heads the settings preview, both
- * of which sit in a `View` rather than in a line of text, where it places correctly.
- *
- * **A new face has to be checked for this glyph, and coverage is not the test.** Enclosing
- * the digits is a shaping decision the font makes across the mark *and* the digits, so a
- * face that merely has `U+06DD` in its cmap can still draw a hollow ring with the number
- * stranded beside it — Hüsrev Hattı did exactly that, and a face missing the glyph entirely
- * is worse, because iOS substitutes it from a system font and the two can never combine.
- * Look at it on a real bab before adding one.
- */
 /**
  * Faces whose `U+06DD` does not enclose the digits that follow it. Their marks are set in a
  * face that does, while the words stay in the face that was chosen.
@@ -86,27 +52,6 @@ const FACES_WITHOUT_ENCLOSING_MARK = new Set<ReaderArabicFont>(['madinah']);
 
 const ornamentFaceFor = (font: ReaderArabicFont) =>
 	FACES_WITHOUT_ENCLOSING_MARK.has(font) ? ('naskh' as const) : font;
-
-/**
- * `U+06EA`, the mark under the `\u0640\u0647\u0650` of a `-h\u00EE` suffix, which the Turkish editions set to show
- * the vowel is long. It appears 65 times across the hundred and is genuinely in the text.
- *
- * Two of the three faces treat it as what it is \u2014 a combining mark, zero advance, a small
- * shape below the baseline (Amiri 0.12 em, Kitab 0.14 em). **KFGQPC gives it a 1442-unit
- * advance and a 0.61 em body sitting on the baseline**, so instead of a hint under the h\u00E2 you
- * get a filled black disc standing between the words, at almost the size of a verse ornament
- * and easily mistaken for one. Measured by shaping `\u0644\u0650\u0639\u064E\u0638\u064E\u0645\u064E\u062A\u0650\u0647\u06EA` through HarfBuzz against all
- * three faces, so this is the font's own drawing and not a missing-glyph placeholder.
- *
- * Dropping it costs that face a pronunciation hint. Keeping it costs that face a mark the
- * edition never printed, in the middle of the line \u2014 so it comes off, for that face only.
- */
-const LOW_STOP = '\u06EA';
-
-const FACES_SPACING_THE_LOW_STOP = new Set<ReaderArabicFont>(['madinah']);
-
-const arabicFor = (text: string, font: ReaderArabicFont) =>
-	FACES_SPACING_THE_LOW_STOP.has(font) ? text.replaceAll(LOW_STOP, '') : text;
 
 /**
  * The divine name, set in the page's red the way the printed edition does.
@@ -205,9 +150,14 @@ const SWIPE_FAIL_Y = 18;
 const SWIPE_COMMIT_X = 60;
 const SWIPE_COMMIT_VELOCITY = 450;
 
-/** The design's "bölüm başı" size — the largest of its three, for the mark opening a bab. */
-const ORNAMENT_SECTION_SIZE = 40;
+/**
+ * A single empty array for every absent list, so a missing one keeps its identity between
+ * renders. `?? []` mints a new array each time, which alone was enough to invalidate the
+ * tick list's `memo` on every frame of a drag.
+ */
+const NO_BAB_NUMBERS: number[] = [];
 
+/** The design's "bölüm başı" size — the largest of its three, for the mark opening a bab. */
 export const BabReaderScreen = ({ navigation, route }: Props) => {
 	const { babNumber, groupId } = route.params;
 
@@ -225,6 +175,9 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 
 	const babsQuery = useGetBabs(groupId);
 	const groupQuery = useGetGroupById(groupId);
+	// The pool's own slot→babs mapping, which is the only thing that knows what a seat offers
+	// this round. Deriving it from the bab number gets the rotation wrong.
+	const poolQuery = useGetPoolSlots(groupId);
 	const takePoolSlot = useTakePoolSlot();
 	const settingsQuery = useGetUserSettings();
 	const updateSettings = useUpdateUserSettings();
@@ -253,7 +206,27 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 	 * Width is **measured, not assumed** — the strip is full-width now, which varies by
 	 * device, and a hardcoded width would land the finger several babs off.
 	 */
+	/**
+	 * Every bab read this round, whoever read it — the strip's tallest-but-one state.
+	 *
+	 * Memoised **above the early returns**, which is the only place it can be: the strip
+	 * `memo`s on this array's identity, so recomputing it per render would re-render a
+	 * hundred ticks on every frame of a drag and undo the split entirely.
+	 */
+	const readBabNumbers = useMemo(
+		() => babsQuery.data?.filter(bab => bab.readAt).map(bab => bab.number) ?? NO_BAB_NUMBERS,
+		[babsQuery.data]
+	);
+
 	const [railWidth, setRailWidth] = useState(0);
+
+	/*
+	 * The drag's position, 0–1, or -1 at rest. The strip's indicator reads it on the UI
+	 * thread; `lastScrubBab` is the worklet's memory of what JS has already been told, so a
+	 * fast drag doesn't cross the bridge sixty times a second to re-send the same number.
+	 */
+	const scrubRatio = useSharedValue(-1);
+	const lastScrubBab = useSharedValue(0);
 
 	/**
 	 * The number counts up under the finger; the Arabic does not follow until you let go.
@@ -278,12 +251,25 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 		[navigation]
 	);
 
-	const babAt = (x: number) => {
+	const trackScrub = (x: number) => {
 		'worklet';
+
+		if (railWidth <= 0) {
+			return;
+		}
 
 		const ratio = Math.min(1, Math.max(0, x / railWidth));
 
-		return Math.round(ratio * (BAB_COUNT - 1)) + 1;
+		scrubRatio.value = ratio;
+
+		const bab = Math.round(ratio * (BAB_COUNT - 1)) + 1;
+
+		// Only when it actually changes. The indicator has already moved by now; this is just
+		// the number in the title catching up.
+		if (bab !== lastScrubBab.value) {
+			lastScrubBab.value = bab;
+			runOnJS(setScrubBab)(bab);
+		}
 	};
 
 	/**
@@ -298,11 +284,20 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 		// needing a drag first.
 		.minDistance(0)
 		.hitSlop({ bottom: 10, top: 10 })
-		.onBegin(event => runOnJS(setScrubBab)(babAt(event.x)))
-		.onUpdate(event => runOnJS(setScrubBab)(babAt(event.x)))
+		.onBegin(event => trackScrub(event.x))
+		.onUpdate(event => trackScrub(event.x))
 		// `onFinalize`, not `onEnd`: a cancelled gesture still has to land on the bab the
 		// finger left, or the strip and the page it is describing disagree.
-		.onFinalize(event => runOnJS(commitScrub)(babAt(event.x)));
+		.onFinalize(() => {
+			const ratio = scrubRatio.value;
+
+			scrubRatio.value = -1;
+			lastScrubBab.value = 0;
+
+			if (ratio >= 0) {
+				runOnJS(commitScrub)(Math.round(ratio * (BAB_COUNT - 1)) + 1);
+			}
+		});
 
 	if (babsQuery.isPending || settingsQuery.isPending) {
 		return (
@@ -330,20 +325,27 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 	const babs = babsQuery.data ?? [];
 	// Today's share, per the server — under ROTATION it is a different seat's block each
 	// day, so it can't be read off `assignedUserId`.
-	const myBabNumbers = groupQuery.data?.myBabNumbers ?? [];
+	const myBabNumbers = groupQuery.data?.myBabNumbers ?? NO_BAB_NUMBERS;
 	// A bab from a seat nobody took. It can be read, but only after taking it.
 	const isPoolBab = groupQuery.data?.poolBabNumbers.includes(babNumber) ?? false;
-	const poolSlotIndex = isPoolBab && groupQuery.data ? slotIndexForBab(babNumber, groupQuery.data.spots) : null;
+	/**
+	 * Which pool slot offers this bab **this round** — read off the pool itself, never derived.
+	 *
+	 * It used to be `slotIndexForBab(babNumber, spots)`, which answers a different question:
+	 * that returns the seat whose *standing* block the bab belongs to. Under ROTATION an empty
+	 * seat `e` leaves uncovered the block it would have been *reading*, `(e + roundIndex) %
+	 * spots` — not its own — so the two only agree when the rotation happens to be at zero.
+	 * Every other round the reader asked the server to take somebody else's slot, which it
+	 * refused, and "Üstlen ve okudum" did nothing at all.
+	 *
+	 * `PoolSlot.babNumbers` is the block that slot is actually offering, so matching against it
+	 * cannot drift from what the pool board shows.
+	 */
+	const poolSlotIndex =
+		poolQuery.data?.find(slot => slot.takenByUserId === null && slot.babNumbers.includes(babNumber))?.slotIndex ??
+		null;
 	const currentBab = babs.find(bab => bab.number === babNumber);
 	const isRead = Boolean(currentBab?.readAt);
-	/**
-	 * Every bab read this round, whoever read it — the strip's tallest-but-one state.
-	 *
-	 * Deliberately not `useMemo`: `babs` is only in scope past the early returns above, so a
-	 * hook here would be a conditional one. Rebuilding a hundred-item array per bab crossed
-	 * costs nothing beside the render it happens inside, and the ticks are `memo`'d.
-	 */
-	const readBabNumbers = babs.filter(bab => bab.readAt).map(bab => bab.number);
 	/**
 	 * The reader's typography, from E2a. Defaulted here rather than trusted from the server,
 	 * because the sheet reads these back to show what is currently selected and `undefined`
@@ -557,8 +559,9 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 					>
 						<ReaderBabMap
 							currentBab={displayBab}
+							scrubRatio={scrubRatio}
 							myBabNumbers={myBabNumbers}
-							poolBabNumbers={groupQuery.data?.poolBabNumbers ?? []}
+							poolBabNumbers={groupQuery.data?.poolBabNumbers ?? NO_BAB_NUMBERS}
 							readBabNumbers={readBabNumbers}
 						/>
 					</View>
@@ -574,16 +577,15 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 					 * it explains. Three of them would have been two too many.
 					 */}
 					{/*
-					 * The mark that opens the bab: the same rosette the verses end on, drawn at the
-					 * design's section-head size and left **empty** — it starts a reading rather
-					 * than closing a numbered verse, so it has nothing to count.
+					 * No rosette opening the bab. It was an empty one at the design's section-head
+					 * size, and it was removed: the header now carries the bab's number, its
+					 * ownership chip and the hundred-tick strip, so a mark whose whole job was
+					 * announcing "a reading starts here" was announcing something already said
+					 * three times, and pushing the text down a line to do it.
 					 *
-					 * It was a green `۞` glyph, which was the one place in the reader still using a
-					 * typographic character where the page has an ornament.
+					 * `ui/Ornament` is still very much in use — the verse marks in the text and
+					 * the meal sheet's heading.
 					 */}
-					<View style={styles.glyph}>
-						<Ornament color={theme.colors.accent} size={ORNAMENT_SECTION_SIZE} />
-					</View>
 					{/*
 					 * The besmele opens the work, not each bab — the source sets it once, as bab 1's
 					 * second line — so it appears on bab 1 and nowhere else. Set in the chosen face
@@ -608,7 +610,7 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 							]}
 							textAlign='center'
 						>
-							{arabicFor(BISMILLAH, readerSettings.readerArabicFont)}
+							{BISMILLAH}
 						</Typography>
 					) : null}
 					{cevsenBab && cevsenBab.invocations.length > 0 ? (
@@ -647,7 +649,7 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 									// A Fragment, not a nested Typography: that would apply its own
 									// variant's `fontSize` and shrink the Arabic back to body size.
 									<Fragment key={invocation.n}>
-										{withDivineName(arabicFor(invocation.text, readerSettings.readerArabicFont), {
+										{withDivineName(invocation.text, {
 											color: theme.colors.danger,
 											fontFamily: arabicFont,
 											fontSize
@@ -712,7 +714,7 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 								]}
 								textAlign='center'
 							>
-								{arabicFor(cevsenBab.closing.text, readerSettings.readerArabicFont)}
+								{cevsenBab.closing.text}
 								{/*
 								 * The colour has to be repeated here. A nested `Typography` applies
 								 * its own default rather than inheriting the refrain's red, so
@@ -765,9 +767,7 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 										]}
 										textAlign='center'
 									>
-										{splitOnOrnament(
-											arabicFor(CEVSEN_AFTER_HUNDREDTH.join(' '), readerSettings.readerArabicFont)
-										).map((part, index) =>
+										{splitOnOrnament(CEVSEN_AFTER_HUNDREDTH.join(' ')).map((part, index) =>
 											part === RUB_EL_HIZB ? (
 												<Typography
 													key={`orn-${index}`}
@@ -912,7 +912,7 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 			<MealSheet
 				arabicFont={arabicFont}
 				arabicFontSize={fontSize}
-				arabicText={mealInvocation ? arabicFor(mealInvocation.text, readerSettings.readerArabicFont) : ''}
+				arabicText={mealInvocation?.text ?? ''}
 				babNumber={babNumber}
 				invocation={mealInvocation}
 				numerals={readerSettings.readerNumerals}
@@ -938,6 +938,11 @@ const styles = StyleSheet.create({
 	// Set apart from the names above it, without a rule: the refrain is part of the bab, not
 	// a separate section.
 	closing: {
+		// Cancels the trailing margin inherited from `arabic`, which exists to separate the
+		// names from this refrain and has nothing left to separate underneath it. Left in, it
+		// stacked with the body's bottom padding for 42pt of air under the last line against
+		// 26 above the first.
+		marginBottom: 0,
 		marginTop: 4
 	},
 	bismillah: {
@@ -948,9 +953,10 @@ const styles = StyleSheet.create({
 		marginTop: 11
 	},
 	body: {
+		// Symmetric: the page opens and closes on the same gap.
+		paddingBottom: 26,
 		paddingHorizontal: 22,
-		paddingTop: 26,
-		paddingBottom: 20
+		paddingTop: 26
 	},
 	centered: {
 		alignItems: 'center',
@@ -989,10 +995,6 @@ const styles = StyleSheet.create({
 		borderWidth: StyleSheet.hairlineWidth,
 		paddingHorizontal: 9,
 		paddingVertical: 5
-	},
-	glyph: {
-		alignItems: 'center',
-		marginBottom: 22
 	},
 	header: {
 		borderBottomWidth: StyleSheet.hairlineWidth,
