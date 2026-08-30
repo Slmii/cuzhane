@@ -47,7 +47,9 @@ export const MembersSheet = ({ groupId, isVisible, onClose }: MembersSheetProps)
 	const userId = useCurrentUserId();
 
 	const groupQuery = useGetGroupById(groupId);
-	const membersQuery = useGetGroupMembers(groupId);
+	// Only while open: closed, this sheet is still mounted and would otherwise refetch and
+	// rebuild every row behind a surface that renders nothing.
+	const membersQuery = useGetGroupMembers(groupId, isVisible);
 	const removeGroupMember = useRemoveGroupMember();
 
 	const [memberToRemove, setMemberToRemove] = useState<GroupMember | null>(null);

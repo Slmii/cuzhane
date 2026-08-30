@@ -22,9 +22,9 @@ import { cycleLabelKey, splitModeLabelKey } from '@/lib/utils/groups';
 import { TabStackParamList } from '@/navigation/types';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useEffect, useMemo, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
-import Animated, { FadeIn, FadeOut, LinearTransition, useReducedMotion } from 'react-native-reanimated';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { FlatList, StyleSheet, View } from 'react-native';
+import Animated, { LinearTransition, useReducedMotion } from 'react-native-reanimated';
 
 type DiscoverNavigationProp = NativeStackNavigationProp<TabStackParamList>;
 
@@ -36,9 +36,6 @@ type DiscoverNavigationProp = NativeStackNavigationProp<TabStackParamList>;
  * own sake when the cause was a filter, not a scroll.
  */
 const CARD_LAYOUT = LinearTransition.springify().damping(20).stiffness(180).mass(0.7);
-const CARD_ENTERING = FadeIn.duration(200);
-const CARD_EXITING = FadeOut.duration(140);
-
 const SEARCH_DEBOUNCE_MS = 300;
 
 const badgeToneForCycle = (cycle: GroupCycle): ChipTone => {
@@ -63,8 +60,6 @@ export const DiscoverScreen = () => {
 	// Someone who has asked the OS for less motion gets the instant reorder they asked for.
 	const isReducedMotion = useReducedMotion();
 	const cardLayout = isReducedMotion ? undefined : CARD_LAYOUT;
-	const cardEntering = isReducedMotion ? undefined : CARD_ENTERING;
-	const cardExiting = isReducedMotion ? undefined : CARD_EXITING;
 
 	// Only offer "clear" when something is actually narrowing the list; with neither a
 	// query nor a filter there is genuinely nothing to browse, not nothing matching.
@@ -104,79 +99,109 @@ export const DiscoverScreen = () => {
 		</View>
 	);
 
-	return (
-		<ScreenContainer shouldIncludeTabBarOffset stickyHeaderIndices={[0]}>
-			{header}
+	type Row = (typeof visibleGroups)[number];
 
-			{isPending ? (
-				<GroupCardSkeleton statusLabel={t('loadingDiscover')} />
-			) : isError ? (
-				<EmptyState actionLabel={t('retry')} onAction={refetch} title={t('genericError')} />
-			) : visibleGroups.length === 0 ? (
-				<ShelfEmptyState
-					actions={
-						<>
-							{isNarrowed ? (
-								<AppButton onPress={clearNarrowing} title={t('emptyDiscClear')} variant='surface' />
-							) : null}
-							<AppButton
-								onPress={() => navigation.navigate('CreateGroup')}
-								title={t('emptyDiscCreate')}
-							/>
-						</>
+	const keyExtractor = useCallback((group: Row) => group.id, []);
+
+	const renderGroup = useCallback(
+		({ item }: { item: Row }) => (
+			/*
+			 * `layout` only. `entering`/`exiting` used to sit here too, so that changing the
+			 * filter faded rows in and out — but in a windowed list those fire as rows scroll
+			 * into the window, and every card would fade in on the way past. `layout` is safe:
+			 * it animates a row that *moves*, which is still exactly the filter/sort case.
+			 */
+			<Animated.View layout={cardLayout}>
+				<GroupCard
+					actionLabel={item.isFull ? t('full') : t('join')}
+					badgeLabel={t(cycleLabelKey(item.cycle))}
+					badgeTone={badgeToneForCycle(item.cycle)}
+					// Cycle, then whether it has started. The design also has a "Kurucu" chip
+					// here, but a group you created is one you're in, and those no longer reach
+					// this list.
+					extraBadges={[{ label: t(item.status === 'RUNNING' ? 'running' : 'notStarted') }]}
+					footerCaption={
+						item.isFull
+							? `${t('full')} · ${item.spots}/${item.spots}`
+							: `${item.spotsLeft} ${t('spotsLeft')} · ${item.memberCount}/${item.spots}`
 					}
-					description={t('emptyDiscSub')}
-					hasMagnifier
-					title={t('emptyDiscTitle')}
-				/>
-			) : (
-				visibleGroups.map(group => {
-					// Discover never lists a group you're already in, so every row here is one
-					// you could join — the only distinction left is whether it has room.
-					const actionLabel = group.isFull ? t('full') : t('join');
-					// Public groups are always open, and joining happens on the preview — so
-					// the row's label describes what you'll find rather than acting itself.
-					const statusBadge = { label: t(group.status === 'RUNNING' ? 'running' : 'notStarted') };
-					const seatsCaption = group.isFull
-						? `${t('full')} · ${group.spots}/${group.spots}`
-						: `${group.spotsLeft} ${t('spotsLeft')} · ${group.memberCount}/${group.spots}`;
-
+					footerLeading={<SeatStack />}
+					isActionPrimary={!item.isFull}
+					name={item.name}
 					// Always the read-only preview: joining happens there, not from the row.
-					const openRow = () => navigation.navigate('InvitePreview', { groupId: group.id });
+					onPress={() => navigation.navigate('InvitePreview', { groupId: item.id })}
+					subtitle={`${t(cycleLabelKey(item.cycle))} · ${t(splitModeLabelKey(item.splitMode))}`}
+				/>
+			</Animated.View>
+		),
+		[cardLayout, navigation, t]
+	);
 
-					return (
-						// Keyed on the group, so changing the filter or the sort *moves* these
-						// cards rather than replacing them: `layout` carries each one to its new
-						// place, and rows joining or leaving the result fade instead of blinking.
-						<Animated.View entering={cardEntering} exiting={cardExiting} key={group.id} layout={cardLayout}>
-							<GroupCard
-								actionLabel={actionLabel}
-								badgeLabel={t(cycleLabelKey(group.cycle))}
-								badgeTone={badgeToneForCycle(group.cycle)}
-								// Cycle, then whether it has started. The design also has a "Kurucu"
-								// chip here, but a group you created is one you're in, and those no
-								// longer reach this list.
-								extraBadges={[statusBadge]}
-								footerCaption={seatsCaption}
-								footerLeading={<SeatStack />}
-								isActionPrimary={!group.isFull}
-								name={group.name}
-								onPress={openRow}
-								subtitle={`${t(cycleLabelKey(group.cycle))} · ${t(splitModeLabelKey(group.splitMode))}`}
-							/>
-						</Animated.View>
-					);
-				})
-			)}
+	const empty = isPending ? (
+		<GroupCardSkeleton statusLabel={t('loadingDiscover')} />
+	) : isError ? (
+		<EmptyState actionLabel={t('retry')} onAction={refetch} title={t('genericError')} />
+	) : (
+		<ShelfEmptyState
+			actions={
+				<>
+					{isNarrowed ? (
+						<AppButton onPress={clearNarrowing} title={t('emptyDiscClear')} variant='surface' />
+					) : null}
+					<AppButton onPress={() => navigation.navigate('CreateGroup')} title={t('emptyDiscCreate')} />
+				</>
+			}
+			description={t('emptyDiscSub')}
+			hasMagnifier
+			title={t('emptyDiscTitle')}
+		/>
+	);
+
+	return (
+		/*
+		 * A **windowed list**. Discover is capped at fifty server-side, and every card carries
+		 * badges, a seat stack and an animated progress bar — mapped into a `ScrollView` that
+		 * is fifty full card trees mounted before the first one is on screen.
+		 *
+		 * The container hands over a flush surface so the list scrolls edge to edge; it keeps
+		 * `paddingTop`, which is carrying the status-bar inset.
+		 */
+		<ScreenContainer contentContainerStyle={styles.flush} isScrollable={false} shouldIncludeTabBarOffset>
+			<FlatList
+				contentContainerStyle={styles.listContent}
+				data={visibleGroups}
+				initialNumToRender={6}
+				keyboardShouldPersistTaps='handled'
+				keyExtractor={keyExtractor}
+				ListEmptyComponent={empty}
+				ListHeaderComponent={header}
+				maxToRenderPerBatch={6}
+				removeClippedSubviews
+				renderItem={renderGroup}
+				showsVerticalScrollIndicator={false}
+				stickyHeaderIndices={[0]}
+				windowSize={7}
+			/>
 		</ScreenContainer>
 	);
 };
 
 const styles = StyleSheet.create({
+	// The list carries the screen's own padding so its scroll runs edge to edge; the container
+	// keeps `paddingTop`, which is where the status-bar inset lives.
+	flush: {
+		paddingBottom: 0,
+		paddingHorizontal: 0
+	},
 	header: {
 		// `ScreenTitle` and the browse bar own their padding; the sticky wrapper only has to
 		// be opaque, since a sticky child sits above the scrolling content.
 		zIndex: 3
+	},
+	listContent: {
+		gap: 12,
+		paddingBottom: 24,
+		paddingHorizontal: 20
 	},
 	loader: {
 		alignItems: 'center',

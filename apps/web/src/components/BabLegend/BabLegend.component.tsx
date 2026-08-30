@@ -23,12 +23,15 @@ export const BabLegend = ({ style }: BabLegendProps) => {
 			label: t('legendOthers')
 		},
 		{ backgroundColor: theme.colors.babOpen, borderColor: theme.colors.babOpen, label: t('legendOpen') },
-		// The pool has no reader yet, so it can't reuse a progress colour — the hatch (same as
-		// the pool strip's own cells) reads as "belongs to a seat nobody took" rather than a
-		// fifth progress state.
+		// The pool has no reader yet, so it can't reuse a progress colour — `poolFree` and the
+		// hatch read as "belongs to a seat nobody took" rather than a fifth progress state.
+		//
+		// **`poolFree`, the same token the cells it labels use.** This swatch was drawn in
+		// `track`, which was neither the board's pool colour nor the pool board's — a legend
+		// key that didn't match the thing it was a key for.
 		{
-			backgroundColor: theme.colors.track,
-			borderColor: theme.colors.track,
+			backgroundColor: theme.colors.poolFree,
+			borderColor: theme.colors.poolFree,
 			isHatched: true,
 			label: t('legendPool')
 		}

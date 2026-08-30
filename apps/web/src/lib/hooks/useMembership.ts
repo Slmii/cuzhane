@@ -96,11 +96,19 @@ export const useLeaveGroup = () => {
 	});
 };
 
-export const useGetGroupMembers = (groupId: string) => {
+/**
+ * `isEnabled` lets a caller that is currently invisible stop subscribing.
+ *
+ * The members sheet is the case: it stays mounted behind a closed `AppBottomSheet`, so
+ * without this its query kept refetching in the background and every refetch rebuilt a row —
+ * avatar, progress bar, the lot — for a surface nobody could see. Cached data survives, so
+ * reopening is still instant after the first look.
+ */
+export const useGetGroupMembers = (groupId: string, isEnabled = true) => {
 	return useQuery({
 		queryKey: groupQueryKeys.members(groupId),
 		queryFn: () => getGroupMembers(groupId),
-		enabled: !!groupId
+		enabled: !!groupId && isEnabled
 	});
 };
 

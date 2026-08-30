@@ -117,7 +117,7 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 		>
 			<Form<GroupForm>
 				defaultValues={{
-					cycle: 'WEEKLY',
+					cycle: 'DAILY',
 					dedication: '',
 					name: '',
 					reminderEnabled: true,

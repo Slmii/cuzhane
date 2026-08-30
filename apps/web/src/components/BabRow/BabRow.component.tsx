@@ -2,23 +2,30 @@ import { BodyStrongText, Typography } from '@/components/ui/Typography/Typograph
 import { Icon } from '@/components/ui/Icon/Icon.component';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { Pressable, StyleSheet, View } from 'react-native';
-import Animated, { useAnimatedStyle, withTiming, ZoomIn } from 'react-native-reanimated';
+import Animated, { useReducedMotion, ZoomIn } from 'react-native-reanimated';
 import type { BabRowProps } from './BabRow.types';
 
 const CHECK_DURATION_MS = 300;
 
-export const BabRow = ({ isRead, onOpen, onToggle, openLabel, style, subtitle, title }: BabRowProps) => {
+export const BabRow = ({
+	isRead,
+	isReadByOthers,
+	onOpen,
+	onToggle,
+	openLabel,
+	style,
+	subtitle,
+	title
+}: BabRowProps) => {
 	const { theme } = useThemeContext();
-
-	// The fill eases in behind the tick instead of flipping instantly.
-	const checkboxStyle = useAnimatedStyle(() => ({
-		backgroundColor: withTiming(isRead ? theme.colors.accent : theme.colors.surface, {
-			duration: CHECK_DURATION_MS
-		}),
-		borderColor: withTiming(isRead ? theme.colors.accent : theme.colors.borderStrong, {
-			duration: CHECK_DURATION_MS
-		})
-	}));
+	const isReducedMotion = useReducedMotion();
+	/*
+	 * Somebody else's read is shown, not offered. The server only lets the reader undo their
+	 * own read, so a pressable tick here was a control that could not do the one thing it
+	 * looked like it did.
+	 */
+	const checkboxFill = isReadByOthers ? theme.colors.babReadByOthers : theme.colors.accent;
+	const checkColor = isReadByOthers ? theme.colors.babOthersText : theme.colors.onAccent;
 
 	return (
 		<View style={[styles.row, { borderBottomColor: theme.colors.divider }, style]}>
@@ -34,18 +41,39 @@ export const BabRow = ({ isRead, onOpen, onToggle, openLabel, style, subtitle, t
 			 */}
 			<Pressable
 				accessibilityRole='checkbox'
-				accessibilityState={{ checked: isRead }}
+				accessibilityState={{ checked: isRead, disabled: isReadByOthers }}
+				disabled={isReadByOthers}
 				onPress={onToggle}
-				style={({ pressed }) => [styles.toggleArea, { opacity: pressed ? 0.7 : 1 }]}
+				style={({ pressed }) => [styles.toggleArea, { opacity: pressed && !isReadByOthers ? 0.7 : 1 }]}
 			>
 				{({ pressed }) => (
 					<>
+						{/*
+						 * The fill eases in behind the tick instead of flipping instantly — as a
+						 * CSS transition on **one flat object**, not a `useAnimatedStyle`.
+						 *
+						 * A row is a list item: a share runs to dozens of them and they all stay
+						 * mounted, so a mapper apiece meant dozens of worklets re-synchronising
+						 * every time any read state changed. The press scale stays outside the
+						 * transition deliberately — it should snap, not lag the finger.
+						 */}
 						<Animated.View
-							style={[styles.checkbox, checkboxStyle, { transform: [{ scale: pressed ? 0.92 : 1 }] }]}
+							style={{
+								...styles.checkbox,
+								backgroundColor: isRead ? checkboxFill : theme.colors.surface,
+								borderColor: isRead ? checkboxFill : theme.colors.borderStrong,
+								transform: [{ scale: pressed ? 0.92 : 1 }],
+								...(isReducedMotion
+									? null
+									: {
+											transitionDuration: CHECK_DURATION_MS,
+											transitionProperty: ['backgroundColor', 'borderColor']
+									  })
+							}}
 						>
 							{isRead ? (
 								<Animated.View entering={ZoomIn.duration(220)}>
-									<Icon color={theme.colors.onAccent} name='check' size={13} strokeWidth={2.2} />
+									<Icon color={checkColor} name='check' size={13} strokeWidth={2.2} />
 								</Animated.View>
 							) : null}
 						</Animated.View>

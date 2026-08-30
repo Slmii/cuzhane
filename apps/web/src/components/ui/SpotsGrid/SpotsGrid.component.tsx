@@ -4,6 +4,7 @@ import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { SpotsGridProps } from './SpotsGrid.types';
 
+/** Matches `FILL_STEP_MS`, so the seats cascade at the rate the üstlen sweep fills. */
 const CASCADE_STEP_MS = 18;
 /** `CellGrid`'s `shrink` keyframe. Kept in step by hand — it is the ghost's whole lifetime. */
 const SHRINK_DURATION_MS = 240;

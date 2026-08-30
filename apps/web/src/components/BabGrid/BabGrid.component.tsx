@@ -35,13 +35,18 @@ export const BabGrid = ({ cells, columns = 10, onPressBab, style }: BabGridProps
 						labelColor: theme.colors.faintText
 					};
 				case 'pool':
-					// Same neutral fill as an untouched bab, plus the hatch — the pool isn't a
-					// step on the progress scale, it's "this belongs to nobody".
+					// `poolFree` and the hatch — the pool isn't a step on the progress scale,
+					// it's "this belongs to nobody", so it sits outside the read-state palette
+					// entirely. It used to borrow `babOpen`, the untouched-bab neutral, which
+					// left this board painting the pool a different colour from the pool board
+					// and the reader's strip. One token now, on all three.
 					return {
-						backgroundColor: theme.colors.babOpen,
-						borderColor: theme.colors.babOpen,
+						backgroundColor: theme.colors.poolFree,
+						borderColor: theme.colors.poolFree,
 						isHatched: true,
-						labelColor: theme.colors.babOpenText
+						// `sandText` for the same reason `PoolGrid` uses it: the fill is a tan,
+						// and `babOpenText` is the grey meant for the untouched neutral.
+						labelColor: theme.colors.sandText
 					};
 				default:
 					return {

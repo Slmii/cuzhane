@@ -9,6 +9,7 @@ const bab = (overrides: Partial<GroupBab> = {}): GroupBab => ({
 	number: 1,
 	assignedUserId: null,
 	readByUserId: null,
+	readByDisplayName: null,
 	readAt: null,
 	...overrides
 });

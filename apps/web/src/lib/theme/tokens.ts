@@ -80,14 +80,13 @@ export type AppTheme = {
 		babOpenText: string;
 		babOthersText: string;
 		/**
-		 * The reader header's 100-tick mini-map, whose four states are **ownership**, not read
-		 * state, so the board's `babReadByMe`/`babReadByOthers`/`babOpen` don't fit. Read and
-		 * current reuse `accent` and `text` — both already equal the design in both themes —
-		 * and "yours" reuses `accentMid`, which is the design's `#A9C7B6` exactly in light.
-		 * These two have no existing equivalent: the pool tick is a tan in light and a rose in
-		 * dark, and the untouched tick is lighter than `switchTrackOff` is in dark.
+		 * The reader header's 100-tick mini-map. Its four states are **ownership**, not read
+		 * state, so the board's `babReadByMe`/`babReadByOthers` don't fit. Read and current
+		 * reuse `accent` and `text` — both already equal the design in both themes — "yours"
+		 * reuses `accentMid`, and the pool tick reuses **`poolFree`**, which is now the one
+		 * colour every surface paints an unclaimed bab in. Only "nobody else's" is left with
+		 * no equivalent elsewhere.
 		 */
-		babMapPool: string;
 		babMapOther: string;
 		/**
 		 * Pool cells (07a/07b/07c). A pool bab has three states and the board's colours only
@@ -197,9 +196,8 @@ export const lightTheme: AppTheme = {
 		babOpen: '#ECEAE4',
 		babOpenText: '#A9A8A2',
 		babOthersText: '#5A8674',
-		babMapPool: '#DEC7A6',
 		babMapOther: '#DEDCD5',
-		poolFree: '#F2F0EA',
+		poolFree: '#DEC7A6',
 		poolTaken: '#DCE7DF',
 		poolTakenText: '#2F5B4C',
 		undoBorder: 'rgba(28,29,26,0.16)',
@@ -276,9 +274,10 @@ export const darkTheme: AppTheme = {
 		babOpen: 'rgba(242,240,234,0.08)',
 		babOpenText: 'rgba(242,240,234,0.62)',
 		babOthersText: '#141513',
-		babMapPool: 'rgba(201,123,123,0.5)',
 		babMapOther: 'rgba(242,240,234,0.16)',
-		poolFree: 'rgba(242,240,234,0.08)',
+		// The light tan at dark-mode weight — same hue, dropped in luminance so it reads as
+		// sand on the dark paper rather than glowing.
+		poolFree: '#6E5F45',
 		poolTaken: '#2B3B33',
 		poolTakenText: '#8FB8A6',
 		undoBorder: 'rgba(242,240,234,0.18)',

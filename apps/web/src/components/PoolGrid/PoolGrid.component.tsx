@@ -23,22 +23,39 @@ const RING_WIDTH = 1.5;
 const paletteFor = (state: PoolCellState, theme: AppTheme) => {
 	switch (state) {
 		case 'takenByMe':
+			// Solid accent, **no ring**. It carried a `text`-coloured outline to separate it
+			// from a read bab; with the block's own read state now shown by the two cases
+			// below, the fill alone is unambiguous and the ring was only making your cells
+			// louder than everyone's.
 			return {
 				backgroundColor: theme.colors.accent,
-				borderColor: theme.colors.text,
+				borderColor: theme.colors.accent,
 				labelColor: theme.colors.onAccent
 			};
-		case 'takenByOthers':
+		case 'takenByOthersRead':
+			// The group board's "others read" tokens exactly — the same fact, so the same
+			// colour. `poolTaken` happens to be this hex too, which is how claimed-but-unread
+			// and read-by-someone came to look identical here.
 			return {
-				backgroundColor: theme.colors.poolTaken,
-				borderColor: theme.colors.poolTaken,
-				labelColor: theme.colors.poolTakenText
+				backgroundColor: theme.colors.babReadByOthers,
+				borderColor: theme.colors.babReadByOthers,
+				labelColor: theme.colors.babOthersText
+			};
+		case 'takenByOthers':
+			// And the group board's "theirs, unread": a quiet panel, because a claim nobody has
+			// acted on yet is the least eventful thing on this board.
+			return {
+				backgroundColor: theme.colors.surfaceMuted,
+				borderColor: theme.colors.border,
+				labelColor: theme.colors.faintText
 			};
 		default:
 			return {
 				backgroundColor: theme.colors.poolFree,
 				borderColor: theme.colors.poolFree,
-				labelColor: theme.colors.faintText
+				// `sandText`, not `faintText`: the unclaimed fill is a tan now, and a pale grey
+				// numeral on it was barely legible.
+				labelColor: theme.colors.sandText
 			};
 	}
 };
@@ -77,11 +94,17 @@ export const PoolGrid = ({ cells, drainingSlotIndexes, style }: PoolGridProps) =
 		}));
 	}, [cells, drainingSlotIndexes, theme]);
 
-	const legend = [
-		{ isHatched: true, label: t('legendPool'), state: 'open' as const },
-		{ isHatched: false, label: t('poolTakenOther'), state: 'takenByOthers' as const },
-		{ isHatched: false, label: t('poolMine'), state: 'takenByMe' as const }
-	];
+	// Rebuilt only when the language changes. It was a fresh array on every render, which is
+	// three times a second while a claim sweeps.
+	const legend = useMemo(
+		() => [
+			{ isHatched: true, label: t('legendPool'), state: 'open' as const },
+			{ isHatched: false, label: t('poolTakenOther'), state: 'takenByOthers' as const },
+			{ isHatched: false, label: t('poolTakenOtherRead'), state: 'takenByOthersRead' as const },
+			{ isHatched: false, label: t('poolMine'), state: 'takenByMe' as const }
+		],
+		[t]
+	);
 
 	return (
 		<View style={style}>

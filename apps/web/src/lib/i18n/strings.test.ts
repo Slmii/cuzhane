@@ -4,9 +4,10 @@ import { APP_LANGUAGES, interpolate, isAppLanguage, STRINGS } from './strings';
 describe('STRINGS', () => {
 	it('defines the same keys in every language', () => {
 		const trKeys = Object.keys(STRINGS.tr).sort();
-		const enKeys = Object.keys(STRINGS.en).sort();
 
-		expect(enKeys).toEqual(trKeys);
+		for (const language of APP_LANGUAGES) {
+			expect(Object.keys(STRINGS[language]).sort(), `${language} keys`).toEqual(trKeys);
+		}
 	});
 
 	it('has no blank values', () => {
@@ -17,11 +18,15 @@ describe('STRINGS', () => {
 		}
 	});
 
-	it('uses the same placeholders in both languages', () => {
+	it('uses the same placeholders in every language', () => {
 		const placeholders = (value: string) => (value.match(/\{(\w+)\}/g) ?? []).sort();
 
 		for (const key of Object.keys(STRINGS.tr) as (keyof typeof STRINGS.tr)[]) {
-			expect(placeholders(STRINGS.en[key]), `mismatch on "${key}"`).toEqual(placeholders(STRINGS.tr[key]));
+			for (const language of APP_LANGUAGES) {
+				expect(placeholders(STRINGS[language][key]), `mismatch on "${language}.${key}"`).toEqual(
+					placeholders(STRINGS.tr[key])
+				);
+			}
 		}
 	});
 });
@@ -52,6 +57,7 @@ describe('isAppLanguage', () => {
 	it('accepts supported languages', () => {
 		expect(isAppLanguage('tr')).toBe(true);
 		expect(isAppLanguage('en')).toBe(true);
+		expect(isAppLanguage('nl')).toBe(true);
 	});
 
 	it('rejects anything else', () => {

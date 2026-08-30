@@ -35,6 +35,12 @@ module.exports = [
 			'no-mixed-spaces-and-tabs': ['error', 'smart-tabs'],
 			'linebreak-style': ['error', 'unix'],
 			curly: 'error',
+			// TypeScript already validates props, and every component here annotates them. The
+			// rule's own docs call it redundant under TS; it stayed on only because nothing had
+			// tripped its heuristics yet — a screen that builds `renderItem`/`ListHeaderComponent`
+			// callbacks at the top level reads as a second component to it, and it then reports the
+			// *screen's* typed props as unvalidated.
+			'react/prop-types': 'off',
 			'react/react-in-jsx-scope': 'off',
 			'react/no-unescaped-entities': 'off',
 			'react/jsx-curly-brace-presence': ['error', { props: 'never', children: 'never' }],

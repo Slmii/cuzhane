@@ -3,6 +3,8 @@ import type { StyleProp, ViewStyle } from 'react-native';
 
 export interface ScreenHeaderProps {
 	title: string;
+	/** Forwarded to `ScreenTitle` — set to 1 when the title is user-supplied. */
+	titleLines?: number;
 	subtitle?: string;
 	/** Small caps line above the title — the pool screen's "ORTAK HAVUZ". */
 	eyebrow?: string;

@@ -2,6 +2,7 @@ import { BAD_REQUEST, CONFLICT } from '@config/httpCodes';
 import { HttpError } from '@config/httpError';
 import prisma from '@db/prisma';
 import { BAB_COUNT } from '@utils/babs';
+import { getMemberProfiles } from '@utils/memberProfiles';
 import { normalizeUserId } from '@utils/normalizeUserId';
 import type { Prisma } from '../generated/prisma/client';
 import { requireMembership } from './groupAccess.service';
@@ -119,7 +120,37 @@ export const listBabsForUser = async (userId: string, groupId: string): Promise<
 		orderBy: { number: 'asc' }
 	});
 
-	return babs.map(serializeBab);
+	/*
+	 * Named readers, for the group screen's share list — a bab it shows as yours can already
+	 * have been read by whoever held that block before you did, and the row says who.
+	 *
+	 * Only the ids that actually appear, so an untouched board costs no lookup at all. Clerk's
+	 * name wins over the stored one, the same order the member list and the pool use: a member
+	 * who renamed themselves after joining is still stored under the old name.
+	 */
+	const readerIds = [...new Set(babs.map(bab => bab.readByUserId).filter(id => id !== null))];
+	const nameByUserId = new Map<string, string>();
+
+	if (readerIds.length > 0) {
+		const [profiles, members] = await Promise.all([
+			getMemberProfiles(readerIds),
+			prisma.groupMember.findMany({
+				where: { groupId, userId: { in: readerIds } },
+				select: { userId: true, displayName: true }
+			})
+		]);
+
+		for (const member of members) {
+			nameByUserId.set(member.userId, member.displayName);
+		}
+		for (const [id, profile] of profiles) {
+			if (profile.displayName) {
+				nameByUserId.set(id, profile.displayName);
+			}
+		}
+	}
+
+	return babs.map(bab => serializeBab(bab, nameByUserId));
 };
 
 export const setBabReadForUser = async (
@@ -302,5 +333,5 @@ export const setAssignedBabsReadForUser = async (
 		return tx.groupBab.findMany({ where: { groupId }, orderBy: { number: 'asc' } });
 	});
 
-	return babs.map(serializeBab);
+	return babs.map(bab => serializeBab(bab));
 };

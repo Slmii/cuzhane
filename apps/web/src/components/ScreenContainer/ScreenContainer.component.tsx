@@ -25,13 +25,28 @@ export const ScreenContainer = ({
 	const scrollRef = useRef<ScrollView | null>(null);
 	// A sticky header pins to the scroll *viewport*, not to the content — so it rises above
 	// the content padding that normally carries the top inset and lands under the notch.
-	// With one in play the inset moves onto the safe area instead, which shrinks the
-	// viewport rather than the content, and the header comes to rest below the status bar.
+	// With one in play the inset moves onto the viewport instead, which shrinks it rather
+	// than the content, and the header comes to rest below the status bar.
 	const hasStickyHeader = Boolean(stickyHeaderIndices?.length) && isScrollable;
-	const shouldInsetSafeArea = hasStickyHeader && shouldIncludeTopInset;
+	const shouldInsetViewport = hasStickyHeader && shouldIncludeTopInset;
 	const horizontalEdges: readonly Edge[] = tabBarHeight > 0 ? ['left', 'right'] : ['left', 'right', 'bottom'];
-	const edges: readonly Edge[] = shouldInsetSafeArea ? [...horizontalEdges, 'top'] : horizontalEdges;
-	const topInset = shouldIncludeTopInset && !shouldInsetSafeArea ? insets.top : 0;
+	/*
+	 * **The top inset is padding we compute, never a `SafeAreaView` edge.**
+	 *
+	 * `edges` is frame-aware: the native side works out how much of each inset actually
+	 * applies from where the view sits in the window. That is the right behaviour for a
+	 * static layout and the wrong one during a push — the incoming screen is translated
+	 * off to the side, resolves a top inset of 0 while it slides, and only gains the real
+	 * one when it lands. On a warm cache (no skeleton to hide it) that showed as the header
+	 * drawn over the clock for ~370ms and then dropping into place; measured off a screen
+	 * recording, content sat at y=176 before settling at y=254.
+	 *
+	 * `useSafeAreaInsets` is the plain context value with no measurement behind it, so it is
+	 * correct on the very first frame the screen exists.
+	 */
+	const edges: readonly Edge[] = horizontalEdges;
+	const viewportPaddingTop = shouldInsetViewport ? insets.top : 0;
+	const topInset = shouldIncludeTopInset && !shouldInsetViewport ? insets.top : 0;
 	const paddingTop = topInset + theme.spacing.sm;
 	const paddingBottom = shouldIncludeTabBarOffset ? tabBarHeight : theme.spacing.lg;
 
@@ -47,7 +62,14 @@ export const ScreenContainer = ({
 
 	if (isScrollable) {
 		return (
-			<SafeAreaView edges={edges} style={[styles.safeArea, { backgroundColor: theme.colors.background }, style]}>
+			<SafeAreaView
+				edges={edges}
+				style={[
+					styles.safeArea,
+					{ backgroundColor: theme.colors.background, paddingTop: viewportPaddingTop },
+					style
+				]}
+			>
 				<ScrollView
 					ref={scrollRef}
 					contentContainerStyle={[
@@ -71,7 +93,14 @@ export const ScreenContainer = ({
 	}
 
 	return (
-		<SafeAreaView edges={edges} style={[styles.safeArea, { backgroundColor: theme.colors.background }, style]}>
+		<SafeAreaView
+			edges={edges}
+			style={[
+				styles.safeArea,
+				{ backgroundColor: theme.colors.background, paddingTop: viewportPaddingTop },
+				style
+			]}
+		>
 			<View
 				style={[
 					styles.staticContent,

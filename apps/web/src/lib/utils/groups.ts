@@ -70,8 +70,18 @@ export const toBabCells = (
 	return babs.map(bab => ({ number: bab.number, state: babCellState(bab, cellContext) }));
 };
 
-/** A pool bab, by whether anyone has volunteered for it — the three states the Havuz screen shows. */
-export type PoolCellState = 'open' | 'takenByMe' | 'takenByOthers';
+/**
+ * A pool bab's state on the Havuz board — four, not three.
+ *
+ * `takenByOthers` used to cover a whole claimed block whether or not any of it had been
+ * read, so a block someone had taken and finished looked identical to one they had taken and
+ * not started. Splitting the read half off is what lets the board show progress inside
+ * somebody else's claim.
+ *
+ * Your own claim stays a single state: on this board the useful fact is that the block is
+ * yours, and your reading progress is on the row beneath it and all over the group screen.
+ */
+export type PoolCellState = 'open' | 'takenByMe' | 'takenByOthers' | 'takenByOthersRead';
 
 export type PoolCell = {
 	number: number;
@@ -117,19 +127,34 @@ export const toPoolCells = (
 
 			const isMine = context.viewerUserId !== null && bab.assignedUserId === context.viewerUserId;
 
-			return [{ number: bab.number, state: isMine ? 'takenByMe' : 'takenByOthers' }];
+			if (isMine) {
+				return [{ number: bab.number, state: 'takenByMe' }];
+			}
+
+			return [{ number: bab.number, state: bab.readAt !== null ? 'takenByOthersRead' : 'takenByOthers' }];
 		})
 		.sort((a, b) => a.number - b.number);
 };
 
 /**
- * The gap between one cell lighting up and the next.
+ * The gap between one cell lighting up and the next — **zero: the block changes all at once.**
  *
- * `pool-fill.html` sets `--fill-step` at 70ms; this runs it quicker on request. A 13-bab
- * block is twelve of these before its last cell even starts, so the step is what decides
- * whether a claim feels like a sweep or like waiting for one.
+ * `pool-fill.html` sets `--fill-step` at 70ms and this ran at 70, then 50, then 18. Every one
+ * of them read as sluggish, and the reason is arithmetic rather than frame rate: a 13-bab
+ * block is twelve steps before its *last* cell even begins, so at 70ms the sweep was still
+ * starting cells 840ms after the tap and the 300ms fade then ran on top of that. The claim
+ * finished well over a second after the finger left. Measured frame gaps were fine
+ * throughout — the animation was never dropping frames, it was just long.
+ *
+ * At zero every cell in the block eases together and the whole thing is over in the 300ms
+ * the fade itself takes.
+ *
+ * **`staggerWithinRuns` still runs and now returns all zeros**, which also makes the reversed
+ * drain a no-op — undoing a claim used to empty the block last-cell-first. That machinery is
+ * left in place rather than deleted, because it is one constant away from working again if
+ * the sweep is ever wanted back.
  */
-export const FILL_STEP_MS = 50;
+export const FILL_STEP_MS = 0;
 
 /**
  * Per-cell delays that sweep each *run* of a grid left to right.

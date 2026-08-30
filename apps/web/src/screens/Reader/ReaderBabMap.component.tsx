@@ -78,7 +78,7 @@ const Ticks = memo(
 		poolBabNumbers,
 		readBabNumbers
 	}: {
-		colors: { accent: string; accentMid: string; babMapOther: string; babMapPool: string };
+		colors: { accent: string; accentMid: string; other: string; pool: string };
 		isReducedMotion: boolean;
 		myBabNumbers: number[];
 		poolBabNumbers: number[];
@@ -97,11 +97,7 @@ const Ticks = memo(
 				}
 
 				return {
-					backgroundColor: mine.has(n)
-						? colors.accentMid
-						: pool.has(n)
-						? colors.babMapPool
-						: colors.babMapOther,
+					backgroundColor: mine.has(n) ? colors.accentMid : pool.has(n) ? colors.pool : colors.other,
 					height: TICK_HEIGHT,
 					n
 				};
@@ -161,8 +157,10 @@ export const ReaderBabMap = ({
 		() => ({
 			accent: theme.colors.accent,
 			accentMid: theme.colors.accentMid,
-			babMapOther: theme.colors.babMapOther,
-			babMapPool: theme.colors.babMapPool
+			other: theme.colors.babMapOther,
+			// `poolFree`, the same colour the pool board paints an unclaimed bab. The strip had
+			// its own token for this and the two drifted apart.
+			pool: theme.colors.poolFree
 		}),
 		[theme]
 	);
@@ -181,7 +179,7 @@ export const ReaderBabMap = ({
 		() => [
 			{ color: theme.colors.accent, label: t('legRead') },
 			{ color: theme.colors.accentMid, label: t('ownMine') },
-			{ color: theme.colors.babMapPool, label: t('ownPool') },
+			{ color: theme.colors.poolFree, label: t('ownPool') },
 			{ color: theme.colors.babMapOther, label: t('ownOther') }
 		],
 		[t, theme]

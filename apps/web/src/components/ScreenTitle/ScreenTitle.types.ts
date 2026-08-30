@@ -3,6 +3,15 @@ import type { StyleProp, ViewStyle } from 'react-native';
 
 export interface ScreenTitleProps {
 	label: string;
+	/**
+	 * How many lines the label may take before it truncates. Defaults to what the size asks
+	 * for — two at `page`, one at the smaller scales.
+	 *
+	 * Worth setting to 1 whenever the label is **user-supplied**. A screen heading is short by
+	 * design, but a group's name is whatever somebody typed: at two lines it pushed the
+	 * cadence chip onto its own row (`labelRow` wraps) and shoved the whole page down.
+	 */
+	labelLines?: number;
 	/** Eyebrow above the label — Home's "Bugün", the Groups greeting. */
 	secondaryLabel?: string;
 	/** Caption below the label — Profile's "member since". */

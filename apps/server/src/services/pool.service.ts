@@ -27,6 +27,15 @@ export type PoolSlot = {
 	takenByImageUrl: string | null;
 	takenByMe: boolean;
 	readCount: number;
+	/**
+	 * Which of this slot's babs have been read, by number.
+	 *
+	 * `readCount` answers "how far has this block got" for the slot's own row; the board above
+	 * it colours one cell per bab, and a count cannot say *which*. Without this the Havuz
+	 * board could only show a block as claimed or not, so a block someone had taken and
+	 * finished looked exactly like one they had taken and not started.
+	 */
+	readBabNumbers: number[];
 };
 
 export const listPoolSlotsForUser = async (userId: string, groupId: string): Promise<PoolSlot[]> => {
@@ -69,7 +78,8 @@ export const listPoolSlotsForUser = async (userId: string, groupId: string): Pro
 					: null,
 				takenByImageUrl: takenByUserId ? profiles.get(takenByUserId)?.imageUrl ?? null : null,
 				takenByMe: takenByUserId === normalizedUserId,
-				readCount: babs.filter(bab => bab.readAt !== null).length
+				readCount: babs.filter(bab => bab.readAt !== null).length,
+				readBabNumbers: babs.filter(bab => bab.readAt !== null).map(bab => bab.number)
 			}
 		];
 	});

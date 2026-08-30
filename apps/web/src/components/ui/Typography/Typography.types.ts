@@ -32,6 +32,16 @@ export interface TypographyProps {
 	onLongPress?: () => void;
 	/** Suppresses the press highlight, which otherwise flashes a box through a paragraph. */
 	suppressHighlighting?: boolean;
+	/**
+	 * Renders through `Animated.Text` and **flattens the style**, so a Reanimated CSS
+	 * transition passed in `style` is actually seen.
+	 *
+	 * Both halves are needed. A plain `Text` is not an animated component, so transition
+	 * properties on it are inert; and this component normally composes its style as an
+	 * *array*, where Reanimated reads them as unknown keys. Opt in only where text has to
+	 * ease — the bab board's numerals do, and that is currently the only caller.
+	 */
+	isAnimated?: boolean;
 	style?: StyleProp<TextStyle>;
 	textAlign?: TextStyle['textAlign'];
 	variant?: TypographyVariant;

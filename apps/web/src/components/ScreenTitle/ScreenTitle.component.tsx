@@ -25,6 +25,7 @@ export const ScreenTitle = ({
 	description,
 	hasReservedSecondaryLabel = true,
 	label,
+	labelLines,
 	leading,
 	secondaryLabel,
 	size = 'page',
@@ -62,13 +63,19 @@ export const ScreenTitle = ({
 					// without a trailing slot keeps exactly the layout it had.
 					<View style={trailing ? styles.labelRow : null}>
 						{size === 'compact' ? (
-							<TitleText numberOfLines={1}>{label}</TitleText>
+							<TitleText numberOfLines={labelLines ?? 1} style={trailing ? styles.labelShrink : null}>
+								{label}
+							</TitleText>
 						) : size === 'name' ? (
-							<Header2 numberOfLines={1}>{label}</Header2>
+							<Header2 numberOfLines={labelLines ?? 1} style={trailing ? styles.labelShrink : null}>
+								{label}
+							</Header2>
 						) : (
-							<Header1 numberOfLines={2}>{label}</Header1>
+							<Header1 numberOfLines={labelLines ?? 2} style={trailing ? styles.labelShrink : null}>
+								{label}
+							</Header1>
 						)}
-						{trailing}
+						{trailing ? <View style={styles.labelTrailing}>{trailing}</View> : null}
 					</View>
 				)}
 				{description ? (
@@ -83,13 +90,27 @@ export const ScreenTitle = ({
 };
 
 const styles = StyleSheet.create({
-	// Wraps rather than squeezing the title: a long group name plus a chip has to break
-	// onto two lines, not shrink the heading.
+	/*
+	 * One line, centred, always — the chip sits *beside* the title rather than under it.
+	 *
+	 * This used to wrap, on the reasoning that a long name plus a chip should break onto two
+	 * lines rather than squeeze the heading. In practice the title claimed the full width and
+	 * pushed the chip onto a row of its own, which read as a stray label under the heading
+	 * instead of a property of it. The title truncates now (`labelShrink`) and the chip keeps
+	 * its size (`labelTrailing`), so the pair always occupies exactly one line.
+	 */
 	labelRow: {
 		alignItems: 'center',
 		flexDirection: 'row',
-		flexWrap: 'wrap',
 		gap: 9
+	},
+	/** The title gives way; it is the only part of the row that can afford to. */
+	labelShrink: {
+		flexShrink: 1
+	},
+	/** The chip never shrinks — a squeezed cadence chip is worse than a truncated name. */
+	labelTrailing: {
+		flexShrink: 0
 	},
 	container: {
 		alignItems: 'center',

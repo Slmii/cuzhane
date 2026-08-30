@@ -28,6 +28,8 @@ export type GroupBab = {
 	number: number;
 	assignedUserId: string | null;
 	readByUserId: string | null;
+	/** Who read it, by name — shown on a bab in your share that somebody else finished. */
+	readByDisplayName: string | null;
 	readAt: string | null;
 };
 
@@ -169,12 +171,14 @@ export type PoolSlot = {
 	takenByImageUrl: string | null;
 	takenByMe: boolean;
 	readCount: number;
+	/** Which of this slot's babs are read — the board needs *which*, not just how many. */
+	readBabNumbers: number[];
 };
 
 export type UserSettings = {
 	id: string;
 	userId: string;
-	language: 'tr' | 'en';
+	language: 'tr' | 'en' | 'nl';
 	// No account-wide notifications switch: `reminderEnabled` is the only one, because it
 	// is the only one the app gives anybody a way to set. See `user.prisma`.
 	reminderEnabled: boolean;

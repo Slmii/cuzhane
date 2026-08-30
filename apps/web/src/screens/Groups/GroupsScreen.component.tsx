@@ -27,17 +27,14 @@ import { useUser } from '@clerk/expo';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useMemo, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
-import Animated, { FadeIn, FadeOut, LinearTransition, useReducedMotion } from 'react-native-reanimated';
+import { useCallback, useMemo, useState } from 'react';
+import { FlatList, StyleSheet, View } from 'react-native';
+import Animated, { LinearTransition, useReducedMotion } from 'react-native-reanimated';
 
 type GroupsNavigationProp = NativeStackNavigationProp<TabStackParamList>;
 
 /** Same motion as Keşfet — the shelf rearranges rather than repainting. */
 const CARD_LAYOUT = LinearTransition.springify().damping(20).stiffness(180).mass(0.7);
-const CARD_ENTERING = FadeIn.duration(200);
-const CARD_EXITING = FadeOut.duration(140);
-
 export const GroupsScreen = () => {
 	const navigation = useNavigation<GroupsNavigationProp>();
 	const { theme } = useThemeContext();
@@ -62,10 +59,15 @@ export const GroupsScreen = () => {
 		}
 	};
 
-	const goToGroup = (groupId: string) => navigation.navigate('GroupDetail', { groupId });
+	// `useCallback` because the list's `renderItem` closes over these: a fresh function each
+	// render would invalidate it and rebuild every row on screen.
+	const goToGroup = useCallback((groupId: string) => navigation.navigate('GroupDetail', { groupId }), [navigation]);
 	// Creators get the lobby they can start from; members get the waiting screen.
-	const goToGathering = (groupId: string, isOwner: boolean) =>
-		isOwner ? navigation.navigate('Lobby', { groupId }) : navigation.navigate('JoinedWelcome', { groupId });
+	const goToGathering = useCallback(
+		(groupId: string, isOwner: boolean) =>
+			isOwner ? navigation.navigate('Lobby', { groupId }) : navigation.navigate('JoinedWelcome', { groupId }),
+		[navigation]
+	);
 	const goToCreateGroup = () => navigation.navigate('CreateGroup');
 	// "Nothing on the shelf at all", which is a different state from "nothing matches" —
 	// one offers ways to get a group, the other offers to stop narrowing.
@@ -82,8 +84,6 @@ export const GroupsScreen = () => {
 
 	const isReducedMotion = useReducedMotion();
 	const cardLayout = isReducedMotion ? undefined : CARD_LAYOUT;
-	const cardEntering = isReducedMotion ? undefined : CARD_ENTERING;
-	const cardExiting = isReducedMotion ? undefined : CARD_EXITING;
 
 	// The design pins this block: the + stays reachable however far the shelf scrolls,
 	// which is the whole reason it moved up here from the bottom of the list. It paints
@@ -122,154 +122,156 @@ export const GroupsScreen = () => {
 		</View>
 	);
 
+	type Row = (typeof visibleGroups)[number];
+
+	const keyExtractor = useCallback((group: Row) => group.id, []);
+
+	const renderGroup = useCallback(
+		({ item }: { item: Row }) => {
+			// A gathering group has no progress to show — the card counts seats instead, and
+			// its action is the owner's "start" rather than "continue".
+			const isGathering = item.status === 'GATHERING';
+
+			/*
+			 * `layout` only. `entering`/`exiting` used to sit here as well, so a filter change
+			 * faded rows in and out — but in a windowed list those fire whenever a row enters
+			 * the window, so every card would fade in as you scrolled past it. `layout` still
+			 * animates a row that *moves*, which is the filter-and-sort case it was for.
+			 */
+			if (isGathering) {
+				const openSpots = item.spots - item.memberCount;
+
+				return (
+					<Animated.View layout={cardLayout}>
+						<GroupCard
+							// "Lobiyi gör", not the bare "Görüntüle" Discover uses for a group you
+							// already belong to — one tap apart, the same word would be carrying two
+							// different meanings.
+							actionLabel={item.isOwner ? t('startNow') : t('viewLobby')}
+							badgeLabel={t('lobbyState')}
+							badgeTone='sand'
+							footerCaption={
+								item.isOwner ? `${openSpots} ${t('openSpots')}` : formatBabRange(item.myBabNumbers)
+							}
+							footerLabel={item.isOwner ? `${t('creator')} · ${t('you')}` : t('provisional')}
+							name={item.name}
+							onAction={() => goToGathering(item.id, item.isOwner)}
+							onPress={() => goToGathering(item.id, item.isOwner)}
+							percent={Math.round((item.memberCount / item.spots) * 100)}
+							readCount={item.memberCount}
+							subtitle={t('notCounting')}
+						/>
+					</Animated.View>
+				);
+			}
+
+			// A finished round has nothing left to continue, so it doesn't claim to.
+			const isCompleted = item.completedAt !== null;
+			// Called straight rather than through the hook: this renders per row, and a hook
+			// per card would change hook order as the list grows or shrinks.
+			const reset = roundResetLabels(item.roundEndsAt, item.cycle, item.timezone, language, t);
+
+			return (
+				<Animated.View layout={cardLayout}>
+					<GroupCard
+						actionLabel={isCompleted ? t('view') : t('continue')}
+						badgeLabel={t(visibilityLabelKey(item.visibility))}
+						badgeTone={visibilityChipTone(item.visibility)}
+						footerCaption={`${t('todayLabel')} · ${item.myReadCount}/${item.myBabNumbers.length}`}
+						footerLabel={`${t(planLabelKey(item.splitMode))} · ${formatBabRange(item.myBabNumbers)}`}
+						// Filled even when the round is finished: the hatim itself is ongoing, so a
+						// de-emphasised button would read as "this group is done". Only the label
+						// softens — there is nothing left to continue today.
+						isActionPrimary
+						name={item.name}
+						onAction={() => goToGroup(item.id)}
+						onPress={() => goToGroup(item.id)}
+						percent={item.percent}
+						readCount={item.readCount}
+						{...(reset
+							? { resetRow: <RoundResetRow groupLabel={reset.group} localLabel={reset.local} /> }
+							: {})}
+						// The ghost "Kurucu" tag, shown only on groups you started.
+						{...(item.isOwner ? { extraBadges: [{ label: t('creator') }] } : {})}
+						subtitle={
+							item.dedication
+								? t('forName', { dedication: item.dedication })
+								: t('groupCycleLine', {
+										cycle: t(cycleLabelKey(item.cycle)),
+										count: item.memberCount
+								  })
+						}
+					/>
+				</Animated.View>
+			);
+		},
+		[cardLayout, goToGathering, goToGroup, language, t]
+	);
+
+	const empty = isPending ? (
+		<GroupCardSkeleton statusLabel={t('loadingGroups')} />
+	) : isError ? (
+		<EmptyState actionLabel={t('retry')} onAction={refetch} title={t('genericError')} />
+	) : !groups || groups.length === 0 ? (
+		<ShelfEmptyState
+			actions={
+				<>
+					<AppButton onPress={goToCreateGroup} title={t('emptyMyCreate')} />
+					<AppButton onPress={() => setIsJoinSheetOpen(true)} title={t('emptyMyJoin')} variant='surface' />
+					<AppButton
+						onPress={() => navigation.navigate('Discover')}
+						title={t('emptyMyBrowse')}
+						variant='ghost'
+					/>
+				</>
+			}
+			description={t('emptyMySub')}
+			title={t('emptyMyTitle')}
+		/>
+	) : (
+		// The shelf has groups; this narrowing just doesn't reach any of them. The way out is
+		// to stop narrowing, not to go and make another group.
+		<ShelfEmptyState
+			actions={
+				isNarrowed ? (
+					<AppButton
+						onPress={() => setBrowse(emptyGroupBrowseState)}
+						title={t('emptyDiscClear')}
+						variant='surface'
+					/>
+				) : null
+			}
+			description={t('emptyDiscSub')}
+			hasMagnifier
+			title={t('emptyDiscTitle')}
+		/>
+	);
+
 	return (
 		<>
-			<ScreenContainer shouldIncludeTabBarOffset stickyHeaderIndices={[0]}>
-				{header}
-
-				{isPending ? (
-					<GroupCardSkeleton statusLabel={t('loadingGroups')} />
-				) : isError ? (
-					<EmptyState actionLabel={t('retry')} onAction={refetch} title={t('genericError')} />
-				) : !groups || groups.length === 0 ? (
-					<ShelfEmptyState
-						actions={
-							<>
-								<AppButton onPress={goToCreateGroup} title={t('emptyMyCreate')} />
-								<AppButton
-									onPress={() => setIsJoinSheetOpen(true)}
-									title={t('emptyMyJoin')}
-									variant='surface'
-								/>
-								<AppButton
-									onPress={() => navigation.navigate('Discover')}
-									title={t('emptyMyBrowse')}
-									variant='ghost'
-								/>
-							</>
-						}
-						description={t('emptyMySub')}
-						title={t('emptyMyTitle')}
-					/>
-				) : visibleGroups.length === 0 ? (
-					// The shelf has groups; this narrowing just doesn't reach any of them. The
-					// way out is to stop narrowing, not to go and make another group.
-					<ShelfEmptyState
-						actions={
-							isNarrowed ? (
-								<AppButton
-									onPress={() => setBrowse(emptyGroupBrowseState)}
-									title={t('emptyDiscClear')}
-									variant='surface'
-								/>
-							) : null
-						}
-						description={t('emptyDiscSub')}
-						hasMagnifier
-						title={t('emptyDiscTitle')}
-					/>
-				) : (
-					<>
-						{visibleGroups.map(group => {
-							// A gathering group has no progress to show — the card counts seats
-							// instead, and its action is the owner's "start" rather than "continue".
-							const isGathering = group.status === 'GATHERING';
-							const openSpots = group.spots - group.memberCount;
-
-							if (isGathering) {
-								return (
-									// Keyed on the wrapper so filtering and sorting *move* the cards
-									// rather than repainting the column — same treatment as Keşfet.
-									<Animated.View
-										entering={cardEntering}
-										exiting={cardExiting}
-										key={group.id}
-										layout={cardLayout}
-									>
-										<GroupCard
-											// "Lobiyi gör", not the bare "Görüntüle" Discover uses for a group
-											// you already belong to — one tap apart, the same word would be
-											// carrying two different meanings.
-											actionLabel={group.isOwner ? t('startNow') : t('viewLobby')}
-											badgeLabel={t('lobbyState')}
-											badgeTone='sand'
-											footerCaption={
-												group.isOwner
-													? `${openSpots} ${t('openSpots')}`
-													: formatBabRange(group.myBabNumbers)
-											}
-											footerLabel={
-												group.isOwner ? `${t('creator')} · ${t('you')}` : t('provisional')
-											}
-											name={group.name}
-											onAction={() => goToGathering(group.id, group.isOwner)}
-											onPress={() => goToGathering(group.id, group.isOwner)}
-											percent={Math.round((group.memberCount / group.spots) * 100)}
-											readCount={group.memberCount}
-											subtitle={t('notCounting')}
-										/>
-									</Animated.View>
-								);
-							}
-
-							// A finished round has nothing left to continue, so it doesn't claim to.
-							const isCompleted = group.completedAt !== null;
-							// Called straight rather than through the hook: this is inside a map, and a
-							// hook per card would change hook order as the list grows or shrinks.
-							const reset = roundResetLabels(group.roundEndsAt, group.cycle, group.timezone, language, t);
-
-							return (
-								<Animated.View
-									entering={cardEntering}
-									exiting={cardExiting}
-									key={group.id}
-									layout={cardLayout}
-								>
-									<GroupCard
-										actionLabel={isCompleted ? t('view') : t('continue')}
-										badgeLabel={t(visibilityLabelKey(group.visibility))}
-										badgeTone={visibilityChipTone(group.visibility)}
-										footerCaption={`${t('todayLabel')} · ${group.myReadCount}/${
-											group.myBabNumbers.length
-										}`}
-										footerLabel={`${t(planLabelKey(group.splitMode))} · ${formatBabRange(
-											group.myBabNumbers
-										)}`}
-										// Filled even when the round is finished: the hatim itself is ongoing,
-										// so a de-emphasised button would read as "this group is done".
-										// Only the label softens — there is nothing left to continue today.
-										isActionPrimary
-										name={group.name}
-										onAction={() => goToGroup(group.id)}
-										onPress={() => goToGroup(group.id)}
-										percent={group.percent}
-										readCount={group.readCount}
-										{...(reset
-											? {
-													resetRow: (
-														<RoundResetRow
-															groupLabel={reset.group}
-															localLabel={reset.local}
-														/>
-													)
-											  }
-											: {})}
-										// The ghost "Kurucu" tag, shown only on groups you started.
-										{...(group.isOwner ? { extraBadges: [{ label: t('creator') }] } : {})}
-										subtitle={
-											group.dedication
-												? t('forName', { dedication: group.dedication })
-												: t('groupCycleLine', {
-														cycle: t(cycleLabelKey(group.cycle)),
-														count: group.memberCount
-												  })
-										}
-									/>
-								</Animated.View>
-							);
-						})}
-					</>
-				)}
+			{/*
+			 * A **windowed list**. The shelf has no cap — it holds every group you belong to,
+			 * and each card carries badges, a progress bar and a reset row — so mapping them
+			 * into a `ScrollView` mounted the whole history before the first card was on
+			 * screen. The container hands over a flush surface and keeps only `paddingTop`,
+			 * which is where the status-bar inset lives.
+			 */}
+			<ScreenContainer contentContainerStyle={styles.flush} isScrollable={false} shouldIncludeTabBarOffset>
+				<FlatList
+					contentContainerStyle={styles.listContent}
+					data={visibleGroups}
+					initialNumToRender={6}
+					keyboardShouldPersistTaps='handled'
+					keyExtractor={keyExtractor}
+					ListEmptyComponent={empty}
+					ListHeaderComponent={header}
+					maxToRenderPerBatch={6}
+					removeClippedSubviews
+					renderItem={renderGroup}
+					showsVerticalScrollIndicator={false}
+					stickyHeaderIndices={[0]}
+					windowSize={7}
+				/>
 			</ScreenContainer>
 
 			<JoinByCodeSheet isVisible={isJoinSheetVisible} onClose={closeJoinSheet} />
@@ -278,6 +280,17 @@ export const GroupsScreen = () => {
 };
 
 const styles = StyleSheet.create({
+	// The list carries the screen's padding so its scroll runs edge to edge; the container
+	// keeps `paddingTop`, which is where the status-bar inset lives.
+	flush: {
+		paddingBottom: 0,
+		paddingHorizontal: 0
+	},
+	listContent: {
+		gap: 12,
+		paddingBottom: 24,
+		paddingHorizontal: 20
+	},
 	header: {
 		// ScreenTitle owns the design's `padding: 8px 0 18px`, so the sticky wrapper adds
 		// none of its own — it only needs to be opaque.

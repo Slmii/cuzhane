@@ -8,7 +8,16 @@ import type { ScreenHeaderProps } from './ScreenHeader.types';
  * A pushed screen's header: back affordance over the shared `ScreenTitle` block, so the
  * heading keeps the same spacing as the tab roots rather than drifting on its own.
  */
-export const ScreenHeader = ({ action, eyebrow, onBack, style, subtitle, title, titleTrailing }: ScreenHeaderProps) => {
+export const ScreenHeader = ({
+	action,
+	eyebrow,
+	onBack,
+	style,
+	subtitle,
+	title,
+	titleLines,
+	titleTrailing
+}: ScreenHeaderProps) => {
 	return (
 		<View style={style}>
 			{onBack ? <BackLink onPress={onBack} style={styles.back} /> : null}
@@ -17,6 +26,7 @@ export const ScreenHeader = ({ action, eyebrow, onBack, style, subtitle, title, 
 				// row already fills it. A screen that actually has one gets it laid out.
 				hasReservedSecondaryLabel={false}
 				label={title}
+				{...(titleLines !== undefined ? { labelLines: titleLines } : {})}
 				style={onBack ? styles.titleAfterBack : null}
 				{...(eyebrow !== undefined ? { secondaryLabel: eyebrow } : {})}
 				{...(subtitle !== undefined ? { description: subtitle } : {})}

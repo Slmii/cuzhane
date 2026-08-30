@@ -25,7 +25,6 @@ import { MealSheet } from '@/screens/Reader/MealSheet.component';
 import { ReaderBabMap } from '@/screens/Reader/ReaderBabMap.component';
 import { ReaderSettings } from '@/screens/Reader/ReaderSettings.component';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { useKeepAwake } from 'expo-keep-awake';
 import { Fragment, type ReactNode, useCallback, useMemo, useState } from 'react';
@@ -170,7 +169,7 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 	 * so leaving the reader gives the display back without anything else having to remember to.
 	 */
 	useKeepAwake();
-	const { mode, theme } = useThemeContext();
+	const { theme } = useThemeContext();
 	const { t } = useTranslation();
 
 	const babsQuery = useGetBabs(groupId);
@@ -299,6 +298,56 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 			}
 		});
 
+	/**
+	 * The reader's typography, from E2a. Defaulted here rather than trusted from the server,
+	 * because the sheet reads these back to show what is currently selected and `undefined`
+	 * would leave all three groups looking unset on a first paint.
+	 *
+	 * Derived **above the guards below** because `invocationRuns` memoises on it, and a hook
+	 * cannot sit after an early return. Nothing here needs the queries to have settled.
+	 */
+	const readerSettings = {
+		// Must match `ReaderArabicFont`'s Prisma default — this only stands in for the frame
+		// before settings arrive, and a different guess would repaint the page underneath.
+		readerArabicFont: settingsQuery.data?.readerArabicFont ?? 'naskh',
+		readerFontSize: settingsQuery.data?.readerFontSize ?? READER_FONT_SIZE_DEFAULT,
+		readerNumerals: settingsQuery.data?.readerNumerals ?? 'arabic'
+	} as const;
+	/*
+	 * The chosen size, corrected for how large this particular face draws — see
+	 * `arabicReaderFontScale`. The ornament is sized separately because it may be borrowed
+	 * from another face, and that face has its own scale.
+	 */
+	const baseFontSize = clampReaderFontSize(readerSettings.readerFontSize);
+	const fontSize = Math.round(baseFontSize * arabicReaderFontScale[readerSettings.readerArabicFont]);
+	const ornamentFace = ornamentFaceFor(readerSettings.readerArabicFont);
+	const ornamentFont = arabicReaderFonts[ornamentFace];
+	const ornamentFontSize = Math.round(baseFontSize * arabicReaderFontScale[ornamentFace]);
+	const arabicFont = arabicReaderFonts[readerSettings.readerArabicFont];
+	const cevsenBab = getBab(babNumber);
+
+	/**
+	 * Every invocation's Arabic, already split into coloured runs, keyed by invocation number.
+	 *
+	 * **Memoised because scrubbing re-renders this screen once per bab crossed**, and the body
+	 * below renders `babNumber` — the *committed* bab — so its content is identical on every
+	 * one of those renders. Without this, each of them re-tokenised all ten invocations on
+	 * whitespace and rebuilt their runs, throwing the result away unchanged.
+	 */
+	const invocationRuns = useMemo(() => {
+		const runs: Record<number, ReactNode> = {};
+
+		for (const invocation of cevsenBab?.invocations ?? []) {
+			runs[invocation.n] = withDivineName(invocation.text, {
+				color: theme.colors.danger,
+				fontFamily: arabicFont,
+				fontSize
+			});
+		}
+
+		return runs;
+	}, [arabicFont, cevsenBab, fontSize, theme.colors.danger]);
+
 	if (babsQuery.isPending || settingsQuery.isPending) {
 		return (
 			<SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
@@ -346,31 +395,6 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 		null;
 	const currentBab = babs.find(bab => bab.number === babNumber);
 	const isRead = Boolean(currentBab?.readAt);
-	/**
-	 * The reader's typography, from E2a. Defaulted here rather than trusted from the server,
-	 * because the sheet reads these back to show what is currently selected and `undefined`
-	 * would leave all three groups looking unset on a first paint.
-	 */
-	const readerSettings = {
-		// Must match `ReaderArabicFont`'s Prisma default — this only stands in for the frame
-		// before settings arrive, and a different guess would repaint the page underneath.
-		readerArabicFont: settingsQuery.data?.readerArabicFont ?? 'naskh',
-		readerFontSize: settingsQuery.data?.readerFontSize ?? READER_FONT_SIZE_DEFAULT,
-		readerNumerals: settingsQuery.data?.readerNumerals ?? 'arabic'
-	} as const;
-	/*
-	 * The chosen size, corrected for how large this particular face draws — see
-	 * `arabicReaderFontScale`. The ornament is sized separately because it may be borrowed
-	 * from another face, and that face has its own scale.
-	 */
-	const baseFontSize = clampReaderFontSize(readerSettings.readerFontSize);
-	const fontSize = Math.round(baseFontSize * arabicReaderFontScale[readerSettings.readerArabicFont]);
-	const ornamentFace = ornamentFaceFor(readerSettings.readerArabicFont);
-	const ornamentFont = arabicReaderFonts[ornamentFace];
-	const ornamentFontSize = Math.round(baseFontSize * arabicReaderFontScale[ornamentFace]);
-	const arabicFont = arabicReaderFonts[readerSettings.readerArabicFont];
-	const cevsenBab = getBab(babNumber);
-	const blurTint = mode === 'dark' ? 'dark' : 'light';
 
 	/**
 	 * **The reader walks the whole cevşen.** All hundred babs are readable; only your own and
@@ -402,6 +426,7 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 			: { background: theme.colors.secondary, foreground: theme.colors.subtext, label: t('ownOther') };
 
 	const ownershipChip = ownership(displayBab);
+
 	/*
 	 * One line under the text. The ownership hint takes the slot when there is one to give —
 	 * it explains the button right below it, which is the more urgent thing — and the
@@ -493,7 +518,15 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 			style={[styles.safeArea, { backgroundColor: theme.colors.background }]}
 		>
 			<View style={[styles.header, { borderBottomColor: theme.colors.readerRule }]}>
-				<BlurView intensity={30} style={StyleSheet.absoluteFill} tint={blurTint} />
+				{/*
+				 * The translucent surface alone — there was a `BlurView` under it, and it was
+				 * doing almost nothing for a real cost. `readerSurface` is 94% opaque and laid
+				 * over it edge to edge, so the blur could contribute at most six percent of the
+				 * colour, while live blur re-samples and composites the Arabic scrolling beneath
+				 * it every frame. Measured on the simulator: the reader's body scroll held a
+				 * 20.0ms median gap against 16.7ms on Home, with the blur the only material
+				 * difference between them.
+				 */}
 				<View style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.readerSurface }]} />
 				<View style={styles.headerTopRow}>
 					<View style={styles.headerSide}>
@@ -649,11 +682,7 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 									// A Fragment, not a nested Typography: that would apply its own
 									// variant's `fontSize` and shrink the Arabic back to body size.
 									<Fragment key={invocation.n}>
-										{withDivineName(invocation.text, {
-											color: theme.colors.danger,
-											fontFamily: arabicFont,
-											fontSize
-										})}
+										{invocationRuns[invocation.n] ?? invocation.text}
 										{/*
 										 * Real spaces around the ornament, not just its margin — the
 										 * invocations are concatenated with no separator of their own.
@@ -798,7 +827,15 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 			</GestureDetector>
 
 			<View style={[styles.footer, { borderTopColor: theme.colors.readerRule }]}>
-				<BlurView intensity={30} style={StyleSheet.absoluteFill} tint={blurTint} />
+				{/*
+				 * The translucent surface alone — there was a `BlurView` under it, and it was
+				 * doing almost nothing for a real cost. `readerSurface` is 94% opaque and laid
+				 * over it edge to edge, so the blur could contribute at most six percent of the
+				 * colour, while live blur re-samples and composites the Arabic scrolling beneath
+				 * it every frame. Measured on the simulator: the reader's body scroll held a
+				 * 20.0ms median gap against 16.7ms on Home, with the blur the only material
+				 * difference between them.
+				 */}
 				<View style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.readerSurface }]} />
 				{/*
 				 * One line saying why the button below reads the way it does — and only when

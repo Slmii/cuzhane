@@ -10,7 +10,7 @@ import { normalizeUserId } from '@utils/normalizeUserId';
  * Only strings that appear in a *notification* belong here. Anything the app renders itself
  * stays in the client's table, where it can use the interpolation and typing that exist there.
  */
-export type PushLanguage = 'tr' | 'en';
+export type PushLanguage = 'tr' | 'en' | 'nl';
 
 /**
  * The reader's language, defaulting the way `UserSettings` does.
@@ -24,7 +24,11 @@ export const pushLanguageFor = async (userId: string): Promise<PushLanguage> => 
 		select: { language: true }
 	});
 
-	return settings?.language === 'tr' ? 'tr' : 'en';
+	if (settings?.language === 'tr' || settings?.language === 'nl') {
+		return settings.language;
+	}
+
+	return 'en';
 };
 
 /**
@@ -34,13 +38,23 @@ export const pushLanguageFor = async (userId: string): Promise<PushLanguage> => 
  * what was *not* lost, since "your babs were taken" is the reading to avoid: the reads they
  * already made still stand.
  */
-export const poolClaimReleasedPush = (language: PushLanguage, range: string) =>
-	language === 'tr'
-		? {
-				title: 'Üstlendiğin bablar devredildi',
-				body: `${range}. bablar gruba yeni katılan üyenin payı oldu. Okuduğun bablar sende kalır.`
-		  }
-		: {
-				title: 'Babs you took were passed on',
-				body: `Babs ${range} became a new member's share. Anything you already read still counts for you.`
-		  };
+export const poolClaimReleasedPush = (language: PushLanguage, range: string) => {
+	if (language === 'tr') {
+		return {
+			title: 'Üstlendiğin bablar devredildi',
+			body: `${range}. bablar gruba yeni katılan üyenin payı oldu. Okuduğun bablar sende kalır.`
+		};
+	}
+
+	if (language === 'nl') {
+		return {
+			title: 'De babs die je overnam zijn doorgegeven',
+			body: `Babs ${range} zijn het deel geworden van het nieuwe lid. Wat je al gelezen hebt, blijft van jou.`
+		};
+	}
+
+	return {
+		title: 'Babs you took were passed on',
+		body: `Babs ${range} became a new member's share. Anything you already read still counts for you.`
+	};
+};

@@ -4,6 +4,7 @@
 enum AppLanguage {
     tr
     en
+    nl
 }
 
 enum ReaderNumerals {

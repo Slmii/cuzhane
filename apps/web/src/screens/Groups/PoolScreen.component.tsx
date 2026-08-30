@@ -152,8 +152,12 @@ export const PoolScreen = ({ navigation, route }: Props) => {
 	const cells = useMemo<PoolCell[]>(
 		() =>
 			(pool.data ?? [])
-				.flatMap(slot =>
-					slot.babNumbers.map(number => ({
+				.flatMap(slot => {
+					// Per bab, not per slot: someone else's block shows how far they have got,
+					// so the read half of it has to be identifiable cell by cell.
+					const read = new Set(slot.readBabNumbers);
+
+					return slot.babNumbers.map(number => ({
 						number,
 						// Carried so the fill can be timed from the start of *this* block: claiming
 						// one slot should sweep its own cells, not run the length of the pool.
@@ -163,12 +167,26 @@ export const PoolScreen = ({ navigation, route }: Props) => {
 								? ('open' as const)
 								: slot.takenByMe
 								? ('takenByMe' as const)
+								: read.has(number)
+								? ('takenByOthersRead' as const)
 								: ('takenByOthers' as const)
-					}))
-				)
+					}));
+				})
 				.sort((a, b) => a.number - b.number),
 		[pool.data]
 	);
+
+	/**
+	 * The draining slot, as a **stable array**.
+	 *
+	 * Built inline at the call site this was a fresh `[]` on every render, and `PoolGrid`
+	 * names it in the dependency list of the `useMemo` that builds all the cells — so the memo
+	 * never once hit, and every render rebuilt every cell object and recomputed every fill
+	 * delay. Taking a slot renders several times in quick succession (the optimistic paint,
+	 * `takenHere`, the server's answer, the drain timer), which is exactly when the sweep is
+	 * supposed to be running.
+	 */
+	const drainingSlotIndexes = useMemo(() => (drainingSlot === null ? [] : [drainingSlot]), [drainingSlot]);
 
 	if (pool.isLoading) {
 		return (
@@ -362,7 +380,7 @@ export const PoolScreen = ({ navigation, route }: Props) => {
 						 * the card underneath and left this grid — the thing you actually look
 						 * at — saying nothing had happened.
 						 */}
-						<PoolGrid cells={cells} drainingSlotIndexes={drainingSlot === null ? [] : [drainingSlot]} />
+						<PoolGrid cells={cells} drainingSlotIndexes={drainingSlotIndexes} />
 					</CardSurface>
 					<View style={styles.slots}>{slots.map(renderSlot)}</View>
 				</>

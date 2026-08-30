@@ -29,7 +29,7 @@ export const createGroupSchema = (t: Translate) =>
 			.int()
 			.refine(value => SPOTS_VALUES.includes(value), { message: t('fieldRequired') })
 			.default(20),
-		cycle: z.enum(['DAILY', 'WEEKLY']).default('WEEKLY'),
+		cycle: z.enum(['DAILY', 'WEEKLY']).default('DAILY'),
 		reminderEnabled: z.boolean().default(true),
 		reminderTime: z
 			.string()

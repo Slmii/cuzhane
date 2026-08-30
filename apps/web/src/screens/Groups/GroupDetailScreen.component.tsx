@@ -1,14 +1,12 @@
 import { BabGrid } from '@/components/BabGrid/BabGrid.component';
 import { BabLegend } from '@/components/BabLegend/BabLegend.component';
-import { SliceChip } from '@/components/SliceChip/SliceChip.component';
 import { BabRow } from '@/components/BabRow/BabRow.component';
 import { GridSkeleton } from '@/components/GridSkeleton/GridSkeleton.component';
-import { GroupDetailSkeleton } from './GroupDetailSkeleton.component';
-import { LobbySkeleton } from './LobbySkeleton.component';
 import { PoolGrid } from '@/components/PoolGrid/PoolGrid.component';
 import { RoundResetRow } from '@/components/RoundResetRow/RoundResetRow.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
+import { SliceChip } from '@/components/SliceChip/SliceChip.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Chip } from '@/components/ui/Chip/Chip.component';
@@ -43,6 +41,8 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, withTiming } from 'react-native-reanimated';
+import { GroupDetailSkeleton } from './GroupDetailSkeleton.component';
+import { LobbySkeleton } from './LobbySkeleton.component';
 
 type Sheet = 'share' | 'manage' | 'members' | null;
 
@@ -305,9 +305,14 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 				onBack={navigation.goBack}
 				subtitle={detail.dedication ? t('forName', { dedication: detail.dedication }) : undefined}
 				title={detail.name}
-				// 07c only. A daily group counts down in hours, so its cadence isn't legible
-				// from the countdown the way "2 gün" makes it on a weekly one.
-				{...(isDaily ? { titleTrailing: <Chip label={t('daily')} tone='accent' /> } : {})}
+				// A group's name is whatever somebody typed, so it truncates rather than wrapping.
+				titleLines={1}
+				// Both cadences, not just daily. The chip was daily-only on the reasoning that a
+				// weekly group's countdown already says "2 gün" while a daily one counts hours —
+				// true, but it made the *chip itself* conditional, so a weekly group looked like a
+				// group with no cadence rather than one whose cadence you had to infer. Turlar
+				// shows both; this now matches it.
+				titleTrailing={<Chip label={t(isDaily ? 'daily' : 'weekly')} tone='accent' />}
 			/>
 		</View>
 	);
@@ -459,10 +464,20 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 								) : (
 									myBabs.map(bab => {
 										const isRead = bab.readAt !== null;
+										/*
+										 * **Who read it, not merely that it was read.** A bab in your
+										 * share can already have been read by whoever held that block on
+										 * an earlier rotation day. This drew your own ticked box over
+										 * their work and then offered an undo the server refuses —
+										 * only the reader may clear a read — so the tick was a control
+										 * that could not do the thing it looked like it did.
+										 */
+										const isReadByOthers = isRead && bab.readByUserId !== userId;
 
 										return (
 											<BabRow
 												isRead={isRead}
+												isReadByOthers={isReadByOthers}
 												key={bab.number}
 												onOpen={() =>
 													navigation.navigate('BabReader', { groupId, babNumber: bab.number })
@@ -471,7 +486,19 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 													setBabRead.mutate({ babNumber: bab.number, groupId, read: !isRead })
 												}
 												openLabel={t('read')}
-												subtitle={isRead ? t('readToday') : t('notRead')}
+												subtitle={
+													isReadByOthers
+														? // Named where the server could resolve one, and falling
+														  // back where it couldn't rather than printing an id: a
+														  // member who has since left still has reads on this
+														  // board, and "cmt9x…" says less than nothing.
+														  bab.readByDisplayName
+															? t('readBeforeYoursBy', { name: bab.readByDisplayName })
+															: t('readBeforeYours')
+														: isRead
+														? t('readToday')
+														: t('notRead')
+												}
 												title={t('babOrdinal', { n: bab.number })}
 											/>
 										);

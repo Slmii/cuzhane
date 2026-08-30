@@ -26,6 +26,8 @@ export type GroupBab = {
 	number: number;
 	assignedUserId: string | null;
 	readByUserId: string | null;
+	/** Who read it, by name — null when nobody has, or when the caller didn't ask for names. */
+	readByDisplayName: string | null;
 	readAt: string | null;
 };
 
@@ -282,10 +284,19 @@ const nextFreeSlotFromMembers = (members: GroupMemberModel[], spots: number): nu
 	return null;
 };
 
-export const serializeBab = (bab: GroupBabModel): GroupBab => ({
+/**
+ * `nameByUserId` names whoever read the bab, for the one row that has to say so: a bab in
+ * your own share that somebody else finished before it was yours. An id can't be shown to a
+ * person, and the client has no member list on that screen to join against — the members
+ * query belongs to a sheet that is usually closed.
+ *
+ * Optional so the paths that don't need a name don't pay for a profile lookup.
+ */
+export const serializeBab = (bab: GroupBabModel, nameByUserId?: Map<string, string>): GroupBab => ({
 	number: bab.number,
 	assignedUserId: bab.assignedUserId,
 	readByUserId: bab.readByUserId,
+	readByDisplayName: bab.readByUserId ? nameByUserId?.get(bab.readByUserId) ?? null : null,
 	readAt: bab.readAt ? bab.readAt.toISOString() : null
 });
 
@@ -472,7 +483,7 @@ export const toGroupDetail = (
 		babs: babs
 			.slice()
 			.sort((a, b) => a.number - b.number)
-			.map(serializeBab),
+			.map(bab => serializeBab(bab)),
 		members: members
 			.slice()
 			.sort((a, b) => a.slotIndex - b.slotIndex)

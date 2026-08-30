@@ -287,13 +287,19 @@ export const ProfileScreen = () => {
 				<ActivityHeatmap columns={15} days={stats.last30Days} />
 			</CardSurface>
 			<CardSurface isFlush style={styles.settingsCard}>
-				<View style={styles.settingsRow}>
+				<View style={styles.languageRow}>
 					<BodyStrongText>{t('language')}</BodyStrongText>
+					{/*
+					 * A third language no longer fits beside the label on one line, so this
+					 * row stacks instead of sitting side by side like the appearance row below
+					 * it — the control still spans the full card width, just on its own line.
+					 */}
 					<SegmentedControl
 						onChange={handleLanguageChange}
 						options={[
 							{ label: 'Türkçe', value: 'tr' },
-							{ label: 'English', value: 'en' }
+							{ label: 'English', value: 'en' },
+							{ label: 'Nederlands', value: 'nl' }
 						]}
 						value={language}
 					/>
@@ -404,6 +410,10 @@ const styles = StyleSheet.create({
 	},
 	heatmapTitle: {
 		marginBottom: 12
+	},
+	languageRow: {
+		gap: 10,
+		padding: 15
 	},
 	nameCard: {
 		marginBottom: 14

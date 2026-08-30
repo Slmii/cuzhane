@@ -7,11 +7,19 @@ import Animated, { Keyframe, useReducedMotion } from 'react-native-reanimated';
 import type { CellGridItem, CellGridProps } from './CellGrid.types';
 
 /**
- * How long a single cell takes to change colour. The üstlen sweep is colour only — nothing
- * scales — so this and `FILL_STEP_MS` are the whole effect. `pool-fill.html`'s `--fill-dur`
- * is 420ms; shortened here on request, along with the step.
+ * How long a cell takes to change: fill, border, border width and its numeral, all together.
+ *
+ * **This is now the whole animation.** `FILL_STEP_MS` is 0, so nothing is staggered and every
+ * cell in a claimed block moves at once — this single number is the entire üstlen effect,
+ * where it used to be one part of a much longer cascade.
+ *
+ * `pool-fill.html` sets `--fill-dur` at 420ms and this has come down twice since: to 300, and
+ * now to 160. That is deliberate rather than drift — the design's figure assumed a staggered
+ * sweep where each cell's fade overlapped its neighbour's, so the *block* read as moving even
+ * though any one cell was slow. With every cell moving together there is nothing to overlap,
+ * and the same 420 reads as the whole board hesitating.
  */
-const COLOR_DURATION_MS = 300;
+const COLOR_DURATION_MS = 160;
 
 /**
  * The easing, declared as a CSS transition rather than run from a `useAnimatedStyle`.
@@ -26,7 +34,9 @@ const COLOR_DURATION_MS = 300;
  * *change*, so a cell arriving already has nothing to ease from and simply appears, which is
  * exactly the behaviour the old `hasPainted` shared value existed to reproduce.
  */
-const transitionFor = (property: 'opacity' | 'backgroundColor', delayMs: number) => ({
+type TransitionProperty = 'opacity' | 'backgroundColor' | 'borderColor' | 'borderWidth' | 'color';
+
+const transitionFor = (property: TransitionProperty | TransitionProperty[], delayMs: number) => ({
 	transitionDelay: delayMs,
 	transitionDuration: COLOR_DURATION_MS,
 	transitionProperty: property
@@ -192,7 +202,19 @@ const Cell = memo(({ borderWidth, isReducedMotion, item, onPress, radius, size }
 
 	const label =
 		item.label === undefined ? null : (
-			<Typography color={item.labelColor} style={styles.label} variant='stat' weight='semibold'>
+			// The numeral eases with the box it sits in. Its colour flips hardest of the four —
+			// a read bab's label goes to `onAccent` — so leaving it to snap while the fill eased
+			// was the most visible half-transition on the board.
+			<Typography
+				color={item.labelColor}
+				isAnimated={!isReducedMotion}
+				style={{
+					...styles.label,
+					...(isReducedMotion ? null : transitionFor('color', fillDelay))
+				}}
+				variant='stat'
+				weight='semibold'
+			>
 				{item.label}
 			</Typography>
 		);
@@ -213,13 +235,19 @@ const Cell = memo(({ borderWidth, isReducedMotion, item, onPress, radius, size }
 				height: size,
 				width: size,
 				/*
-				 * The fill and nothing else. `borderColor` used to ease alongside it, which is two
-				 * colours interpolating per cell for a channel almost nothing looks at — on the
-				 * pool board the border matches the fill in every state but "sen üstlendin", where
-				 * it is a ring. Snapping the ring while the fill sweeps is both cheaper and closer
-				 * to `pool-fill.html`, which moves one channel on purpose.
+				 * Fill, border and border width together — the cell's whole box eases as one.
+				 * The label's colour eases with them, on the `Typography` below.
+				 *
+				 * Nothing else moves: no scale, no opacity, no size. That is `pool-fill.html`'s
+				 * intent for the üstlen sweep, where at forty cells a pop reads as noise while a
+				 * colour sweep reads as ownership. Border was briefly excluded from this on the
+				 * grounds that it matches the fill in every state but "sen üstlendin" — but in
+				 * that state it *is* a ring, and a ring snapping into place while the fill behind
+				 * it eases is the one place the omission showed.
 				 */
-				...(isReducedMotion ? null : transitionFor('backgroundColor', fillDelay))
+				...(isReducedMotion
+					? null
+					: transitionFor(['backgroundColor', 'borderColor', 'borderWidth'], fillDelay))
 			}}
 		>
 			{wasHatched ? (
@@ -272,7 +300,7 @@ Cell.displayName = 'Cell';
  * there with a header, a legend and a hole in the middle. A neutral lattice reads as the
  * board arriving, which is what is actually happening.
  */
-export const CellGrid = ({
+const CellGridComponent = ({
 	borderWidth = 0,
 	columns,
 	gap = 4,
@@ -344,6 +372,24 @@ export const CellGrid = ({
 		</View>
 	);
 };
+
+/**
+ * Memoised as a whole, not just per cell.
+ *
+ * `Cell` being `memo`'d stops a hundred *cells* re-rendering, but the grid around them still
+ * mapped every item into a fresh element on each parent render, and then ran the comparator
+ * a hundred times to discover nothing had changed. That is affordable once and wasteful
+ * three times in a second — which is what taking a pool slot does: the optimistic paint, the
+ * server's answer, and the drain timer each re-render the screen while the sweep is running.
+ *
+ * This only pays if callers hold `items` and `onPressCell` steady, which is the same thing
+ * `Cell` already asks of them. `PoolScreen` was passing a fresh `drainingSlotIndexes` array
+ * inline, which sat in `PoolGrid`'s dependency list and meant its `items` memo never hit
+ * once — worth checking a new caller for before assuming this is doing anything.
+ */
+export const CellGrid = memo(CellGridComponent);
+
+CellGrid.displayName = 'CellGrid';
 
 const styles = StyleSheet.create({
 	cell: {
