@@ -390,6 +390,35 @@ export const HomeScreen = () => {
 						})}
 					</CardSurface>
 
+					{/*
+					 * B6's door to the free reader, and it sits **below** the shelf on purpose:
+					 * everything above it is what the groups are asking of you today, and this is
+					 * the one thing on the screen that asks nothing. Put over the shelf it would
+					 * read as the primary way to read, which it isn't.
+					 *
+					 * The sub-copy is deliberately not "kaldığın yerden devam et" — an earlier
+					 * draft carried a resume label and a lifetime tick strip, and both quietly
+					 * turned free reading back into progress to keep up with.
+					 */}
+					<Pressable
+						accessibilityRole='button'
+						onPress={() => navigation.navigate('AllBabs')}
+						style={({ pressed }) => [
+							styles.allBabs,
+							{
+								backgroundColor: theme.colors.surface,
+								borderColor: pressed ? theme.colors.accent : theme.colors.border
+							}
+						]}
+					>
+						<Icon color={theme.colors.accent} name='book' size={19} />
+						<View style={styles.allBabsCopy}>
+							<Typography variant='bodyStrong'>{t('allBabs')}</Typography>
+							<CaptionText color={theme.colors.subtext}>{t('allBabsSub')}</CaptionText>
+						</View>
+						<Icon color={theme.colors.faintText} name='chevron' size={16} />
+					</Pressable>
+
 					<CaptionText color={theme.colors.subtext} style={styles.footNote} textAlign='center'>
 						{t('sharesDone', { count: rows.length - pending })}
 					</CaptionText>
@@ -413,6 +442,21 @@ export const HomeScreen = () => {
 };
 
 const styles = StyleSheet.create({
+	allBabs: {
+		alignItems: 'center',
+		borderRadius: 16,
+		borderWidth: StyleSheet.hairlineWidth,
+		flexDirection: 'row',
+		gap: 12,
+		marginTop: 11,
+		paddingHorizontal: 15,
+		paddingVertical: 14
+	},
+	allBabsCopy: {
+		flex: 1,
+		gap: 2,
+		minWidth: 0
+	},
 	centerFill: {
 		alignItems: 'center',
 		flex: 1,

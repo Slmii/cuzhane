@@ -96,6 +96,15 @@ export type AppTheme = {
 		 * `text`, all three of which already equal the design in both themes.
 		 */
 		poolFree: string;
+		/**
+		 * The outline under the pool block the reader is **currently inside**, in the reader's
+		 * mini-map. Its neighbours are drawn in `babMapOther`, so this is the only thing saying
+		 * "this is the block the button below is about to hand you".
+		 *
+		 * Its own token because nothing else fits: it has to be darker than `poolFree`, which is
+		 * the fill the brackets sit under, and lighter than `sandText`, which is body copy.
+		 */
+		poolLine: string;
 		poolTaken: string;
 		poolTakenText: string;
 		/** "Geri al" on a slot you took this session — an outline button, not a danger one. */
@@ -198,6 +207,7 @@ export const lightTheme: AppTheme = {
 		babOthersText: '#5A8674',
 		babMapOther: '#DEDCD5',
 		poolFree: '#DEC7A6',
+		poolLine: '#B08A55',
 		poolTaken: '#DCE7DF',
 		poolTakenText: '#2F5B4C',
 		undoBorder: 'rgba(28,29,26,0.16)',
@@ -278,6 +288,7 @@ export const darkTheme: AppTheme = {
 		// The light tan at dark-mode weight — same hue, dropped in luminance so it reads as
 		// sand on the dark paper rather than glowing.
 		poolFree: '#6E5F45',
+		poolLine: '#C9AE86',
 		poolTaken: '#2B3B33',
 		poolTakenText: '#8FB8A6',
 		undoBorder: 'rgba(242,240,234,0.18)',

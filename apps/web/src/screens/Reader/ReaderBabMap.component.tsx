@@ -1,7 +1,7 @@
 import { Typography } from '@/components/ui/Typography/Typography.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import { BAB_COUNT } from '@/lib/utils/babs';
+import { BAB_COUNT, slotIndexForBab } from '@/lib/utils/babs';
 import { memo, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion } from 'react-native-reanimated';
@@ -18,6 +18,10 @@ const TICK_HEIGHT_CURRENT = 16;
 const TICK_GAP = 1;
 /** Tall enough for the current tick, so the row can't reflow as it moves. */
 const STRIP_HEIGHT = 18;
+
+/** The design's pool bracket: a 6pt-deep U under the block, with 2.5pt between neighbours. */
+const BRACKET_HEIGHT = 6;
+const BRACKET_GAP = 2.5;
 
 const HEIGHT_DURATION_MS = 180;
 const COLOR_DURATION_MS = 300;
@@ -141,10 +145,12 @@ Ticks.displayName = 'Ticks';
  */
 export const ReaderBabMap = ({
 	currentBab,
+	hasLegend = true,
 	myBabNumbers,
 	poolBabNumbers,
 	readBabNumbers,
-	scrubRatio
+	scrubRatio,
+	spots
 }: ReaderBabMapProps) => {
 	const { t } = useTranslation();
 	const { theme } = useThemeContext();
@@ -174,6 +180,46 @@ export const ReaderBabMap = ({
 
 		return { left: index * pitch };
 	});
+
+	/**
+	 * The pool's blocks, as `[firstBab, lastBab]` pairs.
+	 *
+	 * **Grouped by seat, not by contiguity.** Two empty seats next to each other leave two
+	 * blocks whose numbers run straight on from one another, and `babRuns` would report them
+	 * as one long offer — which is the opposite of what taking one does. `slotIndexForBab` is
+	 * the inverse of the split the whole app shares, so this asks the same question the pool
+	 * itself asks: which seat is this bab's?
+	 */
+	const poolBlocks = useMemo(() => {
+		if (!spots || poolBabNumbers.length === 0) {
+			return [];
+		}
+
+		const bySlot = new Map<number, number[]>();
+
+		for (const n of poolBabNumbers) {
+			const slot = slotIndexForBab(n, spots);
+
+			if (slot === null) {
+				continue;
+			}
+			const existing = bySlot.get(slot);
+
+			if (existing) {
+				existing.push(n);
+			} else {
+				bySlot.set(slot, [n]);
+			}
+		}
+
+		return [...bySlot.values()]
+			.map(numbers => {
+				const sorted = [...numbers].sort((a, b) => a - b);
+
+				return [sorted[0] ?? 0, sorted[sorted.length - 1] ?? 0] as const;
+			})
+			.sort((a, b) => a[0] - b[0]);
+	}, [poolBabNumbers, spots]);
 
 	const legend = useMemo(
 		() => [
@@ -205,21 +251,100 @@ export const ReaderBabMap = ({
 					/>
 				) : null}
 			</View>
-			<View style={styles.legend}>
-				{legend.map(entry => (
-					<View key={entry.label} style={styles.legendItem}>
-						<View style={[styles.legendSwatch, { backgroundColor: entry.color }]} />
-						<Typography color={theme.colors.subtext} style={styles.legendLabel}>
-							{entry.label}
+			{/*
+			 * A bracket under each pool block — the design's U, open at the top so it reads as
+			 * holding the ticks above it rather than as a box of its own.
+			 *
+			 * Drawn as an overlay at the strip's own pitch rather than by nudging the ticks
+			 * apart, which is how the design chunks them: a 2.5pt shove at every block boundary
+			 * would push the hundredth tick past the right edge, and the scrub maps a finger's
+			 * x onto the strip by even division, so every tick after the first block would
+			 * answer to the wrong bab. The gap between brackets says the same thing and costs
+			 * the geometry nothing.
+			 */}
+			{tickWidth > 0 && poolBlocks.length > 0 ? (
+				<View style={styles.brackets}>
+					{poolBlocks.map(([first, last]) => (
+						<Animated.View
+							key={first}
+							/*
+							 * The design's `transition: border-color .3s ease`, and it earns its
+							 * keep: walking out of one block and into the next hands the highlight
+							 * over, and snapped that reads as a flicker rather than as the same
+							 * mark travelling along with you.
+							 *
+							 * **One flat style object**, like the ticks above — inside a style array
+							 * these are keys Reanimated never sees, and the colour snaps.
+							 */
+							style={{
+								...styles.bracket,
+								/*
+								 * **Only the block you are standing in is drawn in the pool's
+								 * colour.** The others are the strip's plain neutral. All of them
+								 * tan read as one long offer, when in fact the button below is
+								 * about to hand you exactly this one — the outline and the button
+								 * have to be talking about the same babs.
+								 */
+								borderColor:
+									currentBab >= first && currentBab <= last
+										? theme.colors.poolLine
+										: theme.colors.babMapOther,
+								left: (first - 1) * pitch + BRACKET_GAP / 2,
+								width: (last - first + 1) * pitch - TICK_GAP - BRACKET_GAP,
+								...(isReducedMotion
+									? null
+									: { transitionDuration: COLOR_DURATION_MS, transitionProperty: 'borderColor' })
+							}}
+						/>
+					))}
+				</View>
+			) : null}
+			{hasLegend ? (
+				<View style={styles.legend}>
+					{legend.map(entry => (
+						<View key={entry.label} style={styles.legendItem}>
+							<View style={[styles.legendSwatch, { backgroundColor: entry.color }]} />
+							<Typography color={theme.colors.subtext} style={styles.legendLabel}>
+								{entry.label}
+							</Typography>
+						</View>
+					))}
+					{/*
+					 * What the brackets under the strip are. Pushed to the far end of the legend
+					 * row, in the pool's own ink, because it keys the outlines rather than any of
+					 * the four swatches beside it.
+					 *
+					 * The size is read off the first block rather than assumed: the design's mock
+					 * has twenty seats and so blocks of five, but a hundred over seven seats gives
+					 * fifteens and fourteens.
+					 */}
+					{poolBlocks[0] ? (
+						<Typography color={theme.colors.sandText} style={[styles.legendLabel, styles.legendSections]}>
+							{t('poolSections', { count: poolBlocks[0][1] - poolBlocks[0][0] + 1 })}
 						</Typography>
-					</View>
-				))}
-			</View>
+					) : null}
+				</View>
+			) : null}
 		</View>
 	);
 };
 
 const styles = StyleSheet.create({
+	// Left and right uprights with a floor between them — no top edge, so it brackets the
+	// ticks rather than boxing them.
+	bracket: {
+		borderBottomLeftRadius: 3,
+		borderBottomRightRadius: 3,
+		borderBottomWidth: StyleSheet.hairlineWidth,
+		borderLeftWidth: StyleSheet.hairlineWidth,
+		borderRightWidth: StyleSheet.hairlineWidth,
+		height: BRACKET_HEIGHT,
+		position: 'absolute',
+		top: 0
+	},
+	brackets: {
+		height: BRACKET_HEIGHT + 1
+	},
 	indicator: {
 		borderRadius: 1.5,
 		height: TICK_HEIGHT_CURRENT,
@@ -240,6 +365,9 @@ const styles = StyleSheet.create({
 	legendLabel: {
 		fontSize: 9.5,
 		lineHeight: 13
+	},
+	legendSections: {
+		marginLeft: 'auto'
 	},
 	legendSwatch: {
 		borderRadius: 2.5,

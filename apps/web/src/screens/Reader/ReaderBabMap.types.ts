@@ -22,4 +22,17 @@ export type ReaderBabMapProps = {
 	readBabNumbers: number[];
 	myBabNumbers: number[];
 	poolBabNumbers: number[];
+	/**
+	 * The group's seat count, which is what turns the loose pool babs into **blocks**. A seat
+	 * offers its whole block or none of it, so the strip brackets them rather than leaving
+	 * forty tan ticks looking like forty separate offers.
+	 *
+	 * Omit it — as the free reader does — and no brackets are drawn.
+	 */
+	spots?: number;
+	/**
+	 * The four-swatch key under the strip. On by default; the free reader turns it off, having
+	 * nothing to key — every tick there means the same thing.
+	 */
+	hasLegend?: boolean;
 };

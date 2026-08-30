@@ -269,6 +269,18 @@ const tr = {
 	loadingPool: 'Havuz okunuyor…',
 	/** Heads the supplication the edition prints after the hundredth bab. */
 	afterHundredth: 'Yüzüncü babdan sonra okunur',
+	/*
+	 * B6's card and the B7 free reader it opens. Deliberately worded away from progress: this
+	 * is the one place in the app where reading isn't owed to anybody, and the copy has to say
+	 * so before the screen does — an earlier draft read "kaldığın yerden devam et", which put a
+	 * duty back on the only screen built not to have one.
+	 */
+	allBabs: 'Tüm bablar',
+	allBabsSub: 'Payına bakmadan, istediğin babı oku',
+	abFree: 'serbest okuma',
+	abNote: 'Burada okuduğun hiçbir şey gruba işlenmez. Sıra, süre, tamamlama yok — sadece Cevşen.',
+	abPrev: 'Önceki',
+	abNext: 'Sonraki',
 	/* Screens the design has no loading frame for — worded to match the `ld*Status` set. */
 	loadingReader: 'Bab getiriliyor…',
 	loadingMembers: 'Üyeler okunuyor…',
@@ -500,6 +512,14 @@ const tr = {
 	ownOther: 'başka üyede',
 	readLocked: 'Bu bab sana ait değil',
 	poolReadHint: 'Bu bab havuzda — işaretlersen sen üstlenirsin.',
+	/*
+	 * The second half of that hint, and the part that matters: taking a pool bab takes the
+	 * **whole block** its empty seat was offering, not the one bab you are looking at. The
+	 * button says the range too, so the sentence and the button can't disagree about it.
+	 */
+	poolClaimRange: '{range} aralığının tamamını üstleniyorsun · {count} bab birden sana geçer.',
+	/** Keys the brackets under the mini-map. Suffix-free wording — the count varies by group. */
+	poolSections: 'havuz · {count} bablık bölümler',
 	lockedHint: 'Bu bab başka bir üyede. Okuyabilirsin, işareti sahibi koyar.',
 	// E2a — the reader's own settings sheet, opened from Aa.
 	readerSettings: 'Okuma ayarları',
@@ -791,6 +811,12 @@ const en: Strings = {
 	loadingWait: 'This can take a few seconds',
 	loadingPool: 'Reading the pool…',
 	afterHundredth: 'Read after the hundredth bab',
+	allBabs: 'All babs',
+	allBabsSub: 'Read any bab, share or not',
+	abFree: 'free reading',
+	abNote: 'Nothing you read here is recorded to a group. No order, no timer, no completion — just Cevşen.',
+	abPrev: 'Previous',
+	abNext: 'Next',
 	loadingReader: 'Fetching the bab…',
 	loadingMembers: 'Reading members…',
 	loadingReminders: 'Reading your settings…',
@@ -992,6 +1018,8 @@ const en: Strings = {
 	ownOther: 'another member',
 	readLocked: 'Not your bab',
 	poolReadHint: 'This bab is in the pool — marking it claims it for you.',
+	poolClaimRange: 'You claim the whole {range} range · {count} babs pass to you at once.',
+	poolSections: 'pool · blocks of {count}',
 	lockedHint: 'Another member owns this bab. Read freely; only they can mark it.',
 	readerSettings: 'Reading settings',
 	readerSettingsHint: 'Text size, numerals and Arabic typeface. Your choice applies to every bab.',
@@ -1271,6 +1299,12 @@ const nl: Strings = {
 	loadingWait: 'Dit kan een paar seconden duren',
 	loadingPool: 'Pool wordt geladen…',
 	afterHundredth: 'Wordt gelezen na de honderdste bab',
+	allBabs: 'Alle babs',
+	allBabsSub: 'Lees welke bab je wilt, ook buiten je deel',
+	abFree: 'vrij lezen',
+	abNote: 'Wat je hier leest wordt nergens bij een groep geteld. Geen volgorde, geen tijd, geen voltooiing — alleen de Cevşen.',
+	abPrev: 'Vorige',
+	abNext: 'Volgende',
 	loadingReader: 'Bab wordt opgehaald…',
 	loadingMembers: 'Leden worden geladen…',
 	loadingReminders: 'Je instellingen worden geladen…',
@@ -1467,6 +1501,8 @@ const nl: Strings = {
 	ownOther: 'bij een ander lid',
 	readLocked: 'Deze bab is niet van jou',
 	poolReadHint: 'Deze bab zit in de pool — als je hem markeert, neem je hem over.',
+	poolClaimRange: 'Je neemt het hele bereik {range} over · {count} babs gaan in één keer naar jou.',
+	poolSections: 'pool · blokken van {count}',
 	lockedHint: 'Deze bab is van een ander lid. Je kunt hem lezen, alleen de eigenaar kan hem markeren.',
 	readerSettings: 'Leesinstellingen',
 	readerSettingsHint: 'Tekstgrootte, cijfers en Arabisch lettertype. Je keuze geldt voor elke bab.',

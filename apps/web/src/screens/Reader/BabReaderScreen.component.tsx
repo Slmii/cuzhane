@@ -4,30 +4,22 @@ import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
 import { EyebrowText, Typography } from '@/components/ui/Typography/Typography.component';
 import type { CevsenInvocation } from '@/lib/content/cevsen';
-import {
-	ayahMark,
-	BISMILLAH,
-	CEVSEN_AFTER_HUNDREDTH,
-	clampReaderFontSize,
-	getBab,
-	READER_FONT_SIZE_DEFAULT
-} from '@/lib/content/cevsen';
+import { READER_FONT_SIZE_DEFAULT } from '@/lib/content/cevsen';
 import { useGetBabs, useSetBabRead } from '@/lib/hooks/useBab';
 import { useGetGroupById, useGetPoolSlots, useTakePoolSlot } from '@/lib/hooks/useGroup';
 import { useGetUserSettings, useUpdateUserSettings } from '@/lib/hooks/useUserSettings';
 import { useTranslation } from '@/lib/i18n/I18n.context';
-import { arabicReaderFonts, arabicReaderFontScale } from '@/lib/theme/fonts';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import type { ReaderArabicFont } from '@/lib/types/domain';
 import { BAB_COUNT } from '@/lib/utils/babs';
 import type { TabStackParamList } from '@/navigation/types';
 import { MealSheet } from '@/screens/Reader/MealSheet.component';
 import { ReaderBabMap } from '@/screens/Reader/ReaderBabMap.component';
+import { ReaderBody, readerFaces } from '@/screens/Reader/ReaderBody.component';
 import { ReaderSettings } from '@/screens/Reader/ReaderSettings.component';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
 import { useKeepAwake } from 'expo-keep-awake';
-import { Fragment, type ReactNode, useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS, useSharedValue } from 'react-native-reanimated';
@@ -35,93 +27,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ReaderSkeleton } from './ReaderSkeleton.component';
 
 type Props = NativeStackScreenProps<TabStackParamList, 'BabReader'>;
-
-/**
- * Faces whose `U+06DD` does not enclose the digits that follow it. Their marks are set in a
- * face that does, while the words stay in the face that was chosen.
- *
- * **Having the glyph is not the same as enclosing with it.** Enclosing is a shaping decision
- * the font makes across the mark *and* the digits, and these two decline it in different
- * ways: KFGQPC draws a wide standalone rosette that the number then sits beside, so you get
- * two marks; Hüsrev drew a hollow ring with the number stranded outside it. A face missing
- * the glyph altogether is worse again — iOS substitutes it from a system font, and glyphs
- * from two different fonts can never combine. Look at a real bab before adding a face.
- */
-const FACES_WITHOUT_ENCLOSING_MARK = new Set<ReaderArabicFont>(['madinah']);
-
-const ornamentFaceFor = (font: ReaderArabicFont) =>
-	FACES_WITHOUT_ENCLOSING_MARK.has(font) ? ('naskh' as const) : font;
-
-/**
- * The divine name, set in the page's red the way the printed edition does.
- *
- * **The whole token must be the name.** Matching anything merely *containing* it is wrong
- * in both directions here: `\u0627\u064E\u0644\u0644\u0651\u0670\u0647\u064F\u0645\u064E\u0651` and `\u0644\u0650\u0644\u0651\u0670\u0647\u0650` contain it but are other words, and the
- * refrain's `\u0627\u0650\u0644\u0670\u0647\u064E` \u2014 106 of them, one per bab \u2014 is the same letters without the shadda, so
- * a loose test would paint "il\u00E2h" red in every closing line. Anchoring the pattern and
- * letting marks fall where they like matches the three case forms the text actually sets
- * (`\u0627\u0644\u0644\u0651\u0670\u0647\u064F`, `\u0627\u0644\u0644\u0651\u0670\u0647\u0650`, `\u0627\u064E\u0644\u0644\u0651\u0670\u0647\u064F`) and nothing else: 16 occurrences, counted across the data.
- *
- * The mark class is spelled out rather than `\p{M}`, which needs Unicode property escapes.
- */
-const ARABIC_MARKS = '[\\u064B-\\u065F\\u0670\\u06D6-\\u06ED]';
-const DIVINE_NAME = new RegExp(
-	`^\u0627${ARABIC_MARKS}*\u0644${ARABIC_MARKS}*\u0644${ARABIC_MARKS}*\u0647${ARABIC_MARKS}*$`,
-	'u'
-);
-
-/**
- * Arabic split into runs so the divine name can carry its own colour.
- *
- * **Tokenised on whitespace and tested whole**, rather than matched inside the string. A
- * pattern hunting the name within the text finds it inside `\u0627\u064e\u0644\u0644\u0651\u0670\u0647\u064f\u0645\u064e\u0651`, whose first eight
- * characters *are* the name \u2014 so the word came out split down the middle with the front
- * half red. Only a token that is the name entirely counts.
- *
- * Neighbouring plain tokens are glued back into one run, so a paragraph costs a couple of
- * nodes rather than one per word: the du'a alone is some four hundred tokens and holds
- * fifteen names.
- *
- * The spans re-declare the face and size because a nested `Typography` otherwise applies
- * its own variant's `fontSize` and drops the Arabic back to body size \u2014 the same reason
- * the verse ornaments below set theirs explicitly.
- */
-const withDivineName = (text: string, style: { color: string; fontFamily: string; fontSize: number }) => {
-	const runs: ReactNode[] = [];
-	let plain = '';
-
-	text.split(/(\s+)/u).forEach((token, index) => {
-		if (!DIVINE_NAME.test(token)) {
-			plain += token;
-
-			return;
-		}
-
-		if (plain) {
-			runs.push(<Fragment key={`txt-${index}`}>{plain}</Fragment>);
-			plain = '';
-		}
-		runs.push(
-			<Typography
-				color={style.color}
-				key={`name-${index}`}
-				style={{ fontFamily: style.fontFamily, fontSize: style.fontSize }}
-			>
-				{token}
-			</Typography>
-		);
-	});
-	if (plain) {
-		runs.push(<Fragment key='txt-tail'>{plain}</Fragment>);
-	}
-
-	return runs;
-};
-
-/** The du'a's phrase separator, which needs the same treatment as the verse mark. */
-const RUB_EL_HIZB = '\u06DE';
-
-const splitOnOrnament = (text: string) => text.split(new RegExp(`(${RUB_EL_HIZB})`, 'u')).filter(Boolean);
 
 /**
  * Marking a bab read is the screen's one committing action, so it gets a tap back.
@@ -314,39 +219,10 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 		readerNumerals: settingsQuery.data?.readerNumerals ?? 'arabic'
 	} as const;
 	/*
-	 * The chosen size, corrected for how large this particular face draws — see
-	 * `arabicReaderFontScale`. The ornament is sized separately because it may be borrowed
-	 * from another face, and that face has its own scale.
+	 * Only the meal sheet needs these here — the page itself derives its own inside
+	 * `ReaderBody`. The sheet sets the same invocation on another surface and has to match it.
 	 */
-	const baseFontSize = clampReaderFontSize(readerSettings.readerFontSize);
-	const fontSize = Math.round(baseFontSize * arabicReaderFontScale[readerSettings.readerArabicFont]);
-	const ornamentFace = ornamentFaceFor(readerSettings.readerArabicFont);
-	const ornamentFont = arabicReaderFonts[ornamentFace];
-	const ornamentFontSize = Math.round(baseFontSize * arabicReaderFontScale[ornamentFace]);
-	const arabicFont = arabicReaderFonts[readerSettings.readerArabicFont];
-	const cevsenBab = getBab(babNumber);
-
-	/**
-	 * Every invocation's Arabic, already split into coloured runs, keyed by invocation number.
-	 *
-	 * **Memoised because scrubbing re-renders this screen once per bab crossed**, and the body
-	 * below renders `babNumber` — the *committed* bab — so its content is identical on every
-	 * one of those renders. Without this, each of them re-tokenised all ten invocations on
-	 * whitespace and rebuilt their runs, throwing the result away unchanged.
-	 */
-	const invocationRuns = useMemo(() => {
-		const runs: Record<number, ReactNode> = {};
-
-		for (const invocation of cevsenBab?.invocations ?? []) {
-			runs[invocation.n] = withDivineName(invocation.text, {
-				color: theme.colors.danger,
-				fontFamily: arabicFont,
-				fontSize
-			});
-		}
-
-		return runs;
-	}, [arabicFont, cevsenBab, fontSize, theme.colors.danger]);
+	const faces = readerFaces(readerSettings.readerArabicFont, readerSettings.readerFontSize);
 
 	if (babsQuery.isPending || settingsQuery.isPending) {
 		return (
@@ -390,9 +266,17 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 	 * `PoolSlot.babNumbers` is the block that slot is actually offering, so matching against it
 	 * cannot drift from what the pool board shows.
 	 */
-	const poolSlotIndex =
-		poolQuery.data?.find(slot => slot.takenByUserId === null && slot.babNumbers.includes(babNumber))?.slotIndex ??
-		null;
+	const poolSlot =
+		poolQuery.data?.find(slot => slot.takenByUserId === null && slot.babNumbers.includes(babNumber)) ?? null;
+	const poolSlotIndex = poolSlot?.slotIndex ?? null;
+	/**
+	 * The block this bab's seat is offering, as "86–90" and a count — the hint and the button
+	 * both name it, so a tap can't come as a surprise.
+	 *
+	 * Read off the slot rather than counted from `spots`: the split gives the first
+	 * `100 % spots` seats one extra bab, so a group of seven has both fifteens and fourteens.
+	 */
+	const poolRangeLabel = poolSlot ? `${poolSlot.start}–${poolSlot.end}` : '';
 	const currentBab = babs.find(bab => bab.number === babNumber);
 	const isRead = Boolean(currentBab?.readAt);
 
@@ -433,7 +317,18 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 	 * long-press hint fills it otherwise. A bab already in your share has nothing to explain
 	 * about marking it, which is exactly when there is room to mention the meal.
 	 */
-	const readHint = isMine ? t('longPressHint') : isPoolBab ? t('poolReadHint') : t('lockedHint');
+	/*
+	 * A pool bab's hint is **two sentences**, per the design: what marking it does, and then
+	 * what "it" actually is. The second is the one that stops a surprise — the tap takes the
+	 * whole block the empty seat was offering, and only the range makes that concrete.
+	 */
+	const readHint = isMine
+		? t('longPressHint')
+		: isPoolBab && poolSlot
+		? `${t('poolReadHint')} ${t('poolClaimRange', { count: poolSlot.babNumbers.length, range: poolRangeLabel })}`
+		: isPoolBab
+		? t('poolReadHint')
+		: t('lockedHint');
 
 	const goToBab = (nextNumber: number | undefined) => {
 		if (nextNumber === undefined) {
@@ -596,6 +491,8 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 							myBabNumbers={myBabNumbers}
 							poolBabNumbers={groupQuery.data?.poolBabNumbers ?? NO_BAB_NUMBERS}
 							readBabNumbers={readBabNumbers}
+							// What chunks the pool ticks into the blocks a seat actually offers.
+							{...(groupQuery.data ? { spots: groupQuery.data.spots } : {})}
 						/>
 					</View>
 				</GestureDetector>
@@ -604,225 +501,27 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 			<GestureDetector gesture={swipe}>
 				<ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
 					{/*
-					 * No pool banner here any more. It was a card at the top of the page saying
-					 * this bab wasn't in your range — which the header's chip now says in one word
-					 * and the footer's hint says again right where it matters, next to the button
-					 * it explains. Three of them would have been two too many.
-					 */}
-					{/*
-					 * No rosette opening the bab. It was an empty one at the design's section-head
-					 * size, and it was removed: the header now carries the bab's number, its
-					 * ownership chip and the hundred-tick strip, so a mark whose whole job was
-					 * announcing "a reading starts here" was announcing something already said
-					 * three times, and pushing the text down a line to do it.
+					 * The page itself is `ReaderBody`, shared with the free reader on B7. Everything
+					 * this screen adds is *around* it — the header's ownership chip, the strip, and a
+					 * footer that can mark a bab read.
 					 *
-					 * `ui/Ornament` is still very much in use — the verse marks in the text and
-					 * the meal sheet's heading.
-					 */}
-					{/*
-					 * The besmele opens the work, not each bab — the source sets it once, as bab 1's
-					 * second line — so it appears on bab 1 and nowhere else. Set in the chosen face
-					 * at the reading size, like the bab it heads.
+					 * No pool banner here any more. It was a card at the top of the page saying this
+					 * bab wasn't in your range — which the header's chip now says in one word and the
+					 * footer's hint says again right where it matters, next to the button it explains.
 					 *
-					 * **Red in full**, like the refrain, rather than red only on the name inside it.
-					 * The same reasoning applies to both: the line is a formula rather than one of
-					 * the names, and colouring it whole is what sets it apart from the hundred. That
-					 * also makes `withDivineName` redundant here — a red word inside a red line.
+					 * No rosette opening the bab either: the header carries the number, the chip and
+					 * the hundred ticks, so a mark whose whole job was announcing "a reading starts
+					 * here" was saying something already said three times and pushing the text down a
+					 * line to do it. (`ui/Ornament` is still very much in use — the verse marks in the
+					 * text and the meal sheet's heading.)
 					 */}
-					{babNumber === 1 && BISMILLAH ? (
-						<Typography
-							color={theme.colors.danger}
-							style={[
-								styles.bismillah,
-								{
-									fontFamily: arabicFont,
-									fontSize,
-									lineHeight: baseFontSize * 2,
-									writingDirection: 'rtl'
-								}
-							]}
-							textAlign='center'
-						>
-							{BISMILLAH}
-						</Typography>
-					) : null}
-					{cevsenBab && cevsenBab.invocations.length > 0 ? (
-						<>
-							{/*
-							 * The whole bab as **one flowing paragraph**, the invocations run together
-							 * and punctuated by their ornaments, wrapping to the column like prose.
-							 *
-							 * Not a line per invocation. Two earlier attempts tried to hold a fixed
-							 * shape — the printed page's two-to-a-line, then one centred line each —
-							 * and both fought the column: the page's type is narrower against its
-							 * measure than ours, so its pairs overran, and centring left every line
-							 * ragged at both ends with the ornaments scattered down the middle.
-							 * Flowed, the text fills the measure at any of the three reading sizes and
-							 * the ornaments fall wherever the words put them, which is what a printed
-							 * Cevşen actually does.
-							 *
-							 * The words stay breakable. Bound with non-breaking spaces they couldn't
-							 * wrap at all, so anything wider than the column fell back to character
-							 * wrapping and split a word down the middle — the thing that binding
-							 * existed to prevent. Ordinary spaces break between words only.
-							 */}
-							<Typography
-								style={[
-									styles.arabic,
-									{
-										fontFamily: arabicFont,
-										fontSize,
-										lineHeight: baseFontSize * 2,
-										writingDirection: 'rtl'
-									}
-								]}
-								textAlign='center'
-							>
-								{cevsenBab.invocations.map(invocation => (
-									// A Fragment, not a nested Typography: that would apply its own
-									// variant's `fontSize` and shrink the Arabic back to body size.
-									<Fragment key={invocation.n}>
-										{invocationRuns[invocation.n] ?? invocation.text}
-										{/*
-										 * Real spaces around the ornament, not just its margin — the
-										 * invocations are concatenated with no separator of their own.
-										 *
-										 * The leading one is **non-breaking**, so the ornament can never
-										 * wrap away from the invocation it closes and start the next
-										 * line on its own. The trailing one is ordinary, which is where
-										 * the line is meant to break.
-										 */}
-										{' '}
-										{/*
-										 * **The mark is what you long-press for the meaning**, not the words.
-										 *
-										 * The design asks for the ayah itself, and that cannot be done here: a
-										 * nested `Typography` around a whole invocation stops the paragraph
-										 * breaking inside it, so bab 9's long opening ran off both edges of the
-										 * column and took two invocations off the screen with it. The mark
-										 * survives the same nesting only because two characters never need to
-										 * break. (A `Pressable` is out for the older reason — a view inside
-										 * right-to-left text is painted where the line reserved nothing.)
-										 *
-										 * It reads well enough as its own idea: the mark *is* the ayah's
-										 * number, so pressing ٤ to be told what the fourth one means needs no
-										 * explaining beyond the hint under the text.
-										 */}
-										<Typography
-											color={theme.colors.accent}
-											onLongPress={() => setMealInvocation(invocation)}
-											style={{ fontFamily: ornamentFont, fontSize: ornamentFontSize }}
-											suppressHighlighting
-										>
-											{ayahMark(invocation.n, readerSettings.readerNumerals)}
-										</Typography>{' '}
-									</Fragment>
-								))}
-							</Typography>
-							{/*
-							 * The refrain starts its own line and is set in the page's red. Run on from
-							 * the last name it reads as one more of them, where it is actually the
-							 * formula that ends every bab.
-							 *
-							 * **Its ornament is the only red one.** The verses' are the page's green,
-							 * so the crimson marks the sübhâneke and nothing else — which is what
-							 * separates the closing formula from the hundred names above it at a
-							 * glance, without reading a word.
-							 */}
-							<Typography
-								color={theme.colors.danger}
-								style={[
-									styles.arabic,
-									styles.closing,
-									{
-										fontFamily: arabicFont,
-										fontSize,
-										lineHeight: baseFontSize * 2,
-										writingDirection: 'rtl'
-									}
-								]}
-								textAlign='center'
-							>
-								{cevsenBab.closing.text}
-								{/*
-								 * The colour has to be repeated here. A nested `Typography` applies
-								 * its own default rather than inheriting the refrain's red, so
-								 * without this the sübhâneke's own mark came out black against it.
-								 */}
-								<Typography
-									color={theme.colors.danger}
-									style={{ fontFamily: ornamentFont, fontSize: ornamentFontSize }}
-								>
-									{ayahMark(cevsenBab.closing.n, readerSettings.readerNumerals)}
-								</Typography>
-							</Typography>
-
-							{/*
-							 * The supplication the edition prints after the hundredth bab. **Shown
-							 * whenever bab 100 is open, to everyone**, with no ownership test.
-							 *
-							 * It was gated twice and wrong both times — first on `myBabNumbers`, then
-							 * on `canMark` — and each gate hid it from someone sitting on the page it
-							 * belongs to. The reader walks all hundred now, so whose *turn* bab 100
-							 * is has nothing to do with whether the du'a printed after it should be
-							 * legible: it is part of the text, like the refrain, not a reward for
-							 * having marked something.
-							 */}
-							{babNumber === BAB_COUNT ? (
-								<View style={styles.afterHundredth}>
-									<EyebrowText color={theme.colors.faintText} textAlign='center'>
-										{t('afterHundredth')}
-									</EyebrowText>
-									{/*
-									 * One flowing paragraph, not a block per stored line. Those lines
-									 * are where the *printed page* broke, at its width and its type
-									 * size; reproducing them here stranded a short tail on a line of
-									 * its own — `وَعَافِنَا` sitting alone under a full-width line —
-									 * while the column still had room. The du'a is continuous prose,
-									 * so let it wrap to this screen the way a bab's invocations do.
-									 * The array keeps the print's own breaks, which is provenance
-									 * worth keeping even though the reader doesn't lay them out.
-									 */}
-									<Typography
-										style={[
-											styles.arabic,
-											styles.afterHundredthLine,
-											{
-												fontFamily: arabicFont,
-												fontSize,
-												lineHeight: baseFontSize * 2,
-												writingDirection: 'rtl'
-											}
-										]}
-										textAlign='center'
-									>
-										{splitOnOrnament(CEVSEN_AFTER_HUNDREDTH.join(' ')).map((part, index) =>
-											part === RUB_EL_HIZB ? (
-												<Typography
-													key={`orn-${index}`}
-													style={{ fontFamily: ornamentFont, fontSize: ornamentFontSize }}
-												>
-													{part}
-												</Typography>
-											) : (
-												<Fragment key={`txt-${index}`}>
-													{withDivineName(part, {
-														color: theme.colors.danger,
-														fontFamily: arabicFont,
-														fontSize
-													})}
-												</Fragment>
-											)
-										)}
-									</Typography>
-								</View>
-							) : null}
-						</>
-					) : (
-						<Typography color={theme.colors.faintText} style={styles.missing} textAlign='center'>
-							{t('readerMissing')}
-						</Typography>
-					)}
+					<ReaderBody
+						babNumber={babNumber}
+						font={readerSettings.readerArabicFont}
+						fontSize={readerSettings.readerFontSize}
+						numerals={readerSettings.readerNumerals}
+						onLongPressInvocation={setMealInvocation}
+					/>
 				</ScrollView>
 			</GestureDetector>
 
@@ -907,7 +606,11 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 							{!canMark
 								? t('readLocked')
 								: isPoolBab
-								? t('takeAndRead')
+								? // The range on the button too, not only in the hint above it:
+								  // this is the label somebody reads on the way to tapping.
+								  poolRangeLabel
+									? `${t('takeAndRead')} · ${poolRangeLabel}`
+									: t('takeAndRead')
 								: isRead
 								? t('markUnread')
 								: t('markRead')}
@@ -947,8 +650,8 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 			</AppBottomSheet>
 
 			<MealSheet
-				arabicFont={arabicFont}
-				arabicFontSize={fontSize}
+				arabicFont={faces.arabicFont}
+				arabicFontSize={faces.arabicFontSize}
 				arabicText={mealInvocation?.text ?? ''}
 				babNumber={babNumber}
 				invocation={mealInvocation}
@@ -960,31 +663,6 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 };
 
 const styles = StyleSheet.create({
-	arabic: {
-		marginBottom: 22
-	},
-	// Set apart from the refrain above it — this one really is a separate reading, so it gets
-	// more air than the refrain does from the names.
-	afterHundredth: {
-		gap: 14,
-		marginTop: 26
-	},
-	afterHundredthLine: {
-		marginBottom: 0
-	},
-	// Set apart from the names above it, without a rule: the refrain is part of the bab, not
-	// a separate section.
-	closing: {
-		// Cancels the trailing margin inherited from `arabic`, which exists to separate the
-		// names from this refrain and has nothing left to separate underneath it. Left in, it
-		// stacked with the body's bottom padding for 42pt of air under the last line against
-		// 26 above the first.
-		marginBottom: 0,
-		marginTop: 4
-	},
-	bismillah: {
-		marginBottom: 20
-	},
 	// Its own full-width row under the title, at the design's 11pt gap.
 	babMapRow: {
 		marginTop: 11
@@ -1015,8 +693,12 @@ const styles = StyleSheet.create({
 		flexDirection: 'row',
 		gap: 8
 	},
-	// Centred over the bar it explains, rather than hanging off the left of a row whose
-	// middle is the button the sentence is about.
+	/*
+	 * **Centred, over the design's left.** Called deliberately: the design sets this hint
+	 * ragged-right, but on the phone it sits directly over a symmetrical bar — arrow, wide
+	 * button, arrow — and left-aligned prose above that reads as having slipped sideways.
+	 * Centred, the sentence and the button it explains share an axis.
+	 */
 	readHint: {
 		lineHeight: 16,
 		textAlign: 'center'
@@ -1071,9 +753,6 @@ const styles = StyleSheet.create({
 		borderWidth: 1.5,
 		flex: 1,
 		paddingVertical: 14
-	},
-	missing: {
-		paddingVertical: 20
 	},
 	navButton: {
 		alignItems: 'center',

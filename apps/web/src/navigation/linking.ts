@@ -15,6 +15,8 @@ const detailPaths: PathConfigMap<TabDetailParamList> = {
 		// numbers and the rail counts it as a bab beyond the share.
 		parse: { babNumber: Number }
 	},
+	// No path. B7 keeps its bab in screen state rather than params — there is nothing to
+	// address, and a bare `babs` route would only ever land on bab 1.
 	Rounds: 'groups/:groupId/rounds',
 	RoundDetail: {
 		path: 'groups/:groupId/rounds/:roundIndex',

@@ -21,6 +21,7 @@ import { InvitePreviewScreen } from '@/screens/Join/InvitePreviewScreen.componen
 import { JoinedWelcomeScreen } from '@/screens/Join/JoinedWelcomeScreen.component';
 import { OnboardingScreen } from '@/screens/Onboarding/OnboardingScreen.component';
 import { ProfileScreen } from '@/screens/Profile/ProfileScreen.component';
+import { AllBabsScreen } from '@/screens/Reader/AllBabsScreen.component';
 import { BabReaderScreen } from '@/screens/Reader/BabReaderScreen.component';
 import { RemindersScreen } from '@/screens/Reminders/RemindersScreen.component';
 import { useAuth } from '@clerk/expo';
@@ -87,6 +88,7 @@ const sharedTabScreens = () => (
 	<>
 		<TabStack.Screen name='GroupDetail' component={GroupDetailScreen} />
 		<TabStack.Screen name='BabReader' component={BabReaderScreen} />
+		<TabStack.Screen name='AllBabs' component={AllBabsScreen} />
 		<TabStack.Screen name='Lobby' component={LobbyScreen} />
 		<TabStack.Screen name='Pool' component={PoolScreen} />
 		<TabStack.Screen name='Rounds' component={RoundsScreen} />

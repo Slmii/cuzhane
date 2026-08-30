@@ -28,6 +28,7 @@ export type IconName =
 	| 'settings'
 	| 'key'
 	| 'undo'
+	| 'book'
 	// Status
 	| 'clock'
 	| 'play'

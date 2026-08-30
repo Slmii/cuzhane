@@ -39,6 +39,20 @@ const GLYPHS: Record<IconName, Glyph> = {
 	// where it is written inline rather than pulled from the Icon Set sheet.
 	clock: { circles: [[12, 12, 8.6]], paths: ['M12 7.8V12l3 1.8'] },
 
+	/*
+	 * An open book — B6's "Tüm bablar" card, the door to the free reader.
+	 *
+	 * Traced from the tracker's own two paths rather than the Icon Set sheet, which does not
+	 * carry this glyph yet: two facing pages hinged at the spine, drawn on the same 24 grid
+	 * and open at the bottom so it reads as a book rather than a folder.
+	 */
+	book: {
+		paths: [
+			'M4 5.4h6.2A1.8 1.8 0 0 1 12 7.2v11.4a1.6 1.6 0 0 0-1.6-1.6H4z',
+			'M20 5.4h-6.2A1.8 1.8 0 0 0 12 7.2v11.4a1.6 1.6 0 0 1 1.6-1.6H20z'
+		]
+	},
+
 	// An arrow curving back on itself — "Geri al" on a pool slot you just took. Traced from
 	// the handoff's own two paths rather than mirroring `back`, which is a bare chevron and
 	// would read as navigation instead of as taking something back.
