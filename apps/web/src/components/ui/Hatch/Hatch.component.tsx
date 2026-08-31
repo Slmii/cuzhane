@@ -60,7 +60,7 @@ const styles = StyleSheet.create({
 		transform: [{ rotate: '45deg' }]
 	},
 	overlay: {
-		...StyleSheet.absoluteFillObject,
+		...StyleSheet.absoluteFill,
 		overflow: 'hidden'
 	}
 });

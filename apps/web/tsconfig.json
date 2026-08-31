@@ -4,9 +4,8 @@
 		"strict": true,
 		"module": "ESNext",
 		"moduleResolution": "bundler",
-		"baseUrl": ".",
 		"paths": {
-			"@/*": ["src/*"]
+			"@/*": ["./src/*"]
 		}
 	},
 	"include": ["index.ts", "src/**/*.ts", "src/**/*.tsx"],

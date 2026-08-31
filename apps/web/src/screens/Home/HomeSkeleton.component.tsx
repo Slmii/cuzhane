@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
 		marginTop: 16
 	},
 	ringCore: {
-		...StyleSheet.absoluteFillObject,
+		...StyleSheet.absoluteFill,
 		alignItems: 'center',
 		gap: 10,
 		justifyContent: 'center'

@@ -1,19 +1,15 @@
 {
 	"expo": {
-		"name": "Cüzhane",
+		"name": "C\u00fczhane",
 		"slug": "cuzhane",
 		"version": "1.0.0",
 		"scheme": "cuzhane",
 		"icon": "./src/assets/icon.png",
 		"orientation": "portrait",
 		"userInterfaceStyle": "automatic",
-		"newArchEnabled": true,
-		"splash": {
-			"image": "./src/assets/splash.png",
-			"resizeMode": "contain",
-			"backgroundColor": "#F7F5F0"
-		},
-		"assetBundlePatterns": ["**/*"],
+		"assetBundlePatterns": [
+			"**/*"
+		],
 		"ios": {
 			"supportsTablet": true,
 			"usesAppleSignIn": true,
@@ -46,7 +42,18 @@
 				}
 			],
 			"react-native-bottom-tabs",
-			"@clerk/expo"
+			"@clerk/expo",
+			"@react-native-community/datetimepicker",
+			[
+				"expo-splash-screen",
+				{
+					"image": "./src/assets/splash.png",
+					"resizeMode": "contain",
+					"backgroundColor": "#F7F5F0"
+				}
+			],
+			"expo-status-bar",
+			"expo-web-browser"
 		],
 		"extra": {
 			"eas": {

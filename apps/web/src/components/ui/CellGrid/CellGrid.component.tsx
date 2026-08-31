@@ -404,7 +404,7 @@ const styles = StyleSheet.create({
 		flexWrap: 'wrap'
 	},
 	hatch: {
-		...StyleSheet.absoluteFillObject
+		...StyleSheet.absoluteFill
 	},
 	// Square by aspect rather than by a measured height — the point of this pass is to claim
 	// the right height before anything has been measured.

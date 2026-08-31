@@ -99,7 +99,7 @@ const styles = StyleSheet.create({
 		lineHeight: 38
 	},
 	root: {
-		...StyleSheet.absoluteFillObject,
+		...StyleSheet.absoluteFill,
 		// Above the dev trigger, which sits at 9999: while the splash is up it is the only
 		// thing that should be on screen.
 		zIndex: 10_000

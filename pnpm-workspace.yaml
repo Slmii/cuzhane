@@ -12,13 +12,19 @@ onlyBuiltDependencies:
 
 # React Navigation ships its packages as a tightly-coupled set. Left to float, the
 # navigators resolve ahead of `core` and the app dies at runtime with
-# "createScreenFactory is not a function". These are the versions the reference app
-# actually runs, so they stay pinned across the whole tree.
+# "createScreenFactory is not a function", so the whole set is pinned together and moves
+# together — never one line of this block on its own.
+#
+# Raised as a set for Expo SDK 57: `native-stack` is bound to `react-native-screens`, which
+# the SDK carries ten minors forward (4.16 → 4.26), and the 7.14 stack was built against the
+# old one. `core` and `elements` are the floors those two ask for.
+#
+# react/react-dom track what the SDK pins rather than a number of our own.
 overrides:
-    react: 19.1.0
-    react-dom: 19.1.0
-    '@react-navigation/native': 7.2.2
-    '@react-navigation/core': 7.17.2
-    '@react-navigation/bottom-tabs': 7.15.9
-    '@react-navigation/native-stack': 7.14.11
-    '@react-navigation/elements': 2.9.14
+    react: 19.2.3
+    react-dom: 19.2.3
+    '@react-navigation/native': 7.3.18
+    '@react-navigation/core': 7.21.13
+    '@react-navigation/bottom-tabs': 7.18.18
+    '@react-navigation/native-stack': 7.18.10
+    '@react-navigation/elements': 2.9.40

@@ -749,7 +749,7 @@ const styles = StyleSheet.create({
 	// Fills the clipped wrapper rather than sitting in its flow, so the rows keep their own
 	// height to be measured by even when the wrapper is animated down to nothing.
 	myBabsScroll: {
-		...StyleSheet.absoluteFillObject
+		...StyleSheet.absoluteFill
 	},
 	myBabsHeader: {
 		alignItems: 'center',
