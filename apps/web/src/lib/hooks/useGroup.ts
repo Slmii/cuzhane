@@ -16,10 +16,12 @@ import {
 	updateGroup,
 	type UpdateGroupInput
 } from '@/api/groups.api';
-import type { PoolSlot } from '@/lib/types/domain';
+import { useTranslation } from '@/lib/i18n/I18n.context';
+import type { GroupSummary, PoolSlot } from '@/lib/types/domain';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Alert } from 'react-native';
 import { useLiveRefetchInterval } from './useLiveRefetchInterval';
-import { groupQueryKeys } from './queryKeys';
+import { groupOwnedQueryKeys, groupQueryKeys } from './queryKeys';
 
 export const useGetGroups = () => {
 	const refetchInterval = useLiveRefetchInterval();
@@ -83,13 +85,58 @@ export const useUpdateGroup = () => {
 	});
 };
 
+/**
+ * **Deleting is optimistic and the sheet closes at once**, the same shape as `useLeaveGroup`
+ * — and for the same reason, which bit harder here: the owner is looking at the group they
+ * are deleting, through a sheet sitting on top of it.
+ *
+ * Waiting meant invalidating the whole `groups` root the instant the delete landed, which
+ * sent every query belonging to a group that no longer exists off to refetch. Each got its
+ * 404, each retried three times with backoff, the screen underneath went to "bir şeyler ters
+ * gitti" — and only then did the navigation that was supposed to take you away from it fire.
+ *
+ * So the group's own keys are dropped rather than invalidated, and only the shelf is
+ * invalidated, unawaited.
+ */
 export const useDeleteGroup = () => {
 	const queryClient = useQueryClient();
+	const { t } = useTranslation();
 
 	return useMutation({
 		mutationFn: (groupId: string) => deleteGroup(groupId),
-		onSettled: async () => {
-			await queryClient.invalidateQueries({ queryKey: groupQueryKeys.root() });
+		onMutate: async (groupId: string) => {
+			await queryClient.cancelQueries({ queryKey: groupQueryKeys.groups() });
+
+			const previousGroups = queryClient.getQueryData<GroupSummary[]>(groupQueryKeys.groups());
+
+			if (previousGroups) {
+				queryClient.setQueryData<GroupSummary[]>(
+					groupQueryKeys.groups(),
+					previousGroups.filter(group => group.id !== groupId)
+				);
+			}
+
+			return { previousGroups };
+		},
+		onSuccess: (_data, groupId) => {
+			for (const queryKey of groupOwnedQueryKeys(groupId)) {
+				queryClient.removeQueries({ queryKey });
+			}
+		},
+		/*
+		 * The alert lives here rather than at the call site: React Query discards `mutate`'s own
+		 * callbacks once the calling component unmounts, and deleting closes the sheet that
+		 * called it. A failed delete has to say so — the group reappearing on the shelf with no
+		 * explanation reads as the app having ignored the tap.
+		 */
+		onError: (_error, _groupId, context) => {
+			if (context?.previousGroups) {
+				queryClient.setQueryData(groupQueryKeys.groups(), context.previousGroups);
+			}
+			Alert.alert(t('genericError'));
+		},
+		onSettled: () => {
+			void queryClient.invalidateQueries({ queryKey: groupQueryKeys.groups() });
 		}
 	});
 };

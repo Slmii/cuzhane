@@ -8,9 +8,11 @@ import {
 	removeGroupMember,
 	type RemoveGroupMemberInput
 } from '@/api/memberships.api';
+import { useTranslation } from '@/lib/i18n/I18n.context';
 import type { GroupSummary } from '@/lib/types/domain';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { groupQueryKeys } from './queryKeys';
+import { Alert } from 'react-native';
+import { groupOwnedQueryKeys, groupQueryKeys } from './queryKeys';
 
 /**
  * Looking a code up is something the reader *does*, so it's a mutation rather than a
@@ -55,19 +57,29 @@ export const useJoinGroup = () => {
 };
 
 /**
- * Leaving takes the group off the shelf immediately, before the server answers.
+ * **Leaving is optimistic and the screen moves at once.** The caller navigates on the tap
+ * rather than on the response, and this hook makes the cache agree with that immediately.
  *
- * Optimistic because the screen navigates away on success: without it the reader lands back
- * on Gruplarım and the group they just left is still sitting there until the refetch
- * returns, which reads as the action having failed. The same cancel/snapshot/rollback shape
- * as `useSetBabRead`.
+ * It used to wait: navigation hung off `mutate`'s `onSuccess`, which React Query runs
+ * *after* the hook's own `onSettled` — and that awaited an invalidation of the whole
+ * `groups` root. So the moment leaving succeeded, every mounted query belonging to the group
+ * just left refetched, each got its 404, and each retried three times with backoff. That is
+ * the five seconds: about seven of them, spent re-asking for something we had deliberately
+ * given up. The group screen was still mounted throughout, so it saw those errors and
+ * flipped to "bir şeyler ters gitti" — and only then, once the retries finished, did the
+ * navigation fire. The screen was reporting the cleanup, not the leaving, and the leaving
+ * had worked the whole time.
  *
- * Only the shelf is written by hand. Keşfet is a server-side query that excludes groups you
- * belong to, so the group reappears there on the invalidation below — guessing at that list
- * locally would mean reproducing its filters and sort in two places.
+ * So: purge the group's own keys instead of invalidating them, and invalidate only the list.
+ *
+ * The shelf itself is the one thing written by hand, with the same cancel/snapshot/rollback
+ * shape as `useSetBabRead`. Keşfet is a server-side query that excludes groups you belong to,
+ * so the group reappears there on the invalidation below — guessing at that list locally
+ * would mean reproducing its filters and sort in two places.
  */
 export const useLeaveGroup = () => {
 	const queryClient = useQueryClient();
+	const { t } = useTranslation();
 
 	return useMutation({
 		mutationFn: (groupId: string) => leaveGroup(groupId),
@@ -85,13 +97,32 @@ export const useLeaveGroup = () => {
 
 			return { previousGroups };
 		},
+		onSuccess: (_data, groupId) => {
+			for (const queryKey of groupOwnedQueryKeys(groupId)) {
+				queryClient.removeQueries({ queryKey });
+			}
+		},
+		/*
+		 * The rollback puts the card back — and says so.
+		 *
+		 * **The alert belongs here, not at the call site.** React Query discards `mutate`'s own
+		 * callbacks when the component that called it unmounts, and leaving navigates away
+		 * immediately, so an `onError` passed by the button would never fire. A hook-level one
+		 * always does. Leaving failed silently once before, which is indistinguishable from the
+		 * screen having ignored the tap — except that now you are also a screen away from the
+		 * group that quietly came back.
+		 */
 		onError: (_error, _groupId, context) => {
 			if (context?.previousGroups) {
 				queryClient.setQueryData(groupQueryKeys.groups(), context.previousGroups);
 			}
+			Alert.alert(t('genericError'));
 		},
-		onSettled: async () => {
-			await queryClient.invalidateQueries({ queryKey: groupQueryKeys.root() });
+		// The list only, and not awaited. Awaiting it held the caller's callbacks behind a
+		// network round trip for no benefit — the list is already correct optimistically, and
+		// this is only confirming it.
+		onSettled: () => {
+			void queryClient.invalidateQueries({ queryKey: groupQueryKeys.groups() });
 		}
 	});
 };
