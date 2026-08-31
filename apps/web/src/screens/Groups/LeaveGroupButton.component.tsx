@@ -19,8 +19,9 @@ import type { LeaveGroupButtonProps } from './LeaveGroupButton.types';
  * No `hint`, so no caption under the button. The dialog carries the same sentence as its
  * body and states the cost at the moment of deciding, which is the one moment it is
  * actually read; on the page it was three lines of small print under the last thing on the
- * screen. Deleting a group (`ManageSheet`) now does the same, so the owner's way out and the
- * member's ask the same way — leaving `ui/DangerConfirmButton` with no callers.
+ * screen. Deleting a group (`ManageSheet`) asks the same way, so the owner's way out and the
+ * member's are one pattern — which is what retired `ui/DangerConfirmButton`, the old
+ * arm-and-tap-again button, and its "Emin misin? Sil" label with it.
  */
 export const LeaveGroupButton = ({ groupId, style }: LeaveGroupButtonProps) => {
 	const { t } = useTranslation();
@@ -64,6 +65,7 @@ export const LeaveGroupButton = ({ groupId, style }: LeaveGroupButtonProps) => {
 
 	return (
 		<DangerButton
+			icon='leave'
 			isDisabled={leaveGroup.isPending}
 			isFilled
 			label={t('leaveGroup')}

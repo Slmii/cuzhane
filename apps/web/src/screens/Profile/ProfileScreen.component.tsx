@@ -310,8 +310,8 @@ export const ProfileScreen = () => {
 					<SegmentedControl
 						onChange={handleAppearanceChange}
 						options={[
-							{ label: t('light'), value: 'light' },
-							{ label: t('dark'), value: 'dark' }
+							{ icon: 'sun', label: t('light'), value: 'light' },
+							{ icon: 'moon', label: t('dark'), value: 'dark' }
 						]}
 						value={mode}
 					/>

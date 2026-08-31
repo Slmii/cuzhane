@@ -5,12 +5,21 @@ import type { StyleProp, ViewStyle } from 'react-native';
  * design (arrows, ×, +, −) is an icon here too — no typographic stand-ins.
  */
 export type IconName =
-	// Tab bar
+	/*
+	 * Tab bar. Each of the five has a resting and an active glyph — "pasif çizgili, aktif
+	 * dolgulu", outlined at rest and filled when selected, which is the Icon Set page's own
+	 * rule for this row and the one place it overrides the set's general "no filled variant".
+	 */
 	| 'tabHome'
+	| 'tabHomeActive'
 	| 'tabGroups'
+	| 'tabGroupsActive'
 	| 'tabDiscover'
+	| 'tabDiscoverActive'
 	| 'tabReminders'
+	| 'tabRemindersActive'
 	| 'tabProfile'
+	| 'tabProfileActive'
 	// Actions
 	| 'back'
 	| 'chevron'
@@ -29,13 +38,37 @@ export type IconName =
 	| 'key'
 	| 'undo'
 	| 'book'
+	| 'copy'
+	| 'mail'
+	| 'invite'
+	| 'leave'
+	| 'nudge'
+	| 'more'
+	| 'refresh'
+	| 'textSize'
 	// Status
 	| 'clock'
 	| 'play'
 	| 'memberCheck'
 	| 'memberFull'
 	| 'members'
-	| 'lock';
+	| 'lock'
+	| 'globe'
+	| 'calendar'
+	| 'bookmark'
+	| 'completed'
+	| 'countdown'
+	| 'range'
+	| 'alert'
+	| 'offline'
+	// Reader and pool
+	| 'ayahMark'
+	| 'translation'
+	| 'pool'
+	| 'claim'
+	// Theme
+	| 'sun'
+	| 'moon';
 
 export interface IconProps {
 	name: IconName;

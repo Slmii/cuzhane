@@ -1,31 +1,37 @@
 import { GroupBrowseBar } from '@/components/GroupBrowseBar/GroupBrowseBar.component';
 import { GroupCard } from '@/components/GroupCard/GroupCard.component';
+import { RoundResetRow } from '@/components/RoundResetRow/RoundResetRow.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenTitle } from '@/components/ScreenTitle/ScreenTitle.component';
+import { ShelfEmptyState } from '@/components/ShelfEmptyState/ShelfEmptyState.component';
 import { GroupCardSkeleton } from '@/components/Skeleton/GroupCardSkeleton.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
-import { ShelfEmptyState } from '@/components/ShelfEmptyState/ShelfEmptyState.component';
+import { CornerAction } from '@/components/ui/CornerAction/CornerAction.component';
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
 import { Typography } from '@/components/ui/Typography/Typography.component';
+import { useGetGroups } from '@/lib/hooks/useGroup';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import { useGetGroups } from '@/lib/hooks/useGroup';
-import { CornerAction } from '@/components/ui/CornerAction/CornerAction.component';
-import { RoundResetRow } from '@/components/RoundResetRow/RoundResetRow.component';
 import { formatBabRange } from '@/lib/utils/babs';
-import { roundResetLabels } from '@/lib/utils/roundReset';
 import {
 	applyGroupBrowse,
 	emptyGroupBrowseState,
 	isGroupBrowseNarrowed,
 	type GroupBrowseState
 } from '@/lib/utils/groupBrowse';
-import { cycleLabelKey, planLabelKey, visibilityChipTone, visibilityLabelKey } from '@/lib/utils/groups';
+import {
+	cycleLabelKey,
+	planLabelKey,
+	visibilityChipTone,
+	visibilityIcon,
+	visibilityLabelKey
+} from '@/lib/utils/groups';
+import { roundResetLabels } from '@/lib/utils/roundReset';
 import { GroupsScreenParams, TabStackParamList } from '@/navigation/types';
 import { JoinByCodeSheet } from '@/screens/Join/JoinByCodeSheet.component';
 import { useUser } from '@clerk/expo';
-import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useCallback, useMemo, useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
@@ -175,6 +181,7 @@ export const GroupsScreen = () => {
 				<Animated.View layout={cardLayout}>
 					<GroupCard
 						actionLabel={isCompleted ? t('view') : t('continue')}
+						badgeIcon={visibilityIcon(item.visibility)}
 						badgeLabel={t(visibilityLabelKey(item.visibility))}
 						badgeTone={visibilityChipTone(item.visibility)}
 						footerCaption={`${t('todayLabel')} · ${item.myReadCount}/${item.myBabNumbers.length}`}
@@ -283,7 +290,6 @@ const styles = StyleSheet.create({
 	// The list carries the screen's padding so its scroll runs edge to edge; the container
 	// keeps `paddingTop`, which is where the status-bar inset lives.
 	flush: {
-		paddingBottom: 0,
 		paddingHorizontal: 0
 	},
 	listContent: {

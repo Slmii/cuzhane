@@ -1,5 +1,5 @@
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import { TabBarOffsetContext } from '@/navigation/TabBarOffsetContext';
+import { TAB_BAR_CONTENT_GAP, TabBarOffsetContext } from '@/navigation/TabBarOffsetContext';
 import { useIsFocused } from '@react-navigation/native';
 import { useContext, useEffect, useRef } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
@@ -48,7 +48,9 @@ export const ScreenContainer = ({
 	const viewportPaddingTop = shouldInsetViewport ? insets.top : 0;
 	const topInset = shouldIncludeTopInset && !shouldInsetViewport ? insets.top : 0;
 	const paddingTop = topInset + theme.spacing.sm;
-	const paddingBottom = shouldIncludeTabBarOffset ? tabBarHeight : theme.spacing.lg;
+	// The bar's height *and* the design's gap above it — content should stop short of the
+	// glass, not touch it.
+	const paddingBottom = shouldIncludeTabBarOffset ? tabBarHeight + TAB_BAR_CONTENT_GAP : theme.spacing.lg;
 
 	useEffect(() => {
 		if (!isScrollable || !shouldScrollToTopOnFocus || !isFocused) {

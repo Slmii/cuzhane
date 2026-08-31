@@ -1,8 +1,7 @@
+import { RoundCard } from '@/components/RoundCard/RoundCard.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
-import { RoundsSkeleton } from './RoundsSkeleton.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
-import { RoundCard } from '@/components/RoundCard/RoundCard.component';
 import { Chip } from '@/components/ui/Chip/Chip.component';
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
 import { ProgressBar } from '@/components/ui/ProgressBar/ProgressBar.component';
@@ -16,6 +15,7 @@ import type { TabStackParamList } from '@/navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useMemo } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
+import { RoundsSkeleton } from './RoundsSkeleton.component';
 
 type Props = NativeStackScreenProps<TabStackParamList, 'Rounds'>;
 
@@ -228,7 +228,6 @@ const styles = StyleSheet.create({
 	// container keeps `paddingTop`, which is carrying the status-bar inset — zeroing that too
 	// drew the header straight over the clock.
 	flush: {
-		paddingBottom: 0,
 		paddingHorizontal: 0
 	},
 	listContent: {

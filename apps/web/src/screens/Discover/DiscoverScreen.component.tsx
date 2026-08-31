@@ -2,8 +2,8 @@ import { GroupBrowseBar } from '@/components/GroupBrowseBar/GroupBrowseBar.compo
 import { GroupCard } from '@/components/GroupCard/GroupCard.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenTitle } from '@/components/ScreenTitle/ScreenTitle.component';
-import { GroupCardSkeleton } from '@/components/Skeleton/GroupCardSkeleton.component';
 import { ShelfEmptyState } from '@/components/ShelfEmptyState/ShelfEmptyState.component';
+import { GroupCardSkeleton } from '@/components/Skeleton/GroupCardSkeleton.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import type { ChipTone } from '@/components/ui/Chip/Chip.types';
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
@@ -190,7 +190,6 @@ const styles = StyleSheet.create({
 	// The list carries the screen's own padding so its scroll runs edge to edge; the container
 	// keeps `paddingTop`, which is where the status-bar inset lives.
 	flush: {
-		paddingBottom: 0,
 		paddingHorizontal: 0
 	},
 	header: {

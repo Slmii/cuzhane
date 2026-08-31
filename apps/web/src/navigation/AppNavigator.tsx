@@ -1,7 +1,10 @@
+import { useTranslation } from '@/lib/i18n/I18n.context';
+import { appFonts } from '@/lib/theme/fonts';
+import type { StringKey } from '@/lib/i18n/strings';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { useGetUserSettings } from '@/lib/hooks/useUserSettings';
-import { BottomNavBar } from '@/navigation/BottomNavBar.component';
 import { TabBarOffsetContext } from '@/navigation/TabBarOffsetContext';
+import { useProfileTabPhoto } from '@/navigation/useProfileTabPhoto';
 import { AuthStackParamList, RootStackParamList, RootTabParamList, TabStackParamList } from '@/navigation/types';
 import { ForgotPasswordScreen } from '@/screens/Auth/ForgotPasswordScreen.component';
 import { SignInScreen } from '@/screens/Auth/SignInScreen.component';
@@ -24,19 +27,13 @@ import { ProfileScreen } from '@/screens/Profile/ProfileScreen.component';
 import { AllBabsScreen } from '@/screens/Reader/AllBabsScreen.component';
 import { BabReaderScreen } from '@/screens/Reader/BabReaderScreen.component';
 import { RemindersScreen } from '@/screens/Reminders/RemindersScreen.component';
-import { useAuth } from '@clerk/expo';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { useAuth, useUser } from '@clerk/expo';
+import type { ComponentType } from 'react';
+import { createNativeBottomTabNavigator } from '@bottom-tabs/react-navigation';
 import { useNavigationState, type NavigationState, type PartialState } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { ActivityIndicator, View } from 'react-native';
-
-/**
- * The bottom bar is a sibling *below* the scene, not an overlay, so the scene is
- * already inset by its height — screens only need a little air above it, matching the
- * design's `.sc` bottom padding. Reserving the bar's height here again is what left a
- * screenful of dead space under long content.
- */
-const TAB_BAR_CONTENT_GAP = 18;
+import { useBottomTabBarHeight } from 'react-native-bottom-tabs';
+import { ActivityIndicator, View, type ImageSourcePropType } from 'react-native';
 
 /**
  * Screens the bar steps out of the way for.
@@ -69,7 +66,88 @@ const focusedRouteName = (state: AnyNavigationState | undefined): string | undef
 	return name;
 };
 
-const Tab = createBottomTabNavigator<RootTabParamList>();
+/**
+ * **The tab bar is the real UIKit one**, so on iOS 26 it is drawn in liquid glass by the
+ * system — the float, the refraction over scrolling content and the selection pill are all the
+ * OS, not us. That is the whole reason for using it over the JS bar.
+ *
+ * A native bar takes an `ImageSource` or an SF Symbol and cannot be handed a React element, so
+ * `ui/Icon`'s SVGs — which every other surface renders directly — are the one thing that
+ * cannot reach it. It borrowed the nearest SF Symbols for a while, which put the tab row in a
+ * vocabulary the design system had never seen. These are the Icon Set's own glyphs instead,
+ * rasterised by `scripts/build-tab-icons.mjs` and shipped as template images so iOS tints
+ * them from the navigator's own colours.
+ *
+ * **Outlined at rest, filled when selected**, which is the Icon Set's rule for this row and
+ * this row alone — "pasif çizgili, aktif dolgulu". It is also what a real UITabBar does, so
+ * for once the platform and the design want the same thing.
+ */
+const TAB_ICONS: Record<keyof RootTabParamList, { active: ImageSourcePropType; resting: ImageSourcePropType }> = {
+	Home: {
+		active: require('@/assets/tabs/homeActive.png'),
+		resting: require('@/assets/tabs/home.png')
+	},
+	Groups: {
+		active: require('@/assets/tabs/groupsActive.png'),
+		resting: require('@/assets/tabs/groups.png')
+	},
+	Discover: {
+		active: require('@/assets/tabs/discoverActive.png'),
+		resting: require('@/assets/tabs/discover.png')
+	},
+	Reminders: {
+		active: require('@/assets/tabs/remindersActive.png'),
+		resting: require('@/assets/tabs/reminders.png')
+	},
+	Profile: {
+		active: require('@/assets/tabs/profileActive.png'),
+		resting: require('@/assets/tabs/profile.png')
+	}
+};
+
+const tabIcon =
+	(name: keyof RootTabParamList) =>
+	({ focused }: { focused: boolean }) =>
+		focused ? TAB_ICONS[name].active : TAB_ICONS[name].resting;
+
+/**
+ * **Profile shows the reader's own photo when they have one**, per the Icon Set's note on
+ * that tab: "Kişi. Avatar varsa ikon yerine 21 px avatar." The `person` glyph is the fallback
+ * for an account with no picture, not the default.
+ *
+ * Two details make it work rather than look like a bug:
+ *
+ * - It renders in `original` mode. Every other icon here is a **template** image, which is
+ *   what lets iOS tint it with the navigator's active colour — put a photograph through that
+ *   and you get a flat green silhouette of a face.
+ * - The URL carries a size. Clerk serves the original upload otherwise, which for a phone
+ *   photo is a couple of megabytes fetched to fill 28 points.
+ *
+ * `hasImage` rather than `imageUrl`: Clerk always answers with a URL, generating a letter
+ * avatar when there is no upload. That placeholder is a worse version of what `ui/Avatar`
+ * already draws, and it is not what "has a photo" means here.
+ */
+const PROFILE_PHOTO_PIXELS = 84;
+
+const sizedProfileUrl = (imageUrl: string) =>
+	`${imageUrl}${
+		imageUrl.includes('?') ? '&' : '?'
+	}width=${PROFILE_PHOTO_PIXELS}&height=${PROFILE_PHOTO_PIXELS}&fit=crop`;
+
+/**
+ * The label has to be passed explicitly. A native tab falls back to the **screen title**,
+ * which is the route name — so the bar came up reading "Home · Groups · Discover" in a Dutch
+ * app. The old JS bar looked its label up from the strings table itself; this one is told.
+ */
+const TAB_LABEL_KEYS: Record<keyof RootTabParamList, StringKey> = {
+	Home: 'home',
+	Groups: 'groups',
+	Discover: 'discover',
+	Reminders: 'reminders',
+	Profile: 'profile'
+};
+
+const Tab = createNativeBottomTabNavigator<RootTabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 // One factory, reused for every tab: each `<TabStack.Navigator>` element below is its
@@ -98,6 +176,31 @@ const sharedTabScreens = () => (
 	</>
 );
 
+/**
+ * **The native bar floats *over* the scene**, where the JS one was a sibling below it — so
+ * screens have to inset themselves by its whole height or their last row sits behind the
+ * glass. `useBottomTabBarHeight` only resolves inside a native tab screen, which is why this
+ * wraps each tab rather than providing the value beside the navigator the way the JS bar
+ * allowed.
+ *
+ * It publishes the **bare height**. What to do with it is the screen's business: scrolling
+ * content adds `TAB_BAR_CONTENT_GAP` on top, while a screen placing a bar of its own against
+ * it — the reader — uses the height alone and keeps its own padding symmetric.
+ */
+const withTabBarOffset = (Screen: ComponentType) => {
+	const Wrapped = () => {
+		const height = useBottomTabBarHeight();
+
+		return (
+			<TabBarOffsetContext.Provider value={height}>
+				<Screen />
+			</TabBarOffsetContext.Provider>
+		);
+	};
+
+	return Wrapped;
+};
+
 const HomeTabStack = () => (
 	<TabStack.Navigator screenOptions={tabStackScreenOptions}>
 		<TabStack.Screen name='Home' component={HomeScreen} />
@@ -119,6 +222,12 @@ const DiscoverTabStack = () => (
 	</TabStack.Navigator>
 );
 
+const HomeTab = withTabBarOffset(HomeTabStack);
+const GroupsTab = withTabBarOffset(GroupsTabStack);
+const DiscoverTab = withTabBarOffset(DiscoverTabStack);
+const RemindersTab = withTabBarOffset(RemindersScreen);
+const ProfileTab = withTabBarOffset(ProfileScreen);
+
 // The route is a transparent shell; `AppBottomSheet` inside it draws the surface and
 // owns the slide, backdrop and drag-to-dismiss, so every sheet in the app matches.
 //
@@ -136,43 +245,88 @@ const sheetRouteOptions = {
 };
 
 const TabsNavigator = () => {
+	const { theme } = useThemeContext();
+	const { t } = useTranslation();
+	const { user } = useUser();
+	// Sized down at the CDN — Clerk serves the original upload otherwise, which for a phone
+	// photo is megabytes fetched to fill 28 points.
+	const profilePhotoUrl = user?.hasImage ? sizedProfileUrl(user.imageUrl) : null;
+	const { captureElement, uri: profilePhotoUri } = useProfileTabPhoto(profilePhotoUrl);
+
+	const tabOptions = (name: keyof RootTabParamList) => {
+		const base = { tabBarIcon: tabIcon(name), tabBarLabel: t(TAB_LABEL_KEYS[name]) };
+
+		if (name !== 'Profile' || !profilePhotoUri) {
+			return base;
+		}
+
+		/*
+		 * **Profile stays in the row with the other four.** It was briefly detached into its
+		 * own circle beside the capsule — `role: 'search'`, the slot Apple Music puts search in
+		 * — and that is the only thing in the API that separates an item. It was dropped
+		 * because the detached item is icon-only: iOS draws no title on it, so "Profiel"
+		 * disappeared while the other four kept their labels. The role is also *search*
+		 * semantically, which the account tab is not.
+		 */
+		return {
+			...base,
+			// The same photo either way — the bar's selection pill and tint already say which
+			// tab you are on, and a face has no outlined and filled version of itself.
+			tabBarIcon: () => ({ uri: profilePhotoUri }),
+			tabBarIconRenderingMode: 'original' as const
+		};
+	};
+
 	const isBarHidden = useNavigationState(state => {
 		const name = focusedRouteName(state);
 		return name !== undefined && TAB_BAR_HIDDEN_ROUTES.has(name);
 	});
-	// Screens pad their content by this much; a hidden bar has to zero it out too, or
-	// the reader keeps a strip of dead space at the bottom.
-	const tabBarOffset = isBarHidden ? 0 : TAB_BAR_CONTENT_GAP;
 
+	/*
+	 * The floor, for anything rendered outside a tab scene. Every tab's own component is
+	 * wrapped in `withTabBarOffset`, which overrides this with the bar's measured height.
+	 */
 	return (
-		<TabBarOffsetContext.Provider value={tabBarOffset}>
+		<TabBarOffsetContext.Provider value={0}>
+			{/* Off-screen, and only until the circular crop has been captured. */}
+			{captureElement}
 			<Tab.Navigator
-				backBehavior='order'
-				detachInactiveScreens={false}
-				screenOptions={{
-					animation: 'shift',
-					freezeOnBlur: false,
-					headerShown: false,
-					lazy: false,
-					// Each tab owns its history, so without this a tab you left deep inside a
-					// group would still be showing that group when you came back to it.
-					// The pop is dispatched once the tab transition has finished, so it happens
-					// off-screen; tabs that aren't stacks (Reminders, Profile) ignore it.
-					popToTopOnBlur: true,
-					tabBarStyle: { display: 'none' }
-				}}
-				// Kept mounted and *collapsed*, never unmounted. Returning `null` here removed
-				// the bar the instant the reader was navigated to, which reflowed the screen
-				// being pushed away — you saw its card corner flash in the freed space while
-				// the reader was still sliding over it. A zero-height bar frees exactly the
-				// same room without the sibling below it ever leaving the tree.
-				tabBar={props => <BottomNavBar {...props} isCollapsed={isBarHidden} />}
+				/*
+				 * Translucent, which is what lets the system draw it in glass — opaque would
+				 * flatten it back into a plain bar and there would be nothing to look at.
+				 */
+				translucent
+				/*
+				 * **The bar stays whole.** iOS 26 offers to shrink it to a single circular button
+				 * on scroll-down, and it was tried — but this app's bar is the only way between
+				 * five sections, and collapsed it says nothing about the other four. The design's
+				 * rule that the bar stays visible on every screen is about being *available*, not
+				 * merely present.
+				 */
+				minimizeBehavior='never'
+				hapticFeedbackEnabled
+				/*
+				 * The design's own label: Manrope medium at 10, where the native bar defaults to the
+				 * system face at ~12. That is also what buys the **spacing between items** — a native
+				 * bar divides its width evenly and sizes the selected pill to its label, so with long
+				 * Dutch words ("Ontdekken", "Herinnering") at 12pt the pill grew until it touched its
+				 * neighbour's text. There is no item-spacing knob to reach for; the type is the lever.
+				 */
+				tabLabelStyle={{ fontFamily: appFonts.medium, fontSize: 10 }}
+				tabBarActiveTintColor={theme.colors.accent}
+				tabBarInactiveTintColor={theme.colors.subtext}
+				// Hidden natively rather than by a zero-height sibling — there is no custom bar
+				// left to collapse. `TAB_BAR_HIDDEN_ROUTES` is empty, so this is off today.
+				tabBarHidden={isBarHidden}
+				// Without it the scene wrapper does not fill, so a ScrollView inside grows to
+				// its content height and has nothing left to scroll.
+				screenOptions={{ lazy: false, sceneStyle: { flex: 1 } }}
 			>
-				<Tab.Screen name='Home' component={HomeTabStack} />
-				<Tab.Screen name='Groups' component={GroupsTabStack} />
-				<Tab.Screen name='Discover' component={DiscoverTabStack} />
-				<Tab.Screen name='Reminders' component={RemindersScreen} />
-				<Tab.Screen name='Profile' component={ProfileScreen} />
+				<Tab.Screen name='Home' component={HomeTab} options={tabOptions('Home')} />
+				<Tab.Screen name='Groups' component={GroupsTab} options={tabOptions('Groups')} />
+				<Tab.Screen name='Discover' component={DiscoverTab} options={tabOptions('Discover')} />
+				<Tab.Screen name='Reminders' component={RemindersTab} options={tabOptions('Reminders')} />
+				<Tab.Screen name='Profile' component={ProfileTab} options={tabOptions('Profile')} />
 			</Tab.Navigator>
 		</TabBarOffsetContext.Provider>
 	);

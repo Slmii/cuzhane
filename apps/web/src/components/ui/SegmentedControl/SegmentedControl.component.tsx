@@ -1,3 +1,4 @@
+import { Icon } from '@/components/ui/Icon/Icon.component';
 import { Typography } from '@/components/ui/Typography/Typography.component';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { toAlphaColor } from '@/lib/theme/tokens';
@@ -8,7 +9,7 @@ import type { SegmentedControlProps, SegmentProps } from './SegmentedControl.typ
 /** Matches the design's `transition: background .25s ease`. */
 const SELECTION_DURATION_MS = 250;
 
-const Segment = ({ isSelected, label, onPress }: SegmentProps) => {
+const Segment = ({ icon, isSelected, label, onPress }: SegmentProps) => {
 	const { theme } = useThemeContext();
 
 	// Fades the pill's alpha rather than swapping to `transparent`, so the colour
@@ -26,6 +27,15 @@ const Segment = ({ isSelected, label, onPress }: SegmentProps) => {
 	return (
 		<Pressable accessibilityRole='tab' accessibilityState={{ selected: isSelected }} onPress={onPress}>
 			<Animated.View style={[styles.segment, { borderRadius: theme.radius.sm }, animatedStyle]}>
+				{/* Sized to the 11.5pt label beside it rather than the icon's own default. */}
+				{icon ? (
+					<Icon
+						color={isSelected ? theme.colors.text : theme.colors.subtext}
+						name={icon}
+						size={14}
+						strokeWidth={1.7}
+					/>
+				) : null}
 				<Typography
 					color={isSelected ? theme.colors.text : theme.colors.subtext}
 					style={styles.label}
@@ -54,6 +64,7 @@ export const SegmentedControl = ({ onChange, options, style, value }: SegmentedC
 		>
 			{options.map(option => (
 				<Segment
+					{...(option.icon ? { icon: option.icon } : {})}
 					isSelected={option.value === value}
 					key={option.value}
 					label={option.label}
@@ -74,6 +85,8 @@ const styles = StyleSheet.create({
 	},
 	segment: {
 		alignItems: 'center',
+		flexDirection: 'row',
+		gap: 5,
 		paddingHorizontal: 12,
 		paddingVertical: 6
 	}

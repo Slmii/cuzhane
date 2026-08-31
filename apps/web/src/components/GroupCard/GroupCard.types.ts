@@ -1,3 +1,4 @@
+import type { IconName } from '@/components/ui/Icon/Icon.types';
 import type { ReactNode } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import type { ChipTone } from '@/components/ui/Chip/Chip.types';
@@ -7,6 +8,8 @@ export interface GroupCardProps {
 	subtitle?: string;
 	badgeLabel: string;
 	badgeTone?: ChipTone;
+	/** Glyph before the badge's label — the visibility globe or padlock. */
+	badgeIcon?: IconName;
 	/**
 	 * Further chips stacked under the badge, right-aligned — the design's status chip and
 	 * ghost "Kurucu" tag. Empty on most cards.

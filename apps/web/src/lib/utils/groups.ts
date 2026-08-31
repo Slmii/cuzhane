@@ -1,5 +1,6 @@
 import type { BabCellState } from '@/components/BabGrid/BabGrid.types';
 import type { ChipTone } from '@/components/ui/Chip/Chip.types';
+import type { IconName } from '@/components/ui/Icon/Icon.types';
 import type { StringKey } from '@/lib/i18n/strings';
 import type { GroupBab, GroupCycle, GroupSplitMode, GroupVisibility } from '@/lib/types/domain';
 import { BAB_COUNT, babRuns, formatRun } from '@/lib/utils/babs';
@@ -13,6 +14,13 @@ export const visibilityLabelKey = (visibility: GroupVisibility): StringKey =>
 
 export const visibilityChipTone = (visibility: GroupVisibility): ChipTone =>
 	visibility === 'OPEN' ? 'accent' : 'sand';
+
+/**
+ * The glyph that goes with that label. "Açık" and "Özel" are the same length in the same
+ * small caps and differ by their colour alone; a globe against a padlock is the difference
+ * you can read without stopping.
+ */
+export const visibilityIcon = (visibility: GroupVisibility): IconName => (visibility === 'OPEN' ? 'globe' : 'lock');
 
 /** The long form, for a card subtitle: "Sabit paylaşım". */
 export const splitModeLabelKey = (splitMode: GroupSplitMode): StringKey =>

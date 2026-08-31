@@ -55,10 +55,10 @@ export const ManageSheet = ({ group, isVisible, onClose, onOpenMembers }: Props)
 	 */
 	const handleDelete = () => {
 		/*
-		 * The destructive button repeats the title, like the leave dialog — not `deleteConfirm`
-		 * ("Emin misin? Sil"), which is the *armed* label from the old two-tap button. A dialog
-		 * whose title already asks and whose body states the cost would then be asking twice in
-		 * one breath.
+		 * The destructive button repeats the title, like the leave dialog. The old two-tap
+		 * button had its own armed label — "Emin misin? Sil" — and that is gone with it: a
+		 * dialog whose title already asks and whose body states the cost would be asking twice
+		 * in one breath.
 		 */
 		Alert.alert(t('deleteGroup'), t('deleteHint'), [
 			{ style: 'cancel', text: t('cancel') },

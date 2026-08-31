@@ -5,23 +5,52 @@ import type { IconName, IconProps } from './Icon.types';
 /**
  * The app's whole icon set, traced from the design system's Icon Set page.
  *
- * Every glyph is drawn on the same 24 grid, renders at 21px by default, inherits
- * `currentColor` and carries no fill — activity is expressed by stroke weight, never
- * by a filled variant. Below 14px the strokes close up, so don't scale past that.
+ * Every glyph is drawn on the same 24 grid, renders at 21px by default and inherits
+ * `currentColor`. Below 14px the strokes close up, so don't scale past that.
+ *
+ * **Outlined everywhere, with exactly one exception: the tab bar.** The set's rule is that
+ * activity is stroke weight rather than a filled shape, and the Icon Set page overrides it
+ * for the five tabs alone — "pasif çizgili, aktif dolgulu". Those carry a second, filled
+ * glyph; nothing else does, and nothing else should.
  */
 const GRID = 24;
 
+/** The heavier weight the design strokes an active glyph's outline at. */
+const ACTIVE_STROKE_WIDTH = 2.1;
+
 /** Circles are `[cx, cy, r]`, rects `[x, y, width, height, rx]`; the rest are path `d`s. */
-type Glyph = {
+type Shapes = {
 	paths?: string[];
 	circles?: [number, number, number][];
 	rects?: [number, number, number, number, number][];
 };
 
+type Glyph = Shapes & {
+	/** Painted solid in the icon's colour with no stroke — the tab bar's active variants. */
+	filled?: Shapes;
+	/**
+	 * Stroked at the design's active weight rather than the caller's. The active compass and
+	 * bell keep one outlined part apiece, and it has to thicken with the rest or it reads as
+	 * a hairline left behind beside the solid.
+	 */
+	bold?: Shapes;
+};
+
 const GLYPHS: Record<IconName, Glyph> = {
 	// Tab bar — the five sit in a fixed order and never change.
-	// Home is the brand mark's shelf of cüz, flattened.
-	tabHome: { paths: ['M4.5 19.8h15', 'M7 16.6V9.4', 'M11 16.6V5.4', 'M15 16.6V7.6', 'M19 16.6v-5'] },
+	/*
+	 * Home **is** the brand mark, not a flattening of it. It used to be four columns of its
+	 * own invention; it is now the logo's five, and the proof is in the proportions — the
+	 * design's heights of 8.4 · 11.6 · 10 · 13.2 · 10.8 normalise to exactly the ratios
+	 * `BrandMark` draws at 42 · 58 · 50 · 66 · 54. Same shelf, same silhouette, 24 grid
+	 * instead of 100.
+	 *
+	 * The baseline runs the full 3.4–20.6 rather than the old inset 4.5–19.5, so the mark
+	 * fills its box the way the app icon does.
+	 */
+	tabHome: {
+		paths: ['M3.4 20.2h17.2', 'M4.6 17.6V9.2', 'M8.3 17.6V6', 'M12 17.6V7.6', 'M15.7 17.6V4.4', 'M19.4 17.6V6.8']
+	},
 	// Three prayer beads — the trio reading together.
 	tabGroups: {
 		circles: [
@@ -34,6 +63,49 @@ const GLYPHS: Record<IconName, Glyph> = {
 	tabDiscover: { circles: [[12, 12, 8.6]], paths: ['M15.6 8.4l-1.9 5.3-5.3 1.9 1.9-5.3z'] },
 	tabReminders: { paths: ['M6.3 17h11.4l-1.7-2.4v-3.7a4 4 0 0 0-8 0v3.7z', 'M10.2 20h3.6'] },
 	tabProfile: { circles: [[12, 8.8, 3.4]], paths: ['M5.6 19.4a6.4 6.4 0 0 1 12.8 0'] },
+
+	/*
+	 * The selected halves of the five above.
+	 *
+	 * They are not the resting glyph with a fill dropped in: the design redraws each one so
+	 * the solid holds the same optical weight as the outline it replaces. The bars become
+	 * rounded rects a touch wider than their strokes, the beads and the head grow by 0.2, and
+	 * the two that keep an outlined part thicken it to 2.1 rather than leaving it hairline.
+	 */
+	tabHomeActive: {
+		// The same five columns as solids, each 2.4 wide and centred on its resting stroke.
+		filled: {
+			rects: [
+				[3.4, 9.2, 2.4, 8.4, 1.2],
+				[7.1, 6, 2.4, 11.6, 1.2],
+				[10.8, 7.6, 2.4, 10, 1.2],
+				[14.5, 4.4, 2.4, 13.2, 1.2],
+				[18.2, 6.8, 2.4, 10.8, 1.2],
+				[3.4, 19.1, 17.2, 2.2, 1.1]
+			]
+		}
+	},
+	tabGroupsActive: {
+		filled: {
+			circles: [
+				[8, 8.6, 3.1],
+				[16, 8.6, 3.1],
+				[12, 16.4, 3.1]
+			]
+		}
+	},
+	tabDiscoverActive: {
+		bold: { circles: [[12, 12, 8.6]] },
+		filled: { paths: ['M15.6 8.4l-1.9 5.3-5.3 1.9 1.9-5.3z'] }
+	},
+	tabRemindersActive: {
+		bold: { paths: ['M10.2 20h3.6'] },
+		filled: { paths: ['M6.3 17h11.4l-1.7-2.4v-3.7a4 4 0 0 0-8 0v3.7z'] }
+	},
+	tabProfileActive: {
+		// The shoulders close into a solid — note the `z` the resting arc does not have.
+		filled: { circles: [[12, 8.8, 3.6]], paths: ['M5.6 19.4a6.4 6.4 0 0 1 12.8 0z'] }
+	},
 
 	// The round-reset clock. Traced from the group card and stat panel in the design file,
 	// where it is written inline rather than pulled from the Icon Set sheet.
@@ -78,6 +150,138 @@ const GLYPHS: Record<IconName, Glyph> = {
 
 	// A range that exists but has nothing to open yet — 03e's "Başlangıçta açılır" pill.
 	lock: { paths: ['M8.6 11V8.6a3.4 3.4 0 0 1 6.8 0V11'], rects: [[5.5, 11, 13, 8.5, 2.2]] },
+
+	/*
+	 * The rest of the Icon Set page, added wholesale rather than one at a time. An icon set is
+	 * a vocabulary: half of it is not much use, and the alternative — reaching for the sheet
+	 * again every time a screen wants a glyph — is how the traced set drifted from the design
+	 * in the first place. What each is *for* is the design's own note, kept here.
+	 */
+
+	// "Kodu kopyala" on the share sheet — two stacked sheets, not a link.
+	copy: {
+		paths: ['M8 8.5V6.5a2 2 0 0 1 2-2h7.5a2 2 0 0 1 2 2V14a2 2 0 0 1-2 2h-2'],
+		rects: [[4.5, 8.5, 9, 11, 2]]
+	},
+	// The reset flow's "check your inbox".
+	mail: { paths: ['M4.5 8l7.5 5 7.5-5'], rects: [[3.5, 6, 17, 12, 2.4]] },
+	// A member with a plus — inviting rather than counting.
+	invite: {
+		circles: [[9.5, 8.8, 3.1]],
+		paths: ['M3.8 18.6a5.7 5.7 0 0 1 11.4 0', 'M17.5 7.5v5', 'M20 10h-5']
+	},
+	// A door with an arrow out of it — "Gruptan ayrıl".
+	leave: {
+		paths: [
+			'M14 5.5H7.4a1.9 1.9 0 0 0-1.9 1.9v9.2a1.9 1.9 0 0 0 1.9 1.9H14',
+			'M17.2 15.2L20.5 12l-3.3-3.2',
+			'M20.5 12h-9.7'
+		]
+	},
+	// Two sparks — the design's "nazik dürtme" to a member who hasn't read.
+	nudge: {
+		paths: [
+			'M11.2 4.8l1.6 4.4 4.4 1.6-4.4 1.6-1.6 4.4-1.6-4.4-4.4-1.6 4.4-1.6z',
+			'M17.6 16.4l.7 1.9 1.9.7-1.9.7-.7 1.9-.7-1.9-1.9-.7 1.9-.7z'
+		]
+	},
+	more: {
+		circles: [
+			[12, 5.6, 1.5],
+			[12, 12, 1.5],
+			[12, 18.4, 1.5]
+		]
+	},
+	refresh: { paths: ['M19.4 12a7.4 7.4 0 1 1-2.2-5.2', 'M19.6 4.6v4.2h-4.2'] },
+	// Two A's at different sizes — the reader's size control, where the header sets "Aa" as
+	// type because the design does, and a sheet row would use this.
+	textSize: {
+		paths: ['M3.4 18l4.3-11 4.3 11', 'M4.9 14.4h5.6', 'M14 18l3.3-8 3.3 8', 'M15.2 15.3h4.2']
+	},
+
+	// A globe — "Açık grup", against `lock` for "Özel".
+	globe: {
+		circles: [[12, 12, 8]],
+		paths: ['M4 12h16', 'M12 4c2.4 2.3 3.6 5 3.6 8s-1.2 5.7-3.6 8c-2.4-2.3-3.6-5-3.6-8s1.2-5.7 3.6-8z']
+	},
+	calendar: { paths: ['M4 10h16', 'M8.5 4v3', 'M15.5 4v3'], rects: [[4, 6, 16, 14, 2.4]] },
+	bookmark: { paths: ['M7 4.5h10v15l-5-3.8-5 3.8z'] },
+	// A tick inside a ring — a hatim finished, distinct from `check`'s bare mark.
+	completed: { circles: [[12, 12, 8]], paths: ['M8.4 12.3l2.6 2.6 4.6-5.4'] },
+	// A clock with a winder — the round about to roll, where `clock` is the round itself.
+	countdown: { circles: [[12, 13.2, 7.2]], paths: ['M12 9.6v3.6l2.4 1.5', 'M9.4 3.4h5.2'] },
+	// A block cut into three — a member's range of babs.
+	range: {
+		paths: ['M4.5 8.5v8a1.6 1.6 0 0 0 1.6 1.6h11.8a1.6 1.6 0 0 0 1.6-1.6v-8', 'M9.2 18.1V8.5', 'M14.8 18.1V8.5']
+	},
+	alert: { paths: ['M12 4.8L3.6 19.2h16.8z', 'M12 10v3.6', 'M12 16.4v.2'] },
+	offline: {
+		paths: [
+			'M4 4l16 16',
+			'M5.2 9.4a11 11 0 0 1 3.4-2',
+			'M18.8 9.4a11 11 0 0 0-6.5-2.6',
+			'M8 12.8a6.6 6.6 0 0 1 2-1.3',
+			'M16 12.8a6.6 6.6 0 0 0-2.4-1.4',
+			'M12 17.6v.2'
+		]
+	},
+
+	/*
+	 * The verse rosette as an *icon*, for a list row or a legend. `ui/Ornament` stays the
+	 * drawn mark that opens a bab — it carries a numeral on a real baseline and is a different
+	 * job from a 21px glyph inheriting `currentColor`.
+	 */
+	ayahMark: {
+		circles: [
+			[12, 12, 6.1],
+			[17.4, 12, 2.6],
+			[16.1, 8.7, 2.6],
+			[12, 7.4, 2.6],
+			[7.9, 8.7, 2.6],
+			[6.6, 12, 2.6],
+			[7.9, 15.3, 2.6],
+			[12, 16.6, 2.6],
+			[16.1, 15.3, 2.6]
+		]
+	},
+	// An alif beside a Latin A — the meal, one script explained in another.
+	translation: {
+		paths: [
+			'M4.5 6.5h7',
+			'M8 4.6v1.9',
+			'M10.2 6.5c0 3.6-2.4 6.4-5.7 7.6',
+			'M6.1 9.8c1.2 2.2 3 3.6 5.4 4.3',
+			'M12.6 19.4l3.4-8 3.4 8',
+			'M13.9 16.6h4.2'
+		]
+	},
+	// A drop — the shared pool.
+	pool: {
+		paths: ['M12 3.8s5.4 5 5.4 8.7a5.4 5.4 0 0 1-10.8 0C6.6 8.8 12 3.8 12 3.8z', 'M9.3 13.4a2.7 2.7 0 0 0 2.7 2.7']
+	},
+	// An open hand — "Üstlen", taking a block on.
+	claim: {
+		paths: [
+			'M8.4 11.6V5.9a1.6 1.6 0 0 1 3.2 0v4.9',
+			'M11.6 10.4V8.6a1.6 1.6 0 0 1 3.2 0v2.2',
+			'M14.8 10.9V9.6a1.6 1.6 0 0 1 3.2 0v5.1a5.4 5.4 0 0 1-5.4 5.4h-1.3a5.4 5.4 0 0 1-4.6-2.6l-2-3.3a1.6 1.6 0 0 1 2.6-1.9l1.5 1.9'
+		]
+	},
+
+	sun: {
+		circles: [[12, 12, 4.1]],
+		paths: [
+			'M12 3.6v2.1',
+			'M12 18.3v2.1',
+			'M3.6 12h2.1',
+			'M18.3 12h2.1',
+			'M6.1 6.1l1.5 1.5',
+			'M16.4 16.4l1.5 1.5',
+			'M17.9 6.1l-1.5 1.5',
+			'M7.6 16.4l-1.5 1.5'
+		]
+	},
+	moon: { paths: ['M17.6 15.2A7.2 7.2 0 0 1 8.8 6.4a7.6 7.6 0 1 0 8.8 8.8z'] },
 
 	// A member with a dash where the next one would go — 03f's "no room left".
 	memberFull: {
@@ -135,49 +339,67 @@ const GLYPHS: Record<IconName, Glyph> = {
 	info: { circles: [[12, 12, 8.6]], paths: ['M12 8.2v.2', 'M12 11.4v4.4'] }
 };
 
-export const Icon = ({ color, name, size = 21, strokeWidth = 1.8, style }: IconProps) => {
-	const { theme } = useThemeContext();
-	const glyph = GLYPHS[name];
-	const stroke = color ?? theme.colors.text;
+/**
+ * One group of shapes, either stroked at a given weight or painted solid.
+ *
+ * Keyed on geometry rather than an index so a glyph that gains a shape doesn't remount the
+ * ones beside it — and `fill`/`stroke` are set per shape rather than on the `<Svg>`, because
+ * a filled glyph and an outlined one can share a single icon.
+ */
+const renderShapes = (shapes: Shapes | undefined, paint: { fill?: string; stroke?: string; strokeWidth?: number }) => {
+	if (!shapes) {
+		return null;
+	}
+
+	const common = { fill: paint.fill ?? 'none', strokeLinecap: 'round', strokeLinejoin: 'round' } as const;
 
 	return (
-		<Svg fill='none' height={size} style={style} viewBox={`0 0 ${GRID} ${GRID}`} width={size}>
-			{glyph.circles?.map(([cx, cy, r]) => (
+		<>
+			{shapes.circles?.map(([cx, cy, r]) => (
 				<Circle
+					{...common}
 					cx={cx}
 					cy={cy}
-					key={`${cx}-${cy}-${r}`}
+					key={`c-${cx}-${cy}-${r}`}
 					r={r}
-					stroke={stroke}
-					strokeLinecap='round'
-					strokeLinejoin='round'
-					strokeWidth={strokeWidth}
+					{...(paint.stroke ? { stroke: paint.stroke, strokeWidth: paint.strokeWidth } : {})}
 				/>
 			))}
-			{glyph.rects?.map(([x, y, width, height, rx]) => (
+			{shapes.rects?.map(([x, y, width, height, rx]) => (
 				<Rect
+					{...common}
 					height={height}
-					key={`${x}-${y}`}
+					key={`r-${x}-${y}-${width}`}
 					rx={rx}
-					stroke={stroke}
-					strokeLinecap='round'
-					strokeLinejoin='round'
-					strokeWidth={strokeWidth}
 					width={width}
 					x={x}
 					y={y}
+					{...(paint.stroke ? { stroke: paint.stroke, strokeWidth: paint.strokeWidth } : {})}
 				/>
 			))}
-			{glyph.paths?.map(d => (
+			{shapes.paths?.map(d => (
 				<Path
+					{...common}
 					d={d}
-					key={d}
-					stroke={stroke}
-					strokeLinecap='round'
-					strokeLinejoin='round'
-					strokeWidth={strokeWidth}
+					key={`p-${d}`}
+					{...(paint.stroke ? { stroke: paint.stroke, strokeWidth: paint.strokeWidth } : {})}
 				/>
 			))}
+		</>
+	);
+};
+
+export const Icon = ({ color, name, size = 21, strokeWidth = 1.8, style }: IconProps) => {
+	const { theme } = useThemeContext();
+	const glyph = GLYPHS[name];
+	const ink = color ?? theme.colors.text;
+
+	return (
+		<Svg fill='none' height={size} style={style} viewBox={`0 0 ${GRID} ${GRID}`} width={size}>
+			{renderShapes(glyph, { stroke: ink, strokeWidth })}
+			{renderShapes(glyph.bold, { stroke: ink, strokeWidth: ACTIVE_STROKE_WIDTH })}
+			{/* Last, so a solid sits over the outline it shares an icon with. */}
+			{renderShapes(glyph.filled, { fill: ink })}
 		</Svg>
 	);
 };

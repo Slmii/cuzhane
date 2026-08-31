@@ -1,9 +1,10 @@
+import { Icon } from '@/components/ui/Icon/Icon.component';
 import { Typography } from '@/components/ui/Typography/Typography.component';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { Pressable, StyleSheet, View } from 'react-native';
 import type { ChipProps, ChipTone } from './Chip.types';
 
-export const Chip = ({ isSelected = false, label, onPress, style, tone = 'neutral' }: ChipProps) => {
+export const Chip = ({ icon, isSelected = false, label, onPress, style, tone = 'neutral' }: ChipProps) => {
 	const { theme } = useThemeContext();
 
 	const toneMap: Record<ChipTone, { backgroundColor: string; borderColor: string; textColor: string }> = {
@@ -58,6 +59,9 @@ export const Chip = ({ isSelected = false, label, onPress, style, tone = 'neutra
 				style
 			]}
 		>
+			{/* 12, not the icon's 21 default: it sits on a 10pt line and has to read as part of
+			    the word rather than as a badge stuck on the front of it. */}
+			{icon ? <Icon color={resolvedTone.textColor} name={icon} size={12} strokeWidth={1.7} /> : null}
 			<Typography color={resolvedTone.textColor} style={styles.label} variant='stat' weight='semibold'>
 				{label}
 			</Typography>
@@ -77,7 +81,10 @@ export const Chip = ({ isSelected = false, label, onPress, style, tone = 'neutra
 
 const styles = StyleSheet.create({
 	chip: {
+		alignItems: 'center',
 		alignSelf: 'flex-start',
+		flexDirection: 'row',
+		gap: 4,
 		borderWidth: StyleSheet.hairlineWidth,
 		paddingHorizontal: 8,
 		paddingVertical: 4

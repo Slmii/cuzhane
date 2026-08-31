@@ -537,7 +537,6 @@ const tr = {
 	cheered: 'Mâşallah ✓',
 	copied: 'Kopyalandı',
 	deleteGroup: 'Grubu sil',
-	deleteConfirm: 'Emin misin? Sil',
 	leaveGroup: 'Gruptan ayrıl',
 	leaveHint:
 		'Ayrılırsan bu turdaki okunmamış babların havuza döner. Grup açıksa ya da davet edilirsen geri katılabilirsin.',
@@ -1036,7 +1035,6 @@ const en: Strings = {
 	cheered: 'Mashallah ✓',
 	copied: 'Copied',
 	deleteGroup: 'Delete group',
-	deleteConfirm: 'Are you sure? Delete',
 	leaveGroup: 'Leave group',
 	leaveHint:
 		"If you leave, your unread babs this round go back to the pool. You can rejoin if the group is open or you're invited.",
@@ -1519,7 +1517,6 @@ const nl: Strings = {
 	cheered: 'Mashallah ✓',
 	copied: 'Gekopieerd',
 	deleteGroup: 'Groep verwijderen',
-	deleteConfirm: 'Weet je het zeker? Verwijderen',
 	leaveGroup: 'Groep verlaten',
 	leaveHint:
 		'Als je vertrekt, gaan je ongelezen babs deze ronde terug naar de pool. Je kunt terugkomen als de groep open is of je opnieuw wordt uitgenodigd.',

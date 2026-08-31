@@ -66,8 +66,13 @@ export const ShareSheet = ({ group, isVisible, onClose }: Props) => {
 						</Typography>
 					</>
 				) : null}
+				{/*
+				 * `copy` at rest, `check` once it lands. The button carried no icon until the
+				 * tick appeared, so confirming also *added* a glyph and shunted the label
+				 * sideways; now one icon swaps for another in place.
+				 */}
 				<AppButton
-					{...(isCopied ? { icon: 'check' as const } : {})}
+					icon={isCopied ? 'check' : 'copy'}
 					onPress={handleCopyCode}
 					size='md'
 					title={isCopied ? t('copied') : t('copyInvite')}

@@ -1,3 +1,4 @@
+import { Icon } from '@/components/ui/Icon/Icon.component';
 import { CaptionText, Typography } from '@/components/ui/Typography/Typography.component';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -12,6 +13,7 @@ import type { DangerButtonProps } from './DangerButton.types';
  */
 export const DangerButton = ({
 	hint,
+	icon,
 	isDisabled = false,
 	isFilled = false,
 	label,
@@ -37,6 +39,14 @@ export const DangerButton = ({
 					}
 				]}
 			>
+				{icon ? (
+					<Icon
+						color={isFilled ? theme.colors.onDanger : theme.colors.danger}
+						name={icon}
+						size={18}
+						strokeWidth={1.8}
+					/>
+				) : null}
 				<Typography color={isFilled ? theme.colors.onDanger : theme.colors.danger} variant='bodyStrong'>
 					{label}
 				</Typography>
@@ -53,6 +63,9 @@ export const DangerButton = ({
 const styles = StyleSheet.create({
 	button: {
 		alignItems: 'center',
+		flexDirection: 'row',
+		gap: 8,
+		justifyContent: 'center',
 		borderRadius: 14,
 		borderWidth: StyleSheet.hairlineWidth,
 		paddingVertical: 15

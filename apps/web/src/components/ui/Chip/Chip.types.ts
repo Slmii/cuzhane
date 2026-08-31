@@ -1,3 +1,4 @@
+import type { IconName } from '@/components/ui/Icon/Icon.types';
 import type { StyleProp, ViewStyle } from 'react-native';
 
 /**
@@ -9,6 +10,12 @@ export type ChipTone = 'accent' | 'accentOutline' | 'missed' | 'sand' | 'neutral
 
 export interface ChipProps {
 	label: string;
+	/**
+	 * A glyph before the label, at the chip's own size and colour. The visibility badge uses
+	 * it — a globe or a padlock says open-or-private at a glance, where two similar words set
+	 * in the same small caps do not.
+	 */
+	icon?: IconName;
 	tone?: ChipTone;
 	/** Filter chips render in the inverse tone when selected, ignoring `tone`. */
 	isSelected?: boolean;

@@ -152,7 +152,8 @@ export const LobbyScreen = ({ navigation, route }: Props) => {
 							// Buttons default to full width; here it sits beside the code, so
 							// it has to shrink to its label or the code has nowhere to go.
 							fullWidth={false}
-							{...(hasCopied ? { icon: 'check' as const } : {})}
+							// `copy` at rest, `check` once it lands — see `ShareSheet`, same button.
+							icon={hasCopied ? 'check' : 'copy'}
 							onPress={() => void handleCopyInvite()}
 							size='sm'
 							title={hasCopied ? t('copied') : t('copyInvite')}

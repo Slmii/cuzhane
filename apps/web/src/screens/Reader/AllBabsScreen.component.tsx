@@ -8,6 +8,7 @@ import { useGetUserSettings, useUpdateUserSettings } from '@/lib/hooks/useUserSe
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { BAB_COUNT } from '@/lib/utils/babs';
+import { TabBarOffsetContext } from '@/navigation/TabBarOffsetContext';
 import type { TabStackParamList } from '@/navigation/types';
 import { MealSheet } from '@/screens/Reader/MealSheet.component';
 import { ReaderBabMap } from '@/screens/Reader/ReaderBabMap.component';
@@ -15,7 +16,7 @@ import { ReaderBody, readerFaces } from '@/screens/Reader/ReaderBody.component';
 import { ReaderSettings } from '@/screens/Reader/ReaderSettings.component';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useKeepAwake } from 'expo-keep-awake';
-import { useState } from 'react';
+import { useContext, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS, useSharedValue } from 'react-native-reanimated';
@@ -54,6 +55,7 @@ export const AllBabsScreen = ({ navigation }: Props) => {
 	useKeepAwake();
 	const { t } = useTranslation();
 	const { theme } = useThemeContext();
+	const tabBarOffset = useContext(TabBarOffsetContext);
 	const settingsQuery = useGetUserSettings();
 	const updateSettings = useUpdateUserSettings();
 
@@ -141,13 +143,21 @@ export const AllBabsScreen = ({ navigation }: Props) => {
 	const nextBabNumber = babNumber < BAB_COUNT ? babNumber + 1 : undefined;
 
 	/*
-	 * No `bottom` edge — the tab bar is a sibling below this screen and already clears the
-	 * home indicator. Insetting here as well stacks two gaps.
+	 * **The whole screen is inset by the tab bar's height.** No `bottom` safe-area edge —
+	 * the bar already clears the home indicator, and insetting for both stacks two gaps —
+	 * but the bar *overlays* the scene rather than sitting below it, so without this the
+	 * reader's own action bar renders underneath the glass and its buttons show through it.
+	 * Padding here rather than on the footer shortens the page above it too, so the last line
+	 * of Arabic clears the bar as well.
+	 *
+	 * The **bare height**, with no gap added: the footer sets its own even 12 top and bottom,
+	 * and adding `TAB_BAR_CONTENT_GAP` on top of that left 30pt under the buttons against 12
+	 * above them.
 	 */
 	return (
 		<SafeAreaView
 			edges={['top', 'left', 'right']}
-			style={[styles.safeArea, { backgroundColor: theme.colors.background }]}
+			style={[styles.safeArea, { backgroundColor: theme.colors.background, paddingBottom: tabBarOffset }]}
 		>
 			<View style={[styles.header, { borderBottomColor: theme.colors.readerRule }]}>
 				<View style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.readerSurface }]} />

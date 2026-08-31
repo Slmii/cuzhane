@@ -1,3 +1,4 @@
+import { Icon } from '@/components/ui/Icon/Icon.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CodeInput } from '@/components/ui/CodeInput/CodeInput.component';
@@ -110,7 +111,13 @@ export const ResetCodeSentScreen = ({ navigation, route }: ResetCodeSentScreenPr
 		<ScreenContainer contentContainerStyle={styles.content}>
 			<View style={styles.header}>
 				<View style={[styles.iconTile, { backgroundColor: theme.colors.accentSoft }]}>
-					<View style={[styles.envelope, { borderColor: theme.colors.accent }]} />
+					{/*
+					 * The Icon Set's own envelope. This was a bordered 22×15 rectangle standing in
+					 * for one, because the sheet had no mail glyph when the screen was built — it
+					 * does now, and a real icon beats a rectangle that only reads as an envelope
+					 * because of what is written under it.
+					 */}
+					<Icon color={theme.colors.accent} name='mail' size={26} />
 				</View>
 				<Header1 style={styles.title} textAlign='center'>
 					{t('sentTitle')}
@@ -176,13 +183,6 @@ const styles = StyleSheet.create({
 	},
 	content: {
 		justifyContent: 'center'
-	},
-	// 22x15 outline standing in for a sealed envelope, per the design.
-	envelope: {
-		borderRadius: 3,
-		borderWidth: 1.5,
-		height: 15,
-		width: 22
 	},
 	header: {
 		alignItems: 'center'

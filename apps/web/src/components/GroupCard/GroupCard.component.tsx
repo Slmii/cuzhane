@@ -14,6 +14,7 @@ import type { GroupCardProps } from './GroupCard.types';
  */
 export const GroupCard = ({
 	actionLabel,
+	badgeIcon,
 	badgeLabel,
 	badgeTone = 'accent',
 	footerCaption,
@@ -51,7 +52,12 @@ export const GroupCard = ({
 					// flex-start so it never stretches, and that wins over the parent — which is
 					// what left badges of different widths ragged instead of flush right.
 					<View style={styles.badgeStack}>
-						<Chip label={badgeLabel} style={styles.badge} tone={badgeTone} />
+						<Chip
+							{...(badgeIcon ? { icon: badgeIcon } : {})}
+							label={badgeLabel}
+							style={styles.badge}
+							tone={badgeTone}
+						/>
 						{extraBadges.map(badge => (
 							<Chip
 								key={badge.label}
@@ -62,7 +68,7 @@ export const GroupCard = ({
 						))}
 					</View>
 				) : (
-					<Chip label={badgeLabel} tone={badgeTone} />
+					<Chip {...(badgeIcon ? { icon: badgeIcon } : {})} label={badgeLabel} tone={badgeTone} />
 				)}
 			</View>
 
