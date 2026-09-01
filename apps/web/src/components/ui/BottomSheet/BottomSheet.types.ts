@@ -7,22 +7,22 @@ export interface AppBottomSheetProps {
 	title?: string;
 	description?: string;
 	/**
-	 * Fixed detents instead of sizing to the content. Use for sheets whose content is
-	 * taller than the screen (a multi-step form), where dynamic sizing has nothing to
-	 * measure against.
+	 * A fixed height, as a fraction of the screen, for a sheet whose content is taller than it
+	 * should be allowed to get — a multi-step form, a list of twenty members. `0.75` leaves a
+	 * quarter of what you came from showing, which is what keeps a tall sheet reading as a layer
+	 * rather than a screen of its own. Omit it and the sheet is as tall as what it holds.
+	 *
+	 * **A height, deliberately, and not a detent.** Passing `snapPoints` through to the platform
+	 * looks like the obvious way to say this and behaves differently on each: iOS honours an
+	 * arbitrary `presentationDetents` height, while Android's Material 3 sheet has only two
+	 * states — partial at about half, and expanded — so one snap point is also the last one,
+	 * resolves to expanded, and a `flex: 1` body fills the screen. 82% on iOS, 100% on Android,
+	 * from the same prop. Sizing the *content* instead is the one instruction both platforms
+	 * follow, since both size a sheet to what it holds.
+	 *
+	 * It also closes a trap for good: the sheet's mode never changes, so nothing can toggle
+	 * `fitToContents` and remount everything inside — see the note in `AppBottomSheet`.
 	 */
-	snapPoints?: Array<string | number>;
-	/** Caps how far a dynamically-sized sheet may grow. Ignored when `snapPoints` is set. */
-	maxHeight?: number;
-	/**
-	 * Points of screen left uncovered above the sheet at its tallest. The members list is
-	 * 52 — a tall sheet that still shows a strip of what it came from, so it reads as a
-	 * layer over the screen rather than a screen of its own. Only for sheets whose content
-	 * genuinely runs long; everything else sizes to its content and needs neither this nor
-	 * `snapPoints`.
-	 */
-	topInset?: number;
-	/** Let the sheet's own scroll view own vertical gestures rather than the sheet. */
-	hasScrollableContent?: boolean;
+	heightRatio?: number;
 	children: ReactNode;
 }

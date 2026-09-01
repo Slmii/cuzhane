@@ -1,4 +1,5 @@
 import { MemberRow } from '@/components/MemberRow/MemberRow.component';
+import type { MemberRowRemoveProps } from '@/components/MemberRow/MemberRow.types';
 import { AppBottomSheet } from '@/components/ui/BottomSheet/BottomSheet.component';
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
@@ -16,22 +17,20 @@ import type { MembersSheetProps } from './MembersSheet.types';
 import { MembersSkeleton } from './MembersSkeleton.component';
 
 /**
- * Three quarters of the screen — **one** detent, deliberately.
+ * Three quarters of the screen — **one** height, deliberately.
  *
  * A list of twenty members genuinely runs long, but most groups are five or six and a
  * full-height sheet opened onto a screen of empty space below them.
  *
- * A second, taller detent looks harmless and isn't: the sheet sizes its content to the
- * *largest* snap point, because that is the height it may be dragged to. At the smaller one
- * the bottom of that content sits below the screen, and a scroll view inside it ends there
- * too — so the list scrolled to its end with the last members still off-screen, unreachable
- * by any gesture. One detent keeps the content and the visible sheet the same height.
+ * A second, taller stop looks harmless and isn't: the sheet sizes its content to the *largest*
+ * one, because that is the height it may be dragged to. At the smaller one the bottom of that
+ * content sits below the screen, and a scroll view inside it ends there too — so the list
+ * scrolled to its end with the last members still off-screen, unreachable by any gesture. One
+ * height keeps the content and the visible sheet the same size.
  */
-const SHEET_SNAP_POINTS = ['75%'];
+const SHEET_HEIGHT_RATIO = 0.75;
 /** Stood up once, because the memoised rows below depend on the identity of this list. */
 const NO_MEMBERS: GroupMember[] = [];
-/** Keeps the sheet clear of the notch even at its tallest. */
-const SHEET_TOP_INSET = 52;
 
 /**
  * Who is in the group — a sheet rather than a pushed screen, because it is something you
@@ -63,9 +62,8 @@ export const MembersSheet = ({ groupId, isVisible, onClose }: MembersSheetProps)
 	 * of the close. Each carries an avatar the SVG renderer has to draw, so the animation
 	 * stuttered exactly where the share sheet, which has three elements, does not.
 	 *
-	 * Not a `FlatList`: this is capped at `spots`, which is 20, and virtualising inside a
-	 * gorhom sheet means `BottomSheetFlatList` plus a fixed `getItemLayout` to avoid
-	 * measurement jank. Twenty rows that never rebuild cost less than that machinery.
+	 * Not a `FlatList`: this is capped at `spots`, which is 20, and virtualising inside a sheet
+	 * buys nothing at that size. Twenty rows that never rebuild cost less than the machinery.
 	 */
 	/*
 	 * **The platform's confirm, not a sheet of our own.** It was a second `AppBottomSheet`
@@ -90,17 +88,31 @@ export const MembersSheet = ({ groupId, isVisible, onClose }: MembersSheetProps)
 
 	const rows = useMemo(
 		() =>
-			members.map(member => (
-				<MemberRow
-					imageUrl={member.imageUrl}
-					key={member.id}
-					name={member.displayName}
-					onRemove={detail?.isOwner && member.role !== 'OWNER' ? () => handleRemovePress(member) : undefined}
-					percent={member.percent}
-					rangeLabel={formatBabRange(member.babNumbers)}
-					tag={member.userId === userId ? t('you') : member.role === 'OWNER' ? t('admin') : undefined}
-				/>
-			)),
+			members.map(member => {
+				// Spread as a pair: the remove button is a bare glyph, so its accessibility label
+				// travels with the handler rather than being optional beside it. Annotated rather
+				// than inlined so the conditional keeps the union instead of widening to two
+				// independently-optional props.
+				const removeProps: MemberRowRemoveProps =
+					detail?.isOwner === true && member.role !== 'OWNER'
+						? {
+								onRemove: () => handleRemovePress(member),
+								removeLabel: `${t('remove')} — ${member.displayName}`
+						  }
+						: {};
+
+				return (
+					<MemberRow
+						imageUrl={member.imageUrl}
+						key={member.id}
+						name={member.displayName}
+						percent={member.percent}
+						rangeLabel={formatBabRange(member.babNumbers)}
+						tag={member.userId === userId ? t('you') : member.role === 'OWNER' ? t('admin') : undefined}
+						{...removeProps}
+					/>
+				);
+			}),
 		[detail?.isOwner, handleRemovePress, members, t, userId]
 	);
 
@@ -110,13 +122,12 @@ export const MembersSheet = ({ groupId, isVisible, onClose }: MembersSheetProps)
 
 	return (
 		<>
-			<AppBottomSheet
-				hasScrollableContent
-				isVisible={isVisible}
-				onClose={handleClose}
-				snapPoints={SHEET_SNAP_POINTS}
-				topInset={SHEET_TOP_INSET}
-			>
+			{/*
+			 * `snapPoints` alone now. `topInset` was the same measurement from the other end and
+			 * the platform sheet has no equivalent — but 75% already leaves the quarter-screen
+			 * strip that inset existed to keep, so saying it twice was the only thing lost.
+			 */}
+			<AppBottomSheet heightRatio={SHEET_HEIGHT_RATIO} isVisible={isVisible} onClose={handleClose}>
 				{/*
 				 * `flex: 1` on the scroller itself, not just its content. A sheet with fixed
 				 * detents gives its body a fixed height, and a scroll view with no flex inside

@@ -55,8 +55,8 @@ export const JoinByCodeSheet = ({ isVisible, onClose }: JoinByCodeSheetProps) =>
 	const { theme } = useThemeContext();
 	const { t } = useTranslation();
 	const navigation = useNavigation<NativeStackNavigationProp<TabStackParamList>>();
-	// React Native's own: the sheet is presented by the platform, and gorhom's
-	// `BottomSheetTextInput` only works inside a gorhom sheet.
+	// React Native's own, which is now the only kind: the sheet is presented by the platform and
+	// moves itself for the keyboard, so no sheet-aware input is involved.
 	const inputRef = useRef<TextInput>(null);
 
 	const [step, setStep] = useState<Step>('code');

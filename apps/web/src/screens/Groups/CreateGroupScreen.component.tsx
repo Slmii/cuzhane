@@ -5,7 +5,6 @@ import { Form } from '@/components/ui/Form/Form.component';
 import { FormOptionGroup } from '@/components/ui/Form/OptionGroup/OptionGroup.component';
 import { Select } from '@/components/ui/Form/Select/Select.component';
 import { FormStepper } from '@/components/ui/Form/Stepper/Stepper.component';
-import { FormToggleRow } from '@/components/ui/Form/ToggleRow/ToggleRow.component';
 import { SpotsGrid } from '@/components/ui/SpotsGrid/SpotsGrid.component';
 import { CaptionText, FieldLabelText } from '@/components/ui/Typography/Typography.component';
 import { useCreateGroup } from '@/lib/hooks/useGroup';
@@ -35,11 +34,34 @@ type CreateGroupScreenProps = NativeStackScreenProps<RootStackParamList, 'Create
 const FIELDS_BY_STEP: Record<CreateGroupStep, (keyof GroupForm)[]> = {
 	1: ['name', 'dedication', 'visibility'],
 	2: ['spots', 'splitMode'],
-	3: ['cycle', 'reminderEnabled', 'reminderTime']
+	3: ['cycle']
 };
 
-/** Tall enough for the busiest step without covering the status bar. */
-const SHEET_SNAP_POINTS = ['90%'];
+/**
+ * **One height for all three steps, and it never changes.** Sized for step 2, which is the
+ * tallest — the seat stepper, the hundred-cell grid, the plan options and their preview.
+ *
+ * Two reasons it is a single constant rather than something per step.
+ *
+ * The first is a bug. `@expo/ui`'s `BottomSheetView.swift` chooses between fitting to content and
+ * honouring detents with a SwiftUI `if props.fitToContents`, which is a *structural* branch:
+ * flipping it swaps `_ConditionalContent` arms, so SwiftUI tears down one arm and builds the
+ * other, **taking the hosted React Native surface with it**. Giving step 2 alone a detent
+ * therefore remounted the whole form on the way in and again on the way out, reverting the name
+ * and dedication to their defaults — which then blocked creating the group at step 3.
+ *
+ * The second is that a resize between steps cannot be made to look like anything. The fitted
+ * detent is assigned outside any animation transaction, so the sheet jumps rather than settling,
+ * and no JS reaches that — `withAnimation` only covers `useNativeState`. A sheet that does not
+ * change height has no transition to get wrong, and the steps read as pages of one sheet rather
+ * than as three sheets of different sizes.
+ *
+ * The cost is accepted deliberately: steps 1 and 3 carry some room below their last control.
+ */
+const SHEET_HEIGHT_RATIO = 0.82;
+
+/** The tallest the seat lattice ever gets, which is the height it always reserves. */
+const MAX_SPOTS = Math.max(...SPOTS_VALUES);
 
 export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 	const { theme } = useThemeContext();
@@ -86,8 +108,15 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 				cycle: values.cycle,
 				dedication: values.dedication.trim() || undefined,
 				name: values.name.trim(),
-				reminderEnabled: values.reminderEnabled,
-				reminderTime: values.reminderTime,
+				/*
+				 * Not asked for and not shown, but `CreateGroupBodySchema` still requires
+				 * `reminderTime` — the columns are on `Group` and the serializer still returns
+				 * them, even though nothing in the app reads either. Sent as the values the
+				 * schema would have defaulted to, so removing the control changed no rows.
+				 * Dropping the columns needs a migration and is a separate decision.
+				 */
+				reminderEnabled: true,
+				reminderTime: '21:00',
 				spots: values.spots,
 				splitMode: values.splitMode,
 				// Whoever creates the group sets its clock: rounds roll at midnight here, for
@@ -115,13 +144,9 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 		);
 	};
 
+	// The same height on every step — see `SHEET_HEIGHT_RATIO`. Never make this conditional.
 	return (
-		<AppBottomSheet
-			hasScrollableContent
-			isVisible={isSheetVisible}
-			onClose={handleDismissed}
-			snapPoints={SHEET_SNAP_POINTS}
-		>
+		<AppBottomSheet heightRatio={SHEET_HEIGHT_RATIO} isVisible={isSheetVisible} onClose={handleDismissed}>
 			<Form<GroupForm>
 				/*
 				 * **`onChange`, because this form is advanced by `trigger` rather than submitted.**
@@ -135,8 +160,6 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 					cycle: 'DAILY',
 					dedication: '',
 					name: '',
-					reminderEnabled: true,
-					reminderTime: '21:00',
 					spots: 20,
 					splitMode: 'ROTATION',
 					visibility: 'OPEN'
@@ -176,6 +199,10 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 						 * on the platform's own material there is no colour of ours to paint; the
 						 * form ran straight through the title, and the spots stepper landed on top of
 						 * "Geri" and swallowed the tap.
+						 *
+						 * `flex: 1` so the column fills the detent — the wrapper hands fixed-height
+						 * sheets a `flexGrow: 1, height: 0` parent, and without a flex of its own the
+						 * column would sit at content height with the rest of the sheet empty below.
 						 */
 						<View style={styles.sheetColumn}>
 							{createGroup.isPending ? (
@@ -187,9 +214,16 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 									step={step}
 								/>
 							)}
+							{/*
+							 * `flex: 1` on the scroller itself, not just its content: the sheet has a
+							 * fixed height, and a scroll view with no flex inside one takes the height
+							 * of its *content* — so a step longer than the sheet would grow past the
+							 * bottom edge instead of scrolling, with its last controls unreachable.
+							 */}
 							<ScrollView
 								contentContainerStyle={styles.sheetContent}
 								showsVerticalScrollIndicator={false}
+								style={styles.scroller}
 							>
 								{!createGroup.isPending && step === 1 ? (
 									<>
@@ -230,7 +264,9 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 											/>
 											{/* Every seat is a seat that will be filled — the grid shows the
 										    capacity being chosen, not who has joined yet. */}
-											<SpotsGrid filled={spots} total={spots} />
+											{/* Sized for the largest option, so stepping 20 → 10 doesn't drop a
+										    row out from under the plan options below it. */}
+										<SpotsGrid filled={spots} maxTotal={MAX_SPOTS} total={spots} />
 										</View>
 										<CaptionText color={theme.colors.faintText}>{t('spotsNote')}</CaptionText>
 										<FieldLabelText style={styles.fieldLabel}>{t('readingPlan')}</FieldLabelText>
@@ -262,22 +298,18 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 										/>
 
 										{/*
-										 * **The switch and nothing else — no time picker here.**
-										 * Creating a group asks whether you want a daily reminder,
-										 * not when: the time is a personal setting that Hatırlatma
-										 * owns, with its own picker, its debounce and the note about
-										 * a first notification landing tomorrow. A second picker on
-										 * this step made the same choice in a worse place, and set
-										 * it per group when the reminder is not per group at all.
-										 * The row still shows the time so the switch says what it
-										 * will do; `reminderTime` keeps its 21:00 default.
+										 * **No reminder control on this step.** It was a switch and a time
+										 * picker, then just the switch, and now neither. The reminder is
+										 * per account, not per group: `useReminderNotificationSync`
+										 * schedules from `UserSettings` and sums what is owed across
+										 * every running group, and nothing reads `Group.reminderEnabled`
+										 * at all. So the question set a flag no one consults, asked at
+										 * the moment a person has least idea whether they want it.
+										 * Hatırlatma owns it — with its picker, its debounce and its note
+										 * about the first notification landing tomorrow — and the
+										 * joined-welcome screen offers it when it starts to mean
+										 * something. Don't add a per-group one back.
 										 */}
-										<FieldLabelText style={styles.fieldLabel}>{t('reminder')}</FieldLabelText>
-										<FormToggleRow
-											hint={watch('reminderTime')}
-											name='reminderEnabled'
-											title={t('dailyAt')}
-										/>
 
 										{/*
 										 * No `isLoading` spinner: `CreatingGroupOverlay` covers the whole
@@ -298,9 +330,6 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 
 const styles = StyleSheet.create({
 	/** Header above, the form scrolling in what is left — the sheet gives the column its height. */
-	sheetColumn: {
-		flex: 1
-	},
 	fieldLabel: {
 		marginBottom: 8
 	},
@@ -332,6 +361,12 @@ const styles = StyleSheet.create({
 	 * and Devam sat flush against the card above it while every other pair on the step was a
 	 * clean 12. This is the difference, not a second opinion about the spacing.
 	 */
+	sheetColumn: {
+		flex: 1
+	},
+	scroller: {
+		flex: 1
+	},
 	sheetContent: {
 		flexGrow: 1,
 		gap: 12,

@@ -2,21 +2,27 @@ import { CaptionText, Typography } from '@/components/ui/Typography/Typography.c
 import { Icon } from '@/components/ui/Icon/Icon.component';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { Pressable, StyleSheet, View } from 'react-native';
-import Animated, { Keyframe, useReducedMotion } from 'react-native-reanimated';
+import Animated, { Easing, Keyframe, useReducedMotion } from 'react-native-reanimated';
 import type { StepperProps } from './Stepper.types';
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
 /**
- * `sg-pop` at the count's own timing — .34s, a touch shorter than the cells'. Built fresh
- * each time because `Keyframe` is mutable and a shared instance would be reconfigured by
- * whoever touched it last.
+ * `sg-pop` at the count's own timing — `.34s cubic-bezier(.2,1.4,.4,1)`, a touch shorter than
+ * the cells' `.38s` and on a fractionally springier curve. Both numbers are the design's, and
+ * the difference between the two curves is deliberate on its part, so they are written out
+ * separately rather than shared with `CellGrid`.
+ *
+ * Built fresh each time because `Keyframe` is mutable and a shared instance would be
+ * reconfigured by whoever touched it last.
  */
+const COUNT_POP_EASING = Easing.bezier(0.2, 1.4, 0.4, 1);
+
 const countPop = () =>
 	new Keyframe({
 		0: { opacity: 0, transform: [{ scale: 0.55 }] },
-		62: { opacity: 1, transform: [{ scale: 1.14 }] },
-		100: { opacity: 1, transform: [{ scale: 1 }] }
+		62: { easing: COUNT_POP_EASING, opacity: 1, transform: [{ scale: 1.14 }] },
+		100: { easing: COUNT_POP_EASING, opacity: 1, transform: [{ scale: 1 }] }
 	}).duration(340);
 
 export const Stepper = ({ caption, max = 50, min = 5, onChange, step = 5, style, value, values }: StepperProps) => {
@@ -46,16 +52,19 @@ export const Stepper = ({ caption, max = 50, min = 5, onChange, step = 5, style,
 
 	return (
 		<View accessibilityRole='adjustable' style={[styles.row, style]}>
+			{/* `.spot-btn:active { transform: scale(.96) }` — the prototype's only press feedback,
+			    and `:disabled { opacity:.35 }` its only disabled state. */}
 			<Pressable
 				accessibilityRole='button'
 				disabled={isMinDisabled}
 				onPress={() => handleChange(-step)}
-				style={[
+				style={({ pressed }) => [
 					styles.button,
 					{
 						backgroundColor: theme.colors.surface,
 						borderColor: theme.colors.border,
-						opacity: isMinDisabled ? 0.4 : 1
+						opacity: isMinDisabled ? 0.35 : 1,
+						transform: [{ scale: pressed ? 0.96 : 1 }]
 					}
 				]}
 			>
@@ -63,7 +72,7 @@ export const Stepper = ({ caption, max = 50, min = 5, onChange, step = 5, style,
 			</Pressable>
 			<View style={styles.centerColumn}>
 				{/*
-				 * `pool-fill.html`: the seat count re-pops on every change, in the same beat as
+				 * `spot-stepper.html`: the seat count re-pops on every change, in the same beat as
 				 * the cells arriving. Keyed on the value so it remounts — a mounted view's
 				 * `entering` never replays, which is the same reason the prototype swaps the
 				 * node rather than restarting the CSS animation on it.
@@ -83,12 +92,13 @@ export const Stepper = ({ caption, max = 50, min = 5, onChange, step = 5, style,
 				accessibilityRole='button'
 				disabled={isMaxDisabled}
 				onPress={() => handleChange(step)}
-				style={[
+				style={({ pressed }) => [
 					styles.button,
 					{
 						backgroundColor: theme.colors.surface,
 						borderColor: theme.colors.border,
-						opacity: isMaxDisabled ? 0.4 : 1
+						opacity: isMaxDisabled ? 0.35 : 1,
+						transform: [{ scale: pressed ? 0.96 : 1 }]
 					}
 				]}
 			>

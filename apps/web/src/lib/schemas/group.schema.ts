@@ -29,12 +29,14 @@ export const createGroupSchema = (t: Translate) =>
 			.int()
 			.refine(value => SPOTS_VALUES.includes(value), { message: t('fieldRequired') })
 			.default(20),
-		cycle: z.enum(['DAILY', 'WEEKLY']).default('DAILY'),
-		reminderEnabled: z.boolean().default(true),
-		reminderTime: z
-			.string()
-			.regex(/^\d{2}:\d{2}$/)
-			.default('21:00')
+		cycle: z.enum(['DAILY', 'WEEKLY']).default('DAILY')
+		/*
+		 * No `reminderEnabled` / `reminderTime`. The server's body schema still has them and
+		 * still requires the time, but they stopped being *form* fields when the reminder came
+		 * off step 3 — nothing on the screen sets them, so a field here would only be a default
+		 * pretending to be an answer. `CreateGroupScreen` passes the same two values as
+		 * literals, which is where the fact that the API wants them belongs.
+		 */
 	});
 
 export type GroupForm = z.infer<ReturnType<typeof createGroupSchema>>;

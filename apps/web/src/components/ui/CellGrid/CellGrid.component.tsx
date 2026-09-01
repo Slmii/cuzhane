@@ -3,7 +3,7 @@ import { Typography } from '@/components/ui/Typography/Typography.component';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { memo, useState } from 'react';
 import { LayoutChangeEvent, PixelRatio, Pressable, StyleSheet, View } from 'react-native';
-import Animated, { Keyframe, useReducedMotion } from 'react-native-reanimated';
+import Animated, { cubicBezier, useReducedMotion } from 'react-native-reanimated';
 import type { CellGridItem, CellGridProps } from './CellGrid.types';
 
 /**
@@ -43,35 +43,85 @@ const transitionFor = (property: TransitionProperty | TransitionProperty[], dela
 });
 
 /**
- * Design 05's two cell animations, kept as keyframes because that is how the prototype
- * writes them and the shapes don't survive translation into a spring.
+ * Design 05's two cell animations, transcribed from `spot-stepper.html` — its `om-pop` and
+ * `om-shrink` — and kept as keyframes because that is how the prototype writes them and the
+ * shapes don't survive translation into a spring.
  *
- * `sg-pop` overshoots to 1.14 before settling — a plain 0→1 zoom reads as the grid merely
- * appearing, where the design has each new seat land with a small bounce. `sg-shrink` is
+ * `om-pop` overshoots to 1.14 before settling — a plain 0→1 zoom reads as the grid merely
+ * appearing, where the design has each new seat land with a small bounce. `om-shrink` is
  * what a removed seat does instead of blinking out: it collapses to a fifth of its size
  * and fades, which is only possible because the caller keeps it mounted long enough.
  *
- * **Built per cell, never shared.** `Keyframe` is mutable: `.delay()` writes to the
- * instance and hands back the same object, so a module-level constant reused across a
- * grid ends up with whatever delay the last cell asked for — every cell then animates on
- * one schedule, which is no stagger at all.
+ * **Durations and curves are the prototype's, to the millisecond**: `.38s` on
+ * `cubic-bezier(.2,1.35,.4,1)` and `.3s ease-in`. They had drifted to 300 and 240 with no
+ * easing at all, and a linear collapse is most of why removal read as a cut rather than a
+ * motion.
+ *
+ * **They are CSS animations, not Reanimated `entering` layout animations, and the difference
+ * is visible.** A layout animation is registered *after* its view mounts, and Reanimated keeps
+ * the view hidden until it takes over — so a freshly mounted ghost was painted at opacity 0 for
+ * a frame, appeared at full size, and only then began to shrink. On screen that is "the cells
+ * disappear, come back, and then the animation starts", and it is worse on Android, where the
+ * mount and the animation land in separate frames more often. A CSS animation is part of the
+ * style the view is committed with, so it is already running on the first frame the cell
+ * exists, and `animationFillMode: 'both'` holds the 0% state through the stagger delay exactly
+ * as the prototype's `both` does. It is also the more literal transcription — the design writes
+ * both of these as CSS animations, and this is the same declaration with the same numbers.
  */
-const pop = (delay: number) =>
-	new Keyframe({
-		0: { opacity: 0, transform: [{ scale: 0.55 }] },
-		62: { opacity: 1, transform: [{ scale: 1.14 }] },
-		100: { opacity: 1, transform: [{ scale: 1 }] }
-	})
-		.duration(300)
-		.delay(delay);
+/*
+ * Selectors are **percentage strings**, exactly as the prototype writes them. A CSS keyframe
+ * selector here is either a fraction of 1 or a percentage — a bare `62` is neither, and
+ * Reanimated throws "Invalid keyframe selector" on mount rather than degrading. (Layout
+ * animations take bare numbers, which is what these were before, and the two conventions look
+ * identical at a glance.)
+ */
+const POP_KEYFRAMES = {
+	'0%': { opacity: 0, transform: [{ scale: 0.55 }] },
+	'62%': { opacity: 1, transform: [{ scale: 1.14 }] },
+	'100%': { opacity: 1, transform: [{ scale: 1 }] }
+};
 
-const shrink = (delay: number) =>
-	new Keyframe({
-		0: { opacity: 1, transform: [{ scale: 1 }] },
-		100: { opacity: 0, transform: [{ scale: 0.2 }] }
-	})
-		.duration(240)
-		.delay(delay);
+const SHRINK_KEYFRAMES = {
+	'0%': { opacity: 1, transform: [{ scale: 1 }] },
+	'100%': { opacity: 0, transform: [{ scale: 0.2 }] }
+};
+
+/*
+ * **Each of these opens by spreading its own 0% frame into the static style, and that is not
+ * decoration.** Reanimated attaches a CSS animation from `componentDidMount`, so there is one
+ * frame where the view is already on screen wearing its plain style and the animation has not
+ * started. Whenever that plain style differs from the animation's first keyframe, the cell is
+ * painted once in the wrong state and then jumps to the right one.
+ *
+ * It only showed on the pop, which is what made it look like two separate bugs: `om-shrink`
+ * opens at `opacity: 1, scale: 1`, which *is* a cell's natural style, so its uncovered frame was
+ * indistinguishable — while `om-pop` opens at `opacity: 0, scale: .55`, so a new seat appeared
+ * at full size, vanished, and only then popped in. Declaring the opening frame as the resting
+ * style closes the gap for both, and `animationFillMode: 'both'` is what then overrides it: the
+ * forwards fill holds the 100% frame once the animation is done, so a popped cell stays at full
+ * size rather than falling back to the `opacity: 0` written here. (That the ghosts stay
+ * collapsed instead of snapping back is the same fill doing the same job, already proven.)
+ */
+
+/** `om-pop .38s cubic-bezier(.2,1.35,.4,1) <delay>ms both`. */
+const popAnimation = (delay: number) => ({
+	...POP_KEYFRAMES['0%'],
+	animationDelay: delay,
+	animationDuration: 380,
+	animationFillMode: 'both' as const,
+	animationName: POP_KEYFRAMES,
+	animationTimingFunction: cubicBezier(0.2, 1.35, 0.4, 1)
+});
+
+/** `om-shrink .3s ease-in <delay>ms both`. */
+const shrinkAnimation = (delay: number) => ({
+	...SHRINK_KEYFRAMES['0%'],
+	animationDelay: delay,
+	animationDuration: 300,
+	animationFillMode: 'both' as const,
+	animationName: SHRINK_KEYFRAMES,
+	animationTimingFunction: 'ease-in' as const
+});
 
 type CellProps = {
 	borderWidth: number;
@@ -187,18 +237,30 @@ const Cell = memo(({ borderWidth, isReducedMotion, item, onPress, radius, size }
 	 */
 	const fillDelay = item.fillDelay ?? 0;
 	/*
-	 * Both are `entering`, including the ghost's shrink. An `exiting` animation would have to
-	 * survive the cell being unmounted, and the caller is what decides when a removed cell
-	 * actually goes — so the ghost mounts already-doomed and plays its exit on the way in,
-	 * exactly as the prototype's CSS does.
+	 * Both run on mount, including the ghost's shrink: the ghost arrives already doomed and
+	 * plays its exit on the way in, because the caller — not this cell — decides when a removed
+	 * seat is actually dropped. That is exactly what the prototype does, where a leaving cell is
+	 * appended to the grid carrying `om-shrink`.
+	 *
+	 * **Captured once, at mount, and never recomputed.** A CSS animation lives in the style, so
+	 * unlike a layout animation it can be taken *away* again — and `entryDelay` does go away, one
+	 * frame later, when `SpotsGrid`'s `shownCount` catches up to `total`. Read live, that removed
+	 * `animationName` mid-pop and the new seats snapped to full size after a single frame of
+	 * movement. Reading it from state pins the declaration to this cell's lifetime, which is the
+	 * property `entering` used to give for free.
+	 *
+	 * Holding it after it finishes costs nothing: `fillMode: 'both'` settles on the 100% frame,
+	 * which for the pop is the cell's natural size and opacity.
 	 */
-	const entering = isReducedMotion
-		? undefined
-		: item.ghostDelay !== undefined
-		? shrink(item.ghostDelay)
-		: item.entryDelay !== undefined
-		? pop(item.entryDelay)
-		: undefined;
+	const [animation] = useState(() =>
+		isReducedMotion
+			? null
+			: item.ghostDelay !== undefined
+			? shrinkAnimation(item.ghostDelay)
+			: item.entryDelay !== undefined
+			? popAnimation(item.entryDelay)
+			: null
+	);
 
 	const label =
 		item.label === undefined ? null : (
@@ -222,9 +284,11 @@ const Cell = memo(({ borderWidth, isReducedMotion, item, onPress, radius, size }
 	return (
 		<Animated.View
 			accessibilityLabel={onPress ? undefined : item.accessibilityLabel}
-			entering={entering}
 			style={{
 				...styles.cell,
+				// The pop or the shrink, plus the opening frame it rests at until it starts — see
+				// above. Nothing below this sets `opacity` or `transform`, so the spread stands.
+				...animation,
 				// Only when the label stands alone. With a `Pressable` in between, centring here
 				// would size it to its text and shrink the tap target to the numeral.
 				...(onPress ? null : styles.centered),
@@ -305,6 +369,7 @@ const CellGridComponent = ({
 	columns,
 	gap = 4,
 	items,
+	minRows,
 	onPressCell,
 	radius = 6,
 	style
@@ -330,6 +395,14 @@ const CellGridComponent = ({
 		setGridWidth(event.nativeEvent.layout.width);
 	};
 
+	/*
+	 * The floor the caller asked for, in points. A `minHeight` rather than a `height`, so a grid
+	 * that outgrows the reservation still grows — the point is only that it never *shrinks* below
+	 * what it may need again in a moment.
+	 */
+	const reservedRows = Math.max(minRows ?? 0, Math.ceil(items.length / columns));
+	const minHeight = minRows === undefined ? undefined : minRows * cellSize + (minRows - 1) * gap;
+
 	if (cellSize === 0) {
 		return (
 			/*
@@ -340,7 +413,9 @@ const CellGridComponent = ({
 			 * share exactly what there is.
 			 */
 			<View onLayout={handleLayout} style={style}>
-				{Array.from({ length: Math.ceil(items.length / columns) }, (_, rowIndex) => {
+				{/* `reservedRows`, not the item count: the measuring pass has to claim the same
+				    height the real board will, or reserving one below buys nothing on first paint. */}
+				{Array.from({ length: reservedRows }, (_, rowIndex) => {
 					const row = items.slice(rowIndex * columns, rowIndex * columns + columns);
 
 					return (
@@ -367,7 +442,7 @@ const CellGridComponent = ({
 	}
 
 	return (
-		<View onLayout={handleLayout} style={[styles.grid, { gap }, style]}>
+		<View onLayout={handleLayout} style={[styles.grid, { gap, minHeight }, style]}>
 			{cellSize > 0
 				? items.map(item => (
 						<Cell
@@ -412,6 +487,9 @@ const styles = StyleSheet.create({
 		justifyContent: 'center'
 	},
 	grid: {
+		// Rows stay packed at the top, so a `minHeight` taller than the cells leaves its slack
+		// underneath rather than spreading it between the rows.
+		alignContent: 'flex-start',
 		flexDirection: 'row',
 		flexWrap: 'wrap'
 	},

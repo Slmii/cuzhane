@@ -19,7 +19,6 @@ import {
 import { Newsreader_400Regular, Newsreader_500Medium, Newsreader_600SemiBold } from '@expo-google-fonts/newsreader';
 import { NotoNaskhArabic_500Medium } from '@expo-google-fonts/noto-naskh-arabic';
 import { AmiriQuran_400Regular } from '@expo-google-fonts/amiri-quran';
-import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { NavigationContainer } from '@react-navigation/native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
@@ -75,21 +74,25 @@ const AppContainer = () => {
 
 	return (
 		<GestureHandlerRootView style={[styles.root, { backgroundColor: theme.colors.background }]}>
+			{/*
+			 * No sheet provider here any more. `AppBottomSheet` is the platform's own sheet, which
+			 * is presented by the OS rather than rendered into a host somewhere up this tree —
+			 * `@expo/ui` keeps a `BottomSheetModalProvider` export only so gorhom's can be deleted
+			 * without touching the file it sat in, and it renders its children and nothing else.
+			 */}
 			<KeyboardProvider>
-				<BottomSheetModalProvider>
-					<NavigationContainer linking={linking} ref={navigationRef} theme={navigationTheme}>
-						<StatusBar style={theme.mode === 'dark' || isSplashVisible ? 'light' : 'dark'} />
-						<AppNavigator />
-						<NotificationOrchestrator />
-						<OnboardingDevTrigger />
-						{/*
-						 * Over the app rather than in front of it: the navigator mounts and starts
-						 * fetching underneath, so the splash is spending time the app needed
-						 * anyway instead of adding to it.
-						 */}
-						{isSplashVisible ? <AnimatedSplash /> : null}
-					</NavigationContainer>
-				</BottomSheetModalProvider>
+				<NavigationContainer linking={linking} ref={navigationRef} theme={navigationTheme}>
+					<StatusBar style={theme.mode === 'dark' || isSplashVisible ? 'light' : 'dark'} />
+					<AppNavigator />
+					<NotificationOrchestrator />
+					<OnboardingDevTrigger />
+					{/*
+					 * Over the app rather than in front of it: the navigator mounts and starts
+					 * fetching underneath, so the splash is spending time the app needed
+					 * anyway instead of adding to it.
+					 */}
+					{isSplashVisible ? <AnimatedSplash /> : null}
+				</NavigationContainer>
 			</KeyboardProvider>
 		</GestureHandlerRootView>
 	);

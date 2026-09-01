@@ -27,6 +27,25 @@ const sizeStyleMap: Record<ButtonSize, ViewStyle> = {
 };
 
 /**
+ * A glyph with no label is a **circle**: a square box with a radius of half its side.
+ *
+ * The sizes above are shaped for a word — a rounded rectangle, padded either side of the label —
+ * and a glyph dropped into one comes out as a rounded square slightly wider than it is tall,
+ * which is what the create-group header showed on Android. iOS is not affected because a
+ * label-less glass button already takes `buttonBorderShape('capsule')`, and a capsule around a
+ * square box *is* a circle; this is the drawn path saying the same thing.
+ *
+ * Sides match each size's `minHeight`, so the two paths come out the same size as well as the
+ * same shape. Applied after the inline block below, because that block writes `width` — an
+ * explicit `undefined` there would otherwise erase the one set here.
+ */
+const iconOnlySizeStyleMap: Record<ButtonSize, ViewStyle> = {
+	sm: { borderRadius: 18, height: 36, paddingHorizontal: 0, width: 36 },
+	md: { borderRadius: 23, height: 46, paddingHorizontal: 0, width: 46 },
+	lg: { borderRadius: 27, height: 54, paddingHorizontal: 0, width: 54 }
+};
+
+/**
  * **Mirrored as `LABEL_SIZE_BY_SIZE` in `GlassButton.tsx` — change both together.** A SwiftUI
  * `Text` is 17pt unless told otherwise, so the glass button has to be handed these or the same
  * button renders at two different sizes depending on the platform.
@@ -166,6 +185,11 @@ export const AppButton = ({
 			<Icon color={toneByVariant.textColor} name={icon} size={iconSizeMap[size]} strokeWidth={1.9} />
 		) : null;
 
+	/* A glyph standing on its own, which is a circle rather than a padded rounded rectangle. A
+	   button with neither a label nor a glyph keeps the ordinary box — there is nothing to
+	   centre in a disc, and it is a caller's mistake rather than a shape to design for. */
+	const isIconOnly = title === undefined && drawnGlyph !== null;
+
 	return (
 		<Pressable
 			accessibilityLabel={accessibilityLabel ?? title}
@@ -183,6 +207,8 @@ export const AppButton = ({
 					transform: [{ scale: pressed && !disabled && !isLoading ? 0.96 : 1 }],
 					width: fullWidth ? '100%' : undefined
 				},
+				// After the block above, which writes `width` — see the note on the map.
+				isIconOnly ? iconOnlySizeStyleMap[size] : null,
 				style
 			]}
 		>

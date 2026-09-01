@@ -1,5 +1,5 @@
 import { Avatar } from '@/components/ui/Avatar/Avatar.component';
-import { Icon } from '@/components/ui/Icon/Icon.component';
+import { AppButton } from '@/components/ui/Button/Button.component';
 import { ProgressBar } from '@/components/ui/ProgressBar/ProgressBar.component';
 import { BodyStrongText, Typography } from '@/components/ui/Typography/Typography.component';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
@@ -15,6 +15,7 @@ export const MemberRow = ({
 	onRemove,
 	percent,
 	rangeLabel,
+	removeLabel,
 	style,
 	tag
 }: MemberRowProps) => {
@@ -67,10 +68,29 @@ export const MemberRow = ({
 				</Pressable>
 			) : null}
 
+			{/*
+			 * An `AppButton`, not a bare glyph in a `Pressable`. `close` has a `GLYPH_BY_ICON`
+			 * entry, so this takes the glass path where the OS has it and the drawn one everywhere
+			 * else — the same crossing every other control in the app makes, which a hand-rolled
+			 * `Pressable` was quietly opting out of. Being label-less it comes out a circle on both
+			 * paths, which also gives it a real touch target: a 13px glyph with 2px of padding was
+			 * about a third of the 44pt minimum, on the one control here that destroys something.
+			 *
+			 * **`surface`, not `ghost`.** Both cross to `buttonStyle('glass')`, so on iOS 26 they
+			 * are the same button — but `ghost` *draws* with no fill, which off the glass path
+			 * leaves a bare glyph floating at the end of the row where every other icon button in
+			 * the app is a disc. `surface` is what create-group's header close uses, and these two
+			 * should not disagree.
+			 */}
 			{onRemove ? (
-				<Pressable accessibilityRole='button' onPress={onRemove} style={styles.remove}>
-					<Icon color={theme.colors.faintText} name='close' size={13} strokeWidth={1.9} />
-				</Pressable>
+				<AppButton
+					accessibilityLabel={removeLabel}
+					fullWidth={false}
+					icon='close'
+					onPress={onRemove}
+					size='sm'
+					variant='surface'
+				/>
 			) : null}
 		</View>
 	);
@@ -107,10 +127,6 @@ const styles = StyleSheet.create({
 	},
 	range: {
 		fontSize: 10.5
-	},
-	remove: {
-		paddingHorizontal: 2,
-		paddingVertical: 4
 	},
 	removeGlyph: {
 		fontSize: 15,

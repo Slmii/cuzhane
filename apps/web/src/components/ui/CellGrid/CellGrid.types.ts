@@ -30,6 +30,14 @@ export type CellGridItem = {
 export interface CellGridProps {
 	items: CellGridItem[];
 	columns: number;
+	/**
+	 * Rows to reserve height for, whatever `items` currently holds — for a lattice whose length
+	 * changes under the user. The seat picker walks 5 → 10 → 20, which is one row or two, and
+	 * without a floor everything below it stepped up and down as the count changed.
+	 *
+	 * Rows are laid out from the top, so the reserved space is always at the bottom.
+	 */
+	minRows?: number;
 	gap?: number;
 	radius?: number;
 	borderWidth?: number;

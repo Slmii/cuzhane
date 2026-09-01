@@ -339,11 +339,46 @@ defaultValues render={({ handleSubmit, watch, setValue }) => …} />`, which wir
     `ReminderPersistence` component there, which subscribes via `watch`'s callback form so it never fires on
     mount and never trips `react-hooks/set-state-in-effect`.
 -   **Bottom sheets**: every modal surface in the app is `components/ui/BottomSheet` → `AppBottomSheet`, so
-    they all share one grabber, spring, fading backdrop and drag-to-dismiss. It's declarative — hold a state
+    they all share one grabber, spring, scrim and drag-to-dismiss. It's declarative — hold a state
     flag on the screen and pass `isVisible`. There is **no close button**: the grabber, a downward drag and a
     tap on the backdrop dismiss it; don't add an × back. Don't hand-roll a `Modal`, animate a sheet by hand,
     or reach for the navigator's `pageSheet` presentation. Share, Manage, reader text-size, member-removal,
     profile-photo, delete-account, feedback, members, join-by-code and create-group all use it.
+-   **The sheet is the platform's own** — `UISheetPresentationController` on iOS, Material 3
+    `ModalBottomSheet` on Android — through `@expo/ui/community/bottom-sheet`, whose API is a drop-in for
+    `@gorhom/bottom-sheet`. **gorhom is uninstalled**; there is no JS-drawn fallback, no custom backdrop,
+    no 26pt radius and no `BottomSheetModalProvider` in `AppRoot`. The surface, the scrim, the grabber and
+    the corner radius are the OS's, deliberately — `backdropComponent`, `backgroundComponent` and
+    `handleIndicatorStyle` are accepted by the wrapper but do nothing natively, so don't pass them.
+    Three findings once said this was impossible and all three were fixed upstream: touches now reach the
+    content (`RNHostView`), SwiftUI can measure it (`matchContents` + `fitToContents`), and Android
+    forwards `containerColor` and can skip its half-height detent. `AppInput` no longer swaps in a
+    sheet-aware `TextInput`, and `IsInsideSheetContext` is gone with it — an OS sheet moves itself for
+    its own keyboard.
+-   **Every sheet sizes to its content, and `snapPoints` is never passed to the platform.** A sheet that
+    needs a fixed height gives its *content* one, via `AppBottomSheet`'s `heightRatio` (a fraction of the
+    screen) — the members list is `0.75`, create-group `0.82`, everything else omits it and is as tall as
+    it needs to be. `maxHeight` and `topInset` went with gorhom; they have no platform equivalent.
+-   **Detents are not portable, which is why `heightRatio` exists.** iOS honours an arbitrary
+    `presentationDetents` height; Android's Material 3 sheet has only two states — partial at about half,
+    and expanded — so a single snap point is also the *last* one, resolves to expanded, and a `flex: 1`
+    body fills the screen. The same `'82%'` gave 82% on iOS and 100% on Android. Sizing the content is the
+    one instruction both platforms follow, since both size a sheet to what it holds.
+-   **Never let `enableDynamicSizing` change on a live sheet** — which is now impossible, because it is
+    hard-coded on. `BottomSheetView.swift` branches on `if props.fitToContents`, a *structural* SwiftUI
+    `if`: flipping it swaps `_ConditionalContent` arms, so SwiftUI tears down one arm and builds the
+    other, **taking the hosted React Native surface with it**, and everything inside remounts.
+    Create-group learned this the expensive way — giving step 2 alone a detent re-presented the sheet
+    instead of resizing it and remounted the `Form`, so the name and dedication reverted to their
+    defaults entering step 2 and again on the way out, which then blocked creating the group at step 3.
+-   **Create-group is therefore one fixed height for all three steps**, sized for step 2 (the tallest).
+    Not only to avoid that remount: a fitted sheet's detent is assigned outside any animation
+    transaction, so a sheet that changes height between steps *jumps*, and nothing in JS reaches that
+    (`withAnimation` from `@expo/ui` only covers `useNativeState`). A sheet that never resizes has no
+    transition to get wrong. Steps 1 and 3 carry some room below their last control; that is the accepted
+    cost, and the alternative was tried and is worse.
+-   **Sheets cannot stack**: iOS refuses to present one over another, which is why member-removal is a
+    native `Alert` and why switching sheets on the group screen goes through a route param and a delay.
 -   **The group screen's two whole-group actions are corner actions in its heading, and nothing else.**
     Owners get settings (which opens Yönet, and the members list from inside it) beside the filled Paylaş;
     non-owners get a members icon in that same slot, because they have no settings to open and the list is
