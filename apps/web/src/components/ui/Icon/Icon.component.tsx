@@ -300,7 +300,8 @@ const GLYPHS: Record<IconName, Glyph> = {
 
 	// Actions
 	back: { paths: ['M14.5 5.5L8 12l6.5 6.5'] },
-	chevron: { paths: ['M9.5 5.5L16 12l-6.5 6.5'] },
+	chevronRight: { paths: ['M9.5 5.5L16 12l-6.5 6.5'] },
+	chevronLeft: { paths: ['M14.5 5.5L8 12l6.5 6.5'] },
 	close: { paths: ['M6 6l12 12', 'M18 6L6 18'] },
 	check: { paths: ['M5 12.6l4.4 4.4L19 7.4'] },
 	plus: { paths: ['M12 5.5v13', 'M5.5 12h13'] },

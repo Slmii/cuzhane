@@ -10,7 +10,6 @@ import { SliceChip } from '@/components/SliceChip/SliceChip.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Chip } from '@/components/ui/Chip/Chip.component';
-import { CornerAction } from '@/components/ui/CornerAction/CornerAction.component';
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
 import { NavRow } from '@/components/ui/NavRow/NavRow.component';
@@ -46,6 +45,9 @@ import { LobbySkeleton } from './LobbySkeleton.component';
 
 type Sheet = 'share' | 'manage' | 'members' | null;
 
+/** Long enough for a sheet to finish dismissing before the next is presented. */
+const SHEET_SWAP_DELAY_MS = 320;
+
 const CHEVRON_DOWN_DEGREES = 90;
 const CHEVRON_UP_DEGREES = -90;
 /** One duration for the panel and the chevron, so the two read as a single movement. */
@@ -74,6 +76,29 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 	const { t } = useTranslation();
 	const userId = useCurrentUserId();
 	const [sheet, setSheet] = useState<Sheet>(null);
+	/*
+	 * **The screen's two whole-group actions live in the navigator's bar**, opposite the back
+	 * button, rather than on the title's baseline. That is what puts them in the same glass row
+	 * as the control iOS already draws there, and it costs the heading no width — a group's name
+	 * had been truncating to make room for them. `GroupDetailToolbar` is what draws them, and
+	 * `AppNavigator` registers it so the bar is filled on the first frame.
+	 *
+	 * It sits outside the screen, so it asks for a sheet through the route rather than calling
+	 * `setSheet`. Read as a second way of being open rather than copied into state by an effect —
+	 * the arriving param is already a render's worth of information. Same shape as Gruplarım's
+	 * `shouldOpenJoinSheet`.
+	 */
+	const requestedSheet = route.params.sheet ?? null;
+	const openSheet = sheet ?? requestedSheet;
+
+	const closeSheet = () => {
+		setSheet(null);
+
+		// Cleared on dismissal, or the param would reopen the sheet on the next render.
+		if (requestedSheet) {
+			navigation.setParams({ sheet: undefined });
+		}
+	};
 	// Declared up here with the other hooks: the loading and error branches below return
 	// early, and a hook that only runs on the happy path would change order between renders.
 	const [isMyBabsOpen, setIsMyBabsOpen] = useState(false);
@@ -131,6 +156,7 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 	};
 
 	const groupQuery = useGetGroupById(groupId);
+
 	const babsQuery = useGetBabs(groupId);
 	// Both read from the query data rather than the narrowed `detail` below, so they sit with
 	// the other hooks above the early returns and keep hook order stable.
@@ -265,63 +291,63 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 
 	// One sheet swaps for the other rather than stacking: Yönet's members row is a way
 	// *into* the list, not a second surface on top of the settings it came from.
-	const handleOpenMembers = () => setSheet('members');
+	/*
+	 * **Dismiss Yönet first, then present Üyeler — never in the same commit.** A natively
+	 * presented sheet cannot be presented while another is still dismissing; iOS drops the second
+	 * one and the row read as dead. Swapping the value in one go did exactly that, because the
+	 * two sheets share this state and so close and open together.
+	 *
+	 * The delay is the dismissal's own, not a guess at when React settles.
+	 */
+	const handleOpenMembers = () => {
+		/*
+		 * **Both halves of "open", or Yönet never closes.** `openSheet` is `sheet ?? requestedSheet`
+		 * and the toolbar opens Yönet through the *param* — so clearing the state alone changed
+		 * nothing, the param kept it open, and the two sheets still swapped in one commit. iOS will
+		 * not present a sheet while another is dismissing, so the members list was dropped and the
+		 * row read as dead.
+		 */
+		setSheet(null);
+		navigation.setParams({ sheet: undefined });
+		// Presented only once Yönet's dismissal has run — see `SHEET_SWAP_DELAY_MS`.
+		setTimeout(() => setSheet('members'), SHEET_SWAP_DELAY_MS);
+	};
 
-	// Pinned like Gruplarım's: the back link and Paylaş stay reachable however far the
-	// board scrolls, and this screen scrolls a long way — a hundred cells plus the pool.
-	// It paints the screen background because a sticky child sits above the content.
+	/*
+	 * **The heading is the screen's again, and the bar carries only controls.**
+	 *
+	 * A native `headerTitle` was tried: it makes the bar a real bar, which is what earns the
+	 * glass — but a system bar has one line for what is here a title, a dedication and a cadence
+	 * chip, so the design's whole heading block went with it.
+	 *
+	 * What actually made the material flat was never the missing title. It was the *sticky*
+	 * wrapper this block used to sit in, painting `background` edge to edge so scrolling cards
+	 * could not run through it — an opaque band directly under the bar is all the bar had to
+	 * refract. Unpinned and unpainted, the page itself passes beneath, so the toolbar refracts
+	 * the board and the cards the way the tab bar always has.
+	 *
+	 * `hasBackButton` is what pushes this clear of the control above it.
+	 */
 	const header = (
-		<View key='header' style={[styles.header, { backgroundColor: theme.colors.background }]}>
-			<ScreenHeader
-				// Both of the screen's whole-group actions sit on the title's baseline now.
-				// Yönet used to be a full-width button below the board, which put the owner's
-				// settings further from the group than the pool was; as an outlined square
-				// beside the filled Paylaş it reads as the quieter of the two and costs no
-				// vertical space.
-				//
-				// A member has no settings to open, so that slot carries the one thing the
-				// settings sheet held for them — the members list — rather than sitting empty.
-				// It is the only way in now that the "Bu grupta kimler var" row is gone.
-				action={
-					<View style={styles.headerActions}>
-						{detail.isOwner ? (
-							<CornerAction
-								accessibilityLabel={t('manage')}
-								icon='settings'
-								onPress={() => setSheet('manage')}
-								tone='surface'
-							/>
-						) : (
-							<CornerAction
-								accessibilityLabel={t('whoIsIn')}
-								icon='members'
-								onPress={() => setSheet('members')}
-								tone='surface'
-							/>
-						)}
-						<CornerAction accessibilityLabel={t('share')} icon='share' onPress={() => setSheet('share')} />
-					</View>
-				}
-				onBack={navigation.goBack}
-				subtitle={detail.dedication ? t('forName', { dedication: detail.dedication }) : undefined}
-				title={detail.name}
-				// A group's name is whatever somebody typed, so it truncates rather than wrapping.
-				titleLines={1}
-				// Both cadences, not just daily. The chip was daily-only on the reasoning that a
-				// weekly group's countdown already says "2 gün" while a daily one counts hours —
-				// true, but it made the *chip itself* conditional, so a weekly group looked like a
-				// group with no cadence rather than one whose cadence you had to infer. Turlar
-				// shows both; this now matches it.
-				titleTrailing={<Chip label={t(isDaily ? 'daily' : 'weekly')} tone='accent' />}
-			/>
-		</View>
+		<ScreenHeader
+			hasBackButton
+			subtitle={detail.dedication ? t('forName', { dedication: detail.dedication }) : undefined}
+			title={detail.name}
+			// A group's name is whatever somebody typed, so it truncates rather than wrapping.
+			titleLines={1}
+			// Both cadences, not just daily. The chip was daily-only on the reasoning that a
+			// weekly group's countdown already says "2 gün" while a daily one counts hours —
+			// true, but it made the *chip itself* conditional, so a weekly group looked like a
+			// group with no cadence rather than one whose cadence you had to infer. Turlar
+			// shows both; this now matches it.
+			titleTrailing={<Chip label={t(isDaily ? 'daily' : 'weekly')} tone='accent' />}
+		/>
 	);
 
 	return (
 		<>
-			<ScreenContainer stickyHeaderIndices={[0]}>
+			<ScreenContainer>
 				{header}
-
 				{/*
 				 * 07 / 07c. One card rather than two loose tiles: the reset line belongs to
 				 * the same fact as the countdown beside it — how long is left, and until when
@@ -423,7 +449,7 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 								myBabNumbers.length
 							} ${t('done')}`}</CaptionText>
 							<Animated.View style={chevronStyle}>
-								<Icon color={theme.colors.faintText} name='chevron' size={15} strokeWidth={1.8} />
+								<Icon color={theme.colors.faintText} name='chevronRight' size={15} strokeWidth={1.8} />
 							</Animated.View>
 						</View>
 					</Pressable>
@@ -545,7 +571,7 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 								{`${lastClosedRound.missedCount} ${t('missedBabs')}`}
 							</CaptionText>
 						</View>
-						<Icon color={theme.colors.faintText} name='chevron' size={15} strokeWidth={1.8} />
+						<Icon color={theme.colors.faintText} name='chevronRight' size={15} strokeWidth={1.8} />
 					</CardSurface>
 				) : null}
 
@@ -653,19 +679,21 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 				 * scroll through to read — you meet it on the way past rather than by going
 				 * looking for it.
 				 */}
-				{detail.isOwner ? null : <LeaveGroupButton groupId={groupId} style={styles.leaveButton} />}
+				{/* No margin of its own: `ScreenContainer` already spaces this column, and adding to
+			    that put 30pt above the button where every card sits 12 apart. */}
+				{detail.isOwner ? null : <LeaveGroupButton groupId={groupId} />}
 			</ScreenContainer>
 
-			<ShareSheet group={detail} isVisible={sheet === 'share'} onClose={() => setSheet(null)} />
+			<ShareSheet group={detail} isVisible={openSheet === 'share'} onClose={closeSheet} />
 			{detail.isOwner ? (
 				<ManageSheet
 					group={detail}
-					isVisible={sheet === 'manage'}
-					onClose={() => setSheet(null)}
+					isVisible={openSheet === 'manage'}
+					onClose={closeSheet}
 					onOpenMembers={handleOpenMembers}
 				/>
 			) : null}
-			<MembersSheet groupId={groupId} isVisible={sheet === 'members'} onClose={() => setSheet(null)} />
+			<MembersSheet groupId={groupId} isVisible={openSheet === 'members'} onClose={closeSheet} />
 		</>
 	);
 };
@@ -678,23 +706,10 @@ const styles = StyleSheet.create({
 		flexDirection: 'row',
 		gap: 8
 	},
-	header: {
-		// `ScreenHeader` owns its own padding, so the sticky wrapper only has to be opaque.
-		zIndex: 3
-	},
-	headerActions: {
-		flexDirection: 'row',
-		gap: 8
-	},
 	centered: {
 		alignItems: 'center',
 		flex: 1,
 		justifyContent: 'center'
-	},
-	// Set apart from the legend above it, so the last thing on the page doesn't read as
-	// belonging to the board.
-	leaveButton: {
-		marginTop: 18
 	},
 	sectionBody: {
 		gap: 12,

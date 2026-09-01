@@ -18,12 +18,23 @@ import type { ScreenTitleProps } from './ScreenTitle.types';
  * Matches the design's `padding: 8px 0 18px` header block.
  */
 export const SCREEN_TITLE_PADDING_TOP = 8;
+
+/**
+ * What a heading needs at the top instead, on a screen whose header is the **navigator's** —
+ * the 44pt a native bar's controls occupy, plus this block's own 8 of air.
+ *
+ * Replaces `SCREEN_TITLE_PADDING_TOP` rather than adding to it, so it is the whole distance
+ * from the top of the screen down to the heading. Used by `ScreenHeader` for a pushed screen's
+ * back button and by any tab root that puts its actions in the bar.
+ */
+export const SCREEN_TITLE_PADDING_UNDER_BAR = 52;
 const SCREEN_TITLE_PADDING_BOTTOM = 18;
 
 export const ScreenTitle = ({
 	action,
 	description,
 	hasReservedSecondaryLabel = true,
+	isUnderNavigationBar = false,
 	label,
 	labelLines,
 	leading,
@@ -44,7 +55,7 @@ export const ScreenTitle = ({
 	const shouldReserveSecondaryLabel = hasReservedSecondaryLabel && !leading;
 
 	return (
-		<View style={[styles.container, style]}>
+		<View style={[styles.container, isUnderNavigationBar ? styles.underNavigationBar : null, style]}>
 			{leading}
 			<View style={styles.copy}>
 				{/* One fixed-height row whether or not there's an eyebrow, so the label always
@@ -130,5 +141,14 @@ const styles = StyleSheet.create({
 		height: EYEBROW_LINE_HEIGHT,
 		justifyContent: 'center',
 		marginBottom: 5
+	},
+	/*
+	 * Clears the navigator's bar. It replaces `paddingTop` rather than adding to it, so this is
+	 * the whole distance from the top of the screen to the first line of the heading — the
+	 * eyebrow where there is one, the label where there isn't, which is what keeps the gap under
+	 * the controls reading the same on both.
+	 */
+	underNavigationBar: {
+		paddingTop: SCREEN_TITLE_PADDING_UNDER_BAR
 	}
 });

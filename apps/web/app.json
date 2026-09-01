@@ -1,6 +1,6 @@
 {
 	"expo": {
-		"name": "C\u00fczhane",
+		"name": "Cüzhane",
 		"slug": "cuzhane",
 		"version": "1.0.0",
 		"scheme": "cuzhane",
@@ -51,7 +51,8 @@
 				}
 			],
 			"expo-status-bar",
-			"expo-web-browser"
+			"expo-web-browser",
+			"./plugins/withCustomSymbols"
 		],
 		"extra": {
 			"eas": {

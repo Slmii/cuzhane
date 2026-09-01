@@ -70,8 +70,14 @@ const styles = StyleSheet.create({
 	title: {
 		marginTop: 22
 	},
+	/*
+	 * The 64 `JoinedWelcomeScreen`'s own hero uses, so nothing shifts when the bones are
+	 * replaced — it was 58, which was close enough to look deliberate and moved the check
+	 * circle six points as the screen arrived. It also clears the navigator's back button,
+	 * which this screen gained when its "Geri" link was removed.
+	 */
 	top: {
 		alignItems: 'center',
-		paddingTop: 58
+		paddingTop: 64
 	}
 });

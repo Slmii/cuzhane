@@ -1,3 +1,4 @@
+import { AppButton } from '@/components/ui/Button/Button.component';
 import { BodyStrongText, Typography } from '@/components/ui/Typography/Typography.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
@@ -90,22 +91,19 @@ export const BabRow = ({
 				)}
 			</Pressable>
 
-			<Pressable
-				accessibilityRole='button'
+			{/*
+			 * The label names its row. "Oku" on its own is the same word on every line of a
+			 * hundred, so a screen reader needs the bab to make a sentence of it — the same
+			 * reason Home's shelf rows pass one.
+			 */}
+			<AppButton
+				accessibilityLabel={`${title} — ${openLabel}`}
+				fullWidth={false}
 				onPress={onOpen}
-				style={({ pressed }) => [
-					styles.openButton,
-					// `surfaceMuted` is the card's own colour in dark mode, which left this
-					// button with no visible bounds there. `segmentTrack` is the token that
-					// steps off a card in both themes — the same one Home's "Oku" uses, so the
-					// two read as one control.
-					{ backgroundColor: theme.colors.segmentTrack, opacity: pressed ? 0.7 : 1 }
-				]}
-			>
-				<Typography style={styles.openLabel} variant='stat' weight='semibold'>
-					{openLabel}
-				</Typography>
-			</Pressable>
+				size='sm'
+				title={openLabel}
+				variant='surface'
+			/>
 		</View>
 	);
 };
@@ -122,16 +120,6 @@ const styles = StyleSheet.create({
 	copy: {
 		flex: 1,
 		gap: 2
-	},
-	openButton: {
-		borderRadius: 8,
-		paddingHorizontal: 10,
-		paddingVertical: 7
-	},
-	openLabel: {
-		fontSize: 10.5,
-		letterSpacing: 0,
-		textTransform: 'none'
 	},
 	row: {
 		alignItems: 'center',

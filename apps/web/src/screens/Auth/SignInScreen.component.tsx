@@ -4,6 +4,9 @@ import { AppButton } from '@/components/ui/Button/Button.component';
 import { Field } from '@/components/ui/Form/Field/Field.component';
 import { Form } from '@/components/ui/Form/Form.component';
 import { SocialAuthButton } from '@/components/ui/SocialAuthButton/SocialAuthButton.component';
+// Google's official four-colour mark, which their sign-in guidelines require. A PNG because it
+// is artwork rather than a glyph — see `AppButton`'s `imageIcon`.
+const googleMark = require('@/assets/brand/google.png');
 import { BodyStrongText, CaptionText, FieldLabelText, Header1 } from '@/components/ui/Typography/Typography.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { createSignInSchema, SignInForm } from '@/lib/schemas/auth.schema';
@@ -120,15 +123,16 @@ export const SignInScreen = ({ navigation }: SignInScreenProps) => {
 				<SocialAuthButton
 					isLoading={isGoogleSigningIn}
 					label={t('continueGoogle')}
+					imageIcon={googleMark}
 					onPress={() => handleSSO('oauth_google', setIsGoogleSigningIn)}
-					provider='google'
 				/>
 				{isAppleAvailable ? (
 					<SocialAuthButton
 						isLoading={isAppleSigningIn}
 						label={t('continueApple')}
+						variant='primary'
 						onPress={() => handleSSO('oauth_apple', setIsAppleSigningIn)}
-						provider='apple'
+						systemIcon='apple.logo'
 					/>
 				) : null}
 			</View>

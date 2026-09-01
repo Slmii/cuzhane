@@ -1,9 +1,11 @@
 import { Icon } from '@/components/ui/Icon/Icon.component';
 import { Typography } from '@/components/ui/Typography/Typography.component';
+import { isLiquidGlassSupported } from '@callstack/liquid-glass';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { toAlphaColor } from '@/lib/theme/tokens';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, withTiming } from 'react-native-reanimated';
+import { GlassSegmentedControl, isGlassSegmentedControlAvailable } from './GlassSegmentedControl';
 import type { SegmentedControlProps, SegmentProps } from './SegmentedControl.types';
 
 /** Matches the design's `transition: background .25s ease`. */
@@ -48,7 +50,7 @@ const Segment = ({ icon, isSelected, label, onPress }: SegmentProps) => {
 	);
 };
 
-export const SegmentedControl = ({ onChange, options, style, value }: SegmentedControlProps) => {
+const DrawnSegmentedControl = ({ onChange, options, style, value }: SegmentedControlProps) => {
 	const { theme } = useThemeContext();
 
 	return (
@@ -91,3 +93,30 @@ const styles = StyleSheet.create({
 		paddingVertical: 6
 	}
 });
+
+/**
+ * **The platform's control where the platform has one worth having, ours everywhere else.**
+ *
+ * `isLiquidGlassSupported` is the gate, not `Platform.OS`. It is `false` on Android and on any
+ * iOS below 26, so the question it answers is "does this device actually render Liquid Glass"
+ * — the only reason to hand a control over. An iPhone on 18 keeps the drawn one rather than
+ * getting a plain `UISegmentedControl` that matches neither the system nor the design system.
+ *
+ * The second half of the gate is about the *build* rather than the device: `@expo/ui` is a
+ * native module, so a client compiled before it was added has nothing to reach.
+ *
+ * The same shape as `ui/Switch`. Both were drawn to match a mock; both now defer on the one
+ * platform that repays it and keep the design's version on the rest. The contract is unchanged
+ * either way, so no call site knows which it got — and the drawn one keeps
+ * `SegmentedControlOption.icon`, which the native segments cannot take.
+ */
+/**
+ * Whether the native control is what will render — **which a caller needs to know only to size
+ * it.** The native one reports no intrinsic width and has to be given one; the drawn one hugs its
+ * segments, and handing it the same fixed width padded it out with empty track after the last
+ * option. Read it where the width is applied, as `AppButton` reads `isGlassButtonAvailable`.
+ */
+export const isSegmentedControlNative = isLiquidGlassSupported && isGlassSegmentedControlAvailable;
+
+export const SegmentedControl = (props: SegmentedControlProps) =>
+	isSegmentedControlNative ? <GlassSegmentedControl {...props} /> : <DrawnSegmentedControl {...props} />;

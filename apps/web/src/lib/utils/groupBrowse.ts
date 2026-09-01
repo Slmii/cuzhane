@@ -37,6 +37,21 @@ export const isGroupBrowseNarrowed = (state: GroupBrowseState) =>
 
 export const isGroupSortActive = (state: GroupBrowseState) => state.sortKey !== DEFAULT_GROUP_SORT;
 
+/**
+ * Whether the browse menu's "Temizle" has anything to undo: everything that menu sets — the
+ * cadence, the two status filters **and the order**.
+ *
+ * Deliberately not the search box, which the clear leaves alone — the field is on screen showing
+ * what it holds, so emptying it from the menu would undo something the reader can see and did not
+ * ask about. It used to lean on `isGroupBrowseNarrowed`, which counts the search term, so with
+ * only a search typed the row appeared and then did nothing at all.
+ *
+ * Distinct from `isGroupBrowseNarrowed` in the other direction too: that one asks whether the
+ * *list* is narrowed, which is what the empty states need, and reordering narrows nothing.
+ */
+export const isGroupBrowseMenuActive = (state: GroupBrowseState) =>
+	state.cycle !== undefined || state.isNotStartedOnly || state.hasSeatsOnly || isGroupSortActive(state);
+
 /** The minimum a group must carry to be browsed. Both screens' rows satisfy it. */
 type BrowsableGroup = {
 	name: string;

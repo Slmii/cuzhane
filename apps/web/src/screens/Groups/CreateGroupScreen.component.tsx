@@ -1,7 +1,5 @@
+import { PlanPreview } from '@/components/PlanPreview/PlanPreview.component';
 import { AppBottomSheet } from '@/components/ui/BottomSheet/BottomSheet.component';
-import { CreatingGroupStep } from './CreatingGroupStep.component';
-import { AppButton } from '@/components/ui/Button/Button.component';
-import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Field } from '@/components/ui/Form/Field/Field.component';
 import { Form } from '@/components/ui/Form/Form.component';
 import { FormOptionGroup } from '@/components/ui/Form/OptionGroup/OptionGroup.component';
@@ -9,40 +7,39 @@ import { Select } from '@/components/ui/Form/Select/Select.component';
 import { FormStepper } from '@/components/ui/Form/Stepper/Stepper.component';
 import { FormToggleRow } from '@/components/ui/Form/ToggleRow/ToggleRow.component';
 import { SpotsGrid } from '@/components/ui/SpotsGrid/SpotsGrid.component';
-import { BodyStrongText, CaptionText, FieldLabelText } from '@/components/ui/Typography/Typography.component';
+import { CaptionText, FieldLabelText } from '@/components/ui/Typography/Typography.component';
 import { useCreateGroup } from '@/lib/hooks/useGroup';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { createGroupSchema, SPOTS_VALUES, type GroupForm } from '@/lib/schemas/group.schema';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { babsPerPerson } from '@/lib/utils/babs';
 import { CYCLE_OPTIONS, cycleLabelKey } from '@/lib/utils/groups';
-import { RootStackParamList } from '@/navigation/types';
 import { deviceTimeZone } from '@/lib/utils/timezone';
-import { BottomSheetScrollView } from '@gorhom/bottom-sheet';
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { RootStackParamList } from '@/navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useMemo, useState } from 'react';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
-import { PlanPreview } from '@/components/PlanPreview/PlanPreview.component';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { CreateGroupStep, CreateGroupStepHeader } from './CreateGroupStepHeader.component';
+import { CreatingGroupStep } from './CreatingGroupStep.component';
 
 type CreateGroupScreenProps = NativeStackScreenProps<RootStackParamList, 'CreateGroup'>;
 
-/** Tall enough for the busiest step without covering the status bar. */
-const SHEET_SNAP_POINTS = ['90%'];
-/** The step header is the scroll view's first child, and the one that stays put. */
-const STICKY_HEADER_INDICES = [0];
-
-const parseTimeToDate = (time: string) => {
-	const [hours, minutes] = time.split(':').map(Number);
-	const date = new Date();
-	date.setHours(hours ?? 0, minutes ?? 0, 0, 0);
-
-	return date;
+/**
+ * What each step is allowed to be wrong about.
+ *
+ * The schema is one flat `createGroupSchema` covering all three steps, so validating on the way
+ * forward has to be scoped by hand — `handleSubmit` would fail step 1 on fields that are still
+ * two screens away and set errors under inputs nobody has seen. Naming the fields is what keeps
+ * the message under the control it belongs to.
+ */
+const FIELDS_BY_STEP: Record<CreateGroupStep, (keyof GroupForm)[]> = {
+	1: ['name', 'dedication', 'visibility'],
+	2: ['spots', 'splitMode'],
+	3: ['cycle', 'reminderEnabled', 'reminderTime']
 };
 
-const formatDateToTime = (date: Date) =>
-	`${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+/** Tall enough for the busiest step without covering the status bar. */
+const SHEET_SNAP_POINTS = ['90%'];
 
 export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 	const { theme } = useThemeContext();
@@ -51,10 +48,24 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 	const schema = useMemo(() => createGroupSchema(t), [t]);
 
 	const [step, setStep] = useState<CreateGroupStep>(1);
-	const [isTimePickerVisible, setIsTimePickerVisible] = useState(false);
 
 	/** Dismisses the sheet route, but only while there is still one to dismiss. */
-	const handleClose = () => {
+	/*
+	 * **The sheet dismisses first; the route is popped once it has.**
+	 *
+	 * `isVisible` used to be hardcoded true — the sheet's existence *was* the route, so closing
+	 * meant popping, which tore the content down mid-flight. With the content gone the sheet had
+	 * nothing left to size itself from and snapped to a fallback detent on its way out: it grew
+	 * to full height for a frame and then vanished. Asking it to dismiss and popping on its own
+	 * `onClose` lets it animate down the way every other sheet does.
+	 */
+	const [isSheetVisible, setIsSheetVisible] = useState(true);
+
+	const handleClose = () => setIsSheetVisible(false);
+
+	const handleDismissed = () => {
+		// Guarded: a successful create pops to the lobby first, and this fires on the way out
+		// with no route left to pop — React Navigation warns about an unhandled GO_BACK.
 		if (navigation.canGoBack()) {
 			navigation.goBack();
 		}
@@ -107,15 +118,19 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 	return (
 		<AppBottomSheet
 			hasScrollableContent
-			isVisible
-			// Guarded: on a successful create the route is popped first, and the sheet's own
-			// dismiss callback then fires on the way out. Without the check that second
-			// `goBack` has no route left to pop and React Navigation warns about an
-			// unhandled GO_BACK action.
-			onClose={handleClose}
+			isVisible={isSheetVisible}
+			onClose={handleDismissed}
 			snapPoints={SHEET_SNAP_POINTS}
 		>
 			<Form<GroupForm>
+				/*
+				 * **`onChange`, because this form is advanced by `trigger` rather than submitted.**
+				 * The default `onSubmit` only re-validates once `isSubmitted` is true, and stepping
+				 * forward never submits — so an error `trigger` had set stayed on screen however
+				 * much you typed. Validating on change lets the message clear itself the moment
+				 * the field is right, which is the only way it ever goes away here.
+				 */
+				mode='onChange'
 				defaultValues={{
 					cycle: 'DAILY',
 					dedication: '',
@@ -128,193 +143,152 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 				}}
 				isDisabled={createGroup.isPending}
 				schema={schema}
-				render={({ handleSubmit, setValue, watch }) => {
+				render={({ handleSubmit, trigger, watch }) => {
 					const spots = watch('spots');
 
-					const handleTimeChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
-						if (Platform.OS === 'android') {
-							setIsTimePickerVisible(false);
-						}
-
-						if (event.type !== 'dismissed' && selectedDate) {
-							setValue('reminderTime', formatDateToTime(selectedDate));
+					/*
+					 * **Forward is a validation, not just a state change.** The step buttons used
+					 * to be plain `setStep` calls guarded by a `disabled` prop, so the only thing
+					 * stopping an empty name was the button being unpressable — nothing ever ran
+					 * the schema or set an error. `trigger` validates this step's fields, fills
+					 * `formState.errors`, and the bound `Field`s render their own messages.
+					 */
+					const handleNext = async () => {
+						if (await trigger(FIELDS_BY_STEP[step])) {
+							setStep(previous => (previous + 1) as CreateGroupStep);
 						}
 					};
 
 					return (
 						/*
-						 * The header is pinned so that which step you are on, and how far through you
-						 * are, stay on screen the whole way down a long form — scrolled away, step 2
-						 * lost both the dashes and its own title and the page stopped saying what it
-						 * was.
+						 * **The header is a sibling above the scroll view, not a sticky child of it.**
+						 * Which step you are on, and how far through, stays on screen the whole way
+						 * down a long form — scrolled away, step 2 lost both the dashes and its own
+						 * title and the page stopped saying what it was.
 						 *
-						 * Pinned with `stickyHeaderIndices` rather than lifted out as a sibling above
-						 * the scroll view. As a sibling it looked right but broke the keyboard: this
-						 * sheet runs `keyboardBehavior='interactive'`, and gorhom shrinks the sheet's
-						 * content while the keyboard is up on the assumption that the scrollable *is*
-						 * the content. With something else sharing the column, the height it took away
-						 * never came back — dismissing the keyboard left the form cut off mid-button
-						 * above a screenful of empty sheet.
+						 * It was pinned with `stickyHeaderIndices` instead, because as a sibling it
+						 * broke gorhom's keyboard handling: that sheet shrank its content while the
+						 * keyboard was up on the assumption that the scrollable *was* the content, and
+						 * with something else sharing the column the height it took away never came
+						 * back. The sheet is presented by the platform now and the keyboard is the
+						 * OS's business, so the constraint is gone — and pinning had a cost of its
+						 * own. A sticky header must paint something to hide what slides under it, and
+						 * on the platform's own material there is no colour of ours to paint; the
+						 * form ran straight through the title, and the spots stepper landed on top of
+						 * "Geri" and swallowed the tap.
 						 */
-						<BottomSheetScrollView
-							contentContainerStyle={styles.sheetContent}
-							showsVerticalScrollIndicator={false}
-							{...(createGroup.isPending ? {} : { stickyHeaderIndices: STICKY_HEADER_INDICES })}
-						>
-							{/*
-							 * Step 4 takes the header's place rather than nesting under it. Kept as a
-							 * flat sibling, never wrapped in a fragment: `stickyHeaderIndices` counts
-							 * React children, so a fragment here becomes child 0 and the sheet tries
-							 * to apply a style to it — and the container's `gap` collapses to that one
-							 * child, which strips the spacing out of the whole form.
-							 *
-							 * The step header goes with the form: its dashes count the three things
-							 * left to fill in, and there is nothing left to fill in here.
-							 */}
+						<View style={styles.sheetColumn}>
 							{createGroup.isPending ? (
 								<CreatingGroupStep />
 							) : (
-								<CreateGroupStepHeader onBack={handleBack} step={step} />
+								<CreateGroupStepHeader
+									onBack={handleBack}
+									onNext={step === 3 ? handleSubmit(handleCreate) : () => void handleNext()}
+									step={step}
+								/>
 							)}
-							{!createGroup.isPending && step === 1 ? (
-								<>
-									<Field
-										label={t('groupName')}
-										name='name'
-										placeholder={t('groupNamePlaceholder')}
-										style={styles.field}
-										useHeadingFont
-									/>
-									<Field
-										label={t('dedication')}
-										name='dedication'
-										placeholder={t('dedicationHint')}
-										style={styles.field}
-									/>
-									<FieldLabelText style={styles.fieldLabel}>{t('visibility')}</FieldLabelText>
-									<FormOptionGroup
-										direction='row'
-										name='visibility'
-										options={[
-											{ hint: t('openHint'), title: t('open'), value: 'OPEN' },
-											{ hint: t('privateHint'), title: t('private'), value: 'PRIVATE' }
-										]}
-									/>
-									<AppButton
-										disabled={watch('name').trim().length === 0}
-										onPress={() => setStep(2)}
-										style={styles.primaryButton}
-										title={t('next')}
-									/>
-								</>
-							) : null}
-
-							{!createGroup.isPending && step === 2 ? (
-								<>
-									<FieldLabelText style={styles.fieldLabel}>{t('spots')}</FieldLabelText>
-									<CardSurface style={styles.spotsCard}>
-										{/* Three sizes, not a range: 5, 10 and 20 each divide the hundred
-										    evenly, so +/- walk the list rather than adding a constant. */}
-										<FormStepper
-											caption={t('perPersonTr', { perBab: babsPerPerson(spots), spots })}
-											name='spots'
-											style={styles.stepper}
-											values={SPOTS_VALUES}
+							<ScrollView
+								contentContainerStyle={styles.sheetContent}
+								showsVerticalScrollIndicator={false}
+							>
+								{!createGroup.isPending && step === 1 ? (
+									<>
+										<Field
+											label={t('groupName')}
+											name='name'
+											placeholder={t('groupNamePlaceholder')}
+											useHeadingFont
 										/>
-										{/* Every seat is a seat that will be filled — the grid shows the
+										<Field
+											label={t('dedication')}
+											name='dedication'
+											placeholder={t('dedicationHint')}
+										/>
+										<FieldLabelText style={styles.fieldLabel}>{t('visibility')}</FieldLabelText>
+										<FormOptionGroup
+											direction='row'
+											name='visibility'
+											options={[
+												{ hint: t('openHint'), title: t('open'), value: 'OPEN' },
+												{ hint: t('privateHint'), title: t('private'), value: 'PRIVATE' }
+											]}
+										/>
+									</>
+								) : null}
+
+								{!createGroup.isPending && step === 2 ? (
+									<>
+										<FieldLabelText style={styles.fieldLabel}>{t('spots')}</FieldLabelText>
+										<View style={styles.spotsCard}>
+											{/* Three sizes, not a range: 5, 10 and 20 each divide the hundred
+										    evenly, so +/- walk the list rather than adding a constant. */}
+											<FormStepper
+												caption={t('perPersonTr', { perBab: babsPerPerson(spots), spots })}
+												name='spots'
+												style={styles.stepper}
+												values={SPOTS_VALUES}
+											/>
+											{/* Every seat is a seat that will be filled — the grid shows the
 										    capacity being chosen, not who has joined yet. */}
-										<SpotsGrid filled={spots} total={spots} />
-									</CardSurface>
-									<CaptionText color={theme.colors.faintText} style={styles.spotsNote}>
-										{t('spotsNote')}
-									</CaptionText>
-									<FieldLabelText style={styles.fieldLabel}>{t('readingPlan')}</FieldLabelText>
-									<FormOptionGroup
-										direction='column'
-										name='splitMode'
-										options={[
-											{
-												hint: t('planRotationHint'),
-												title: t('planRotation'),
-												value: 'ROTATION'
-											},
-											{ hint: t('planFixedHint'), title: t('planFixed'), value: 'FIXED' }
-										]}
-									/>
-									<PlanPreview
-										splitMode={watch('splitMode')}
-										spots={spots}
-										style={styles.planPreview}
-									/>
-									<AppButton
-										onPress={() => setStep(3)}
-										style={styles.primaryButton}
-										title={t('next')}
-									/>
-								</>
-							) : null}
-
-							{!createGroup.isPending && step === 3 ? (
-								<>
-									<FieldLabelText style={styles.fieldLabel}>{t('cycle')}</FieldLabelText>
-									<Select
-										name='cycle'
-										options={CYCLE_OPTIONS.map(option => ({
-											label: t(cycleLabelKey(option)),
-											value: option
-										}))}
-										style={styles.cycleRow}
-									/>
-
-									<FieldLabelText style={styles.fieldLabel}>{t('reminder')}</FieldLabelText>
-									<CardSurface isFlush style={styles.reminderCard}>
-										<Pressable
-											accessibilityRole='button'
-											onPress={() => setIsTimePickerVisible(true)}
-										>
-											<FormToggleRow
-												hint={watch('reminderTime')}
-												name='reminderEnabled'
-												title={t('dailyAt')}
-											/>
-										</Pressable>
-									</CardSurface>
-
-									{isTimePickerVisible ? (
-										<View style={styles.pickerWrap}>
-											<DateTimePicker
-												display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-												mode='time'
-												onChange={handleTimeChange}
-												value={parseTimeToDate(watch('reminderTime'))}
-											/>
-											{Platform.OS === 'ios' ? (
-												<Pressable
-													onPress={() => setIsTimePickerVisible(false)}
-													style={styles.pickerDone}
-												>
-													<BodyStrongText color={theme.colors.accent}>
-														{t('confirm')}
-													</BodyStrongText>
-												</Pressable>
-											) : null}
+											<SpotsGrid filled={spots} total={spots} />
 										</View>
-									) : null}
+										<CaptionText color={theme.colors.faintText}>{t('spotsNote')}</CaptionText>
+										<FieldLabelText style={styles.fieldLabel}>{t('readingPlan')}</FieldLabelText>
+										<FormOptionGroup
+											direction='column'
+											name='splitMode'
+											options={[
+												{
+													hint: t('planRotationHint'),
+													title: t('planRotation'),
+													value: 'ROTATION'
+												},
+												{ hint: t('planFixedHint'), title: t('planFixed'), value: 'FIXED' }
+											]}
+										/>
+										<PlanPreview splitMode={watch('splitMode')} spots={spots} />
+									</>
+								) : null}
 
-									{/*
-									 * No `isLoading` spinner: `CreatingGroupOverlay` covers the whole
-									 * sheet the moment this is pressed, so a spinner in the button
-									 * would be a second wait indicator underneath the first. The
-									 * button stays disabled via `isDisabled` on the step above.
-									 */}
-									<AppButton
-										onPress={handleSubmit(handleCreate)}
-										style={styles.primaryButton}
-										title={t('createGroup')}
-									/>
-								</>
-							) : null}
-						</BottomSheetScrollView>
+								{!createGroup.isPending && step === 3 ? (
+									<>
+										<FieldLabelText style={styles.fieldLabel}>{t('cycle')}</FieldLabelText>
+										<Select
+											name='cycle'
+											options={CYCLE_OPTIONS.map(option => ({
+												label: t(cycleLabelKey(option)),
+												value: option
+											}))}
+										/>
+
+										{/*
+										 * **The switch and nothing else — no time picker here.**
+										 * Creating a group asks whether you want a daily reminder,
+										 * not when: the time is a personal setting that Hatırlatma
+										 * owns, with its own picker, its debounce and the note about
+										 * a first notification landing tomorrow. A second picker on
+										 * this step made the same choice in a worse place, and set
+										 * it per group when the reminder is not per group at all.
+										 * The row still shows the time so the switch says what it
+										 * will do; `reminderTime` keeps its 21:00 default.
+										 */}
+										<FieldLabelText style={styles.fieldLabel}>{t('reminder')}</FieldLabelText>
+										<FormToggleRow
+											hint={watch('reminderTime')}
+											name='reminderEnabled'
+											title={t('dailyAt')}
+										/>
+
+										{/*
+										 * No `isLoading` spinner: `CreatingGroupOverlay` covers the whole
+										 * sheet the moment this is pressed, so a spinner in the button
+										 * would be a second wait indicator underneath the first. The
+										 * button stays disabled via `isDisabled` on the step above.
+										 */}
+									</>
+								) : null}
+							</ScrollView>
+						</View>
 					);
 				}}
 			/>
@@ -323,51 +297,40 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 };
 
 const styles = StyleSheet.create({
-	cycleRow: {
-		marginBottom: 8
-	},
-	field: {
-		marginBottom: 4
+	/** Header above, the form scrolling in what is left — the sheet gives the column its height. */
+	sheetColumn: {
+		flex: 1
 	},
 	fieldLabel: {
 		marginBottom: 8
 	},
-	pickerDone: {
-		alignItems: 'center',
-		paddingVertical: 10
-	},
-	pickerWrap: {
-		marginBottom: 4
-	},
-	planPreview: {
-		marginTop: 11
-	},
 	/**
-	 * Sits at the bottom of the sheet on a short step, and travels with the content on a long
-	 * one. `marginTop: 'auto'` does both: with slack in the column it absorbs all of it and
-	 * the button lands at the bottom; once the content overflows there is no slack to absorb,
-	 * so it collapses and the button simply follows the last field.
+	 * **The same 12 below the last section as between any two sections**, on every step.
 	 *
-	 * Kept inside the scrollable rather than pinned beneath it — a sibling below the scroll
-	 * view breaks this sheet's `keyboardBehavior='interactive'`, which shrinks the scrollable
-	 * on the assumption that it *is* the content.
+	 * It used to carry `marginTop: 'auto'`, which absorbed whatever slack the column had: on a
+	 * short step that flung the button to the foot of the sheet, and on a long one it collapsed
+	 * to nothing extra — so the gap above it changed from step to step and matched the rest of
+	 * the form on neither. The container's `gap` is the only spacing now, as it is everywhere
+	 * else on this screen.
 	 */
-	primaryButton: {
-		marginTop: 'auto'
-	},
-	reminderCard: {
-		marginBottom: 4
-	},
 	spotsCard: {
-		marginBottom: 4
+		// Was `CardSurface`'s own `spacing.md`; the card is gone, the inset it gave is not.
+		padding: 16
 	},
-	spotsNote: {
-		marginBottom: 4
-	},
+	/*
+	 * **`gap` is the only spacing between sections, and it is the 12 Gruplarım's list uses.**
+	 * Every block here used to add a `marginBottom` of its own on top of it — 4 here, 8 there,
+	 * 11 under the plan preview — so no two steps had the same rhythm and the Devam button sat
+	 * closer to the card above it than anything else on the page. Same mistake the group screen
+	 * and Profile made; add nothing per child.
+	 */
 	/**
-	 * `flexGrow` so a short step still fills the sheet — that is what lets the primary button
-	 * take the slack below it (see `primaryButton`). Without it the container is only as tall
-	 * as its content and there is no slack to take.
+	 * **The step's action needs its own top margin, on top of the container's `gap`.**
+	 *
+	 * A glass `AppButton` is an `@expo/ui` `Host` measuring itself with `matchContents`, and it
+	 * reports a frame shorter than the capsule it draws — so the capsule bleeds up into the gap
+	 * and Devam sat flush against the card above it while every other pair on the step was a
+	 * clean 12. This is the difference, not a second opinion about the spacing.
 	 */
 	sheetContent: {
 		flexGrow: 1,

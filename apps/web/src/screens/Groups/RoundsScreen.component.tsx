@@ -119,7 +119,7 @@ export const RoundsScreen = ({ navigation, route }: Props) => {
 	const header = (
 		<>
 			<ScreenHeader
-				onBack={navigation.goBack}
+				hasBackButton
 				subtitle={t('roundsSub')}
 				title={t('rounds')}
 				titleTrailing={<Chip label={t(cycle === 'DAILY' ? 'daily' : 'weekly')} tone='accent' />}

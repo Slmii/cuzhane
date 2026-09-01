@@ -348,41 +348,32 @@ export const HomeScreen = () => {
 									 */}
 									<View style={styles.rowReadSlot}>
 										{nextBabNumber === null ? null : (
-											<Pressable
+											/*
+											 * `surface`, whose hairline is what gives the pill its
+											 * bounds. The hand-rolled version filled with
+											 * `segmentTrack` instead, because a bare fill of
+											 * `surface` or `surfaceMuted` equals the card's own
+											 * colour in one theme or the other and left the pill
+											 * with no edge at all; a bordered button doesn't have
+											 * that problem, and on iOS 26 it is the glass one.
+											 *
+											 * The label names its row. "Oku" on its own is the same
+											 * word on every line of a list, so a screen reader
+											 * needs the group to make a sentence of it.
+											 */
+											<AppButton
 												accessibilityLabel={`${row.name} — ${t('read')}`}
-												accessibilityRole='button'
+												fullWidth={false}
 												onPress={() =>
 													navigation.navigate('BabReader', {
 														groupId: row.id,
 														babNumber: nextBabNumber
 													})
 												}
-												style={({ pressed }) => [
-													styles.rowRead,
-													{
-														// `segmentTrack`, not `surface` or
-														// `surfaceMuted`: both of those equal the
-														// card's own colour in one theme or the
-														// other, which leaves the pill with no
-														// visible bounds. This is the token that
-														// steps off a card in light and dark alike.
-														backgroundColor: theme.colors.segmentTrack,
-														opacity: pressed ? 0.7 : 1
-													}
-												]}
-											>
-												{/* One line, always — the slot is sized for the longest
-												    label ("Read"), and a wrapped "Oku" would double
-												    the row's height. */}
-												<Typography
-													numberOfLines={1}
-													style={styles.rowReadLabel}
-													variant='stat'
-													weight='semibold'
-												>
-													{t('read')}
-												</Typography>
-											</Pressable>
+												size='sm'
+												title={t('read')}
+												variant='primary'
+											/>
 										)}
 									</View>
 								</Pressable>
@@ -416,7 +407,7 @@ export const HomeScreen = () => {
 							<Typography variant='bodyStrong'>{t('allBabs')}</Typography>
 							<CaptionText color={theme.colors.subtext}>{t('allBabsSub')}</CaptionText>
 						</View>
-						<Icon color={theme.colors.faintText} name='chevron' size={16} />
+						<Icon color={theme.colors.faintText} name='chevronRight' size={16} />
 					</Pressable>
 
 					<CaptionText color={theme.colors.subtext} style={styles.footNote} textAlign='center'>
@@ -529,22 +520,17 @@ const styles = StyleSheet.create({
 		alignItems: 'flex-end'
 	},
 	// Matches `BabRow`'s "Oku" — the same errand on the group screen, so the same pill.
-	rowRead: {
-		borderRadius: 8,
-		paddingHorizontal: 9,
-		paddingVertical: 5
-	},
-	rowReadLabel: {
-		fontSize: 10.5,
-		letterSpacing: 0,
-		textTransform: 'none'
-	},
 	// Reserved whether or not the button is there, so a share finishing doesn't pull the
 	// row's contents rightwards. Wide enough for "Read" plus the pill's padding — any
 	// narrower and the label wraps instead of the button growing.
+	/*
+	 * Wide enough for `AppButton`'s `sm` — 15pt of padding either side plus the longest label
+	 * across the three languages ("Read", "Lees"). It was 52 for a hand-rolled pill with 9pt
+	 * padding and a 10.5pt label; at the button's own metrics that clipped.
+	 */
 	rowReadSlot: {
 		alignItems: 'flex-end',
-		width: 52
+		width: 62
 	},
 	rowName: {
 		flex: 1,

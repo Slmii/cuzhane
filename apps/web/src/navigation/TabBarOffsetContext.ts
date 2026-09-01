@@ -15,6 +15,17 @@ import { createContext } from 'react';
 export const TabBarOffsetContext = createContext(0);
 
 /**
+ * Whether there is a tab bar below this screen **at all** — which is a different question from
+ * how much of the screen it covers, and the two only look alike on iOS.
+ *
+ * On Android the bar is a sibling laid out beneath the scene, so it covers nothing (the offset
+ * above is 0) while still owning the bottom of the window. A screen that read "covers nothing"
+ * as "nothing is down there" would take the `bottom` safe-area edge itself and add a gesture
+ * inset that the bar is already clearing — trading the large gap for a smaller wrong one.
+ */
+export const HasTabBarContext = createContext(false);
+
+/**
  * The breathing room scrolling content leaves above the bar, matching the design's `.sc`
  * bottom padding. Not part of the height: reserving the bar's height twice is what left a
  * screenful of dead space under long content.

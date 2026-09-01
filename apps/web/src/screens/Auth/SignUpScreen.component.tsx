@@ -4,7 +4,7 @@ import { AppButton } from '@/components/ui/Button/Button.component';
 import { Field } from '@/components/ui/Form/Field/Field.component';
 import { Form } from '@/components/ui/Form/Form.component';
 import { SocialAuthButton } from '@/components/ui/SocialAuthButton/SocialAuthButton.component';
-import { CaptionText, Header1 } from '@/components/ui/Typography/Typography.component';
+import { CaptionText } from '@/components/ui/Typography/Typography.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import {
 	createSignUpSchema,
@@ -19,9 +19,12 @@ import { AuthStackParamList } from '@/navigation/types';
 import { useSignUp } from '@clerk/expo';
 import { useSSO } from '@clerk/expo/experimental';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { AuthDivider } from './AuthDivider.component';
+// Google's official four-colour mark, which their sign-in guidelines require. A PNG because it
+// is artwork rather than a glyph — see `AppButton`'s `imageIcon`.
+const googleMark = require('@/assets/brand/google.png');
 
 type SignUpScreenProps = NativeStackScreenProps<AuthStackParamList, 'SignUp'>;
 
@@ -77,6 +80,30 @@ export const SignUpScreen = ({ navigation }: SignUpScreenProps) => {
 	const { startSSOFlow } = useSSO();
 
 	const [isPendingVerification, setIsPendingVerification] = useState(false);
+
+	/*
+	 * **On the code step, back means the form — not "leave sign-up".** The two are one screen
+	 * with two states, so the navigator's back would otherwise throw away a sign-up attempt that
+	 * has already been created and a code that has already been sent, and the reader would have
+	 * to start over to correct a typo in their address.
+	 *
+	 * `beforeRemove` rather than a `headerLeft` of our own: it catches **Android's hardware and
+	 * gesture back** as well as the button in the bar, which a replaced header control cannot.
+	 * That is the case this was written for — on iOS the swipe is the same story.
+	 *
+	 * It does not fire when the whole navigator unmounts, which is what happens on success, so
+	 * verifying still leaves for the app rather than being held here.
+	 */
+	useEffect(() => {
+		if (!isPendingVerification) {
+			return;
+		}
+
+		return navigation.addListener('beforeRemove', event => {
+			event.preventDefault();
+			setIsPendingVerification(false);
+		});
+	}, [isPendingVerification, navigation]);
 	const [errorKey, setErrorKey] = useState<SignUpErrorKey | null>(null);
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [isGoogleSigningIn, setIsGoogleSigningIn] = useState(false);
@@ -99,9 +126,7 @@ export const SignUpScreen = ({ navigation }: SignUpScreenProps) => {
 			try {
 				const { error } = await signUp.password({
 					emailAddress: values.email,
-					password: values.password,
-					firstName: values.firstName,
-					lastName: values.lastName
+					password: values.password
 				});
 
 				if (error) {
@@ -197,10 +222,9 @@ export const SignUpScreen = ({ navigation }: SignUpScreenProps) => {
 	if (isPendingVerification) {
 		return (
 			<ScreenContainer>
-				<Header1>{t('verifyEmailTitle')}</Header1>
-				<CaptionText color={theme.colors.subtext} style={styles.verifyHint}>
-					{t('verifyEmailHint')}
-				</CaptionText>
+				{/* The same header as the form step, so the title clears the navigator's back
+				    button instead of being drawn under it. */}
+				<ScreenHeader hasBackButton subtitle={t('verifyEmailHint')} title={t('verifyEmailTitle')} />
 				<Form<VerificationForm>
 					isFullHeight={false}
 					defaultValues={{ code: '' }}
@@ -222,15 +246,18 @@ export const SignUpScreen = ({ navigation }: SignUpScreenProps) => {
 								textContentType='oneTimeCode'
 							/>
 							{errorKey ? <CaptionText color={theme.colors.danger}>{t(errorKey)}</CaptionText> : null}
+							{/*
+							 * Verify is the only button here. There used to be a "Geri" ghost
+							 * below it, because the navigator's back leaves sign-up altogether
+							 * while this step wants to return to the *form* — two controls that
+							 * both said back and did different things. The effect above makes the
+							 * one in the bar mean the nearer of the two, which is also what
+							 * Android's hardware back has to mean on this step.
+							 */}
 							<AppButton
 								isLoading={isSubmitting}
 								onPress={handleSubmit(handleVerify)}
 								title={t('verify')}
-							/>
-							<AppButton
-								onPress={() => setIsPendingVerification(false)}
-								title={t('back')}
-								variant='ghost'
 							/>
 						</View>
 					)}
@@ -241,53 +268,34 @@ export const SignUpScreen = ({ navigation }: SignUpScreenProps) => {
 
 	return (
 		<ScreenContainer>
-			<ScreenHeader onBack={() => navigation.goBack()} subtitle={t('signUpSub')} title={t('signUpTitle')} />
+			<ScreenHeader hasBackButton subtitle={t('signUpSub')} title={t('signUpTitle')} />
 			<View style={styles.social}>
 				<SocialAuthButton
-					isCompact
 					isLoading={isGoogleSigningIn}
 					label='Google'
+					imageIcon={googleMark}
+					style={styles.socialButton}
 					onPress={() => handleSSO('oauth_google', setIsGoogleSigningIn)}
-					provider='google'
 				/>
 				{isAppleAvailable ? (
 					<SocialAuthButton
-						isCompact
 						isLoading={isAppleSigningIn}
 						label='Apple'
 						onPress={() => handleSSO('oauth_apple', setIsAppleSigningIn)}
-						provider='apple'
+						style={styles.socialButton}
+						systemIcon='apple.logo'
+						variant='primary'
 					/>
 				) : null}
 			</View>
 			<AuthDivider style={styles.divider} />
 			<Form<SignUpForm>
 				isFullHeight={false}
-				defaultValues={{ firstName: '', lastName: '', email: '', password: '' }}
+				defaultValues={{ email: '', password: '' }}
 				isDisabled={isSubmitting}
 				schema={signUpSchema}
 				render={({ handleSubmit }) => (
 					<View style={styles.form}>
-						<View style={styles.nameRow}>
-							<Field
-								autoCapitalize='words'
-								autoComplete='given-name'
-								autoCorrect={false}
-								containerStyle={styles.nameField}
-								label={t('firstName')}
-								name='firstName'
-								textContentType='givenName'
-							/>
-							<Field
-								autoCapitalize='words'
-								autoComplete='family-name'
-								autoCorrect={false}
-								containerStyle={styles.nameField}
-								label={t('lastName')}
-								name='lastName'
-								textContentType='familyName'
-							/>
-						</View>
 						<Field
 							autoCapitalize='none'
 							autoComplete='email'
@@ -338,13 +346,6 @@ const styles = StyleSheet.create({
 	form: {
 		gap: 14
 	},
-	nameField: {
-		flex: 1
-	},
-	nameRow: {
-		flexDirection: 'row',
-		gap: 9
-	},
 	// The design sets this line smaller than a normal field message and flush with the
 	// column, so it overrides both.
 	passwordHint: {
@@ -357,13 +358,16 @@ const styles = StyleSheet.create({
 		gap: 9,
 		marginBottom: 16
 	},
+	// Half the row each. The button no longer sizes itself, so the share has to be named here —
+	// and it must be `flex`, not a width: a glass button asked to measure its own width reports
+	// it back and overrides whatever the row wanted.
+	socialButton: {
+		flex: 1
+	},
 	submit: {
 		marginTop: 4
 	},
 	terms: {
 		fontSize: 10.5
-	},
-	verifyHint: {
-		marginTop: 8
 	}
 });

@@ -1,5 +1,6 @@
 import { Bone, SkeletonPulse } from '@/components/Skeleton/Skeleton.component';
 import { SkeletonStatusRow } from '@/components/Skeleton/SkeletonStatusRow.component';
+import { SCREEN_TITLE_PADDING_UNDER_BAR } from '@/components/ScreenTitle/ScreenTitle.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
@@ -25,8 +26,9 @@ export const LobbySkeleton = () => {
 		<View>
 			<SkeletonPulse>
 				{/* Back row, name and the "sayım başlamadı" line. */}
+				{/* No bone for a back link — that control is the navigator's, and the header
+				    below already reserves the band it sits in. */}
 				<View style={styles.header}>
-					<Bone height={12} radius={5} style={styles.back} width={46} />
 					<Bone height={22} radius={9} width={128} />
 					<Bone height={9} radius={4.5} style={styles.subtitle} tone='soft' width={168} />
 				</View>
@@ -84,9 +86,6 @@ export const LobbySkeleton = () => {
 };
 
 const styles = StyleSheet.create({
-	back: {
-		marginBottom: 14
-	},
 	fillBar: {
 		marginBottom: 13,
 		marginTop: 10
@@ -99,9 +98,15 @@ const styles = StyleSheet.create({
 		flexDirection: 'row',
 		gap: 8
 	},
+	/*
+	 * Clear of the navigator's back button, exactly as `ScreenHeader` is on the screen this
+	 * stands in for. Without it the skeleton's own title bone sat under the floating control
+	 * — and a stand-in that starts in a different place than the real thing defeats the point
+	 * of having one.
+	 */
 	header: {
 		paddingBottom: 16,
-		paddingTop: 4
+		paddingTop: SCREEN_TITLE_PADDING_UNDER_BAR
 	},
 	inviteBlock: {
 		borderBottomWidth: StyleSheet.hairlineWidth,

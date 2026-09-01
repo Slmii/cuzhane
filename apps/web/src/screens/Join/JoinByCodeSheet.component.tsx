@@ -1,7 +1,6 @@
 import { AssignmentBanner } from '@/components/AssignmentBanner/AssignmentBanner.component';
 import { AppBottomSheet } from '@/components/ui/BottomSheet/BottomSheet.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
-import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { CellGrid } from '@/components/ui/CellGrid/CellGrid.component';
 import type { CellGridItem } from '@/components/ui/CellGrid/CellGrid.types';
 import { Chip } from '@/components/ui/Chip/Chip.component';
@@ -23,12 +22,11 @@ import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { cycleLabelKey } from '@/lib/utils/groups';
 import { formatInviteCode } from '@/lib/utils/inviteCode';
 import type { TabStackParamList } from '@/navigation/types';
-import { BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Clipboard from 'expo-clipboard';
-import { useMemo, useRef, useState, type ComponentRef } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useMemo, useRef, useState } from 'react';
+import { StyleSheet, TextInput, View } from 'react-native';
 import type { JoinByCodeSheetProps } from './JoinByCodeSheet.types';
 
 type Step = 'code' | 'preview' | 'full' | 'notfound';
@@ -57,9 +55,9 @@ export const JoinByCodeSheet = ({ isVisible, onClose }: JoinByCodeSheetProps) =>
 	const { theme } = useThemeContext();
 	const { t } = useTranslation();
 	const navigation = useNavigation<NativeStackNavigationProp<TabStackParamList>>();
-	// Typed off the component rather than React Native's `TextInput`: `BottomSheetTextInput`
-	// forwards to gesture-handler's re-typed input, and the two aren't assignable.
-	const inputRef = useRef<ComponentRef<typeof BottomSheetTextInput>>(null);
+	// React Native's own: the sheet is presented by the platform, and gorhom's
+	// `BottomSheetTextInput` only works inside a gorhom sheet.
+	const inputRef = useRef<TextInput>(null);
 
 	const [step, setStep] = useState<Step>('code');
 	const [code, setCode] = useState('');
@@ -156,7 +154,7 @@ export const JoinByCodeSheet = ({ isVisible, onClose }: JoinByCodeSheetProps) =>
 						</CaptionText>
 						<View style={styles.codeWrap}>
 							<CodeInput onPress={() => inputRef.current?.focus()} value={code} />
-							<BottomSheetTextInput
+							<TextInput
 								autoCapitalize='characters'
 								autoCorrect={false}
 								maxLength={CODE_LENGTH}
@@ -169,7 +167,6 @@ export const JoinByCodeSheet = ({ isVisible, onClose }: JoinByCodeSheetProps) =>
 						<AppButton
 							{...(isPasted ? { icon: 'check' as const } : {})}
 							onPress={() => void handlePaste()}
-							size='md'
 							style={styles.paste}
 							title={isPasted ? t('pasted') : t('paste')}
 							variant='surface'
@@ -180,6 +177,8 @@ export const JoinByCodeSheet = ({ isVisible, onClose }: JoinByCodeSheetProps) =>
 							onPress={() => void handleFindGroup()}
 							style={styles.primary}
 							title={t('findGroup')}
+							icon='chevronRight'
+							iconPosition='trailing'
 						/>
 					</View>
 				) : step === 'preview' && data ? (
@@ -188,7 +187,7 @@ export const JoinByCodeSheet = ({ isVisible, onClose }: JoinByCodeSheetProps) =>
 							{t('linkTitle', { group: data.name })}
 						</CaptionText>
 
-						<CardSurface style={styles.card}>
+						<View style={styles.card}>
 							<View style={styles.cardHead}>
 								<View style={styles.cardHeadCopy}>
 									<Header3 style={styles.cardName}>{data.name}</Header3>
@@ -226,7 +225,7 @@ export const JoinByCodeSheet = ({ isVisible, onClose }: JoinByCodeSheetProps) =>
 									<StatText color={theme.colors.faintText}>{t('cycle')}</StatText>
 								</View>
 							</View>
-						</CardSurface>
+						</View>
 
 						{/* The promise the code is making. Only when there is a seat to promise —
 						    a group can fill between the code being shared and typed. */}
@@ -273,7 +272,6 @@ export const JoinByCodeSheet = ({ isVisible, onClose }: JoinByCodeSheetProps) =>
 						<AppButton onPress={() => setStep('code')} style={styles.primary} title={t('fixCode')} />
 						<AppButton
 							onPress={handleDiscover}
-							size='md'
 							style={styles.secondary}
 							title={t('browseOpen')}
 							variant='surface'
@@ -285,7 +283,7 @@ export const JoinByCodeSheet = ({ isVisible, onClose }: JoinByCodeSheetProps) =>
 							{t('groupFullHint')}
 						</CaptionText>
 
-						<CardSurface style={styles.card}>
+						<View style={styles.card}>
 							<View style={styles.fullHead}>
 								<TitleText>{data.name}</TitleText>
 								<Chip label={`${data.spots} / ${data.spots}`} tone='neutral' />
@@ -293,7 +291,7 @@ export const JoinByCodeSheet = ({ isVisible, onClose }: JoinByCodeSheetProps) =>
 							{/* Seats drawn full rather than counted: a solid block of them settles
 							    the question in a way the number "25 / 25" invites argument about. */}
 							<CellGrid columns={SEAT_COLUMNS} gap={3} items={seats} radius={4} />
-						</CardSurface>
+						</View>
 
 						<AppButton onPress={handleDiscover} style={styles.primary} title={t('discover')} />
 						<AppButton

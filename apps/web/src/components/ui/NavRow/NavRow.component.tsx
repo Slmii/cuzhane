@@ -15,7 +15,7 @@ export const NavRow = ({ label, leading, meta, onPress, style }: NavRowProps) =>
 			</View>
 			<View style={styles.rightGroup}>
 				{meta ? <CaptionText color={theme.colors.faintText}>{meta}</CaptionText> : null}
-				<Icon color={theme.colors.faintText} name='chevron' size={15} />
+				<Icon color={theme.colors.faintText} name='chevronRight' size={15} />
 			</View>
 		</Pressable>
 	);

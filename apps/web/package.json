@@ -25,6 +25,7 @@
 		"@expo-google-fonts/newsreader": "^0.4.1",
 		"@expo-google-fonts/noto-naskh-arabic": "^0.4.5",
 		"@expo/metro-runtime": "~57.0.14",
+		"@expo/ui": "~57.0.14",
 		"@gorhom/bottom-sheet": "^5.2.8",
 		"@hookform/resolvers": "^5.2.2",
 		"@react-native-community/datetimepicker": "9.1.0",

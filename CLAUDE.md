@@ -216,6 +216,42 @@ tidy up any rows left from before. Re-adding the feature means rebuilding that s
     what opened up under `BabReader`'s action bar). Listed screens **collapse** the bar (`BottomNavBar
 isCollapsed`), never unmount it: returning `null` from `tabBar` removed it the moment you navigated, which
     reflowed the screen being pushed away and flashed its card corner under the incoming one for a few frames.
+-   **Reduce Transparency is the system's business — no component checks it.** UIKit's and SwiftUI's
+    own materials already respond to that setting, so a check of our own duplicates the OS and
+    duplicates it worse: we don't get a more opaque control, we lose the native control entirely.
+    Four components used to check it (`GlassSurface` and therefore every bottom sheet,
+    `GlassBackLink`, `CreateGroupStepHeader`, `GlassCornerAction`) and four never did (`AppButton`,
+    `AppSwitch`, `SegmentedControl`, `ReaderSizeSlider`) — which with the setting on gave a sheet
+    that went flat under controls that stayed glass. Settled by looking at it rather than by
+    argument. `useReducedTransparency` was deleted with its last consumer; if the judgement is ever
+    revisited it belongs in all eight places or none.
+-   **The navigator's bar is where a screen's whole-screen actions live**, and three things about it
+    are easy to undo. `GlassCornerAction` is one bare toolbar glyph, `ui/MenuAction` is a pull-down
+    button (one glyph, several actions — Gruplarım's +), and both are handed to `headerRight`.
+    -   **Register the bar in `AppNavigator`'s `options`, never from a screen's `setOptions` effect.**
+        An effect runs after the screen's first commit, so the first frame you see has an empty bar
+        and a later commit fills it — visible as the controls appearing a beat after the screen. The
+        cost is that a header lives _outside_ the screen and can reach none of its state, and that is
+        what `GroupsToolbar` and `GroupDetailToolbar` are for: they read the query cache the screen is
+        already holding, and ask for a sheet through a **route param** (`GroupDetail.sheet`,
+        `Groups.shouldOpenJoinSheet`) which the screen clears on dismissal.
+    -   **Size a `Host` in a header; never `matchContents`.** It reports 0×0 until its native view has
+        laid out, and React Navigation measures `headerRight` to size the capsule it draws around the
+        items — so a screen being _pushed_ sized its bar against nothing and jumped once the Hosts came
+        back. It hides itself: navigating _back_ always looks right, because that header was still
+        mounted and measured long ago. There is nothing to measure anyway, since the `frame` modifier
+        already pins the box; declare the same number on the React side. (`GlassButton` keeps
+        `matchContents` legitimately — its width depends on a label. Nothing in a header should.)
+    -   **A glyph that depends on a query needs a seed, or it visibly swaps.** `GroupDetailToolbar`
+        picks settings-or-members from `isOwner`, and `useGetGroupById` is a different key from the
+        shelf's, so it starts pending and an owner watched the members glyph turn into the gear. It
+        seeds from `groupQueryKeys.groups()` via `getQueryData` — read off the cache rather than
+        subscribing, which would fetch the whole shelf on a deep link to decide one glyph.
+-   **The heading below that bar is `ScreenTitle`'s `isUnderNavigationBar`, not a padding.** Screens
+    declare that they sit under a bar; the component owns the distance. It was a constant each call
+    site applied, and Gruplarım declared the style and never passed it — so its title drew behind the
+    toolbar while the group screen cleared it. The pushed-screen skeletons don't use `ScreenTitle`, so
+    they still apply `SCREEN_TITLE_PADDING_UNDER_BAR` by hand and are the one place that can drift.
 -   **The reader walks the whole hundred; only the _marking_ is gated.** `BabReader`'s arrows step ±1
     across 1–100, its eyebrow reads "Bab 87 / 100" and its rail spans the cevşen. It used to walk
     `myBabNumbers` instead — arrows skipping 17→34, an eyebrow reading "Bab 3 / 5" — which did stop anyone

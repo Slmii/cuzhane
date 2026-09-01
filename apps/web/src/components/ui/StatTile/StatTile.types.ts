@@ -7,4 +7,6 @@ export interface StatTileProps {
 	label: string;
 	tone?: StatTileTone;
 	style?: StyleProp<ViewStyle>;
+	/** Forwarded to the underlying `CardSurface` — see `hasGlassSurface` there. */
+	hasGlassSurface?: boolean;
 }

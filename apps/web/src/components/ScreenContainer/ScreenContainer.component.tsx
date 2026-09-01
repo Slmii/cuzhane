@@ -1,5 +1,5 @@
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import { TAB_BAR_CONTENT_GAP, TabBarOffsetContext } from '@/navigation/TabBarOffsetContext';
+import { HasTabBarContext, TAB_BAR_CONTENT_GAP, TabBarOffsetContext } from '@/navigation/TabBarOffsetContext';
 import { useIsFocused } from '@react-navigation/native';
 import { useContext, useEffect, useRef } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
@@ -22,6 +22,7 @@ export const ScreenContainer = ({
 	const insets = useSafeAreaInsets();
 	const isFocused = useIsFocused();
 	const tabBarHeight = useContext(TabBarOffsetContext);
+	const hasTabBar = useContext(HasTabBarContext);
 	const scrollRef = useRef<ScrollView | null>(null);
 	// A sticky header pins to the scroll *viewport*, not to the content — so it rises above
 	// the content padding that normally carries the top inset and lands under the notch.
@@ -29,7 +30,13 @@ export const ScreenContainer = ({
 	// than the content, and the header comes to rest below the status bar.
 	const hasStickyHeader = Boolean(stickyHeaderIndices?.length) && isScrollable;
 	const shouldInsetViewport = hasStickyHeader && shouldIncludeTopInset;
-	const horizontalEdges: readonly Edge[] = tabBarHeight > 0 ? ['left', 'right'] : ['left', 'right', 'bottom'];
+	/*
+	 * The `bottom` edge is ours only when nothing is below us. Asked of `HasTabBarContext` rather
+	 * than of the offset, because on Android the bar covers nothing and is still down there —
+	 * reading a zero offset as "no bar" put a gesture inset inside a screen the bar already
+	 * clears.
+	 */
+	const horizontalEdges: readonly Edge[] = hasTabBar ? ['left', 'right'] : ['left', 'right', 'bottom'];
 	/*
 	 * **The top inset is padding we compute, never a `SafeAreaView` edge.**
 	 *

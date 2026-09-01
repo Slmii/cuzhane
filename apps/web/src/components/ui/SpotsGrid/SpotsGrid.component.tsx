@@ -15,7 +15,7 @@ const SHRINK_DURATION_MS = 240;
  *
  * Derived rather than fixed. A flat 340ms was enough back when the seat count moved one at
  * a time, but the picker now steps 5 → 10 → 20, so going down drops ten seats at once and
- * the tail of the cascade — 9 × 26ms of stagger before a 300ms shrink even starts — was
+ * the tail of the cascade — nine stagger steps before the last shrink even starts — was
  * still mid-shrink when the timer unmounted it. The last few seats blinked out instead of
  * collapsing, which is the exact failure the ghosts exist to prevent.
  */
@@ -24,9 +24,9 @@ const ghostLifetimeMs = (ghostCount: number) => (ghostCount - 1) * CASCADE_STEP_
 /**
  * The small seat lattice: filled cells are taken spots, empty cells are open.
  *
- * Design 05 animates both directions, and they are not mirror images. Seats *added* pop in
- * with a stagger. Seats *removed* don't simply disappear — they stay on screen as "ghosts",
- * greyed out, and shrink away one after another; only then are they dropped. Deleting them
+ * Design 05 animates both directions. Seats *added* pop in with a stagger. Seats *removed*
+ * don't simply disappear — they stay on screen as "ghosts", in the colour they were already
+ * wearing, and shrink away one after another; only then are they dropped. Deleting them
  * outright is what made the minus button look broken: the count changed and a row of cells
  * blinked out of existence in a single frame with nothing to explain it.
  *
@@ -42,27 +42,46 @@ const ghostLifetimeMs = (ghostCount: number) => (ghostCount - 1) * CASCADE_STEP_
 export const SpotsGrid = ({ columns = 10, filled, style, total }: SpotsGridProps) => {
 	const { theme } = useThemeContext();
 	const [shownCount, setShownCount] = useState(total);
-	/** Seats that have just gone, still rendered so they can shrink away. */
-	const [ghostCount, setGhostCount] = useState(0);
-	const previousTotal = useRef(total);
+	/**
+	 * Seats that have just gone, still rendered so they can shrink away — held as the colour
+	 * each of them was wearing, rather than as a count.
+	 *
+	 * **A ghost keeps the seat's own colour.** It used to be repainted the moment it started
+	 * leaving, and that is what made the minus look broken however the timings were tuned: the
+	 * shrink was running the whole time, staggered and to scale, but it was running on a
+	 * `#E4E2DB` square against a `#F0EFEC` sheet, so there was nothing on screen to watch
+	 * collapse. All anyone saw was a row of green blink to almost-white and then stop existing.
+	 * Keeping the fill means removal reads as the reversal of the pop it undoes, which is what
+	 * design 05 is actually asking for — the grey was meant to say "leaving", and instead it
+	 * said "already gone".
+	 */
+	const [ghostColors, setGhostColors] = useState<string[]>([]);
+	const previous = useRef({ filled, total });
 
 	useEffect(() => {
-		if (previousTotal.current > total) {
-			setGhostCount(previousTotal.current - total);
+		const { filled: previousFilled, total: previousTotal } = previous.current;
+
+		if (previousTotal > total) {
+			setGhostColors(
+				Array.from({ length: previousTotal - total }, (_, index) =>
+					// The seat this ghost stands in for is the one that used to sit at `total + index`.
+					total + index < previousFilled ? theme.colors.accent : theme.colors.track
+				)
+			);
 		}
 
-		previousTotal.current = total;
-	}, [total]);
+		previous.current = { filled, total };
+	}, [filled, theme, total]);
 
 	useEffect(() => {
-		if (ghostCount === 0) {
+		if (ghostColors.length === 0) {
 			return undefined;
 		}
 
-		const timeout = setTimeout(() => setGhostCount(0), ghostLifetimeMs(ghostCount));
+		const timeout = setTimeout(() => setGhostColors([]), ghostLifetimeMs(ghostColors.length));
 
 		return () => clearTimeout(timeout);
-	}, [ghostCount]);
+	}, [ghostColors]);
 
 	useEffect(() => {
 		if (shownCount === total) {
@@ -89,14 +108,14 @@ export const SpotsGrid = ({ columns = 10, filled, style, total }: SpotsGridProps
 		 * addition it was undoing, so plus and minus played the same gesture and the minus
 		 * read as a second helping rather than as a reversal.
 		 */
-		const ghosts = Array.from({ length: ghostCount }, (_, index) => ({
-			backgroundColor: theme.colors.babOpen,
-			ghostDelay: (ghostCount - 1 - index) * CASCADE_STEP_MS,
+		const ghosts = ghostColors.map((backgroundColor, index) => ({
+			backgroundColor,
+			ghostDelay: (ghostColors.length - 1 - index) * CASCADE_STEP_MS,
 			key: `ghost-${total + index}`
 		}));
 
 		return [...seats, ...ghosts];
-	}, [filled, ghostCount, shownCount, theme, total]);
+	}, [filled, ghostColors, shownCount, theme, total]);
 
 	return <CellGrid columns={columns} gap={3} items={items} radius={4} style={style} />;
 };

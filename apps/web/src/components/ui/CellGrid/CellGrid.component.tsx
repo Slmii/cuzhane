@@ -2,7 +2,7 @@ import { Hatch } from '@/components/ui/Hatch/Hatch.component';
 import { Typography } from '@/components/ui/Typography/Typography.component';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { memo, useState } from 'react';
-import { LayoutChangeEvent, Pressable, StyleSheet, View } from 'react-native';
+import { LayoutChangeEvent, PixelRatio, Pressable, StyleSheet, View } from 'react-native';
 import Animated, { Keyframe, useReducedMotion } from 'react-native-reanimated';
 import type { CellGridItem, CellGridProps } from './CellGrid.types';
 
@@ -312,7 +312,19 @@ const CellGridComponent = ({
 	const { theme } = useThemeContext();
 	const isReducedMotion = useReducedMotion();
 	const [gridWidth, setGridWidth] = useState(0);
-	const cellSize = gridWidth > 0 ? (gridWidth - gap * (columns - 1)) / columns : 0;
+	/*
+	 * **Rounded *down* to the pixel grid, never left fractional.**
+	 *
+	 * The row wraps, so the cells and their gaps have to fit inside the measured width — and a
+	 * fractional size is rounded to the device's pixels per cell, upwards as often as not. Ten of
+	 * those overflow by a fraction and the tenth drops to a line of its own, which is the spots
+	 * picker showing nine across with one orphan beneath. It is the same rounding the placeholder
+	 * branch below describes for percentage widths; the only difference is that a measured width
+	 * hides it until some layout change lands on the wrong side of a pixel. Flooring gives back at
+	 * most one pixel across the whole row and cannot overflow.
+	 */
+	const scale = PixelRatio.get();
+	const cellSize = gridWidth > 0 ? Math.floor(((gridWidth - gap * (columns - 1)) / columns) * scale) / scale : 0;
 
 	const handleLayout = (event: LayoutChangeEvent) => {
 		setGridWidth(event.nativeEvent.layout.width);

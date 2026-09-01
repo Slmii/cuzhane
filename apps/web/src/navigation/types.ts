@@ -25,8 +25,20 @@ export type TabDetailParamList = {
 	 */
 	InvitePreview: { groupId: string };
 	JoinedWelcome: { groupId: string };
-	GroupDetail: { groupId: string };
-	BabReader: { groupId: string; babNumber: number };
+	/**
+	 * `sheet` asks the screen to open one of its sheets on arrival. It exists so the bar's
+	 * actions can live in the navigator instead of a `setOptions` effect: a header registered
+	 * in `options` is drawn on the first frame, but it is outside the screen and cannot reach
+	 * its state. Same device as `shouldOpenJoinSheet`, and cleared on dismissal for the same
+	 * reason — left set, the flag would reopen the sheet on the next render.
+	 */
+	GroupDetail: { groupId: string; sheet?: GroupDetailSheet };
+	/**
+	 * `shouldOpenTextSize` asks the reader to open its text-size sheet, for the same reason
+	 * `GroupDetail.sheet` exists: the control lives in the navigator's bar, outside the screen
+	 * that owns the sheet. Cleared on dismissal, or it would reopen on the next render.
+	 */
+	BabReader: { groupId: string; babNumber: number; shouldOpenTextSize?: boolean };
 	Rounds: { groupId: string };
 	RoundDetail: { groupId: string; roundIndex: number };
 	/** Where a GATHERING group lives — the creator's start screen, or the member's wait. */
@@ -39,10 +51,14 @@ export type TabDetailParamList = {
 	 * because a free read is a place you are rather than one you are sent to, and nothing —
 	 * no notification, no invite, no link — ever needs to open a particular bab here.
 	 */
-	AllBabs: undefined;
+	/** Free reading, outside any group. `shouldOpenTextSize` as on `BabReader`. */
+	AllBabs: { shouldOpenTextSize?: boolean } | undefined;
 };
 
 export type GroupsScreenParams = { shouldOpenJoinSheet?: boolean } | undefined;
+
+/** The sheets the group screen's bar can ask for. Not a route — each is `ui/BottomSheet`. */
+export type GroupDetailSheet = 'manage' | 'members' | 'share';
 
 /** The three tabs that own a stack accept a nested target. */
 export type RootTabParamList = {

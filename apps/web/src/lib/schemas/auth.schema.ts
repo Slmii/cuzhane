@@ -24,10 +24,14 @@ export const createSignInSchema = (t: Translate) =>
 
 export type SignInForm = z.infer<ReturnType<typeof createSignInSchema>>;
 
+/**
+ * **No name here.** Signing up asks for the least that makes an account, and Clerk does not
+ * need one — a member with no name is shown their email instead, which `useViewerIdentity` and
+ * the server's `utils/displayName.ts` already agree on. Ad and Soyad are still on the profile
+ * screen, where filling them in is a choice rather than a gate at the door.
+ */
 export const createSignUpSchema = (t: Translate) =>
 	z.object({
-		firstName: z.string().trim().min(1, t('fieldRequired')),
-		lastName: z.string().trim().min(1, t('fieldRequired')),
 		email: z.string().trim().min(1, t('fieldRequired')).email(t('invalidEmail')),
 		password: z.string().min(PASSWORD_MIN_LENGTH, t('passwordTooShort', { count: PASSWORD_MIN_LENGTH }))
 	});

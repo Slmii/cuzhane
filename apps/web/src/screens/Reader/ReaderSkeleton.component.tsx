@@ -22,9 +22,15 @@ export const ReaderSkeleton = () => {
 
 	return (
 		<View style={styles.root}>
+			{/*
+			 * **One bone, centred — the eyebrow and nothing else.** There were two, standing in
+			 * for a back control on the left and the "Aa" chip on the right; both are the
+			 * navigator's now, so stubbing them drew bones underneath the real controls. The real
+			 * header keeps two empty side slots for centring, which is what `justifyContent`
+			 * reproduces here without the extra views.
+			 */}
 			<View style={styles.header}>
-				<Bone height={12} radius={5} width={46} />
-				<Bone height={12} radius={5} width={62} />
+				<Bone height={12} radius={5} width={78} />
 			</View>
 
 			<Bone height={26} radius={9} style={styles.title} width={132} />
@@ -49,6 +55,10 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		flexDirection: 'row',
 		justifyContent: 'space-between',
+		// A navigation bar's height, matching `BabReaderScreen`'s own header row: the back
+		// button is the navigator's and floats in this band, so the stand-in has to leave the
+		// same room the real screen does.
+		minHeight: 44,
 		paddingTop: 8
 	},
 	passage: {

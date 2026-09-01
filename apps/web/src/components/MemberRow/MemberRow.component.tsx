@@ -1,7 +1,7 @@
 import { Avatar } from '@/components/ui/Avatar/Avatar.component';
+import { Icon } from '@/components/ui/Icon/Icon.component';
 import { ProgressBar } from '@/components/ui/ProgressBar/ProgressBar.component';
 import { BodyStrongText, Typography } from '@/components/ui/Typography/Typography.component';
-import { Icon } from '@/components/ui/Icon/Icon.component';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { Pressable, StyleSheet, View } from 'react-native';
 import type { MemberRowProps } from './MemberRow.types';

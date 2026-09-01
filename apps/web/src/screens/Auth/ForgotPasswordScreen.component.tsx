@@ -60,12 +60,7 @@ export const ForgotPasswordScreen = ({ navigation }: ForgotPasswordScreenProps) 
 
 	return (
 		<ScreenContainer>
-			<ScreenHeader
-				onBack={() => navigation.goBack()}
-				style={styles.header}
-				subtitle={t('fpSub')}
-				title={t('fpTitle')}
-			/>
+			<ScreenHeader hasBackButton style={styles.header} subtitle={t('fpSub')} title={t('fpTitle')} />
 			<Form<ForgotPasswordForm>
 				defaultValues={{ email: '' }}
 				isDisabled={isSubmitting}

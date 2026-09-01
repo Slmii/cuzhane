@@ -22,7 +22,8 @@ export type IconName =
 	| 'tabProfileActive'
 	// Actions
 	| 'back'
-	| 'chevron'
+	| 'chevronRight'
+	| 'chevronLeft'
 	| 'close'
 	| 'check'
 	| 'plus'

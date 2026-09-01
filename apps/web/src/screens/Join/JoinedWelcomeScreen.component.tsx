@@ -1,12 +1,10 @@
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
-import { JoinedWelcomeSkeleton } from './JoinedWelcomeSkeleton.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
-import { BackLink } from '@/components/ui/BackLink/BackLink.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
-import { Hatch } from '@/components/ui/Hatch/Hatch.component';
-import { ProgressBar } from '@/components/ui/ProgressBar/ProgressBar.component';
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
-import { LeaveGroupButton } from '@/screens/Groups/LeaveGroupButton.component';
+import { Hatch } from '@/components/ui/Hatch/Hatch.component';
+import { Icon } from '@/components/ui/Icon/Icon.component';
+import { ProgressBar } from '@/components/ui/ProgressBar/ProgressBar.component';
 import {
 	BodyText,
 	CaptionText,
@@ -15,15 +13,16 @@ import {
 	Typography
 } from '@/components/ui/Typography/Typography.component';
 import { useGetGroupById } from '@/lib/hooks/useGroup';
+import { useRoundReset } from '@/lib/hooks/useRoundReset';
 import { useGetUserSettings } from '@/lib/hooks/useUserSettings';
 import { useTranslation } from '@/lib/i18n/I18n.context';
-import { Icon } from '@/components/ui/Icon/Icon.component';
-import { useRoundReset } from '@/lib/hooks/useRoundReset';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { formatBabRange } from '@/lib/utils/babs';
 import type { TabStackParamList } from '@/navigation/types';
+import { LeaveGroupButton } from '@/screens/Groups/LeaveGroupButton.component';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { JoinedWelcomeSkeleton } from './JoinedWelcomeSkeleton.component';
 
 type Props = NativeStackScreenProps<TabStackParamList, 'JoinedWelcome'>;
 
@@ -87,9 +86,14 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 
 	return (
 		<ScreenContainer contentContainerStyle={styles.content} isScrollable>
-			{/* Not in the design, which lands here only straight after joining. Added because
-			    the screen is also reachable from Gruplarım, where a dead end would trap you. */}
-			<BackLink onPress={handleBackToGroups} style={styles.back} />
+			{/*
+			 * **No back control at all**, which is the design's own arrangement: you have just
+			 * joined, and the one thing to do next is read. A "Geri" was added at one point
+			 * because this screen is also reachable from Gruplarım and a dead end would trap
+			 * you — but it isn't a dead end. The tab bar is on screen throughout, the running
+			 * state offers "Okumaya başla", and the waiting state still offers "Gruplarıma dön"
+			 * below. Two ways back, one of them a bare chevron, only made the page ambiguous.
+			 */}
 			<View style={styles.hero}>
 				{/*
 				 * 03d celebrates with a check in sage; 03e waits with a clock in neutral. The
@@ -216,15 +220,21 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 			<View style={styles.footer}>
 				{isProvisional ? (
 					<>
-						<AppButton onPress={handleSetReminder} title={t('notifyStart')} />
 						{/*
+						 * **No "Başladığında bana bildir" here.** It led this footer and promised a
+						 * notification nothing sends: it only navigated to Hatırlatma, whose
+						 * reminder is a fixed daily time that ignores this group entirely —
+						 * `reminderTotals` counts RUNNING groups and this one is still GATHERING.
+						 * The push path could do it (a send from `startGroupForUser`) and doesn't
+						 * yet, so the button went rather than keep claiming otherwise.
+						 *
 						 * A group that hasn't started is the one a member is most likely to want
 						 * out of — nothing has been read, and the seat they're holding is one the
-						 * owner may be waiting on. Between the two navigations rather than under
-						 * them: its hint would otherwise read as a footnote to "Gruplarıma dön".
+						 * owner may be waiting on. Above "Gruplarıma dön" rather than under it:
+						 * its hint would otherwise read as a footnote to that button.
 						 */}
+						<AppButton onPress={handleBackToGroups} title={t('backToGroups')} variant='primary' />
 						<LeaveGroupButton groupId={groupId} />
-						<AppButton onPress={handleBackToGroups} title={t('backToGroups')} variant='ghost' />
 					</>
 				) : (
 					<>
@@ -259,9 +269,6 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 };
 
 const styles = StyleSheet.create({
-	back: {
-		alignSelf: 'flex-start'
-	},
 	fillCard: {
 		marginTop: 11,
 		padding: 16

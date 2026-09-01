@@ -1,9 +1,11 @@
 import { Typography } from '@/components/ui/Typography/Typography.component';
+import { isLiquidGlassSupported } from '@callstack/liquid-glass';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS } from 'react-native-reanimated';
+import { GlassSizeSlider, isGlassSizeSliderAvailable } from './GlassSizeSlider';
 import type { ReaderSizeSliderProps } from './ReaderSizeSlider.types';
 
 const TRACK_HEIGHT = 4;
@@ -25,7 +27,7 @@ const END_LABEL_MAX = 26;
  * memoising would mean naming the shared value as a dependency, which the compiler then
  * won't let a worklet write to.
  */
-export const ReaderSizeSlider = ({ max, min, onChange, onDraft, value }: ReaderSizeSliderProps) => {
+const DrawnTrack = ({ max, min, onChange, onDraft, value }: ReaderSizeSliderProps) => {
 	const { theme } = useThemeContext();
 	const [width, setWidth] = useState(0);
 
@@ -58,39 +60,59 @@ export const ReaderSizeSlider = ({ max, min, onChange, onDraft, value }: ReaderS
 	const ratio = max === min ? 0 : (value - min) / (max - min);
 
 	return (
+		<GestureDetector gesture={gesture}>
+			<View
+				accessibilityRole='adjustable'
+				accessibilityValue={{ max, min, now: value }}
+				onLayout={event => setWidth(event.nativeEvent.layout.width)}
+				style={styles.trackArea}
+			>
+				<View style={[styles.track, { backgroundColor: theme.colors.switchTrackOff }]}>
+					<View style={[styles.fill, { backgroundColor: theme.colors.accent, width: `${ratio * 100}%` }]} />
+				</View>
+				{/*
+				 * Positioned by percentage and pulled back half its width, so the knob's
+				 * centre sits on the value rather than its left edge — at the maximum it
+				 * would otherwise hang a full knob past the end of the track.
+				 */}
+				<View
+					style={[
+						styles.knob,
+						{
+							backgroundColor: theme.colors.surface,
+							borderColor: theme.colors.accent,
+							left: `${ratio * 100}%`
+						}
+					]}
+				/>
+			</View>
+		</GestureDetector>
+	);
+};
+
+/**
+ * **The platform's slider where the platform has one worth having, ours everywhere else.**
+ *
+ * `isLiquidGlassSupported` is the gate, not `Platform.OS`: it is false on Android and on iOS
+ * below 26, so it asks whether this device actually renders the material — the only reason to
+ * hand a control over. The second half asks about the *build*, since `@expo/ui` is a native
+ * module a client may predate.
+ *
+ * **The bookends stay ours either way.** Only the track between them swaps, so the two "Aa"s
+ * keep their sizes, their colour and the gap that stops the knob touching them — the row is
+ * the design's, and only the thing being dragged is the platform's.
+ */
+export const ReaderSizeSlider = (props: ReaderSizeSliderProps) => {
+	const { theme } = useThemeContext();
+	const isGlass = isLiquidGlassSupported && isGlassSizeSliderAvailable;
+
+	return (
 		<View style={styles.root}>
 			<Typography color={theme.colors.subtext} style={styles.endLabel}>
 				Aa
 			</Typography>
-			<GestureDetector gesture={gesture}>
-				<View
-					accessibilityRole='adjustable'
-					accessibilityValue={{ max, min, now: value }}
-					onLayout={event => setWidth(event.nativeEvent.layout.width)}
-					style={styles.trackArea}
-				>
-					<View style={[styles.track, { backgroundColor: theme.colors.switchTrackOff }]}>
-						<View
-							style={[styles.fill, { backgroundColor: theme.colors.accent, width: `${ratio * 100}%` }]}
-						/>
-					</View>
-					{/*
-					 * Positioned by percentage and pulled back half its width, so the knob's
-					 * centre sits on the value rather than its left edge — at the maximum it
-					 * would otherwise hang a full knob past the end of the track.
-					 */}
-					<View
-						style={[
-							styles.knob,
-							{
-								backgroundColor: theme.colors.surface,
-								borderColor: theme.colors.accent,
-								left: `${ratio * 100}%`
-							}
-						]}
-					/>
-				</View>
-			</GestureDetector>
+			{/* The native slider fills the row itself; the drawn one is already `flex: 1`. */}
+			<View style={styles.trackSlot}>{isGlass ? <GlassSizeSlider {...props} /> : <DrawnTrack {...props} />}</View>
 			<Typography color={theme.colors.subtext} style={styles.endLabelLarge}>
 				Aa
 			</Typography>
@@ -141,5 +163,11 @@ const styles = StyleSheet.create({
 		flex: 1,
 		height: KNOB_SIZE,
 		justifyContent: 'center'
+	},
+	/* Holds whichever track renders, so the row's layout does not depend on which one it is. */
+	trackSlot: {
+		flex: 1,
+		justifyContent: 'center',
+		minHeight: KNOB_SIZE
 	}
 });

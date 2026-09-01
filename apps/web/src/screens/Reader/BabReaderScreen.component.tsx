@@ -1,7 +1,5 @@
-import { BackLink } from '@/components/ui/BackLink/BackLink.component';
-import { AppBottomSheet } from '@/components/ui/BottomSheet/BottomSheet.component';
+import { AppButton } from '@/components/ui/Button/Button.component';
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
-import { Icon } from '@/components/ui/Icon/Icon.component';
 import { EyebrowText, Typography } from '@/components/ui/Typography/Typography.component';
 import type { CevsenInvocation } from '@/lib/content/cevsen';
 import { READER_FONT_SIZE_DEFAULT } from '@/lib/content/cevsen';
@@ -16,12 +14,13 @@ import type { TabStackParamList } from '@/navigation/types';
 import { MealSheet } from '@/screens/Reader/MealSheet.component';
 import { ReaderBabMap } from '@/screens/Reader/ReaderBabMap.component';
 import { ReaderBody, readerFaces } from '@/screens/Reader/ReaderBody.component';
-import { ReaderSettings } from '@/screens/Reader/ReaderSettings.component';
+import { TextSizeSheet } from '@/screens/Reader/TextSizeSheet.component';
+import { textSizeSheet } from '@/screens/Reader/textSizeSheet';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
 import { useKeepAwake } from 'expo-keep-awake';
 import { useCallback, useContext, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS, useSharedValue } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -88,7 +87,8 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 	const settingsQuery = useGetUserSettings();
 	const updateSettings = useUpdateUserSettings();
 	const setBabRead = useSetBabRead();
-	const [isSettingsSheetOpen, setIsSettingsSheetOpen] = useState(false);
+	// Opened from the navigator's bar, which is outside this screen — see `textSizeSheet`.
+	const textSize = textSizeSheet(navigation, route.params);
 	/** The invocation whose meaning is open, or null. Held here so the sheet outlives the press. */
 	const [mealInvocation, setMealInvocation] = useState<CevsenInvocation | null>(null);
 
@@ -430,11 +430,25 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 				 * it every frame. Measured on the simulator: the reader's body scroll held a
 				 * 20.0ms median gap against 16.7ms on Home, with the blur the only material
 				 * difference between them.
+				 *
+				 * **Liquid Glass was tried here and reverted, for a reason worth recording.** This
+				 * header, the `ScrollView` and the footer are ordinary flex-column siblings — none
+				 * of them is absolutely positioned, so nothing ever passes *underneath* this bar.
+				 * The only thing behind it is the screen's flat `background`, and a material
+				 * sampling a flat colour renders as that flat colour: on device the glass version
+				 * was indistinguishable from this one. A scroll-edge material needs content
+				 * scrolling under it, which would mean overlaying the bars and re-doing the page's
+				 * insets — a layout change, not a swap. The 94% here is not an imitation of glass;
+				 * it is a tint over a solid background, and it only ever had to be that.
 				 */}
 				<View style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.readerSurface }]} />
 				<View style={styles.headerTopRow}>
 					<View style={styles.headerSide}>
-						<BackLink onPress={navigation.goBack} />
+						{/*
+						 * **Empty on purpose — the back control is the navigator's.** Registered with a
+						 * transparent native header, so each platform draws its own over this corner.
+						 * The slot stays because it is what centres the eyebrow between two equal sides.
+						 */}
 					</View>
 					<View style={styles.headerCenter}>
 						{/* Position in the cevşen, not in your share — "Bab 87 / 100". Which of
@@ -442,26 +456,13 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 						<EyebrowText>{`${t('bab')} ${displayBab} / ${readableTotal}`}</EyebrowText>
 					</View>
 					<View style={[styles.headerSide, styles.headerSideEnd]}>
-						<Pressable
-							accessibilityRole='button'
-							onPress={() => setIsSettingsSheetOpen(true)}
-							style={[
-								styles.fsButton,
-								{
-									backgroundColor: isSettingsSheetOpen
-										? theme.colors.accentSoft
-										: theme.colors.surface,
-									borderColor: isSettingsSheetOpen ? theme.colors.accent : theme.colors.border
-								}
-							]}
-						>
-							<Typography
-								color={isSettingsSheetOpen ? theme.colors.accent : undefined}
-								variant='bodyStrong'
-							>
-								Aa
-							</Typography>
-						</Pressable>
+						{/*
+						 * **Empty for the same reason as the slot opposite — the text-size control
+						 * is the navigator's now.** It was an "Aa" chip here and it had stopped
+						 * responding: this row occupies the band the transparent native header
+						 * draws in, and the header is a view above the scene, so the taps never
+						 * reached it. See `ReaderToolbar`. The slot stays to centre the eyebrow.
+						 */}
 					</View>
 				</View>
 				<View style={styles.headerBottomRow}>
@@ -535,15 +536,7 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 			</GestureDetector>
 
 			<View style={[styles.footer, { borderTopColor: theme.colors.readerRule }]}>
-				{/*
-				 * The translucent surface alone — there was a `BlurView` under it, and it was
-				 * doing almost nothing for a real cost. `readerSurface` is 94% opaque and laid
-				 * over it edge to edge, so the blur could contribute at most six percent of the
-				 * colour, while live blur re-samples and composites the Arabic scrolling beneath
-				 * it every frame. Measured on the simulator: the reader's body scroll held a
-				 * 20.0ms median gap against 16.7ms on Home, with the blur the only material
-				 * difference between them.
-				 */}
+				{/* Same flat surface as the header above, for the same reason — see the note there. */}
 				<View style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.readerSurface }]} />
 				{/*
 				 * One line saying why the button below reads the way it does — and only when
@@ -559,21 +552,14 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 					</Typography>
 				) : null}
 				<View style={styles.footerRow}>
-					<Pressable
-						accessibilityRole='button'
+					<AppButton
+						accessibilityLabel={t('previousBab')}
 						disabled={previousBabNumber === undefined}
+						fullWidth={false}
+						icon='chevronLeft'
 						onPress={() => goToBab(previousBabNumber)}
-						style={[
-							styles.navButton,
-							{
-								backgroundColor: theme.colors.surface,
-								borderColor: theme.colors.border,
-								opacity: previousBabNumber === undefined ? 0.4 : 1
-							}
-						]}
-					>
-						<Icon name='back' size={17} />
-					</Pressable>
+						variant='surface'
+					/>
 					{/*
 					 * Live for your own babs and for the pool's; muted otherwise.
 					 *
@@ -582,37 +568,35 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 					 * inert but still fired would let anyone mark anyone's work. The server
 					 * refuses it too; this is so the screen never asks.
 					 */}
-					<Pressable
-						accessibilityRole='button'
+					{/*
+					 * `AppButton`, so this button is the platform's own where the platform has one.
+					 * **The arrows either side are the same**, since `AppButton` learned to be a
+					 * glyph with no label — the whole row is native together or drawn together,
+					 * rather than a native button flanked by two hand-drawn ones.
+					 *
+					 * The three states map onto variants: unread is the filled `accent`, read is
+					 * `accentOutline` — accent hairline over no fill, which is what the outlined
+					 * state already was — and locked is a disabled `surface`. **That last one is
+					 * a change worth knowing about.** Locked used to be a filled `secondary`
+					 * block; `AppButton` expresses disabled as a 0.45 dim, which is closer to the
+					 * muting the design rejected than to the solid "not yours today" it had.
+					 */}
+					<AppButton
 						disabled={!canMark}
 						onPress={isPoolBab ? handleTakeAndRead : toggleCurrentRead}
-						style={[
-							styles.markButton,
-							canMark
-								? {
-										backgroundColor: isRead ? theme.colors.surface : theme.colors.accent,
-										borderColor: theme.colors.accent
-								  }
-								: { backgroundColor: theme.colors.secondary, borderColor: theme.colors.border }
-						]}
-					>
-						<Typography
-							color={
-								!canMark ? theme.colors.faintText : isRead ? theme.colors.accent : theme.colors.onAccent
-							}
-							variant='bodyStrong'
-						>
-							{/*
-							 * A pool bab says **"Üstlen ve oku"**, not "Okudum".
-							 *
-							 * The design binds pool to the plain mark-read label, but its model
-							 * is simpler than ours: here the tap takes the whole slot — eight to
-							 * thirteen babs, taken whole and held for the round — and only then
-							 * marks this one. "Okudum" would name the smaller half of what the
-							 * button actually does. Once the slot is taken the bab is yours, so
-							 * the label falls back to Okudum · Geri al on the next render.
-							 */}
-							{!canMark
+						style={styles.markButtonSlot}
+						/*
+						 * A pool bab says **"Üstlen ve oku"**, not "Okudum".
+						 *
+						 * The design binds pool to the plain mark-read label, but its model is
+						 * simpler than ours: here the tap takes the whole slot — eight to thirteen
+						 * babs, taken whole and held for the round — and only then marks this one.
+						 * "Okudum" would name the smaller half of what the button actually does.
+						 * Once the slot is taken the bab is yours, so the label falls back to
+						 * Okudum · Geri al on the next render.
+						 */
+						title={
+							!canMark
 								? t('readLocked')
 								: isPoolBab
 								? // The range on the button too, not only in the hint above it:
@@ -622,24 +606,18 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 									: t('takeAndRead')
 								: isRead
 								? t('markUnread')
-								: t('markRead')}
-						</Typography>
-					</Pressable>
-					<Pressable
-						accessibilityRole='button'
+								: t('markRead')
+						}
+						variant={isRead ? 'accentOutline' : 'accent'}
+					/>
+					<AppButton
+						accessibilityLabel={t('nextBab')}
 						disabled={nextBabNumber === undefined}
+						fullWidth={false}
+						icon='chevronRight'
 						onPress={() => goToBab(nextBabNumber)}
-						style={[
-							styles.navButton,
-							{
-								backgroundColor: theme.colors.surface,
-								borderColor: theme.colors.border,
-								opacity: nextBabNumber === undefined ? 0.4 : 1
-							}
-						]}
-					>
-						<Icon name='chevron' size={17} />
-					</Pressable>
+						variant='surface'
+					/>
 				</View>
 			</View>
 
@@ -649,14 +627,12 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 			 * at the moment it became useful. The old text-size sheet closed on pick because
 			 * there was nothing to compare.
 			 */}
-			<AppBottomSheet
-				description={t('readerSettingsHint')}
-				isVisible={isSettingsSheetOpen}
-				onClose={() => setIsSettingsSheetOpen(false)}
-				title={t('readerSettings')}
-			>
-				<ReaderSettings onChange={patch => updateSettings.mutate(patch)} settings={readerSettings} />
-			</AppBottomSheet>
+			<TextSizeSheet
+				isVisible={textSize.isVisible}
+				onChange={patch => updateSettings.mutate(patch)}
+				onClose={textSize.close}
+				settings={readerSettings}
+			/>
 
 			<MealSheet
 				arabicFont={faces.arabicFont}
@@ -717,13 +693,6 @@ const styles = StyleSheet.create({
 		paddingHorizontal: 8,
 		paddingVertical: 3
 	},
-	fsButton: {
-		alignItems: 'center',
-		borderRadius: 9,
-		borderWidth: StyleSheet.hairlineWidth,
-		paddingHorizontal: 9,
-		paddingVertical: 5
-	},
 	header: {
 		borderBottomWidth: StyleSheet.hairlineWidth,
 		gap: 10,
@@ -754,21 +723,16 @@ const styles = StyleSheet.create({
 	headerTopRow: {
 		alignItems: 'center',
 		flexDirection: 'row',
-		justifyContent: 'space-between'
+		justifyContent: 'space-between',
+		// A navigation bar's height: this row shares its band with a back button the screen does
+		// not draw, and that control is taller than an eyebrow. Without it the row ended above
+		// the button and the bab's name ran into it. See `AllBabsScreen`.
+		minHeight: 44
 	},
-	markButton: {
-		alignItems: 'center',
-		borderRadius: 13,
-		borderWidth: 1.5,
-		flex: 1,
-		paddingVertical: 14
-	},
-	navButton: {
-		alignItems: 'center',
-		borderRadius: 13,
-		borderWidth: StyleSheet.hairlineWidth,
-		paddingHorizontal: 16,
-		paddingVertical: 14
+	// Only the share of the row. `AppButton` owns its own radius, border and padding — `md`
+	// carries the 13 this button was drawn with — so nothing else is left to say here.
+	markButtonSlot: {
+		flex: 1
 	},
 	safeArea: {
 		flex: 1

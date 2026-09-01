@@ -93,7 +93,7 @@ export const LobbyScreen = ({ navigation, route }: Props) => {
 	};
 
 	const fillCard = (
-		<CardSurface style={styles.fillCard}>
+		<CardSurface>
 			<View style={styles.fillRow}>
 				<NumericText color={theme.colors.accent}>{detail.memberCount}</NumericText>
 				<CaptionText color={theme.colors.faintText}>{`/ ${detail.spots} ${t('joinedCount')}`}</CaptionText>
@@ -124,59 +124,96 @@ export const LobbyScreen = ({ navigation, route }: Props) => {
 	}
 
 	return (
-		<ScreenContainer shouldIncludeTabBarOffset>
-			<ScreenHeader onBack={navigation.goBack} subtitle={t('notCounting')} title={detail.name} />
-			<View style={styles.stateRow}>
-				<EyebrowText color={theme.colors.faintText}>{t('creator')}</EyebrowText>
-				<Chip label={t('lobbyState')} tone='sand' />
-			</View>
-			{fillCard}
-			<CardSurface isFlush style={styles.inviteCard}>
-				<View style={[styles.inviteBlock, { borderBottomColor: theme.colors.border }]}>
-					<EyebrowText color={theme.colors.faintText} style={styles.inviteLabel}>
-						{t('inviteLink')}
-					</EyebrowText>
-					<View style={styles.inviteRow}>
-						{/* The code set as type rather than as a monospaced URL fragment — it is
-						    something the creator reads out, not a string to be transcribed. */}
-						<Typography
-							color={theme.colors.accent}
-							numberOfLines={1}
-							style={styles.inviteValue}
-							variant='title'
-							weight='regular'
-						>
-							{detail.inviteCode ?? '—'}
-						</Typography>
-						<AppButton
-							// Buttons default to full width; here it sits beside the code, so
-							// it has to shrink to its label or the code has nowhere to go.
-							fullWidth={false}
-							// `copy` at rest, `check` once it lands — see `ShareSheet`, same button.
-							icon={hasCopied ? 'check' : 'copy'}
-							onPress={() => void handleCopyInvite()}
-							size='sm'
-							title={hasCopied ? t('copied') : t('copyInvite')}
-							variant='surface'
-						/>
-					</View>
+		<ScreenContainer contentContainerStyle={styles.content} shouldIncludeTabBarOffset>
+			{/*
+			 * **One block, so `space-between` has exactly two children to separate.** It is what
+			 * pushes the start block to the foot; left to the children directly it spread every
+			 * gap in the column, and the first one to open up was between the heading and the
+			 * KURUCU row.
+			 */}
+			<View style={styles.top}>
+				<ScreenHeader hasBackButton subtitle={t('notCounting')} title={detail.name} />
+				<View style={styles.stateRow}>
+					<EyebrowText color={theme.colors.faintText}>{t('creator')}</EyebrowText>
+					<Chip label={t('lobbyState')} tone='sand' />
 				</View>
-				<ToggleRow
-					hint={t('autoStartHint')}
-					onValueChange={value => updateGroup.mutate({ autoStartWhenFull: value, groupId })}
-					title={t('autoStartFull')}
-					value={detail.autoStartWhenFull}
-				/>
-			</CardSurface>
-			<AppButton isLoading={startGroup.isPending} onPress={handleStart} title={t('startNow')} />
-			<BodyText color={theme.colors.faintText} style={styles.startHint} textAlign='center'>
-				{t('startHint')}
-			</BodyText>
+				{fillCard}
+				<CardSurface isFlush>
+					<View style={[styles.inviteBlock, { borderBottomColor: theme.colors.border }]}>
+						<EyebrowText color={theme.colors.faintText} style={styles.inviteLabel}>
+							{t('inviteLink')}
+						</EyebrowText>
+						<View style={styles.inviteRow}>
+							{/* The code set as type rather than as a monospaced URL fragment — it is
+						    something the creator reads out, not a string to be transcribed. */}
+							<Typography
+								color={theme.colors.accent}
+								numberOfLines={1}
+								style={styles.inviteValue}
+								variant='title'
+								weight='regular'
+							>
+								{detail.inviteCode ?? '—'}
+							</Typography>
+							<AppButton
+								// Buttons default to full width; here it sits beside the code, so
+								// it has to shrink to its label or the code has nowhere to go.
+								fullWidth={false}
+								// `copy` at rest, `check` once it lands — see `ShareSheet`, same button.
+								icon={hasCopied ? 'check' : 'copy'}
+								onPress={() => void handleCopyInvite()}
+								size='sm'
+								title={hasCopied ? t('copied') : t('copyInvite')}
+								variant='accent'
+							/>
+						</View>
+					</View>
+					<ToggleRow
+						hint={t('autoStartHint')}
+						onValueChange={value => updateGroup.mutate({ autoStartWhenFull: value, groupId })}
+						title={t('autoStartFull')}
+						value={detail.autoStartWhenFull}
+					/>
+				</CardSurface>
+			</View>
+			{/*
+			 * **Pinned to the bottom, like every other screen whose one action closes it.** It sat
+			 * directly under the cards, which on a half-full lobby left it stranded mid-screen
+			 * with a page of empty paper below — the same block on the welcome screen and the
+			 * group screen sits at the foot. `styles.footer` is what does it, against the
+			 * `space-between` on the container's content.
+			 *
+			 * No margins anywhere on this column: `ScreenContainer` already spaces it by 12, the
+			 * same as Gruplarım's list, and the cards each added 11 of their own on top — which
+			 * put 23 between everything here and nowhere else.
+			 */}
+			<View style={styles.footer}>
+				<AppButton isLoading={startGroup.isPending} onPress={handleStart} title={t('startNow')} />
+				<BodyText color={theme.colors.faintText} textAlign='center'>
+					{t('startHint')}
+				</BodyText>
+			</View>
 		</ScreenContainer>
 	);
 };
 
 const styles = StyleSheet.create({
+	/** Cards at the top, the start block at the foot — the welcome screen's arrangement. */
+	content: {
+		flexGrow: 1,
+		justifyContent: 'space-between'
+	},
+	/** The button and its hint travel together, so `space-between` moves them as one. */
+	footer: {
+		gap: 12
+	},
+	/**
+	 * Everything above the start block, as one child. `ScreenContainer` spaces a column by 12 and
+	 * that is what this restores inside the wrapper — without it the cards sat flush.
+	 */
+	top: {
+		gap: 12
+	},
 	centered: {
 		alignItems: 'center',
 		flex: 1,
@@ -186,9 +223,6 @@ const styles = StyleSheet.create({
 		marginBottom: 13,
 		marginTop: 10
 	},
-	fillCard: {
-		marginBottom: 11
-	},
 	fillRow: {
 		alignItems: 'baseline',
 		flexDirection: 'row',
@@ -197,9 +231,6 @@ const styles = StyleSheet.create({
 	inviteBlock: {
 		borderBottomWidth: StyleSheet.hairlineWidth,
 		padding: 15
-	},
-	inviteCard: {
-		marginBottom: 11
 	},
 	inviteLabel: {
 		marginBottom: 7
@@ -238,9 +269,6 @@ const styles = StyleSheet.create({
 	},
 	reservedNote: {
 		marginTop: 9
-	},
-	startHint: {
-		marginTop: 11
 	},
 	stateRow: {
 		alignItems: 'center',

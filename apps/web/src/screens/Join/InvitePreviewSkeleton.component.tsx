@@ -1,3 +1,4 @@
+import { SCREEN_TITLE_PADDING_UNDER_BAR } from '@/components/ScreenTitle/ScreenTitle.component';
 import { Bone } from '@/components/Skeleton/Skeleton.component';
 import { SkeletonStatusRow } from '@/components/Skeleton/SkeletonStatusRow.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
@@ -29,9 +30,13 @@ export const InvitePreviewSkeleton = () => {
 
 	return (
 		<View>
-			<Bone height={9} radius={4.5} style={styles.eyebrow} tone='soft' width={62} />
-
-			<View style={styles.chipRow}>
+			{/*
+			 * **No bone for the back link, and the band it stood in reserved instead.** There was
+			 * an eyebrow-width bone here standing in for "‹ Keşfet"; that link is the navigator's
+			 * back button now, so the bone drew underneath the real control. The chip row heads
+			 * the screen and clears the bar, exactly as `InvitePreviewScreen` does.
+			 */}
+			<View style={[styles.chipRow, styles.chipRowUnderBar]}>
 				<Bone height={20} radius={6} width={62} />
 				<Bone height={20} radius={6} tone='soft' width={52} />
 			</View>
@@ -104,8 +109,9 @@ const styles = StyleSheet.create({
 		paddingHorizontal: 15,
 		paddingVertical: 13
 	},
-	eyebrow: {
-		marginBottom: 14
+	/* The same band `InvitePreviewScreen` reserves — see `SCREEN_TITLE_PADDING_UNDER_BAR`. */
+	chipRowUnderBar: {
+		paddingTop: SCREEN_TITLE_PADDING_UNDER_BAR
 	},
 	progressBar: {
 		marginBottom: 9,

@@ -74,7 +74,6 @@ export const FeedbackSheet = ({ appVersion, isVisible, locale, onClose, platform
 	return (
 		<AppBottomSheet
 			description={t('feedbackHint')}
-			hasScrollableContent
 			isVisible={isVisible}
 			onClose={handleClose}
 			title={t('feedbackTitle')}

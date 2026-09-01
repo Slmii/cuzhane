@@ -12,6 +12,14 @@ export interface ScreenHeaderProps {
 	titleTrailing?: ReactNode;
 	/** Far right of the heading row — the design's corner action, e.g. Paylaş. */
 	action?: ReactNode;
-	onBack?: () => void;
+	/**
+	 * Reserves the band the navigator's back button floats in, rather than drawing one.
+	 *
+	 * The control itself belongs to the native header now — the system chevron on iOS, in glass
+	 * on 26, and the material arrow on Android — so a screen says only *that it has one*. Set it
+	 * wherever the route carries `nativeBackScreenOptions`, and nowhere else: on a screen with no
+	 * back button this is just an empty 44pt gap.
+	 */
+	hasBackButton?: boolean;
 	style?: StyleProp<ViewStyle>;
 }

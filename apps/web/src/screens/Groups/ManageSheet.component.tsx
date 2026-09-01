@@ -1,16 +1,15 @@
 import { AppBottomSheet } from '@/components/ui/BottomSheet/BottomSheet.component';
-import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Divider } from '@/components/ui/Divider/Divider.component';
 import { NavRow } from '@/components/ui/NavRow/NavRow.component';
 import { ToggleRow } from '@/components/ui/ToggleRow/ToggleRow.component';
-import { DangerButton } from '@/components/ui/DangerButton/DangerButton.component';
+import { AppButton } from '@/components/ui/Button/Button.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useDeleteGroup, useUpdateGroup } from '@/lib/hooks/useGroup';
 import type { GroupDetail } from '@/lib/types/domain';
 import type { TabStackParamList } from '@/navigation/types';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Alert, StyleSheet } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 
 type Props = {
 	group: GroupDetail;
@@ -70,7 +69,7 @@ export const ManageSheet = ({ group, isVisible, onClose, onOpenMembers }: Props)
 
 	return (
 		<AppBottomSheet isVisible={isVisible} onClose={onClose} title={t('manage')}>
-			<CardSurface isFlush style={styles.card}>
+			<View style={styles.card}>
 				<ToggleRow
 					hint={spotsHint}
 					onValueChange={next => updateGroup.mutate({ groupId: group.id, openToJoin: next })}
@@ -83,10 +82,17 @@ export const ManageSheet = ({ group, isVisible, onClose, onOpenMembers }: Props)
 					meta={`${group.memberCount} / ${group.spots}`}
 					onPress={onOpenMembers}
 				/>
-			</CardSurface>
+			</View>
 
-			{/* No `hint`: the dialog's body is the same sentence, said at the moment it matters. */}
-			<DangerButton isDisabled={deleteGroup.isPending} isFilled label={t('deleteGroup')} onPress={handleDelete} />
+			{/* No hint line: the dialog's body is the same sentence, said at the moment it matters.
+			    `dangerFilled` rather than `danger` — this is the sheet's action, not one option
+			    among several, and the drawn `danger` is a hairline over `surface`. */}
+			<AppButton
+				disabled={deleteGroup.isPending}
+				onPress={handleDelete}
+				title={t('deleteGroup')}
+				variant='dangerFilled'
+			/>
 		</AppBottomSheet>
 	);
 };

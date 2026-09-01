@@ -1,5 +1,6 @@
 import { Bone } from '@/components/Skeleton/Skeleton.component';
 import { SkeletonStatusRow } from '@/components/Skeleton/SkeletonStatusRow.component';
+import { SCREEN_TITLE_PADDING_UNDER_BAR } from '@/components/ScreenTitle/ScreenTitle.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
@@ -25,11 +26,18 @@ export const GroupDetailSkeleton = () => {
 
 	return (
 		<View>
+			{/*
+			 * Title, its cadence chip, and the caption — which is all `ScreenHeader` draws here.
+			 * There used to be an eyebrow bone above (the real header reserves no eyebrow row:
+			 * `ScreenHeader` passes `hasReservedSecondaryLabel={false}`) and a 44pt square beside
+			 * the title standing in for the corner action, which is a toolbar item in the
+			 * navigator's bar now. Both made the bones a taller, wider block than the screen that
+			 * replaced them, so the page shifted as it arrived.
+			 */}
 			<View style={styles.header}>
-				<Bone height={9} radius={4.5} style={styles.headerEyebrow} tone='soft' width={62} />
 				<View style={styles.headerRow}>
 					<Bone height={20} radius={9} width={168} />
-					<Bone height={44} radius={14} width={44} />
+					<Bone height={20} radius={6} tone='soft' width={62} />
 				</View>
 				<Bone height={9} radius={4.5} style={styles.headerCaption} tone='soft' width={132} />
 			</View>
@@ -155,15 +163,18 @@ const styles = StyleSheet.create({
 		paddingHorizontal: 16,
 		paddingVertical: 14
 	},
+	/*
+	 * Clear of the navigator's back button, exactly as `ScreenHeader` is on the screen this
+	 * stands in for. Without it the skeleton's own title bone sat under the floating control
+	 * — and a stand-in that starts in a different place than the real thing defeats the point
+	 * of having one.
+	 */
 	header: {
 		paddingBottom: 16,
-		paddingTop: 6
+		paddingTop: SCREEN_TITLE_PADDING_UNDER_BAR
 	},
 	headerCaption: {
 		marginTop: 9
-	},
-	headerEyebrow: {
-		marginBottom: 14
 	},
 	headerRow: {
 		alignItems: 'flex-start',

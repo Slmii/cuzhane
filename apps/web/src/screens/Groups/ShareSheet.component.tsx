@@ -1,13 +1,12 @@
 import { AppBottomSheet } from '@/components/ui/BottomSheet/BottomSheet.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
-import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { EyebrowText, Typography } from '@/components/ui/Typography/Typography.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { GroupDetail } from '@/lib/types/domain';
 import * as Clipboard from 'expo-clipboard';
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 type Props = {
 	group: GroupDetail;
@@ -57,14 +56,27 @@ export const ShareSheet = ({ group, isVisible, onClose }: Props) => {
 
 	return (
 		<AppBottomSheet description={t('shareHint')} isVisible={isVisible} onClose={onClose} title={t('shareTitle')}>
-			<CardSurface style={styles.card}>
+			<View style={styles.body}>
+				{/*
+				 * **A surface behind the code, and only the code.** The design put the whole block
+				 * on a `CardSurface` to lift it off the sheet's cream; the sheet is the platform's
+				 * own material now, so a card around everything was white on white and the button
+				 * inside it read as nested. The code is the one thing that has to stand off the
+				 * material — it is read aloud and typed in at the other end — so it keeps a solid
+				 * panel and the button sits on the sheet itself.
+				 */}
 				{group.inviteCode ? (
-					<>
+					<View
+						style={[
+							styles.codePanel,
+							{ backgroundColor: theme.colors.surface, borderRadius: theme.radius.lg }
+						]}
+					>
 						<EyebrowText color={theme.colors.faintText}>{t('inviteCode')}</EyebrowText>
 						<Typography color={theme.colors.accent} style={styles.code} variant='header1' weight='regular'>
 							{group.inviteCode}
 						</Typography>
-					</>
+					</View>
 				) : null}
 				{/*
 				 * `copy` at rest, `check` once it lands. The button carried no icon until the
@@ -74,19 +86,26 @@ export const ShareSheet = ({ group, isVisible, onClose }: Props) => {
 				<AppButton
 					icon={isCopied ? 'check' : 'copy'}
 					onPress={handleCopyCode}
-					size='md'
 					title={isCopied ? t('copied') : t('copyInvite')}
 					variant={isCopied ? 'surface' : 'primary'}
 				/>
-			</CardSurface>
+			</View>
 		</AppBottomSheet>
 	);
 };
 
 const styles = StyleSheet.create({
-	card: {
+	/** Centred, and with the card's own padding gone — the sheet already insets its content. */
+	body: {
+		alignItems: 'center'
+	},
+	/** Full width so the panel spans the sheet, with the code centred inside it. */
+	codePanel: {
 		alignItems: 'center',
-		padding: 18
+		alignSelf: 'stretch',
+		marginBottom: 16,
+		paddingHorizontal: 18,
+		paddingVertical: 18
 	},
 	code: {
 		// 34/1.1 with the design's wide tracking — bigger than `header1`'s own 27, because
@@ -94,7 +113,6 @@ const styles = StyleSheet.create({
 		fontSize: 34,
 		letterSpacing: 2.7,
 		lineHeight: 37,
-		marginBottom: 16,
 		marginTop: 8
 	}
 });

@@ -1,6 +1,6 @@
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { InvitePreviewSkeleton } from './InvitePreviewSkeleton.component';
-import { BackLink } from '@/components/ui/BackLink/BackLink.component';
+import { SCREEN_TITLE_PADDING_UNDER_BAR } from '@/components/ScreenTitle/ScreenTitle.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Chip } from '@/components/ui/Chip/Chip.component';
@@ -16,6 +16,7 @@ import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { cycleLabelKey, splitModeLabelKey } from '@/lib/utils/groups';
 import type { TabStackParamList } from '@/navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 type Props = NativeStackScreenProps<TabStackParamList, 'InvitePreview'>;
@@ -43,6 +44,8 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 
 	const preview = useGroupPreviewById(groupId);
 	const joinByGroupId = useJoinGroup();
+	/** Set on press — see `shownRows` below, which explains why the card has to stop updating. */
+	const [joinedShare, setJoinedShare] = useState<{ poolCount: number; rows: number[][] } | null>(null);
 	// Above the early returns with the other hooks — the loading branch below returns first.
 	const reset = useRoundReset({
 		cycle: preview.data?.cycle ?? 'WEEKLY',
@@ -67,20 +70,6 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 	}
 
 	const data = preview.data;
-	// Labelled with the destination rather than "Geri" — this screen is only ever reached
-	// from Keşfet, so the back link can name where it goes.
-	const handleBackToDiscover = () =>
-		navigation.canGoBack() ? navigation.goBack() : navigation.replace('Tabs', { screen: 'Discover' });
-
-	const handleJoinNow = async () => {
-		const joined = await joinByGroupId.mutateAsync(data.id);
-
-		// Joining from Keşfet and joining by code produce the same thing, so both land on
-		// the same welcome, which decides whether it is showing "your babs are ready" or
-		// "waiting to start".
-		navigation.replace('JoinedWelcome', { groupId: joined.id });
-	};
-
 	const handleDiscover = () => {
 		// Reached from Keşfet, this screen sits *on* the Discover stack, so switching to the
 		// Discover tab is a no-op and the button did nothing. Popping the tab's own stack is
@@ -94,10 +83,9 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 		return (
 			<ScreenContainer contentContainerStyle={styles.content} isScrollable>
 				<View>
-					{/* 03f keeps the same named back link as the other previews. */}
-					<BackLink label={t('discover')} onPress={handleBackToDiscover} style={styles.back} />
-
-					<View style={[styles.chipRow, styles.chipRowAfterBack]}>
+					{/* Clears the navigator's back button, which this screen draws no link of
+					    its own beside. Same band every pushed screen's heading starts below. */}
+					<View style={[styles.chipRow, styles.chipRowUnderBar]}>
 						<Chip label={`${t('full')} · ${data.memberCount}/${data.spots}`} tone='neutral' />
 						<Chip label={t(cycleLabelKey(data.cycle))} tone='accent' />
 					</View>
@@ -110,7 +98,11 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 					{/* Why you can't join, stated plainly and centred — this is the whole reason
 					    the screen exists, so it leads rather than sitting under the stats. */}
 					<CardSurface style={styles.fullCard}>
-						<View style={[styles.fullCircle, { backgroundColor: theme.colors.surfaceMuted }]}>
+						{/* `segmentTrack`, not `surfaceMuted`: in dark mode that token is `#232520`,
+						    the exact colour of the `CardSurface` this sits on, so the disc vanished
+						    and left the glyph floating. This is the one that steps off a card in
+						    both themes — the same reason Home's shelf pill uses it. */}
+						<View style={[styles.fullCircle, { backgroundColor: theme.colors.segmentTrack }]}>
 							<Icon color={theme.colors.subtext} name='memberFull' size={22} strokeWidth={1.7} />
 						</View>
 						<TitleText textAlign='center'>{t('fullTitle')}</TitleText>
@@ -187,6 +179,32 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 	const babRows = chunk(nextBabNumbers, BAB_COLUMNS);
 
 	/**
+	 * What this card showed at the moment you pressed join, held until the screen goes away.
+	 *
+	 * **Joining changes the answer to the question this card is asking.** `nextRange` is the
+	 * next *free* seat's block, and the join takes that seat — so once `useJoinGroup` settles it
+	 * invalidates every group query, the preview refetches, and the card repaints with the
+	 * following seat's babs. That happens before `navigation.replace` lands, so the numbers
+	 * someone just agreed to visibly turn into somebody else's for a frame or two.
+	 *
+	 * Freezing is the honest fix rather than suppressing the refetch: the new data is correct,
+	 * it is simply the answer to a question this screen has stopped asking.
+	 */
+	const shownRows = joinedShare?.rows ?? babRows;
+	const shownPoolCount = joinedShare?.poolCount ?? data.poolBabNumbers.length;
+
+	const handleJoinNow = async () => {
+		setJoinedShare({ poolCount: data.poolBabNumbers.length, rows: babRows });
+
+		const joined = await joinByGroupId.mutateAsync(data.id);
+
+		// Joining from Keşfet and joining by code produce the same thing, so both land on
+		// the same welcome, which decides whether it is showing "your babs are ready" or
+		// "waiting to start".
+		navigation.replace('JoinedWelcome', { groupId: joined.id });
+	};
+
+	/**
 	 * The meta table. A running group has a round to report and counts the seats that are
 	 * taken; a gathering one has neither, so it states the capacity it is waiting to fill
 	 * and drops the round row entirely — "when it starts" is the card above.
@@ -228,12 +246,10 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 	return (
 		<ScreenContainer contentContainerStyle={styles.content} isScrollable>
 			<View>
-				<BackLink label={t('discover')} onPress={handleBackToDiscover} style={styles.back} />
-
 				{/* Status first, then cadence. The status chip takes the tone that says
 				    something — sage for running, sand for waiting — and the cadence chip
 				    takes whichever is left, so the two never carry the same weight. */}
-				<View style={[styles.chipRow, styles.chipRowAfterBack]}>
+				<View style={[styles.chipRow, styles.chipRowUnderBar]}>
 					<Chip label={t(isRunning ? 'running' : 'notStarted')} tone={isRunning ? 'accent' : 'sand'} />
 					<Chip label={t(cycleLabelKey(data.cycle))} tone={isRunning ? 'sand' : 'accent'} />
 				</View>
@@ -268,7 +284,10 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 						 * while promising 69-84. Your seat's block is the only one of the three
 						 * a joiner can act on, so it is the only one shown.
 						 */}
-						{nextBabNumbers.length > 0 ? (
+						{/* The frozen rows, not the live ones — joining can take the last seat, which
+						    leaves `nextRange` null and would pull the whole card out from under the
+						    press rather than merely changing its numbers. */}
+						{shownRows.length > 0 ? (
 							<CardSurface style={styles.sectionCard}>
 								<View style={styles.sectionHead}>
 									<EyebrowText color={theme.colors.faintText}>{t('yourRange')}</EyebrowText>
@@ -277,7 +296,7 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 									    share, and includes the block you are about to take. The
 									    same number its Havuz screen shows. */}
 									<CaptionText color={theme.colors.accent}>
-										{t('unclaimedCount', { count: data.poolBabNumbers.length })}
+										{t('unclaimedCount', { count: shownPoolCount })}
 									</CaptionText>
 								</View>
 								{/*
@@ -292,7 +311,7 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 								 * accent against.
 								 */}
 								<View style={styles.babChips}>
-									{babRows.map(row => (
+									{shownRows.map(row => (
 										<View key={row[0]} style={styles.babRow}>
 											{row.map(number => (
 												<View
@@ -426,7 +445,11 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 			<View style={styles.footer}>
 				{/* The label states the outcome: a running group hands you babs now, a
 				    gathering one hands you a wait. */}
+				{/* The chevron trails the words, pointing out of the button: this commits and moves
+				    you on, rather than qualifying the label the way a leading glyph would. */}
 				<AppButton
+					icon='chevronRight'
+					iconPosition='trailing'
 					isLoading={joinByGroupId.isPending}
 					onPress={handleJoinNow}
 					title={t(isRunning ? 'joinAndRead' : 'joinAndWait')}
@@ -476,8 +499,13 @@ const styles = StyleSheet.create({
 	},
 	// The same air `ScreenHeader` leaves under its back row, so this heading sits where a
 	// pushed screen's does instead of crowding the back link.
-	chipRowAfterBack: {
-		marginTop: 10
+	/*
+	 * The heading starts below the navigator's bar, like every other pushed screen. This screen
+	 * heads with a chip row rather than a `ScreenTitle`, so it reserves the band itself instead
+	 * of getting it from `isUnderNavigationBar`.
+	 */
+	chipRowUnderBar: {
+		paddingTop: SCREEN_TITLE_PADDING_UNDER_BAR
 	},
 	fillBar: {
 		marginBottom: 9,
@@ -571,10 +599,6 @@ const styles = StyleSheet.create({
 	previewName: {
 		fontSize: 26,
 		lineHeight: 31
-	},
-	back: {
-		paddingBottom: 2,
-		paddingTop: 8
 	},
 	footer: {
 		gap: 10,

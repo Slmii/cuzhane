@@ -6,19 +6,13 @@ import { ScreenTitle } from '@/components/ScreenTitle/ScreenTitle.component';
 import { ShelfEmptyState } from '@/components/ShelfEmptyState/ShelfEmptyState.component';
 import { GroupCardSkeleton } from '@/components/Skeleton/GroupCardSkeleton.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
-import { CornerAction } from '@/components/ui/CornerAction/CornerAction.component';
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
 import { Typography } from '@/components/ui/Typography/Typography.component';
 import { useGetGroups } from '@/lib/hooks/useGroup';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { formatBabRange } from '@/lib/utils/babs';
-import {
-	applyGroupBrowse,
-	emptyGroupBrowseState,
-	isGroupBrowseNarrowed,
-	type GroupBrowseState
-} from '@/lib/utils/groupBrowse';
+import { applyGroupBrowse, emptyGroupBrowseState, isGroupBrowseNarrowed } from '@/lib/utils/groupBrowse';
 import {
 	cycleLabelKey,
 	planLabelKey,
@@ -29,6 +23,7 @@ import {
 import { roundResetLabels } from '@/lib/utils/roundReset';
 import { GroupsScreenParams, TabStackParamList } from '@/navigation/types';
 import { JoinByCodeSheet } from '@/screens/Join/JoinByCodeSheet.component';
+import { useGroupBrowse } from '@/components/GroupBrowseBar/GroupBrowse.context';
 import { useUser } from '@clerk/expo';
 import type { RouteProp } from '@react-navigation/native';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -43,12 +38,14 @@ type GroupsNavigationProp = NativeStackNavigationProp<TabStackParamList>;
 const CARD_LAYOUT = LinearTransition.springify().damping(20).stiffness(180).mass(0.7);
 export const GroupsScreen = () => {
 	const navigation = useNavigation<GroupsNavigationProp>();
+
 	const { theme } = useThemeContext();
 	const { language, t } = useTranslation();
 	const { user } = useUser();
 	const { data: groups, isError, isPending, refetch } = useGetGroups();
 	const [isJoinSheetOpen, setIsJoinSheetOpen] = useState(false);
-	const [browse, setBrowse] = useState<GroupBrowseState>(emptyGroupBrowseState);
+	// Shared with the navigator's filter menu, which sits outside this screen — see the context.
+	const { browse, setBrowse } = useGroupBrowse();
 	const route = useRoute<RouteProp<{ Groups: GroupsScreenParams }, 'Groups'>>();
 	// Onboarding's "Davet kodum var" lands here asking for the sheet. Read as a second way
 	// of being open rather than copied into state by an effect — the arriving param is
@@ -74,11 +71,10 @@ export const GroupsScreen = () => {
 			isOwner ? navigation.navigate('Lobby', { groupId }) : navigation.navigate('JoinedWelcome', { groupId }),
 		[navigation]
 	);
-	const goToCreateGroup = () => navigation.navigate('CreateGroup');
+	const goToCreateGroup = useCallback(() => navigation.navigate('CreateGroup'), [navigation]);
 	// "Nothing on the shelf at all", which is a different state from "nothing matches" —
 	// one offers ways to get a group, the other offers to stop narrowing.
 	const isEmpty = !isPending && !isError && (!groups || groups.length === 0);
-
 	/**
 	 * The same controls as Keşfet, over the shelf instead of the catalogue. Every part of it
 	 * is answered client-side here: `useGetGroups` already returns the whole shelf, so
@@ -97,34 +93,26 @@ export const GroupsScreen = () => {
 	const header = (
 		<View key='header' style={[styles.header, { backgroundColor: theme.colors.background }]}>
 			<ScreenTitle
+				// The count only, and only on an empty shelf — the design surfaces it there and
+				// nowhere else. The key and the + moved into the navigator's bar; see the effect
+				// above.
 				action={
 					isEmpty ? (
-						// The design surfaces the count only when the shelf is empty, and drops
-						// both buttons there — the empty state offers the same two errands as
-						// full-width actions instead.
 						<Typography color={theme.colors.faintText} variant='caption'>
 							0
 						</Typography>
-					) : (
-						// The key opens the join sheet; the + starts a group. Two ways onto the
-						// shelf, the outlined one for the group somebody else already made.
-						<View style={styles.headerActions}>
-							<CornerAction
-								accessibilityLabel={t('haveCode')}
-								icon='key'
-								onPress={() => setIsJoinSheetOpen(true)}
-								tone='surface'
-							/>
-							<CornerAction accessibilityLabel={t('newGroup')} icon='plus' onPress={goToCreateGroup} />
-						</View>
-					)
+					) : null
 				}
+				// The key and the + sit in the navigator's bar above, so the greeting starts
+				// below it rather than behind them.
+				isUnderNavigationBar
 				label={t('myGroups')}
 				secondaryLabel={t('greet', { name: user?.firstName ?? '' })}
 			/>
 			{/* Not on an empty shelf: a search box over nothing is a control with no subject,
 			    and the empty state already offers the only three things worth doing. */}
-			{isEmpty ? null : <GroupBrowseBar onChange={setBrowse} state={browse} />}
+			{/* Search only: filter and sort are the navigator's pull-down on this screen. */}
+			{isEmpty ? null : <GroupBrowseBar hasControls={false} onChange={setBrowse} state={browse} />}
 		</View>
 	);
 
@@ -301,10 +289,6 @@ const styles = StyleSheet.create({
 		// ScreenTitle owns the design's `padding: 8px 0 18px`, so the sticky wrapper adds
 		// none of its own — it only needs to be opaque.
 		zIndex: 3
-	},
-	headerActions: {
-		flexDirection: 'row',
-		gap: 8
 	},
 	loader: {
 		alignItems: 'center',

@@ -1,3 +1,4 @@
+import { useGroupBrowse } from '@/components/GroupBrowseBar/GroupBrowse.context';
 import { GroupBrowseBar } from '@/components/GroupBrowseBar/GroupBrowseBar.component';
 import { GroupCard } from '@/components/GroupCard/GroupCard.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
@@ -12,12 +13,7 @@ import { useDiscoverGroups } from '@/lib/hooks/useGroup';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { GroupCycle } from '@/lib/types/domain';
-import {
-	applyGroupBrowse,
-	emptyGroupBrowseState,
-	isGroupBrowseNarrowed,
-	type GroupBrowseState
-} from '@/lib/utils/groupBrowse';
+import { applyGroupBrowse, emptyGroupBrowseState, isGroupBrowseNarrowed } from '@/lib/utils/groupBrowse';
 import { cycleLabelKey, splitModeLabelKey } from '@/lib/utils/groups';
 import { TabStackParamList } from '@/navigation/types';
 import { useNavigation } from '@react-navigation/native';
@@ -53,7 +49,8 @@ export const DiscoverScreen = () => {
 	const navigation = useNavigation<DiscoverNavigationProp>();
 	const { theme } = useThemeContext();
 	const { t } = useTranslation();
-	const [browse, setBrowse] = useState<GroupBrowseState>(emptyGroupBrowseState);
+	// Shared with the navigator's browse menu, which sits outside this screen — see the context.
+	const { browse, setBrowse } = useGroupBrowse();
 	/** Debounced copy of the query, so a request isn't sent per keystroke. */
 	const [search, setSearch] = useState('');
 
@@ -94,8 +91,10 @@ export const DiscoverScreen = () => {
 	// is what makes a search feel like a form rather than a filter.
 	const header = (
 		<View key='header' style={[styles.header, { backgroundColor: theme.colors.background }]}>
-			<ScreenTitle label={t('discover')} />
-			<GroupBrowseBar onChange={setBrowse} state={browse} />
+			{/* Under the navigator's bar, which carries this screen's browse menu. */}
+			<ScreenTitle isUnderNavigationBar label={t('discover')} />
+			{/* Search only: filter and sort are the navigator's pull-down, as on Gruplarım. */}
+			<GroupBrowseBar hasControls={false} onChange={setBrowse} state={browse} />
 		</View>
 	);
 
@@ -113,7 +112,6 @@ export const DiscoverScreen = () => {
 			 */
 			<Animated.View layout={cardLayout}>
 				<GroupCard
-					actionLabel={item.isFull ? t('full') : t('join')}
 					badgeLabel={t(cycleLabelKey(item.cycle))}
 					badgeTone={badgeToneForCycle(item.cycle)}
 					// Cycle, then whether it has started. The design also has a "Kurucu" chip
@@ -126,7 +124,6 @@ export const DiscoverScreen = () => {
 							: `${item.spotsLeft} ${t('spotsLeft')} · ${item.memberCount}/${item.spots}`
 					}
 					footerLeading={<SeatStack />}
-					isActionPrimary={!item.isFull}
 					name={item.name}
 					// Always the read-only preview: joining happens there, not from the row.
 					onPress={() => navigation.navigate('InvitePreview', { groupId: item.id })}

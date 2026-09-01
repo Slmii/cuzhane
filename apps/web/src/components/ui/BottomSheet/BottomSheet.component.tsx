@@ -1,12 +1,51 @@
 import { IsInsideSheetProvider } from '@/components/ui/BottomSheet/BottomSheet.context';
+import { GlassSurface } from '@/components/ui/GlassSurface/GlassSurface.component';
 import { Header2, Typography } from '@/components/ui/Typography/Typography.component';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { BottomSheetBackdrop, BottomSheetModal, BottomSheetView } from '@gorhom/bottom-sheet';
-import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
+import type { BottomSheetBackdropProps, BottomSheetBackgroundProps } from '@gorhom/bottom-sheet';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { AppBottomSheetProps } from './BottomSheet.types';
+
+/**
+ * SwiftUI's sheet, and the host that makes its contents usable.
+ *
+ * **`RNHostView` is not optional here.** A sheet presents its content in its own view controller,
+ * where React Native's surface root is not an ancestor — so touches are never dispatched to it.
+ * Without the host every control in every sheet was dead: fields would not focus so no keyboard
+ * appeared, and buttons did nothing. `@expo/ui`'s own note on the component says exactly this,
+ * and its `layoutRoot` prop is what makes hosted content dispatch its own touches *and* be the
+ * origin it is measured from. `matchContents` is the second half: it reports the children's size
+ * back into the React Native tree, which is what lets the sheet size to its content.
+ *
+ * Assembled here rather than through `@expo/ui`'s universal `BottomSheet`, which hosts with
+ * `pointerEvents="none"` and no `RNHostView` — the reason the first attempt at this failed.
+ *
+ * Required in a `try` like every other `@expo/ui` surface: the package resolves native views as
+ * it loads, so a client built before it was added would throw as this module is evaluated.
+ * Absent — and on Android, which has no SwiftUI — every sheet takes the drawn path below.
+ */
+type SwiftUi = typeof import('@expo/ui/swift-ui');
+type SwiftUiModifiers = typeof import('@expo/ui/swift-ui/modifiers');
+
+let swiftUi: SwiftUi | null = null;
+let swiftUiModifiers: SwiftUiModifiers | null = null;
+
+try {
+	swiftUi = require('@expo/ui/swift-ui') as SwiftUi;
+	swiftUiModifiers = require('@expo/ui/swift-ui/modifiers') as SwiftUiModifiers;
+} catch {
+	swiftUi = null;
+	swiftUiModifiers = null;
+}
+
+/**
+ * How much of the display a sheet may cover — a strip of the screen it came from is what keeps a
+ * sheet a layer rather than a screen of its own.
+ */
+const NATIVE_MAX_HEIGHT_RATIO = 0.75;
 
 /**
  * The one sheet in the app — every "modal" surface goes through it so they all get the
@@ -15,6 +54,28 @@ import type { AppBottomSheetProps } from './BottomSheet.types';
  * Declarative on purpose: callers flip `isVisible` instead of juggling present/dismiss
  * refs, which keeps sheet state alongside the rest of a screen's state. There is no
  * close button; the grabber, a downward drag and a tap on the backdrop all dismiss.
+ *
+ * ---
+ *
+ * **Presenting these natively was tried and reverted.** `@expo/ui`'s sheet — a
+ * `UISheetPresentationController` on iOS, a Material 3 `ModalBottomSheet` on Android — would
+ * have given the system's own detents, scrim and dismissal, and an Android sheet that belongs
+ * there. Four things stopped it, and the last is fatal:
+ *
+ * - **Nothing inside it can be touched.** The wrapper hosts content with `pointerEvents="none"`,
+ *   so the whole subtree stops receiving events: fields never focus, so the keyboard never
+ *   appears, and every button is dead. Assembling the sheet by hand with `box-none` on our own
+ *   `Host` does not fix it — the presented content is not reachable from React Native's touch
+ *   system at all.
+ * - **SwiftUI cannot measure it.** `fitToContents` reads the content with a `GeometryReader` and
+ *   a hosted RN view reports zero, so every sheet fell back to `.medium` whatever it held.
+ * - **Android cannot size to content.** Material keeps a partial detent at half the viewport and
+ *   the only way to skip it also fills the screen — the `SnapPoint` union has no value that
+ *   means "content height, no partial detent".
+ * - **Android's `containerColor` is not forwarded**, so the sheet's own surface cannot be ours.
+ *
+ * Worth knowing before anyone tries again: the first is the one to test first, because it is
+ * cheap to check and it ends the question.
  */
 export const AppBottomSheet = ({
 	children,
@@ -29,6 +90,13 @@ export const AppBottomSheet = ({
 }: AppBottomSheetProps) => {
 	const { theme } = useThemeContext();
 	const insets = useSafeAreaInsets();
+	const { height: windowHeight, width: windowWidth } = useWindowDimensions();
+	/*
+	 * A sheet that scrolls needs a definite height, not a cap: `maxHeight` bounds a view without
+	 * giving it one, and a `ScrollView` filling its parent with `flex: 1` then resolves to zero.
+	 */
+	const nativeMaxHeight = maxHeight ?? Math.round(windowHeight * NATIVE_MAX_HEIGHT_RATIO);
+	const hasNativeFixedHeight = hasScrollableContent || snapPoints !== undefined || topInset !== undefined;
 	const sheetRef = useRef<BottomSheetModal>(null);
 	// Fixed detents mean the sheet no longer measures its content, so the body has to
 	// fill the detent itself instead of hugging the children.
@@ -178,14 +246,36 @@ export const AppBottomSheet = ({
 		[]
 	);
 
+	/**
+	 * The sheet's surface: iOS 26's own material where the platform has it, and the flat `sheet`
+	 * token — the surface every one of these was designed on — on Android and older iOS.
+	 * `ui/GlassSurface` owns that decision, along with Reduce Transparency.
+	 *
+	 * iOS 26 gives a *system* sheet the material for free, and this is not one: it is
+	 * `@gorhom/bottom-sheet`, a JS view, and no prop will ever make it a
+	 * `UISheetPresentationController`. Handing it a glass background is the closest thing that
+	 * doesn't cost the behaviour — every sheet keeps the one grabber, the one spring, the fading
+	 * backdrop, drag-to-dismiss, `snapPoints` and `topInset`, all of which exist because ten
+	 * hand-rolled modals had drifted apart. A real `pageSheet` would take the material and lose
+	 * all of it. What it doesn't get: the system's corner radius as that moves across OS
+	 * versions, and the edge insets iOS 26 gives a half-height sheet. `backgroundStyle` still
+	 * carries our 26 — gorhom merges it into this component's `style` — so the shape stays ours.
+	 */
+	const renderBackground = useCallback(
+		({ pointerEvents, style }: BottomSheetBackgroundProps) => (
+			<GlassSurface fallbackColor={theme.colors.sheet} pointerEvents={pointerEvents} style={style} />
+		),
+		[theme.colors.sheet]
+	);
+
 	if (!isMounted) {
 		return null;
 	}
 
 	const body = (
-		// Everything inside a sheet is told so, so `AppInput` can reach for the sheet-aware
-		// text input without every caller having to know it is in one.
-		<IsInsideSheetProvider value={true}>
+		// Only the drawn sheet counts as "inside a sheet" — `AppInput` reads this to swap in
+		// gorhom's input, which needs that sheet's context and has none in a presented one.
+		<IsInsideSheetProvider value={!swiftUi}>
 			{title ? <Header2 style={styles.title}>{title}</Header2> : null}
 			{description ? (
 				<Typography color={theme.colors.subtext} style={styles.description} variant='caption'>
@@ -196,10 +286,59 @@ export const AppBottomSheet = ({
 		</IsInsideSheetProvider>
 	);
 
+	/*
+	 * Any of these means the content runs long, so the platform sheet is out — see the note on
+	 * the component. `isMounted` above still gates both paths, so a sheet that has never been
+	 * opened costs nothing either way.
+	 */
+
+	if (swiftUi && swiftUiModifiers) {
+		const { BottomSheet, Host, RNHostView } = swiftUi;
+		const { presentationDragIndicator } = swiftUiModifiers;
+
+		return (
+			<Host pointerEvents='box-none' style={styles.nativeHost}>
+				<BottomSheet
+					/*
+					 * SwiftUI reads the content's size with a `GeometryReader`; it comes back zero
+					 * for a hosted React Native view unless `RNHostView` below is reporting one,
+					 * which is the other thing that wrapper buys us. With it the sheet is as tall
+					 * as what it holds, and `nativeBody`'s cap keeps that under three quarters.
+					 */
+					fitToContents
+					isPresented={isVisible}
+					onIsPresentedChange={(presented: boolean) => {
+						if (!presented) {
+							onClose();
+						}
+					}}
+					modifiers={[presentationDragIndicator('visible')]}
+				>
+					{/* `matchContents` so the sheet is as tall as what it holds — see the note on
+					    the module for why this wrapper is what makes any of it work at all. */}
+					<RNHostView matchContents>
+						<View
+							style={[
+								styles.nativeBody,
+								hasNativeFixedHeight ? { height: nativeMaxHeight } : { maxHeight: nativeMaxHeight },
+								{ width: windowWidth }
+							]}
+						>
+							{body}
+						</View>
+					</RNHostView>
+				</BottomSheet>
+			</Host>
+		);
+	}
+
 	return (
 		<BottomSheetModal
 			backdropComponent={renderBackdrop}
-			backgroundStyle={{ backgroundColor: theme.colors.sheet, borderRadius: 26 }}
+			// The colour lives in `renderBackground` above, which decides between the material and
+			// the token. Left here it would paint a flat fill over the glass.
+			backgroundComponent={renderBackground}
+			backgroundStyle={{ borderRadius: 26 }}
 			enableContentPanningGesture={!hasScrollableContent}
 			enableDynamicSizing={snapPoints === undefined}
 			enablePanDownToClose
@@ -239,10 +378,25 @@ export const AppBottomSheet = ({
 };
 
 const styles = StyleSheet.create({
+	/** The anchor the sheet is presented from — it occupies nothing in the screen's layout. */
+	nativeHost: {
+		position: 'absolute'
+	},
+	/** The drawn sheet's padding, applied inside the platform's container. */
+	nativeBody: {
+		paddingBottom: 28,
+		paddingHorizontal: 20,
+		paddingTop: 22
+	},
 	content: {
 		paddingHorizontal: 20,
 		paddingTop: 4
 	},
+	/*
+	 * The drawn sheet's own padding, applied inside the platform's container — plus the bottom
+	 * inset it does not add for us, and the rounded top the system clips to, so our surface meets
+	 * its corners rather than showing a square edge inside them.
+	 */
 	fill: {
 		flex: 1
 	},

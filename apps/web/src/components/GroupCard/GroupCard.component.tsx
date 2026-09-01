@@ -2,7 +2,7 @@ import { GroupProgressSummary } from '@/components/GroupProgressSummary/GroupPro
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Chip } from '@/components/ui/Chip/Chip.component';
-import { CaptionText, BodyStrongText, TitleText } from '@/components/ui/Typography/Typography.component';
+import { BodyStrongText, CaptionText, TitleText } from '@/components/ui/Typography/Typography.component';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { StyleSheet, View } from 'react-native';
 import type { GroupCardProps } from './GroupCard.types';
@@ -106,24 +106,6 @@ export const GroupCard = ({
 							title={actionLabel}
 							variant={isActionPrimary ? 'primary' : 'surface'}
 						/>
-					) : actionLabel ? (
-						// Display-only: the whole card is already the tap target.
-						<View
-							style={[
-								styles.staticAction,
-								{
-									backgroundColor: isActionPrimary ? theme.colors.primary : theme.colors.surfaceMuted,
-									borderRadius: theme.radius.md
-								}
-							]}
-						>
-							<CaptionText
-								color={isActionPrimary ? theme.colors.onPrimary : theme.colors.text}
-								weight='semibold'
-							>
-								{actionLabel}
-							</CaptionText>
-						</View>
 					) : null}
 				</View>
 			) : null}
@@ -162,10 +144,6 @@ const styles = StyleSheet.create({
 	headerCopy: {
 		flex: 1,
 		gap: 4
-	},
-	staticAction: {
-		paddingHorizontal: 15,
-		paddingVertical: 9
 	},
 	badge: {
 		alignSelf: 'flex-end'

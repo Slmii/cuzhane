@@ -19,7 +19,6 @@ export const EmptyState = ({ actionLabel, description, onAction, style, title }:
 				<AppButton
 					fullWidth={false}
 					onPress={onAction}
-					size='md'
 					style={styles.action}
 					title={actionLabel}
 					variant='surface'

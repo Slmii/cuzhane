@@ -4,11 +4,11 @@ import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { StyleSheet } from 'react-native';
 import type { StatTileProps } from './StatTile.types';
 
-export const StatTile = ({ label, style, tone = 'default', value }: StatTileProps) => {
+export const StatTile = ({ hasGlassSurface = false, label, style, tone = 'default', value }: StatTileProps) => {
 	const { theme } = useThemeContext();
 
 	return (
-		<CardSurface isFlush style={[styles.card, style]}>
+		<CardSurface hasGlassSurface={hasGlassSurface} isFlush style={[styles.card, style]}>
 			<NumericText color={tone === 'accent' ? theme.colors.accent : theme.colors.text}>{value}</NumericText>
 			<StatText color={theme.colors.faintText} style={styles.label}>
 				{label}

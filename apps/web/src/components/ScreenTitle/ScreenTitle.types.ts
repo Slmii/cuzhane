@@ -38,5 +38,14 @@ export interface ScreenTitleProps {
 	 * since its back row already sits in that slot.
 	 */
 	hasReservedSecondaryLabel?: boolean;
+	/**
+	 * The screen's header is the **navigator's** — a native back button, toolbar actions, or
+	 * both — so the heading starts below the bar those controls occupy rather than under them.
+	 *
+	 * A flag rather than a padding each screen writes: the distance is the same everywhere and
+	 * a screen that forgets it silently draws its title behind the controls, which is exactly
+	 * what happened on Gruplarım.
+	 */
+	isUnderNavigationBar?: boolean;
 	style?: StyleProp<ViewStyle>;
 }

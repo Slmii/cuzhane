@@ -1,4 +1,4 @@
-import { DangerButton } from '@/components/ui/DangerButton/DangerButton.component';
+import { AppButton } from '@/components/ui/Button/Button.component';
 import { useLeaveGroup } from '@/lib/hooks/useMembership';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import type { TabStackParamList } from '@/navigation/types';
@@ -23,7 +23,7 @@ import type { LeaveGroupButtonProps } from './LeaveGroupButton.types';
  * member's are one pattern — which is what retired `ui/DangerConfirmButton`, the old
  * arm-and-tap-again button, and its "Emin misin? Sil" label with it.
  */
-export const LeaveGroupButton = ({ groupId, style }: LeaveGroupButtonProps) => {
+export const LeaveGroupButton = ({ groupId }: LeaveGroupButtonProps) => {
 	const { t } = useTranslation();
 	const navigation = useNavigation<NativeStackNavigationProp<TabStackParamList>>();
 	const leaveGroup = useLeaveGroup();
@@ -64,13 +64,22 @@ export const LeaveGroupButton = ({ groupId, style }: LeaveGroupButtonProps) => {
 	};
 
 	return (
-		<DangerButton
+		/*
+		 * `AppButton`, so this takes the platform's own glass where there is one — filled red
+		 * either way. `dangerFilled` exists for exactly this: `danger` is the *outlined*
+		 * destructive button, and using it here would have swapped a solid button for a hairline
+		 * one on every device without glass.
+		 *
+		 * The glyph crosses too. `leave` has a custom SF Symbol built from the design's own
+		 * drawing (`ayril-leave`), so this is our arrow rather than Apple's nearest match — and
+		 * without it `AppButton` would have kept the whole button on the drawn path.
+		 */
+		<AppButton
+			disabled={leaveGroup.isPending}
 			icon='leave'
-			isDisabled={leaveGroup.isPending}
-			isFilled
-			label={t('leaveGroup')}
 			onPress={handlePress}
-			style={style}
+			title={t('leaveGroup')}
+			variant='dangerFilled'
 		/>
 	);
 };

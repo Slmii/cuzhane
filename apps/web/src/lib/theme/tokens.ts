@@ -1,4 +1,11 @@
-export type ThemeMode = 'light' | 'dark';
+/**
+ * What someone *chose* in Görünüm. `'system'` is a preference, not an appearance — it says
+ * "whatever the phone is doing", and has to be resolved before anything can be drawn from it.
+ */
+export type ThemeMode = 'light' | 'dark' | 'system';
+
+/** What that preference currently comes out as. Every colour in the app is picked with this. */
+export type ResolvedThemeMode = 'light' | 'dark';
 
 export type Spacing = {
 	xs: number;
@@ -20,6 +27,15 @@ export type AppTheme = {
 	colors: {
 		background: string;
 		surface: string;
+		/**
+		 * Laid **over** a glass surface to pull it back towards `surface`.
+		 *
+		 * `UIGlassEffect.tintColor` blends rather than replaces, so tinting a card with an
+		 * opaque white still leaves it sampling the cream page beneath and coming out beige.
+		 * This is the second half: enough of the card's real colour on top to read as white,
+		 * little enough that the material still shows through. Only `ui/CardSurface` uses it.
+		 */
+		surfaceGlassWash: string;
 		surfaceMuted: string;
 		card: string;
 		/** Bottom sheets sit one step off the page background in dark mode. */
@@ -162,6 +178,7 @@ export const lightTheme: AppTheme = {
 	colors: {
 		background: '#F7F5F0',
 		surface: '#FFFFFF',
+		surfaceGlassWash: 'rgba(255,255,255,0.62)',
 		surfaceMuted: '#F2F0EA',
 		card: '#FFFFFF',
 		sheet: '#F7F5F0',
@@ -233,6 +250,7 @@ export const darkTheme: AppTheme = {
 	colors: {
 		background: '#191A18',
 		surface: '#232520',
+		surfaceGlassWash: 'rgba(35,37,32,0.62)',
 		surfaceMuted: '#232520',
 		card: '#232520',
 		sheet: '#1F211D',

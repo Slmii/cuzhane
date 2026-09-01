@@ -1,5 +1,6 @@
 import { Bone } from '@/components/Skeleton/Skeleton.component';
 import { SkeletonStatusRow } from '@/components/Skeleton/SkeletonStatusRow.component';
+import { SCREEN_TITLE_PADDING_UNDER_BAR } from '@/components/ScreenTitle/ScreenTitle.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
@@ -22,8 +23,9 @@ export const RoundsSkeleton = () => {
 
 	return (
 		<View>
+			{/* No eyebrow bone: `ScreenHeader` reserves no eyebrow row, so one here made the
+			    block taller than the header replacing it. */}
 			<View style={styles.header}>
-				<Bone height={9} radius={4.5} style={styles.headerEyebrow} tone='soft' width={62} />
 				<View style={styles.headerRow}>
 					<Bone height={20} radius={9} width={126} />
 					<Bone height={20} radius={6} width={62} />
@@ -74,15 +76,18 @@ export const RoundsSkeleton = () => {
 };
 
 const styles = StyleSheet.create({
+	/*
+	 * Clear of the navigator's back button, exactly as `ScreenHeader` is on the screen this
+	 * stands in for. Without it the skeleton's own title bone sat under the floating control
+	 * — and a stand-in that starts in a different place than the real thing defeats the point
+	 * of having one.
+	 */
 	header: {
 		paddingBottom: 16,
-		paddingTop: 6
+		paddingTop: SCREEN_TITLE_PADDING_UNDER_BAR
 	},
 	headerCopy: {
 		gap: 7
-	},
-	headerEyebrow: {
-		marginBottom: 14
 	},
 	headerRow: {
 		alignItems: 'center',

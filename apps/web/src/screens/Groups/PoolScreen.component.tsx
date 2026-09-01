@@ -75,7 +75,8 @@ const forgetClaim = (groupId: string, slotIndex: number) => {
  * An open slot wears the hatch across the whole card — the same mark the board uses for
  * a bab with no owner. A slot someone has already taken is dimmed and shows who has it.
  */
-export const PoolScreen = ({ navigation, route }: Props) => {
+// No `navigation`: going back is the navigator's own header button now.
+export const PoolScreen = ({ route }: Props) => {
 	const { groupId } = route.params;
 	const { theme } = useThemeContext();
 	const { t } = useTranslation();
@@ -196,12 +197,7 @@ export const PoolScreen = ({ navigation, route }: Props) => {
 				 * they don't depend on the request — so only the part that is actually unknown
 				 * is stubbed, and the card lands at roughly its final height.
 				 */}
-				<ScreenHeader
-					eyebrow={t('pool')}
-					onBack={navigation.goBack}
-					subtitle={t('poolSub')}
-					title={t('poolTitle')}
-				/>
+				<ScreenHeader eyebrow={t('pool')} hasBackButton subtitle={t('poolSub')} title={t('poolTitle')} />
 				<GridSkeleton cellCount={SKELETON_CELL_COUNT} />
 				<SkeletonStatusRow label={t('loadingPool')} />
 			</ScreenContainer>
@@ -241,6 +237,14 @@ export const PoolScreen = ({ navigation, route }: Props) => {
 		const canUndo = isTaken && slot.takenByMe;
 		const isJustTaken = canUndo && takenHere.includes(slot.slotIndex);
 		const takerLabel = slot.takenByMe ? t('poolMine') : `${slot.takenByDisplayName ?? ''} ${t('takenBy')}`.trim();
+		/*
+		 * Matched against the slot actually in flight. Both mutations belong to the whole screen,
+		 * so read bare they would dim every free row's button at once — a crowded pool would look
+		 * like you had taken all of them.
+		 */
+		const isSlotPending =
+			(takeSlot.isPending && takeSlot.variables?.slotIndex === slot.slotIndex) ||
+			(releaseSlot.isPending && releaseSlot.variables?.slotIndex === slot.slotIndex);
 		// The badge wears the state its cells do, so a range reads the same in the row as it
 		// does on the board above it.
 		const badgeBackgroundColor = slot.takenByMe
@@ -290,78 +294,63 @@ export const PoolScreen = ({ navigation, route }: Props) => {
 							: `${slot.babNumbers.length} ${t('babs')} · ${t('poolExtra')}`}
 					</CaptionText>
 				</View>
-				{canUndo ? (
-					/*
-					 * A way back out. Taking a block is one tap and adds thirteen babs to your
-					 * evening, so every block you hold keeps an undo beside its avatar for as long
-					 * as the round is open — which is exactly as long as the server will accept
-					 * the release.
-					 */
-					<>
-						<Avatar imageUrl={viewer.imageUrl} name={viewer.displayName} size={AVATAR_SIZE} tone='accent' />
-						{/*
-						 * The same button as "Üstlen", down to the fill — it stands in the same slot
-						 * and swaps with it, so a different colour or height made the row twitch as
-						 * you undid what you had just done. Only the glyph and the word change.
-						 */}
-						{/*
-						 * No `isLoading` spinner: the release is optimistic and the board starts
-						 * draining on the tap, last bab first. That sweep *is* the confirmation —
-						 * a spinner here would report a wait the reader has already been shown
-						 * the end of.
-						 */}
-						<AppButton
-							fullWidth={false}
-							icon='undo'
-							onPress={() => handleUndo(slot.slotIndex)}
-							size='sm'
-							title={t('poolUndo')}
-							variant='accent'
-						/>
-					</>
-				) : isTaken ? (
-					/*
-					 * Whose block this is, rather than a tick saying only "claimed". The design
-					 * draws initials here; this is the app's avatar, seeded on the same name the
-					 * members list seeds on, so one person looks like themselves everywhere.
-					 */
+				{/*
+				 * Whose block this is, rather than a tick saying only "claimed". The design
+				 * draws initials here; this is the app's avatar, seeded on the same name the
+				 * members list seeds on, so one person looks like themselves everywhere.
+				 *
+				 * Everyone's real photo, the server's for other members and Clerk's own for
+				 * you — yours comes from the client because an optimistic row is drawn before
+				 * the server has said anything, and a seed that changes afterwards redraws as
+				 * a different face.
+				 */}
+				{isTaken ? (
 					<Avatar
-						/* Everyone's real photo, the server's for other members and Clerk's own for
-						   you — yours comes from the client because an optimistic row is drawn
-						   before the server has said anything, and a seed that changes afterwards
-						   redraws as a different face. */
 						imageUrl={slot.takenByMe ? viewer.imageUrl : slot.takenByImageUrl}
 						name={slot.takenByMe ? viewer.displayName : slot.takenByDisplayName ?? ''}
 						size={AVATAR_SIZE}
 						tone={slot.takenByMe ? 'accent' : 'sand'}
 					/>
-				) : (
+				) : null}
+				{/*
+				 * **One button in one place, whichever way it reads.** "Üstlen" and "Geri al" used
+				 * to be two elements in two branches of a ternary, so taking a block unmounted one
+				 * and mounted the other — and a glass button is a SwiftUI host that measures itself
+				 * and reports its width back a frame later, so the freshly mounted one had no width
+				 * yet and visibly spilled past the card's right edge before snapping back. Sharing
+				 * one element keeps the host mounted and turns that into an ordinary re-measure.
+				 *
+				 * The two have always been the same button down to the fill — standing in the same
+				 * slot, a different colour or height made the row twitch as you undid what you had
+				 * just done. Only the glyph and the word change, and now that is literally true.
+				 *
+				 * Nothing at all for someone else's block: their avatar is the whole answer.
+				 *
+				 * Disabled rather than spinning while the tap is in flight. The board is already
+				 * filling or draining, last bab first, and that sweep *is* the confirmation — a
+				 * spinner would report a wait the reader has been shown the end of. What the dim
+				 * does buy is that the second tap of a double tap cannot fire the opposite action.
+				 */}
+				{canUndo || !isTaken ? (
 					<AppButton
 						// Sits beside the badge and the label, so it shrinks to its own text
 						// rather than taking the row's full width.
+						disabled={isSlotPending}
 						fullWidth={false}
-						// Matched against the slot actually in flight. `isPending` belongs to the
-						// one mutation the whole screen shares, so read bare it spins every free
-						// row's button at once — a crowded pool looks like you took all of them.
-						isLoading={takeSlot.isPending && takeSlot.variables?.slotIndex === slot.slotIndex}
-						onPress={() => handleTake(slot.slotIndex)}
+						onPress={() => (canUndo ? handleUndo(slot.slotIndex) : handleTake(slot.slotIndex))}
 						size='sm'
-						title={t('poolTake')}
+						title={canUndo ? t('poolUndo') : t('poolTake')}
 						variant='accent'
+						{...(canUndo ? { icon: 'undo' as const } : {})}
 					/>
-				)}
+				) : null}
 			</CardSurface>
 		);
 	};
 
 	return (
 		<ScreenContainer shouldIncludeTabBarOffset>
-			<ScreenHeader
-				eyebrow={t('pool')}
-				onBack={navigation.goBack}
-				subtitle={t('poolSub')}
-				title={t('poolTitle')}
-			/>
+			<ScreenHeader eyebrow={t('pool')} hasBackButton subtitle={t('poolSub')} title={t('poolTitle')} />
 			{slots.length === 0 ? (
 				<EmptyState title={t('poolNone')} />
 			) : (

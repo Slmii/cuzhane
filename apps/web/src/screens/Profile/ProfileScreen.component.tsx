@@ -1,5 +1,4 @@
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
-import { ProfileSkeleton } from './ProfileSkeleton.component';
 import { ScreenTitle } from '@/components/ScreenTitle/ScreenTitle.component';
 import { ActivityHeatmap } from '@/components/ui/ActivityHeatmap/ActivityHeatmap.component';
 import { Avatar } from '@/components/ui/Avatar/Avatar.component';
@@ -9,7 +8,10 @@ import { Divider } from '@/components/ui/Divider/Divider.component';
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
 import { Form } from '@/components/ui/Form/Form.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
-import { SegmentedControl } from '@/components/ui/SegmentedControl/SegmentedControl.component';
+import {
+	isSegmentedControlNative,
+	SegmentedControl
+} from '@/components/ui/SegmentedControl/SegmentedControl.component';
 import { StatTile } from '@/components/ui/StatTile/StatTile.component';
 import { BodyStrongText, MonoText } from '@/components/ui/Typography/Typography.component';
 import { useDeleteAccount } from '@/lib/hooks/useAccount';
@@ -20,7 +22,6 @@ import { AppLanguage } from '@/lib/i18n/strings';
 import { createProfileSchema, ProfileForm } from '@/lib/schemas/profile.schema';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { ThemeMode } from '@/lib/theme/tokens';
-import { DeleteAccountSheet } from '@/screens/Profile/DeleteAccountSheet.component';
 import { FeedbackSheet } from '@/screens/Profile/FeedbackSheet.component';
 import { InlineFieldRow } from '@/screens/Profile/InlineFieldRow.component';
 import { PhotoSheet } from '@/screens/Profile/PhotoSheet.component';
@@ -30,7 +31,8 @@ import Constants from 'expo-constants';
 import { File } from 'expo-file-system';
 import { useCallback, useMemo, useState } from 'react';
 import { Controller } from 'react-hook-form';
-import { Image, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, Image, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { ProfileSkeleton } from './ProfileSkeleton.component';
 
 export const ProfileScreen = () => {
 	const { mode, setMode, theme } = useThemeContext();
@@ -44,7 +46,6 @@ export const ProfileScreen = () => {
 
 	const [isPhotoSheetOpen, setIsPhotoSheetOpen] = useState(false);
 	const [isFeedbackSheetOpen, setIsFeedbackSheetOpen] = useState(false);
-	const [isDeleteSheetOpen, setIsDeleteSheetOpen] = useState(false);
 	const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
 	const profileSchema = useMemo(() => createProfileSchema(t), [t]);
@@ -129,6 +130,22 @@ export const ProfileScreen = () => {
 			setIsDeletingAccount(false);
 		}
 	}, [deleteAccount, user]);
+
+	/**
+	 * The platform's own dialog, like leaving and deleting a group — the two other actions in
+	 * the app that cannot be undone. A sheet is the app's surface for *choosing* something and
+	 * is dismissed by a drag or a tap outside; deleting an account is a yes/no, and it should
+	 * ask in the voice the OS uses for one so it doesn't read as another screen.
+	 *
+	 * `deleteAccountHint` says what is lost, so the destructive button repeats the title rather
+	 * than adding a second question.
+	 */
+	const handleDeleteAccountPress = useCallback(() => {
+		Alert.alert(t('deleteAccount'), t('deleteAccountHint'), [
+			{ style: 'cancel', text: t('cancel') },
+			{ onPress: handleDeleteAccountConfirm, style: 'destructive', text: t('deleteAccountConfirm') }
+		]);
+	}, [handleDeleteAccountConfirm, t]);
 
 	if (isPending) {
 		return (
@@ -237,7 +254,7 @@ export const ProfileScreen = () => {
 									</Pressable>
 								}
 							/>
-							<CardSurface isFlush style={styles.nameCard}>
+							<CardSurface hasGlassSurface isFlush>
 								<Controller
 									control={control}
 									name='firstName'
@@ -277,16 +294,40 @@ export const ProfileScreen = () => {
 				}}
 				schema={profileSchema}
 			/>
+			{/*
+			 * **Every card on this screen is glass, and only on this screen.** It is where the
+			 * material is being tried before it goes anywhere else, so `hasGlassSurface` is
+			 * opt-in at each call site rather than a default inside `CardSurface` — cards on
+			 * Home, Gruplarım and the group screen are untouched.
+			 */}
 			<View style={styles.statsRow}>
-				<StatTile label={t('babsRead')} style={styles.statTile} tone='accent' value={stats.babsRead} />
-				<StatTile label={t('roundsDone')} style={styles.statTile} tone='accent' value={stats.roundsCompleted} />
-				<StatTile label={t('streak')} style={styles.statTile} tone='accent' value={stats.streakDays} />
+				<StatTile
+					hasGlassSurface
+					label={t('babsRead')}
+					style={styles.statTile}
+					tone='accent'
+					value={stats.babsRead}
+				/>
+				<StatTile
+					hasGlassSurface
+					label={t('roundsDone')}
+					style={styles.statTile}
+					tone='accent'
+					value={stats.roundsCompleted}
+				/>
+				<StatTile
+					hasGlassSurface
+					label={t('streak')}
+					style={styles.statTile}
+					tone='accent'
+					value={stats.streakDays}
+				/>
 			</View>
-			<CardSurface style={styles.heatmapCard}>
+			<CardSurface hasGlassSurface>
 				<BodyStrongText style={styles.heatmapTitle}>{t('last30')}</BodyStrongText>
 				<ActivityHeatmap columns={15} days={stats.last30Days} />
 			</CardSurface>
-			<CardSurface isFlush style={styles.settingsCard}>
+			<CardSurface hasGlassSurface isFlush>
 				<View style={styles.languageRow}>
 					<BodyStrongText>{t('language')}</BodyStrongText>
 					{/*
@@ -307,12 +348,33 @@ export const ProfileScreen = () => {
 				<Divider />
 				<View style={styles.settingsRow}>
 					<BodyStrongText>{t('appearance')}</BodyStrongText>
+					{/*
+					 * **The control is given a width; it cannot find one itself.** `@expo/ui`
+					 * hosts the native segmented control with `matchContents={{ vertical: true }}`
+					 * — it reports its own height and inherits its width from the parent. The
+					 * language row above is a column, so it inherits the card's full width and
+					 * looks fine; this row is a flex row, where nothing constrains width, and the
+					 * control collapsed to nothing at all.
+					 *
+					 * A fixed width rather than `flex: 1`: filling the row stretches the control to
+					 * the card's edge, where the design has it hugging the right. There is no
+					 * third option — the native control reports no intrinsic width, so something
+					 * has to name one, and only the caller knows how much room the row has.
+					 *
+					 * No icons. Sun and moon were two thirds of an answer — "system" has no glyph
+					 * in the set, and UIKit gives a segment an image *or* a title, never both, so
+					 * the third option would have read as a word among pictures.
+					 */}
 					<SegmentedControl
 						onChange={handleAppearanceChange}
 						options={[
-							{ icon: 'sun', label: t('light'), value: 'light' },
-							{ icon: 'moon', label: t('dark'), value: 'dark' }
+							{ label: t('light'), value: 'light' },
+							{ label: t('dark'), value: 'dark' },
+							{ label: t('systemAppearance'), value: 'system' }
 						]}
+						// Only the native control needs telling; the drawn one hugs its segments,
+						// and a fixed width left empty track after the last option.
+						{...(isSegmentedControlNative ? { style: styles.settingsRowControl } : {})}
 						value={mode}
 					/>
 				</View>
@@ -329,7 +391,7 @@ export const ProfileScreen = () => {
 				>
 					<BodyStrongText>{t('feedback')}</BodyStrongText>
 					<View style={styles.settingsNav}>
-						<Icon color={theme.colors.subtext} name='chevron' size={14} strokeWidth={1.8} />
+						<Icon color={theme.colors.subtext} name='chevronRight' size={14} strokeWidth={1.8} />
 					</View>
 				</Pressable>
 				<Divider />
@@ -339,11 +401,18 @@ export const ProfileScreen = () => {
 				</View>
 			</CardSurface>
 			<View style={styles.footer}>
-				<AppButton onPress={handleSignOut} title={t('signOut')} variant='surface' />
+				<AppButton
+					onPress={handleSignOut}
+					title={t('signOut')}
+					variant={theme.mode === 'light' ? 'surface' : 'accent'}
+				/>
 				<Pressable
 					accessibilityRole='button'
-					onPress={() => setIsDeleteSheetOpen(true)}
-					style={({ pressed }) => [styles.deleteButton, { opacity: pressed ? 0.6 : 1 }]}
+					// The dialog is native and the delete is not instant, so the row goes quiet
+					// while it runs rather than accepting a second tap behind the first.
+					disabled={isDeletingAccount}
+					onPress={handleDeleteAccountPress}
+					style={({ pressed }) => [styles.deleteButton, { opacity: pressed || isDeletingAccount ? 0.6 : 1 }]}
 				>
 					<BodyStrongText color={theme.colors.danger}>{t('deleteAccount')}</BodyStrongText>
 				</Pressable>
@@ -361,12 +430,6 @@ export const ProfileScreen = () => {
 				locale={language}
 				onClose={() => setIsFeedbackSheetOpen(false)}
 				platform={Platform.OS}
-			/>
-			<DeleteAccountSheet
-				isDeleting={isDeletingAccount}
-				isVisible={isDeleteSheetOpen}
-				onClose={() => setIsDeleteSheetOpen(false)}
-				onConfirm={handleDeleteAccountConfirm}
 			/>
 		</ScreenContainer>
 	);
@@ -405,21 +468,12 @@ const styles = StyleSheet.create({
 		gap: 9,
 		marginTop: 6
 	},
-	heatmapCard: {
-		marginBottom: 14
-	},
 	heatmapTitle: {
 		marginBottom: 12
 	},
 	languageRow: {
 		gap: 10,
 		padding: 15
-	},
-	nameCard: {
-		marginBottom: 14
-	},
-	settingsCard: {
-		marginBottom: 14
 	},
 	settingsNav: {
 		alignItems: 'center',
@@ -429,15 +483,27 @@ const styles = StyleSheet.create({
 	settingsRow: {
 		alignItems: 'center',
 		flexDirection: 'row',
+		gap: 14,
 		justifyContent: 'space-between',
 		padding: 15
+	},
+	/*
+	 * A fixed width, and it has to be one — see the note at the call site.
+	 *
+	 * 214 is the ceiling, not a preference: on a 375pt phone the card is 335 wide, its padding
+	 * takes 30, the gap 14 and "Görünüm" about 72, which leaves 219 before the label starts
+	 * being squeezed. Three segments have to live inside that. It was 168 with two options,
+	 * sized to the drawn control's own width so both variants matched; there is no such slack
+	 * left, so the two can differ slightly here.
+	 */
+	settingsRowControl: {
+		width: 214
 	},
 	statTile: {
 		flex: 1
 	},
 	statsRow: {
 		flexDirection: 'row',
-		gap: 8,
-		marginBottom: 14
+		gap: 8
 	}
 });

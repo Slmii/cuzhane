@@ -1,6 +1,4 @@
-import { BackLink } from '@/components/ui/BackLink/BackLink.component';
-import { AppBottomSheet } from '@/components/ui/BottomSheet/BottomSheet.component';
-import { Icon } from '@/components/ui/Icon/Icon.component';
+import { AppButton } from '@/components/ui/Button/Button.component';
 import { CaptionText, EyebrowText, Typography } from '@/components/ui/Typography/Typography.component';
 import type { CevsenInvocation } from '@/lib/content/cevsen';
 import { READER_FONT_SIZE_DEFAULT } from '@/lib/content/cevsen';
@@ -13,11 +11,12 @@ import type { TabStackParamList } from '@/navigation/types';
 import { MealSheet } from '@/screens/Reader/MealSheet.component';
 import { ReaderBabMap } from '@/screens/Reader/ReaderBabMap.component';
 import { ReaderBody, readerFaces } from '@/screens/Reader/ReaderBody.component';
-import { ReaderSettings } from '@/screens/Reader/ReaderSettings.component';
+import { TextSizeSheet } from '@/screens/Reader/TextSizeSheet.component';
+import { textSizeSheet } from '@/screens/Reader/textSizeSheet';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useKeepAwake } from 'expo-keep-awake';
 import { useContext, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS, useSharedValue } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -47,7 +46,9 @@ const NOTHING: number[] = [];
  * The text, its faces and the long-press meal are `ReaderBody`, shared with E2 — the page is
  * the same page.
  */
-export const AllBabsScreen = ({ navigation }: Props) => {
+// No `navigation`: going back is the navigator's own header button now, so this screen has
+// nothing left to navigate.
+export const AllBabsScreen = ({ navigation, route }: Props) => {
 	/*
 	 * Same reason as the group reader: minutes of looking without touching is exactly the
 	 * shape of "idle" the OS dims for. Released on unmount.
@@ -66,7 +67,8 @@ export const AllBabsScreen = ({ navigation }: Props) => {
 	 * and there is nothing to deep-link to.
 	 */
 	const [babNumber, setBabNumber] = useState(1);
-	const [isSettingsSheetOpen, setIsSettingsSheetOpen] = useState(false);
+	// Opened from the navigator's bar, which is outside this screen — see `textSizeSheet`.
+	const textSize = textSizeSheet(navigation, route.params);
 	const [mealInvocation, setMealInvocation] = useState<CevsenInvocation | null>(null);
 
 	const [railWidth, setRailWidth] = useState(0);
@@ -162,36 +164,27 @@ export const AllBabsScreen = ({ navigation }: Props) => {
 			<View style={[styles.header, { borderBottomColor: theme.colors.readerRule }]}>
 				<View style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.readerSurface }]} />
 				<View style={styles.headerTopRow}>
-					<View style={styles.headerSide}>
-						<BackLink onPress={navigation.goBack} />
-					</View>
+					{/*
+					 * **Empty on purpose — the back control is the navigator's.** This screen is
+					 * registered with a transparent native header, so iOS and Android each draw
+					 * their own back button over this corner, and iOS 26 draws it in glass. The
+					 * slot stays because it is what centres the eyebrow between two equal sides;
+					 * dropping it would shift "Serbest okuma" off the header's middle.
+					 */}
+					<View style={styles.headerSide} />
 					<View style={styles.headerCenter}>
 						{/* Where E2 puts "Bab 87 / 100". There is no position to be at here —
 						    the eyebrow says what kind of reading this is instead. */}
 						<EyebrowText>{t('abFree')}</EyebrowText>
 					</View>
-					<View style={[styles.headerSide, styles.headerSideEnd]}>
-						<Pressable
-							accessibilityRole='button'
-							onPress={() => setIsSettingsSheetOpen(true)}
-							style={[
-								styles.fsButton,
-								{
-									backgroundColor: isSettingsSheetOpen
-										? theme.colors.accentSoft
-										: theme.colors.surface,
-									borderColor: isSettingsSheetOpen ? theme.colors.accent : theme.colors.border
-								}
-							]}
-						>
-							<Typography
-								color={isSettingsSheetOpen ? theme.colors.accent : undefined}
-								variant='bodyStrong'
-							>
-								Aa
-							</Typography>
-						</Pressable>
-					</View>
+					{/*
+					 * **Empty for the same reason as the slot opposite — the text-size control is
+					 * the navigator's now.** It was an "Aa" chip here and it had stopped
+					 * responding: this row occupies the band the transparent native header draws
+					 * in, and that header is a view above the scene, so the taps never reached it.
+					 * See `ReaderToolbar`. The slot stays to centre the eyebrow.
+					 */}
+					<View style={[styles.headerSide, styles.headerSideEnd]} />
 				</View>
 				<Typography variant='title' weight='regular'>
 					{t('babOrdinal', { n: displayBab })}
@@ -235,57 +228,47 @@ export const AllBabsScreen = ({ navigation }: Props) => {
 					{t('abNote')}
 				</CaptionText>
 				<View style={styles.footerRow}>
-					<Pressable
-						accessibilityRole='button'
+					{/*
+					 * **Both are `AppButton`, and both lost their chevron doing it.** The pair used
+					 * to lead and trail with an arrow; the icon set is traced SVG and a native
+					 * button takes an SF Symbol, so there is no crossing — and `AppButton` puts an
+					 * icon *before* the label in any case, which "Sonraki →" was never going to
+					 * survive. The direction is still legible from the words and from which of the
+					 * two is filled.
+					 *
+					 * Filled where "Önceki" is outlined — reading forward is the direction this
+					 * screen is for, and the pair would otherwise read as one control split in two.
+					 * `primary` is that fill: the same near-black this button drew with `text`.
+					 */}
+					<AppButton
 						disabled={previousBabNumber === undefined}
 						onPress={() => previousBabNumber !== undefined && setBabNumber(previousBabNumber)}
-						style={[
-							styles.navButton,
-							{
-								backgroundColor: theme.colors.surface,
-								borderColor: theme.colors.border,
-								opacity: previousBabNumber === undefined ? 0.4 : 1
-							}
-						]}
-					>
-						<Icon name='back' size={16} />
-						<Typography color={theme.colors.subtext} variant='bodyStrong'>
-							{t('abPrev')}
-						</Typography>
-					</Pressable>
-					{/*
-					 * Filled, where "Önceki" is outlined — reading forward is the direction this
-					 * screen is for, and the pair would otherwise read as one control split in two.
-					 */}
-					<Pressable
-						accessibilityRole='button'
+						style={styles.navButtonSlot}
+						title={t('abPrev')}
+						variant='surface'
+						icon='chevronLeft'
+					/>
+					{/* The chevron trails the word here where "Önceki" leads with one, so the two
+					    arrows point away from each other — back on the left, forward on the right.
+					    Leading on both, it read as "‹ Önceki" and "› Sonraki", pointing the same way. */}
+					<AppButton
 						disabled={nextBabNumber === undefined}
+						icon='chevronRight'
+						iconPosition='trailing'
 						onPress={() => nextBabNumber !== undefined && setBabNumber(nextBabNumber)}
-						style={[
-							styles.navButton,
-							styles.navButtonPrimary,
-							{
-								backgroundColor: theme.colors.text,
-								opacity: nextBabNumber === undefined ? 0.4 : 1
-							}
-						]}
-					>
-						<Typography color={theme.colors.background} variant='bodyStrong'>
-							{t('abNext')}
-						</Typography>
-						<Icon color={theme.colors.background} name='chevron' size={16} />
-					</Pressable>
+						style={styles.navButtonSlot}
+						title={t('abNext')}
+						variant='primary'
+					/>
 				</View>
 			</View>
 
-			<AppBottomSheet
-				description={t('readerSettingsHint')}
-				isVisible={isSettingsSheetOpen}
-				onClose={() => setIsSettingsSheetOpen(false)}
-				title={t('readerSettings')}
-			>
-				<ReaderSettings onChange={patch => updateSettings.mutate(patch)} settings={readerSettings} />
-			</AppBottomSheet>
+			<TextSizeSheet
+				isVisible={textSize.isVisible}
+				onChange={patch => updateSettings.mutate(patch)}
+				onClose={textSize.close}
+				settings={readerSettings}
+			/>
 
 			<MealSheet
 				arabicFont={faces.arabicFont}
@@ -324,13 +307,6 @@ const styles = StyleSheet.create({
 		flexDirection: 'row',
 		gap: 8
 	},
-	fsButton: {
-		alignItems: 'center',
-		borderRadius: 9,
-		borderWidth: StyleSheet.hairlineWidth,
-		paddingHorizontal: 9,
-		paddingVertical: 5
-	},
 	header: {
 		borderBottomWidth: StyleSheet.hairlineWidth,
 		gap: 10,
@@ -353,20 +329,22 @@ const styles = StyleSheet.create({
 	},
 	headerTopRow: {
 		alignItems: 'center',
-		flexDirection: 'row'
-	},
-	navButton: {
-		alignItems: 'center',
-		borderRadius: 13,
-		borderWidth: StyleSheet.hairlineWidth,
-		flex: 1,
 		flexDirection: 'row',
-		gap: 7,
-		justifyContent: 'center',
-		paddingVertical: 14
+		/*
+		 * **A navigation bar's height, because the back button is the navigator's.** This row
+		 * shares its band with a control this screen does not draw — a ~44pt disc on iOS 26,
+		 * where the row's own contents (an eyebrow and the Aa button) are shorter. Left to size
+		 * itself the row ended above the disc's bottom edge and "1. Bab" ran into it.
+		 *
+		 * 44 is the standard bar height, so the row now ends exactly where the control does and
+		 * the title clears it on every platform rather than by a margin tuned to one.
+		 */
+		minHeight: 44
 	},
-	navButtonPrimary: {
-		borderWidth: 0
+	// An equal share of the row and nothing else — `AppButton` owns its radius, border and
+	// padding, and `md` carries the 13 these were drawn with.
+	navButtonSlot: {
+		flex: 1
 	},
 	/*
 	 * Centred, unlike E2's hint beside it in the same file — and deliberately so. E2's is a

@@ -1,8 +1,9 @@
 import { Icon } from '@/components/ui/Icon/Icon.component';
 import { Typography } from '@/components/ui/Typography/Typography.component';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import { Pressable, StyleSheet, TextStyle, ViewStyle } from 'react-native';
+import { Image, Pressable, StyleSheet, TextStyle, ViewStyle } from 'react-native';
 import { AppButtonProps, ButtonSize } from './Button.types';
+import { GlassButton, hasSfSymbol, isGlassButtonAvailable } from './GlassButton';
 
 const sizeStyleMap: Record<ButtonSize, ViewStyle> = {
 	sm: {
@@ -25,13 +26,24 @@ const sizeStyleMap: Record<ButtonSize, ViewStyle> = {
 	}
 };
 
+/**
+ * **Mirrored as `LABEL_SIZE_BY_SIZE` in `GlassButton.tsx` — change both together.** A SwiftUI
+ * `Text` is 17pt unless told otherwise, so the glass button has to be handed these or the same
+ * button renders at two different sizes depending on the platform.
+ */
 const labelSizeStyleMap: Record<ButtonSize, TextStyle> = {
 	sm: { fontSize: 12, lineHeight: 16 },
 	md: { fontSize: 12.5, lineHeight: 17 },
 	lg: { fontSize: 13.5, lineHeight: 18 }
 };
 
-/** A shade above the label so the glyph reads as its equal, not as punctuation. */
+/**
+ * A shade above the label so the glyph reads as its equal, not as punctuation.
+ *
+ * **Mirrored as `ICON_SIZE_BY_SIZE` in `GlassButton.tsx` — change both together.** An SF Symbol
+ * sizes off its label unless told otherwise, and the two buttons have to agree or the same
+ * button looks like two different controls depending on the platform.
+ */
 const iconSizeMap: Record<ButtonSize, number> = {
 	sm: 13,
 	md: 14,
@@ -39,17 +51,65 @@ const iconSizeMap: Record<ButtonSize, number> = {
 };
 
 export const AppButton = ({
+	accessibilityLabel,
 	disabled = false,
 	fullWidth = true,
 	icon,
+	iconPosition = 'leading',
+	imageIcon,
 	isLoading = false,
 	onPress,
 	size = 'lg',
 	style,
+	systemIcon,
 	title,
 	variant = 'primary'
 }: AppButtonProps) => {
 	const { theme } = useThemeContext();
+
+	/*
+	 * **The one place that decides**, and it decides for every button in the app: glass where
+	 * the platform has it, this drawn button where it doesn't. No call site carries a platform
+	 * check, the way `ui/Switch` and `ui/SegmentedControl` already work.
+	 *
+	 * **An icon only disqualifies it if the glyph cannot come along.** Our set is traced SVG and
+	 * a SwiftUI button wants an SF Symbol, so `GlassButton` keeps a map of the ones with a stock
+	 * equivalent; an icon outside it sends the whole button back here, glyph intact. Losing a
+	 * glyph is worse than losing a material, so the material is what gives way.
+	 *
+	 * **A hugging glass button must not be swapped for a different one.** Given a width by its
+	 * parent a glass button simply fills it, but `fullWidth={false}` makes it a SwiftUI host that
+	 * lays out natively and reports its own width back into the React Native tree a frame or two
+	 * later. Mount a *new* one in place of another and that measurement starts from nothing: the
+	 * pool screen's "Üstlen" becoming "↩ Geri al" spilled past the card's right edge and snapped
+	 * back. Keeping one element in one place and changing its props re-measures without the
+	 * remount, which is what that screen now does.
+	 *
+	 * `systemIcon` is glass-only and needs no gate here: it names a stock SF Symbol, which the
+	 * drawn button below has no way to render and simply ignores.
+	 *
+	 * `isLoading` folds into `disabled` rather than being lost. This button never had a spinner —
+	 * it dims to 0.45 and stops responding, and that dimming *is* the feedback — which is exactly
+	 * what SwiftUI's own disabled state does.
+	 */
+	if (isGlassButtonAvailable && (icon === undefined || hasSfSymbol(icon))) {
+		return (
+			<GlassButton
+				disabled={disabled || isLoading}
+				{...(accessibilityLabel === undefined ? {} : { accessibilityLabel })}
+				fullWidth={fullWidth}
+				iconPosition={iconPosition}
+				onPress={onPress}
+				size={size}
+				style={style}
+				title={title}
+				variant={variant}
+				{...(icon === undefined ? {} : { icon })}
+				{...(imageIcon === undefined ? {} : { imageIcon })}
+				{...(systemIcon === undefined ? {} : { systemIcon })}
+			/>
+		);
+	}
 
 	const toneByVariant = {
 		primary: {
@@ -77,6 +137,11 @@ export const AppButton = ({
 			borderColor: theme.colors.danger,
 			textColor: theme.colors.danger
 		},
+		dangerFilled: {
+			backgroundColor: theme.colors.danger,
+			borderColor: theme.colors.danger,
+			textColor: theme.colors.onDanger
+		},
 		ghost: {
 			backgroundColor: theme.colors.transparent,
 			borderColor: theme.colors.transparent,
@@ -84,8 +149,27 @@ export const AppButton = ({
 		}
 	}[variant];
 
+	/*
+	 * One element, placed either side of the label. Artwork wins over an `icon` only in the
+	 * sense that it is checked first — no caller passes both, and a brand mark is never
+	 * something the icon set could stand in for.
+	 */
+	const drawnGlyph =
+		imageIcon !== undefined ? (
+			// `contain`, so a square mark keeps its aspect at whatever the size map says.
+			<Image
+				resizeMode='contain'
+				source={imageIcon}
+				style={{ height: iconSizeMap[size], width: iconSizeMap[size] }}
+			/>
+		) : icon !== undefined ? (
+			<Icon color={toneByVariant.textColor} name={icon} size={iconSizeMap[size]} strokeWidth={1.9} />
+		) : null;
+
 	return (
 		<Pressable
+			accessibilityLabel={accessibilityLabel ?? title}
+			accessibilityRole='button'
 			disabled={disabled || isLoading}
 			onPress={onPress}
 			style={({ pressed }) => [
@@ -111,12 +195,15 @@ export const AppButton = ({
 			{/* The icon leads the label, in the label's own colour — the row's `gap` already
 			    spaces it. A confirmation like "Yapıştırıldı" is a tick and a word, and the tick
 			    has to be the icon set's, never a ✓ typed into the string. */}
-			{icon ? (
-				<Icon color={toneByVariant.textColor} name={icon} size={iconSizeMap[size]} strokeWidth={1.9} />
-			) : null}
-			<Typography color={toneByVariant.textColor} style={labelSizeStyleMap[size]} variant='bodyStrong'>
-				{title}
-			</Typography>
+			{drawnGlyph && iconPosition === 'leading' ? drawnGlyph : null}
+			{/* Omitted entirely on a glyph-only button, rather than rendered empty: an empty
+			    `Typography` still claims a line's height and would stretch the button. */}
+			{title === undefined ? null : (
+				<Typography color={toneByVariant.textColor} style={labelSizeStyleMap[size]} variant='bodyStrong'>
+					{title}
+				</Typography>
+			)}
+			{drawnGlyph && iconPosition === 'trailing' ? drawnGlyph : null}
 		</Pressable>
 	);
 };

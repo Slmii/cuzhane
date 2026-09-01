@@ -1,6 +1,5 @@
 import { AppBottomSheet } from '@/components/ui/BottomSheet/BottomSheet.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
-import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Divider } from '@/components/ui/Divider/Divider.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
 import { BodyStrongText, CaptionText, EyebrowText } from '@/components/ui/Typography/Typography.component';
@@ -23,8 +22,15 @@ import type { GroupBrowseBarProps } from './GroupBrowseBar.types';
  * State lives with the caller, not here. Each screen already owns how its list is fetched
  * — Keşfet sends the cadence to the server, Gruplarım holds the whole shelf — so the bar
  * reports changes and lets the screen decide what to do with them.
+ *
+ * **`hasControls` drops the filter and sort buttons, leaving the search field.** Both screens
+ * carry those two in the navigator's bar instead, as one pull-down (`GroupBrowseMenu`); the
+ * search box cannot follow them there, because a menu holds no text field. So both pass `false`
+ * today and the bar is, in practice, the search field — the two sheets below are still what the
+ * `true` path renders, and nothing renders it. Kept rather than deleted: the sheets are the only
+ * form of these controls that works without a native menu, and a screen may yet want them inline.
  */
-export const GroupBrowseBar = ({ onChange, state }: GroupBrowseBarProps) => {
+export const GroupBrowseBar = ({ hasControls = true, onChange, state }: GroupBrowseBarProps) => {
 	const { theme } = useThemeContext();
 	const { t } = useTranslation();
 
@@ -69,61 +75,65 @@ export const GroupBrowseBar = ({ onChange, state }: GroupBrowseBarProps) => {
 						value={state.search}
 					/>
 				</View>
-				<Pressable
-					accessibilityLabel={t('filterTitle')}
-					accessibilityRole='button'
-					onPress={() => setIsFilterOpen(true)}
-					style={({ pressed }) => [
-						styles.iconButton,
-						{
-							backgroundColor: isFilterActive ? theme.colors.accentSoft : theme.colors.surface,
-							borderColor: isFilterActive ? theme.colors.accent : theme.colors.border,
-							opacity: pressed ? 0.7 : 1
-						}
-					]}
-				>
-					<Icon
-						color={isFilterActive ? theme.colors.accent : theme.colors.subtext}
-						name='filter'
-						size={20}
-						strokeWidth={1.6}
-					/>
-					{isFilterActive ? (
-						<View style={[styles.activeDot, { backgroundColor: theme.colors.accent }]} />
-					) : null}
-				</Pressable>
-				{/* Its own control, not a row inside the filter sheet: narrowing and ordering
+				{!hasControls ? null : (
+					<>
+						<Pressable
+							accessibilityLabel={t('filterTitle')}
+							accessibilityRole='button'
+							onPress={() => setIsFilterOpen(true)}
+							style={({ pressed }) => [
+								styles.iconButton,
+								{
+									backgroundColor: isFilterActive ? theme.colors.accentSoft : theme.colors.surface,
+									borderColor: isFilterActive ? theme.colors.accent : theme.colors.border,
+									opacity: pressed ? 0.7 : 1
+								}
+							]}
+						>
+							<Icon
+								color={isFilterActive ? theme.colors.accent : theme.colors.subtext}
+								name='filter'
+								size={20}
+								strokeWidth={1.6}
+							/>
+							{isFilterActive ? (
+								<View style={[styles.activeDot, { backgroundColor: theme.colors.accent }]} />
+							) : null}
+						</Pressable>
+						{/* Its own control, not a row inside the filter sheet: narrowing and ordering
 				    are different questions, and folding the second into the first hides it. */}
-				<Pressable
-					accessibilityLabel={t('sortTitle')}
-					accessibilityRole='button'
-					onPress={() => setIsSortOpen(true)}
-					style={({ pressed }) => [
-						styles.iconButton,
-						{
-							backgroundColor: isSortActive ? theme.colors.accentSoft : theme.colors.surface,
-							borderColor: isSortActive ? theme.colors.accent : theme.colors.border,
-							opacity: pressed ? 0.7 : 1
-						}
-					]}
-				>
-					<Icon
-						color={isSortActive ? theme.colors.accent : theme.colors.subtext}
-						name='sort'
-						size={20}
-						strokeWidth={1.6}
-					/>
-					{isSortActive ? (
-						<View style={[styles.activeDot, { backgroundColor: theme.colors.accent }]} />
-					) : null}
-				</Pressable>
+						<Pressable
+							accessibilityLabel={t('sortTitle')}
+							accessibilityRole='button'
+							onPress={() => setIsSortOpen(true)}
+							style={({ pressed }) => [
+								styles.iconButton,
+								{
+									backgroundColor: isSortActive ? theme.colors.accentSoft : theme.colors.surface,
+									borderColor: isSortActive ? theme.colors.accent : theme.colors.border,
+									opacity: pressed ? 0.7 : 1
+								}
+							]}
+						>
+							<Icon
+								color={isSortActive ? theme.colors.accent : theme.colors.subtext}
+								name='sort'
+								size={20}
+								strokeWidth={1.6}
+							/>
+							{isSortActive ? (
+								<View style={[styles.activeDot, { backgroundColor: theme.colors.accent }]} />
+							) : null}
+						</Pressable>
+					</>
+				)}
 			</View>
 
 			<AppBottomSheet isVisible={isFilterOpen} onClose={() => setIsFilterOpen(false)} title={t('filterTitle')}>
 				<EyebrowText color={theme.colors.faintText} style={styles.eyebrow}>
 					{t('filterCadence')}
 				</EyebrowText>
-				<CardSurface isFlush style={styles.card}>
+				<View style={styles.card}>
 					{CYCLE_FILTER_OPTIONS.map((option, index) => {
 						const isSelected = state.cycle === option;
 
@@ -167,7 +177,7 @@ export const GroupBrowseBar = ({ onChange, state }: GroupBrowseBarProps) => {
 							</View>
 						);
 					})}
-				</CardSurface>
+				</View>
 
 				{/*
 				 * Durum: two independent conditions, so checkboxes rather than the radio ring
@@ -177,7 +187,7 @@ export const GroupBrowseBar = ({ onChange, state }: GroupBrowseBarProps) => {
 				<EyebrowText color={theme.colors.faintText} style={styles.eyebrow}>
 					{t('filterStatus')}
 				</EyebrowText>
-				<CardSurface isFlush style={styles.card}>
+				<View style={styles.card}>
 					{statusRows.map((statusRow, index) => (
 						<View key={statusRow.label}>
 							{index > 0 ? <Divider /> : null}
@@ -211,13 +221,13 @@ export const GroupBrowseBar = ({ onChange, state }: GroupBrowseBarProps) => {
 							</Pressable>
 						</View>
 					))}
-				</CardSurface>
+				</View>
 
 				<AppButton onPress={() => setIsFilterOpen(false)} title={t('filterApply')} />
 			</AppBottomSheet>
 
 			<AppBottomSheet isVisible={isSortOpen} onClose={() => setIsSortOpen(false)} title={t('sortTitle')}>
-				<CardSurface isFlush style={styles.card}>
+				<View style={styles.card}>
 					{GROUP_SORT_OPTIONS.map((option, index) => {
 						const isSelected = state.sortKey === option.key;
 
@@ -260,7 +270,7 @@ export const GroupBrowseBar = ({ onChange, state }: GroupBrowseBarProps) => {
 							</View>
 						);
 					})}
-				</CardSurface>
+				</View>
 			</AppBottomSheet>
 		</>
 	);

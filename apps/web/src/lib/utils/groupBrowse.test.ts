@@ -1,6 +1,12 @@
 import type { GroupCycle, GroupStatus } from '@/lib/types/domain';
 import { describe, expect, it } from 'vitest';
-import { applyGroupBrowse, emptyGroupBrowseState, isGroupBrowseNarrowed, type GroupBrowseState } from './groupBrowse';
+import {
+	applyGroupBrowse,
+	emptyGroupBrowseState,
+	isGroupBrowseMenuActive,
+	isGroupBrowseNarrowed,
+	type GroupBrowseState
+} from './groupBrowse';
 
 type TestGroup = {
 	createdAt: string;
@@ -135,5 +141,24 @@ describe('isGroupBrowseNarrowed', () => {
 	it('is false for a blank search and for sorting, which reorder rather than narrow', () => {
 		expect(isGroupBrowseNarrowed(state({ search: '   ' }))).toBe(false);
 		expect(isGroupBrowseNarrowed(state({ sortKey: 'seats' }))).toBe(false);
+	});
+});
+
+describe('isGroupBrowseMenuActive', () => {
+	it('is false for the untouched state', () => {
+		expect(isGroupBrowseMenuActive(emptyGroupBrowseState)).toBe(false);
+	});
+
+	it('counts everything the menu sets, sort order included', () => {
+		expect(isGroupBrowseMenuActive(state({ cycle: 'DAILY' }))).toBe(true);
+		expect(isGroupBrowseMenuActive(state({ isNotStartedOnly: true }))).toBe(true);
+		expect(isGroupBrowseMenuActive(state({ hasSeatsOnly: true }))).toBe(true);
+		expect(isGroupBrowseMenuActive(state({ sortKey: 'seats' }))).toBe(true);
+	});
+
+	// The search box is the screen's, not the menu's, and the clear leaves it alone — so a
+	// search on its own must not offer a "Temizle" that would then do nothing.
+	it('ignores the search term, which the clear keeps', () => {
+		expect(isGroupBrowseMenuActive(state({ search: 'sas' }))).toBe(false);
 	});
 });

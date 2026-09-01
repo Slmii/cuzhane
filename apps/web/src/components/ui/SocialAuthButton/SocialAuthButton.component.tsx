@@ -1,127 +1,59 @@
-import { Typography } from '@/components/ui/Typography/Typography.component';
-import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import { Pressable, StyleSheet, View } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
+import { AppButton } from '@/components/ui/Button/Button.component';
+import { StyleSheet } from 'react-native';
 import type { SocialAuthButtonProps } from './SocialAuthButton.types';
 
 /**
- * Google's official "G" mark. The design draws a four-quadrant conic gradient, which is a
- * reasonable shorthand in a static mock but on screen reads as the Microsoft logo — four
- * coloured squares in a circle is that brand, not this one. The real mark is also what
- * Google's identity guidelines require on a sign-in button.
+ * Sign in with Google or Apple — an `AppButton`, so it takes the platform's glass where there
+ * is one and the drawn button everywhere else, exactly like every other button in the app.
  *
- * The four paths are the standard 48-grid artwork, so it renders identically on light and
- * dark: the colours are the brand's own and never inherit from the theme.
+ * **The brand marks are gone for now, and that is a real cost.** Both Google's and Apple's
+ * sign-in guidelines call for their mark on the button, and neither could survive the move:
+ * `AppButton`'s `icon` takes an `IconName` from our own set, which is stroke-only and inherits
+ * `currentColor`, while Google's G is four-colour artwork and Apple's is `U+F8FF`, a font glyph
+ * with no drawing behind it. Putting them back means teaching the icon set about brand artwork —
+ * or dropping to a hand-rolled button again, which is what this used to be.
+ *
+ * `surface` by default, so neither reads as the primary of the pair — Apple's near-black fill
+ * went with the marks, and the side-by-side compact row on the sign-up screen already implied
+ * two of equal weight. A caller can override it.
+ *
+ * Apple's mark is back on the platforms that can draw it, as `systemIcon='apple.logo'` from the
+ * call site: it is a stock SF Symbol, so it needs none of our own artwork. Google has no
+ * equivalent and stays wordmark-only.
  */
-const GoogleMark = ({ size = 16 }: { size?: number }) => (
-	<Svg height={size} viewBox='0 0 48 48' width={size}>
-		<Path
-			d='M45.12 24.5c0-1.56-.14-3.06-.4-4.5H24v8.51h11.84c-.51 2.75-2.06 5.08-4.39 6.64v5.52h7.11c4.16-3.83 6.56-9.47 6.56-16.17z'
-			fill='#4285F4'
-		/>
-		<Path
-			d='M24 46c5.94 0 10.92-1.97 14.56-5.33l-7.11-5.52c-1.97 1.32-4.49 2.1-7.45 2.1-5.73 0-10.58-3.87-12.31-9.07H4.34v5.7C7.96 41.07 15.4 46 24 46z'
-			fill='#34A853'
-		/>
-		<Path
-			d='M11.69 28.18C11.25 26.86 11 25.45 11 24s.25-2.86.69-4.18v-5.7H4.34C2.85 17.09 2 20.45 2 24s.85 6.91 2.34 9.88l7.35-5.7z'
-			fill='#FBBC05'
-		/>
-		<Path
-			d='M24 10.75c3.23 0 6.13 1.11 8.41 3.29l6.31-6.31C34.91 4.18 29.93 2 24 2 15.4 2 7.96 6.93 4.34 14.12l7.35 5.7c1.73-5.2 6.58-9.07 12.31-9.07z'
-			fill='#EA4335'
-		/>
-	</Svg>
-);
-
 export const SocialAuthButton = ({
 	isCompact = false,
 	isLoading = false,
 	label,
+	variant = 'surface',
 	onPress,
-	provider,
-	style
-}: SocialAuthButtonProps) => {
-	const { theme } = useThemeContext();
-	const isApple = provider === 'apple';
-
-	const backgroundColor = isApple ? theme.colors.primary : theme.colors.surface;
-	const textColor = isApple ? theme.colors.onPrimary : theme.colors.text;
-
-	return (
-		<Pressable
-			accessibilityRole='button'
-			disabled={isLoading}
-			onPress={onPress}
-			style={({ pressed }) => [
-				styles.button,
-				isCompact ? styles.compact : styles.full,
-				{
-					backgroundColor,
-					borderColor: isApple ? theme.colors.primary : theme.colors.border,
-					opacity: isLoading ? 0.6 : 1,
-					transform: [{ scale: pressed ? 0.96 : 1 }]
-				},
-				style
-			]}
-		>
-			{/* No spinner: `isLoading` already dims this to 0.6 and blocks the press, and that
-			    dimming is the app's one way of showing a control is busy. See `AppButton`. */}
-			<>
-				{isApple ? (
-					// U+F8FF is Apple's logo glyph — private-use, so it only renders on
-					// Apple platforms. That's fine: this button is iOS-only by design.
-					<Typography color={textColor} style={styles.appleGlyph}>
-						{'\uF8FF'}
-					</Typography>
-				) : (
-					<View style={styles.googleMark}>
-						<GoogleMark size={isCompact ? 15 : 16} />
-					</View>
-				)}
-				<Typography color={textColor} style={isCompact ? styles.compactLabel : styles.label}>
-					{label}
-				</Typography>
-			</>
-		</Pressable>
-	);
-};
+	style,
+	systemIcon,
+	imageIcon
+}: SocialAuthButtonProps) => (
+	<AppButton
+		/*
+		 * **Always full width, compact included** — it is `flex: 1` that makes the compact pair
+		 * half a row each, not the button hugging its label.
+		 *
+		 * `fullWidth={false}` was wrong here and visibly so: it makes a glass button measure its
+		 * own width and report it back, which overrides the `flex: 1` beside it — so the two sat
+		 * as small pills floating in the middle of the row instead of filling it. Full width
+		 * takes the width the parent gives, which is exactly half the row minus the gap.
+		 */
+		fullWidth
+		isLoading={isLoading}
+		onPress={onPress}
+		style={[isCompact ? styles.compact : null, style]}
+		title={label}
+		variant={variant}
+		{...(imageIcon === undefined ? {} : { imageIcon })}
+		{...(systemIcon === undefined ? {} : { systemIcon })}
+	/>
+);
 
 const styles = StyleSheet.create({
-	appleGlyph: {
-		fontSize: 15,
-		lineHeight: 18
-	},
-	button: {
-		alignItems: 'center',
-		borderWidth: StyleSheet.hairlineWidth,
-		flexDirection: 'row',
-		justifyContent: 'center'
-	},
 	compact: {
-		borderRadius: 13,
-		flex: 1,
-		gap: 7,
-		padding: 13
-	},
-	compactLabel: {
-		fontSize: 12,
-		fontWeight: '600',
-		lineHeight: 16
-	},
-	full: {
-		borderRadius: 14,
-		gap: 10,
-		padding: 14,
-		width: '100%'
-	},
-	googleMark: {
-		alignItems: 'center',
-		justifyContent: 'center'
-	},
-	label: {
-		fontSize: 13,
-		fontWeight: '600',
-		lineHeight: 18
+		flex: 1
 	}
 });

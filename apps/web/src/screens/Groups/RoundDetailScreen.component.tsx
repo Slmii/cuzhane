@@ -51,7 +51,8 @@ const outlineFor = (state: RoundCellState, theme: AppTheme) =>
  * pick up. That's why the clay is softer than the app's danger red and why every
  * outstanding row carries an action rather than just a count.
  */
-export const RoundDetailScreen = ({ navigation, route }: Props) => {
+// No `navigation`: going back is the navigator's own header button now.
+export const RoundDetailScreen = ({ route }: Props) => {
 	const { groupId, roundIndex } = route.params;
 	const { theme } = useThemeContext();
 	const { t } = useTranslation();
@@ -105,11 +106,7 @@ export const RoundDetailScreen = ({ navigation, route }: Props) => {
 				 * whole page's height here, which is what made a spinner followed by a hundred
 				 * cells feel like the screen arriving twice.
 				 */}
-				<ScreenHeader
-					eyebrow={`${t('roundN')} ${roundIndex + 1}`}
-					onBack={navigation.goBack}
-					title={t('missedTitle')}
-				/>
+				<ScreenHeader eyebrow={`${t('roundN')} ${roundIndex + 1}`} hasBackButton title={t('missedTitle')} />
 				<RoundDetailSkeleton />
 			</ScreenContainer>
 		);
@@ -190,11 +187,7 @@ export const RoundDetailScreen = ({ navigation, route }: Props) => {
 
 	return (
 		<ScreenContainer>
-			<ScreenHeader
-				eyebrow={`${t('roundN')} ${round.roundIndex + 1}`}
-				onBack={navigation.goBack}
-				title={t('missedTitle')}
-			/>
+			<ScreenHeader eyebrow={`${t('roundN')} ${round.roundIndex + 1}`} hasBackButton title={t('missedTitle')} />
 
 			<View style={styles.statsRow}>
 				<CardSurface style={styles.statCard}>

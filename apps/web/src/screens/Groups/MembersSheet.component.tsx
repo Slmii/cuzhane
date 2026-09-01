@@ -1,11 +1,8 @@
 import { MemberRow } from '@/components/MemberRow/MemberRow.component';
-import { MembersSkeleton } from './MembersSkeleton.component';
 import { AppBottomSheet } from '@/components/ui/BottomSheet/BottomSheet.component';
-import { AppButton } from '@/components/ui/Button/Button.component';
-import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
-import { BodyStrongText, CaptionText, Header2, Typography } from '@/components/ui/Typography/Typography.component';
+import { CaptionText, Header2 } from '@/components/ui/Typography/Typography.component';
 import { useCurrentUserId } from '@/lib/hooks/useCurrentUserId';
 import { useGetGroupById } from '@/lib/hooks/useGroup';
 import { useGetGroupMembers, useRemoveGroupMember } from '@/lib/hooks/useMembership';
@@ -13,10 +10,10 @@ import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { GroupMember } from '@/lib/types/domain';
 import { formatBabRange } from '@/lib/utils/babs';
-import { BottomSheetScrollView } from '@gorhom/bottom-sheet';
-import { useMemo, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useCallback, useMemo } from 'react';
+import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import type { MembersSheetProps } from './MembersSheet.types';
+import { MembersSkeleton } from './MembersSkeleton.component';
 
 /**
  * Three quarters of the screen — **one** detent, deliberately.
@@ -52,8 +49,6 @@ export const MembersSheet = ({ groupId, isVisible, onClose }: MembersSheetProps)
 	const membersQuery = useGetGroupMembers(groupId, isVisible);
 	const removeGroupMember = useRemoveGroupMember();
 
-	const [memberToRemove, setMemberToRemove] = useState<GroupMember | null>(null);
-
 	const detail = groupQuery.data;
 	// `?? []` inline would be a new array every render, and the rows below are memoised on it.
 	const members = membersQuery.data ?? NO_MEMBERS;
@@ -72,6 +67,27 @@ export const MembersSheet = ({ groupId, isVisible, onClose }: MembersSheetProps)
 	 * gorhom sheet means `BottomSheetFlatList` plus a fixed `getItemLayout` to avoid
 	 * measurement jank. Twenty rows that never rebuild cost less than that machinery.
 	 */
+	/*
+	 * **The platform's confirm, not a sheet of our own.** It was a second `AppBottomSheet`
+	 * stacked over this one, which a natively presented sheet cannot do — iOS refuses to present
+	 * while another is on screen, so the confirmation simply never appeared. An `Alert` is also
+	 * the right shape for it: one destructive question with two answers, which is what the OS
+	 * dialog is for and what leaving a group and deleting an account already use.
+	 */
+	const handleRemovePress = useCallback(
+		(member: GroupMember) => {
+			Alert.alert(t('removeTitle'), `${member.displayName} ${t('removeBody')}`, [
+				{ style: 'cancel', text: t('cancel') },
+				{
+					onPress: () => removeGroupMember.mutate({ groupId, memberUserId: member.userId }),
+					style: 'destructive',
+					text: t('removeConfirm')
+				}
+			]);
+		},
+		[groupId, removeGroupMember, t]
+	);
+
 	const rows = useMemo(
 		() =>
 			members.map(member => (
@@ -79,27 +95,17 @@ export const MembersSheet = ({ groupId, isVisible, onClose }: MembersSheetProps)
 					imageUrl={member.imageUrl}
 					key={member.id}
 					name={member.displayName}
-					onRemove={detail?.isOwner && member.role !== 'OWNER' ? () => setMemberToRemove(member) : undefined}
+					onRemove={detail?.isOwner && member.role !== 'OWNER' ? () => handleRemovePress(member) : undefined}
 					percent={member.percent}
 					rangeLabel={formatBabRange(member.babNumbers)}
 					tag={member.userId === userId ? t('you') : member.role === 'OWNER' ? t('admin') : undefined}
 				/>
 			)),
-		[detail?.isOwner, members, t, userId]
+		[detail?.isOwner, handleRemovePress, members, t, userId]
 	);
 
 	const handleClose = () => {
-		setMemberToRemove(null);
 		onClose();
-	};
-
-	const handleConfirmRemove = () => {
-		if (!memberToRemove) {
-			return;
-		}
-
-		removeGroupMember.mutate({ groupId, memberUserId: memberToRemove.userId });
-		setMemberToRemove(null);
 	};
 
 	return (
@@ -118,7 +124,7 @@ export const MembersSheet = ({ groupId, isVisible, onClose }: MembersSheetProps)
 				 * past the bottom edge instead of scrolling, and the last members were
 				 * unreachable because the scroller believed it was already showing everything.
 				 */}
-				<BottomSheetScrollView
+				<ScrollView
 					contentContainerStyle={styles.body}
 					showsVerticalScrollIndicator={false}
 					style={styles.scroller}
@@ -144,7 +150,7 @@ export const MembersSheet = ({ groupId, isVisible, onClose }: MembersSheetProps)
 								{`${detail.memberCount} / ${detail.spots} · ${detail.spotsLeft} ${t('spotsLeft')}`}
 							</CaptionText>
 
-							<CardSurface isFlush>{rows}</CardSurface>
+							<View>{rows}</View>
 
 							{detail.isOwner ? (
 								<View style={styles.ownerHint}>
@@ -156,21 +162,7 @@ export const MembersSheet = ({ groupId, isVisible, onClose }: MembersSheetProps)
 							) : null}
 						</>
 					)}
-				</BottomSheetScrollView>
-			</AppBottomSheet>
-
-			{/* Stacked over the list rather than replacing it: removing someone is a decision
-			    about one row, and the row it is about should stay on screen behind it. */}
-			<AppBottomSheet isVisible={memberToRemove !== null} onClose={() => setMemberToRemove(null)}>
-				<Header2 style={styles.removeTitle}>{t('removeTitle')}</Header2>
-				<Typography color={theme.colors.subtext} style={styles.removeBody}>
-					<BodyStrongText color={theme.colors.text}>{memberToRemove?.displayName}</BodyStrongText>
-					{` ${t('removeBody')}`}
-				</Typography>
-				<View style={styles.removeActions}>
-					<AppButton onPress={handleConfirmRemove} title={t('removeConfirm')} variant='danger' />
-					<AppButton onPress={() => setMemberToRemove(null)} title={t('cancel')} variant='surface' />
-				</View>
+				</ScrollView>
 			</AppBottomSheet>
 		</>
 	);
@@ -200,16 +192,6 @@ const styles = StyleSheet.create({
 		gap: 4,
 		paddingHorizontal: 4,
 		paddingTop: 12
-	},
-	removeActions: {
-		gap: 9
-	},
-	removeBody: {
-		marginBottom: 18,
-		marginTop: 8
-	},
-	removeTitle: {
-		fontSize: 21
 	},
 	subtitle: {
 		marginBottom: 14,
