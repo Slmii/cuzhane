@@ -239,16 +239,16 @@ export const JoinByCodeSheet = ({ isVisible, onClose }: JoinByCodeSheetProps) =>
 						) : null}
 
 						<AppButton
+							onPress={() => setStep('code')}
+							style={styles.secondary}
+							title={t('back')}
+							variant='surface'
+						/>
+						<AppButton
 							isLoading={joinByCode.isPending}
 							onPress={() => void handleJoin()}
 							style={styles.primary}
 							title={t('joinNow')}
-						/>
-						<AppButton
-							onPress={() => setStep('code')}
-							style={styles.secondary}
-							title={t('back')}
-							variant='ghost'
 						/>
 					</View>
 				) : step === 'notfound' ? (

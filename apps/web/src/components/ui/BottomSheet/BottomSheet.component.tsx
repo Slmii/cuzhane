@@ -3,6 +3,7 @@ import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { BottomSheet, BottomSheetView } from '@expo/ui/community/bottom-sheet';
 import { useState } from 'react';
 import { StyleSheet, useWindowDimensions } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import type { AppBottomSheetProps } from './BottomSheet.types';
 
 /**
@@ -113,19 +114,36 @@ export const AppBottomSheet = ({
 			index={isVisible ? 0 : -1}
 			onClose={handleClose}
 		>
+			{/*
+			 * **A gesture root of its own, inside the sheet.**
+			 *
+			 * `react-native-gesture-handler` routes touches through the nearest
+			 * `GestureHandlerRootView` *in the same native window*, and a platform sheet is not in
+			 * the same window — Android's Material 3 sheet is a dialog window of its own, and iOS
+			 * presents in a separate view controller. The one in `AppRoot` therefore never sees a
+			 * touch that lands in a sheet, so every `GestureDetector` inside one is inert: the
+			 * reader's size slider registered no drag at all on Android, because the drawn track
+			 * is a `Gesture.Pan`. Nesting roots is supported and is what RNGH prescribes for
+			 * exactly this case.
+			 *
+			 * It only takes a flex when the sheet has a height to fill; in a content-sized sheet a
+			 * `flex: 1` here would resolve against nothing and collapse the body to zero.
+			 */}
 			<BottomSheetView
 				style={[
 					styles.content,
 					heightRatio === undefined ? null : { height: Math.round(windowHeight * heightRatio) }
 				]}
 			>
-				{title ? <Header2 style={styles.title}>{title}</Header2> : null}
-				{description ? (
-					<Typography color={theme.colors.subtext} style={styles.description} variant='caption'>
-						{description}
-					</Typography>
-				) : null}
-				{children}
+				<GestureHandlerRootView style={heightRatio === undefined ? null : styles.fill}>
+					{title ? <Header2 style={styles.title}>{title}</Header2> : null}
+					{description ? (
+						<Typography color={theme.colors.subtext} style={styles.description} variant='caption'>
+							{description}
+						</Typography>
+					) : null}
+					{children}
+				</GestureHandlerRootView>
 			</BottomSheetView>
 		</BottomSheet>
 	);
@@ -145,6 +163,9 @@ const styles = StyleSheet.create({
 		marginBottom: 16,
 		marginTop: 6,
 		maxWidth: 290
+	},
+	fill: {
+		flex: 1
 	},
 	title: {
 		fontSize: 21,

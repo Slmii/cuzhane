@@ -272,6 +272,19 @@ export const DockRing = ({
 		transform: [{ scale: 1 + halo.value * 0.06 }]
 	}));
 
+	/**
+	 * The core's shadow breathing with it — **iOS only, and the guard matters on Android.**
+	 *
+	 * `shadowOpacity` and `shadowRadius` are iOS properties; Android takes its shadow from
+	 * `elevation` and ignores both. So on Android this mapper was committing a new style to an
+	 * elevated view on every frame and changing nothing you could see — except that an elevated
+	 * view is a shadow caster whose outline is re-evaluated when its style commits, and elevation
+	 * also decides draw order against the ring's overlapping absolute siblings (one of which
+	 * carries a `zIndex`). Mixing the two orderings and disturbing them 60 times a second is a
+	 * good way to make the core's fill flicker.
+	 *
+	 * Gating costs nothing: the animation was never visible on Android in the first place.
+	 */
 	const coreShadowStyle = useAnimatedStyle(() => ({
 		shadowOpacity: 0.14 + breathe.value * 0.12,
 		shadowRadius: 14 + breathe.value * 3
@@ -532,7 +545,7 @@ export const DockRing = ({
 										borderColor: isDone ? theme.colors.accent : theme.colors.border,
 										shadowColor: theme.colors.accent
 									},
-									coreShadowStyle
+									Platform.OS === 'ios' ? coreShadowStyle : null
 								]}
 							>
 								{/*
