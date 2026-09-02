@@ -9,7 +9,8 @@ import type { GroupDetail } from '@/lib/types/domain';
 import type { TabStackParamList } from '@/navigation/types';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Alert, StyleSheet, View } from 'react-native';
+import { confirmDestructive } from '@/lib/utils/confirmDestructive';
+import { StyleSheet, View } from 'react-native';
 
 type Props = {
 	group: GroupDetail;
@@ -59,10 +60,13 @@ export const ManageSheet = ({ group, isVisible, onClose, onOpenMembers }: Props)
 		 * dialog whose title already asks and whose body states the cost would be asking twice
 		 * in one breath.
 		 */
-		Alert.alert(t('deleteGroup'), t('deleteHint'), [
-			{ style: 'cancel', text: t('cancel') },
-			{ onPress: confirmDelete, style: 'destructive', text: t('deleteGroup') }
-		]);
+		confirmDestructive({
+			cancelLabel: t('cancel'),
+			confirmLabel: t('deleteGroup'),
+			message: t('deleteHint'),
+			onConfirm: confirmDelete,
+			title: t('deleteGroup')
+		});
 	};
 
 	const spotsHint = `${group.memberCount} / ${group.spots} · ${group.spotsLeft} ${t('spotsLeft')}`;

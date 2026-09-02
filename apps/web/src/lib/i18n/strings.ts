@@ -327,6 +327,7 @@ const tr = {
 	sentTicket: 'Kayıt no',
 	appVersion: 'Uygulama sürümü',
 	signOut: 'Çıkış yap',
+	signOutHint: 'Bu cihazdan çıkacaksın. Grupların ve okuma geçmişin olduğu gibi kalır.',
 	deleteAccount: 'Hesabı sil',
 	deleteAccountHint: 'Hesabın, grupların ve tüm okuma geçmişin kalıcı olarak silinir. Bu işlem geri alınamaz.',
 	deleteAccountConfirm: 'Hesabı kalıcı olarak sil',
@@ -858,6 +859,7 @@ const en: Strings = {
 	sentTicket: 'Reference',
 	appVersion: 'App version',
 	signOut: 'Sign out',
+	signOutHint: 'You will be signed out on this device. Your groups and reading history stay as they are.',
 	deleteAccount: 'Delete account',
 	deleteAccountHint: 'Your account, groups and full reading history are permanently deleted. This cannot be undone.',
 	deleteAccountConfirm: 'Permanently delete account',
@@ -1349,6 +1351,7 @@ const nl: Strings = {
 	sentTicket: 'Referentie',
 	appVersion: 'App-versie',
 	signOut: 'Uitloggen',
+	signOutHint: 'Je wordt op dit apparaat uitgelogd. Je groepen en leesgeschiedenis blijven zoals ze zijn.',
 	deleteAccount: 'Account verwijderen',
 	deleteAccountHint:
 		'Je account, groepen en volledige leesgeschiedenis worden permanent verwijderd. Dit kan niet ongedaan worden gemaakt.',

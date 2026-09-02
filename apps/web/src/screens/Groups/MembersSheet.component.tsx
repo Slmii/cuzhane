@@ -12,7 +12,8 @@ import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { GroupMember } from '@/lib/types/domain';
 import { formatBabRange } from '@/lib/utils/babs';
 import { useCallback, useMemo } from 'react';
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { confirmDestructive } from '@/lib/utils/confirmDestructive';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import type { MembersSheetProps } from './MembersSheet.types';
 import { MembersSkeleton } from './MembersSkeleton.component';
 
@@ -74,14 +75,13 @@ export const MembersSheet = ({ groupId, isVisible, onClose }: MembersSheetProps)
 	 */
 	const handleRemovePress = useCallback(
 		(member: GroupMember) => {
-			Alert.alert(t('removeTitle'), `${member.displayName} ${t('removeBody')}`, [
-				{ style: 'cancel', text: t('cancel') },
-				{
-					onPress: () => removeGroupMember.mutate({ groupId, memberUserId: member.userId }),
-					style: 'destructive',
-					text: t('removeConfirm')
-				}
-			]);
+			confirmDestructive({
+				cancelLabel: t('cancel'),
+				confirmLabel: t('removeConfirm'),
+				message: `${member.displayName} ${t('removeBody')}`,
+				onConfirm: () => removeGroupMember.mutate({ groupId, memberUserId: member.userId }),
+				title: t('removeTitle')
+			});
 		},
 		[groupId, removeGroupMember, t]
 	);

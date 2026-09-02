@@ -371,6 +371,7 @@ export const HomeScreen = () => {
 													})
 												}
 												size='sm'
+												style={styles.rowReadButton}
 												title={t('read')}
 												variant='primary'
 											/>
@@ -391,24 +392,22 @@ export const HomeScreen = () => {
 					 * draft carried a resume label and a lifetime tick strip, and both quietly
 					 * turned free reading back into progress to keep up with.
 					 */}
-					<Pressable
-						accessibilityRole='button'
-						onPress={() => navigation.navigate('AllBabs')}
-						style={({ pressed }) => [
-							styles.allBabs,
-							{
-								backgroundColor: theme.colors.surface,
-								borderColor: pressed ? theme.colors.accent : theme.colors.border
-							}
-						]}
-					>
+					{/*
+					 * A `CardSurface` rather than a hand-rolled `Pressable` with a `surface` fill.
+					 * It is the third card in a stack — the summary above it and the shelf above
+					 * that are both `CardSurface` — and once those became glass this was the one
+					 * flat panel on the screen. Going through the component also gives it the same
+					 * press behaviour as every other tappable card in the app (a 0.98 dip), in
+					 * place of the accent border it used to flash on its own.
+					 */}
+					<CardSurface onPress={() => navigation.navigate('AllBabs')} style={styles.allBabs}>
 						<Icon color={theme.colors.accent} name='book' size={19} />
 						<View style={styles.allBabsCopy}>
 							<Typography variant='bodyStrong'>{t('allBabs')}</Typography>
 							<CaptionText color={theme.colors.subtext}>{t('allBabsSub')}</CaptionText>
 						</View>
 						<Icon color={theme.colors.faintText} name='chevronRight' size={16} />
-					</Pressable>
+					</CardSurface>
 
 					<CaptionText color={theme.colors.subtext} style={styles.footNote} textAlign='center'>
 						{t('sharesDone', { count: rows.length - pending })}
@@ -433,10 +432,11 @@ export const HomeScreen = () => {
 };
 
 const styles = StyleSheet.create({
+	// No `borderRadius` or `borderWidth`: `CardSurface` owns both, and overriding the radius here
+	// would leave the glass drawn at the card's radius and then clipped at this one — the corner
+	// artifact that component's own note describes.
 	allBabs: {
 		alignItems: 'center',
-		borderRadius: 16,
-		borderWidth: StyleSheet.hairlineWidth,
 		flexDirection: 'row',
 		gap: 12,
 		marginTop: 11,
@@ -502,8 +502,8 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		flexDirection: 'row',
 		gap: 9,
-		paddingHorizontal: 14,
-		paddingVertical: 9
+		height: 48,
+		paddingHorizontal: 14
 	},
 	rowAmount: {
 		// `minWidth` and no shrinking, not a fixed 26: a share of 49 makes "16/49" five
@@ -528,6 +528,12 @@ const styles = StyleSheet.create({
 	 * across the three languages ("Read", "Lees"). It was 52 for a hand-rolled pill with 9pt
 	 * padding and a 10.5pt label; at the button's own metrics that clipped.
 	 */
+	rowReadButton: {
+		height: 30,
+		minHeight: 30,
+		paddingHorizontal: 12,
+		paddingVertical: 0
+	},
 	rowReadSlot: {
 		alignItems: 'flex-end',
 		width: 62

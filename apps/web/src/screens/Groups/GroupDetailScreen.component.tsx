@@ -395,7 +395,13 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 				 * the corners, and with a green header filling it edge to edge those corners
 				 * were four white nicks against the sage.
 				 */}
-				<CardSurface isFlush style={isMyBabsOpen ? null : { backgroundColor: theme.colors.accentSoft }}>
+				{/* No glass while it is closed: the sage fill *is* this panel, and the material
+				    tints itself `surface` and washes over whatever colour arrives in `style`. */}
+				<CardSurface
+					hasGlassSurface={isMyBabsOpen}
+					isFlush
+					style={isMyBabsOpen ? null : { backgroundColor: theme.colors.accentSoft }}
+				>
 					<Pressable
 						// The eyebrow and the sentence are gone from the row, so the label they carried
 						// has to come from here or it announces nothing but its numbers.
@@ -581,8 +587,13 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 				 * may have been off. This is the copy of that news which cannot go missing.
 				 * Dismissible, because it reports something already done rather than asking.
 				 */}
+				{/* No glass on the release notice: `sand` is what marks it as news rather than
+				    another section, and the material would paint that colour out. */}
 				{detail.poolReleases.length > 0 ? (
-					<CardSurface style={[styles.releaseCard, { backgroundColor: theme.colors.sand }]}>
+					<CardSurface
+						hasGlassSurface={false}
+						style={[styles.releaseCard, { backgroundColor: theme.colors.sand }]}
+					>
 						<View style={styles.releaseRow}>
 							<Icon color={theme.colors.sandText} name='info' size={19} strokeWidth={1.8} />
 							<View style={styles.releaseCopy}>

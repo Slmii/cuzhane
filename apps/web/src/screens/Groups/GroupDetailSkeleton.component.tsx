@@ -60,7 +60,12 @@ export const GroupDetailSkeleton = () => {
 				</View>
 			</CardSurface>
 
-			<CardSurface isFlush style={[styles.assignedPanel, { backgroundColor: theme.colors.accentSoft }]}>
+			{/* Matches the real panel's closed state, which keeps its sage fill rather than glass. */}
+			<CardSurface
+				hasGlassSurface={false}
+				isFlush
+				style={[styles.assignedPanel, { backgroundColor: theme.colors.accentSoft }]}
+			>
 				<View style={styles.assignedLeading}>
 					<View
 						style={[styles.assignedBadge, { backgroundColor: toAlphaColor(theme.colors.accent, 0.22) }]}

@@ -1,4 +1,5 @@
 import { NotificationOrchestrator } from '@/components/NotificationOrchestrator/NotificationOrchestrator.component';
+import { DestructiveDialog } from '@/components/ui/DestructiveDialog/DestructiveDialog.component';
 import { ClerkProvider } from '@/lib/context/ClerkProvider.context';
 import { useAppFocusSync } from '@/lib/hooks/useAppFocusSync';
 import { useAuthTokenSync } from '@/lib/hooks/useAuthTokenSync';
@@ -84,6 +85,11 @@ const AppContainer = () => {
 				<NavigationContainer linking={linking} ref={navigationRef} theme={navigationTheme}>
 					<StatusBar style={theme.mode === 'dark' || isSplashVisible ? 'light' : 'dark'} />
 					<AppNavigator />
+					{/* Renders nothing until something calls `confirmDestructive`, and nothing at
+					    all off Android — iOS takes `Alert.alert`. Mounted here because Android
+					    presents it in a window of its own, which is what lets the two callers
+					    that live inside bottom sheets reach it from the root. */}
+					<DestructiveDialog />
 					<NotificationOrchestrator />
 					<OnboardingDevTrigger />
 					{/*

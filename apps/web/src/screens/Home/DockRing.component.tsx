@@ -1,4 +1,5 @@
 import { SliceChip } from '@/components/SliceChip/SliceChip.component';
+import { GlassSurface } from '@/components/ui/GlassSurface/GlassSurface.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
 import { Typography } from '@/components/ui/Typography/Typography.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
@@ -399,19 +400,46 @@ export const DockRing = ({
 			pointerEvents='box-none'
 			style={[styles.dock, { left: horizontalInset, right: horizontalInset, top: topInset }, dockStyle]}
 		>
-			{/* The pill is drawn outward from the ring rather than faded in. */}
+			{/*
+			 * The pill is drawn outward from the ring rather than faded in.
+			 *
+			 * **Glass by hand rather than through `CardSurface`.** This is the docked mini-ring's
+			 * plate and it is animated — `pillStyle` drives it as the page scrolls — so it has to
+			 * stay an `Animated.View`, which a `CardSurface` around it could not be. The two
+			 * layers below are that component's recipe copied: the material tinted `surface`, and
+			 * `surfaceGlassWash` over it, both given the pill's own radius rather than clipped to
+			 * it. Keep them in step with `CardSurface` if its recipe changes.
+			 *
+			 * Its own fill goes transparent for the same reason a glass card's does — a colour
+			 * underneath would be what you saw, not the material.
+			 */}
 			<Animated.View
 				pointerEvents='none'
 				style={[
 					styles.pill,
 					{
-						backgroundColor: theme.colors.surface,
+						backgroundColor: theme.colors.transparent,
 						borderColor: theme.colors.border,
 						shadowColor: theme.colors.text
 					},
 					pillStyle
 				]}
-			/>
+			>
+				<GlassSurface
+					fallbackColor={theme.colors.surface}
+					pointerEvents='none'
+					style={[StyleSheet.absoluteFill, styles.pillGlass]}
+					tintColor={theme.colors.surface}
+				/>
+				<View
+					pointerEvents='none'
+					style={[
+						StyleSheet.absoluteFill,
+						styles.pillGlass,
+						{ backgroundColor: theme.colors.surfaceGlassWash }
+					]}
+				/>
+			</Animated.View>
 
 			<Animated.View style={[styles.ring, ringStyle]}>
 				<Animated.View style={[styles.spin, spinStyle]}>
@@ -832,6 +860,11 @@ const styles = StyleSheet.create({
 		justifyContent: 'center',
 		position: 'absolute',
 		width: RING_SIZE
+	},
+	/** The pill's radius, named on the glass layers so the material is the right shape to begin
+	 *  with rather than being sliced square by a clip — the same reason `CardSurface` does it. */
+	pillGlass: {
+		borderRadius: 16
 	},
 	pill: {
 		borderRadius: 16,

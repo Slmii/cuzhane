@@ -216,6 +216,27 @@ tidy up any rows left from before. Re-adding the feature means rebuilding that s
     what opened up under `BabReader`'s action bar). Listed screens **collapse** the bar (`BottomNavBar
 isCollapsed`), never unmount it: returning `null` from `tabBar` removed it the moment you navigated, which
     reflowed the screen being pushed away and flashed its card corner under the incoming one for a few frames.
+-   **Every section surface is glass, and `components/ui/CardSurface` is the only thing that decides it.**
+    `hasGlassSurface` defaults to **true**, so Home, Gruplarım, Keşfet, the group / rounds / pool
+    screens, the lobby, the invite preview, joined-welcome, Hatırlatma and Profil all get the material
+    from one place, with the flat `surface` token as the fallback on Android and older iOS (not
+    Reduce Transparency — see below, that one is the system's). Two opt-outs exist, and both are
+    `hasGlassSurface={false}`: a card carrying a **fill
+    of its own** — the assigned panel's `accentSoft`, the pool release notice's `sand` — because the
+    glass tints itself `surface` and washes over whatever colour `style` supplies. `StatTile` forwards
+    the prop and must default it to `true`, or it would hold every stat tile back off the material.
+    **Inside a sheet is allowed**, and three panels use `CardSurface` there deliberately — the share
+    sheet's code and `PlanPreview` in create-group with the glass, `AssignmentBanner` in the join sheet
+    without it (sage fill): a panel still has to read as its own surface against the sheet behind it.
+    What sheets must not get is a *sweep* of cards.
+    `CardSurface` also owns the `accessibilityRole='button'` for every tappable card — no call site
+    sets it.
+    A card must **not** override `borderRadius` in its own `style`: the glass is drawn at
+    `theme.radius.lg` and the card clips to whatever `style` says, so a smaller radius slices the
+    material's corners and the hairline stops short around each curve.
+-   **Controls are not sections.** Search boxes, option cards, chips, steppers, the ring's core, legend
+    swatches and the reader's bars keep their flat `surface` fill. Glass on a control is a different
+    decision from glass on a card, and the reader's bars are settled the other way — see below.
 -   **Reduce Transparency is the system's business — no component checks it.** UIKit's and SwiftUI's
     own materials already respond to that setting, so a check of our own duplicates the OS and
     duplicates it worse: we don't get a more opaque control, we lose the native control entirely.

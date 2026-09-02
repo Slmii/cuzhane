@@ -92,6 +92,15 @@ export const PlanPreview = ({ slotIndex = 0, splitMode, spots, style }: PlanPrev
 	}).filter(row => row !== null);
 
 	return (
+		/*
+		 * **Glass, even though this only ever renders inside a sheet.** It was opted out on the
+		 * reasoning that a sheet is already the platform's material, so a card of glass inside
+		 * one is glass on glass — and that was overruled by looking at it. A panel inside a sheet
+		 * is still a panel: it needs to read as a distinct surface from the sheet it sits on, and
+		 * the material is what separates them. The same call was made for the share sheet's code
+		 * panel. The blanket "no `CardSurface` in a sheet" rule is therefore about not *sweeping*
+		 * sheets, not a ban.
+		 */
 		<CardSurface style={[styles.card, style]}>
 			<View style={styles.headerRow}>
 				<EyebrowText color={theme.colors.faintText}>

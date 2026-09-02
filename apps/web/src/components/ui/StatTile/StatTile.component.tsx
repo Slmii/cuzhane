@@ -4,7 +4,9 @@ import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { StyleSheet } from 'react-native';
 import type { StatTileProps } from './StatTile.types';
 
-export const StatTile = ({ hasGlassSurface = false, label, style, tone = 'default', value }: StatTileProps) => {
+// `true`, matching `CardSurface`'s own default — this forwards the prop explicitly, so a
+// `false` here would quietly hold every stat tile in the app back off the material.
+export const StatTile = ({ hasGlassSurface = true, label, style, tone = 'default', value }: StatTileProps) => {
 	const { theme } = useThemeContext();
 
 	return (

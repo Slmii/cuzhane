@@ -1,5 +1,6 @@
 import { AppBottomSheet } from '@/components/ui/BottomSheet/BottomSheet.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
+import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { EyebrowText, Typography } from '@/components/ui/Typography/Typography.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
@@ -60,23 +61,23 @@ export const ShareSheet = ({ group, isVisible, onClose }: Props) => {
 				{/*
 				 * **A surface behind the code, and only the code.** The design put the whole block
 				 * on a `CardSurface` to lift it off the sheet's cream; the sheet is the platform's
-				 * own material now, so a card around everything was white on white and the button
-				 * inside it read as nested. The code is the one thing that has to stand off the
-				 * material — it is read aloud and typed in at the other end — so it keeps a solid
-				 * panel and the button sits on the sheet itself.
+				 * own material now, so a card around *everything* was white on white and the
+				 * button inside it read as nested. The code is the one thing that has to stand off
+				 * the sheet — it is read aloud and typed in at the other end — so it keeps a panel
+				 * of its own and the button sits on the sheet itself.
+				 *
+				 * That panel is a `CardSurface` rather than a hand-rolled `surface` fill, so the
+				 * code sits on the same material as every other panel in the app. Being inside a
+				 * sheet is the point rather than an objection: it has to read as its own surface
+				 * against the one behind it.
 				 */}
 				{group.inviteCode ? (
-					<View
-						style={[
-							styles.codePanel,
-							{ backgroundColor: theme.colors.surface, borderRadius: theme.radius.lg }
-						]}
-					>
+					<CardSurface style={styles.codePanel}>
 						<EyebrowText color={theme.colors.faintText}>{t('inviteCode')}</EyebrowText>
 						<Typography color={theme.colors.accent} style={styles.code} variant='header1' weight='regular'>
 							{group.inviteCode}
 						</Typography>
-					</View>
+					</CardSurface>
 				) : null}
 				{/*
 				 * `copy` at rest, `check` once it lands. The button carried no icon until the

@@ -6,7 +6,7 @@ import { Animated, Pressable, StyleSheet, View } from 'react-native';
 
 export const CardSurface = ({
 	children,
-	hasGlassSurface = false,
+	hasGlassSurface = true,
 	isFlush = false,
 	onLongPress,
 	onPress,
@@ -92,7 +92,16 @@ export const CardSurface = ({
 
 	return (
 		<Animated.View style={{ transform: [{ scale }] }}>
+			{/*
+			 * **The role belongs here, not at the call sites.** A `Pressable` is `accessible` by
+			 * default but announces no *kind*, so every tappable card — the group cards, the round
+			 * cards, Home's "All babs" — read to VoiceOver and TalkBack as a focusable blob rather
+			 * than a button. Home's used to say it, in a hand-rolled `Pressable` that this
+			 * component replaced; setting it once here restores that and gives the other two what
+			 * they never had.
+			 */}
 			<Pressable
+				accessibilityRole='button'
 				onLongPress={onLongPress}
 				onPress={onPress}
 				onPressIn={() => {

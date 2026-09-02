@@ -31,7 +31,8 @@ import Constants from 'expo-constants';
 import { File } from 'expo-file-system';
 import { useCallback, useMemo, useState } from 'react';
 import { Controller } from 'react-hook-form';
-import { Alert, Image, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { confirmDestructive } from '@/lib/utils/confirmDestructive';
+import { Image, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { ProfileSkeleton } from './ProfileSkeleton.component';
 
 export const ProfileScreen = () => {
@@ -66,13 +67,31 @@ export const ProfileScreen = () => {
 		[setMode]
 	);
 
-	const handleSignOut = useCallback(async () => {
+	const handleSignOutConfirm = useCallback(async () => {
 		await signOut();
 		// Every cached query was fetched as the person signing out. Without this the next
 		// account to sign in on this device renders their groups and stats for a beat,
 		// because TanStack serves the stale entry before the refetch lands.
 		queryClient.clear();
 	}, [queryClient, signOut]);
+
+	/**
+	 * Signing out asks first, like the other three account actions on this screen.
+	 *
+	 * `isDestructive: false` — it ends a session and takes nothing with it, so the confirm button
+	 * is the accent rather than the red that "Hesabı sil" directly below it wears. Two red
+	 * buttons on one screen would make the milder of the two look like the graver one.
+	 */
+	const handleSignOut = useCallback(() => {
+		confirmDestructive({
+			cancelLabel: t('cancel'),
+			confirmLabel: t('signOut'),
+			isDestructive: false,
+			message: t('signOutHint'),
+			onConfirm: () => void handleSignOutConfirm(),
+			title: t('signOut')
+		});
+	}, [handleSignOutConfirm, t]);
 
 	const handlePhotoPicked = useCallback(
 		async (uri: string) => {
@@ -141,10 +160,13 @@ export const ProfileScreen = () => {
 	 * than adding a second question.
 	 */
 	const handleDeleteAccountPress = useCallback(() => {
-		Alert.alert(t('deleteAccount'), t('deleteAccountHint'), [
-			{ style: 'cancel', text: t('cancel') },
-			{ onPress: handleDeleteAccountConfirm, style: 'destructive', text: t('deleteAccountConfirm') }
-		]);
+		confirmDestructive({
+			cancelLabel: t('cancel'),
+			confirmLabel: t('deleteAccountConfirm'),
+			message: t('deleteAccountHint'),
+			onConfirm: handleDeleteAccountConfirm,
+			title: t('deleteAccount')
+		});
 	}, [handleDeleteAccountConfirm, t]);
 
 	if (isPending) {
@@ -254,7 +276,7 @@ export const ProfileScreen = () => {
 									</Pressable>
 								}
 							/>
-							<CardSurface hasGlassSurface isFlush>
+							<CardSurface isFlush>
 								<Controller
 									control={control}
 									name='firstName'
@@ -295,39 +317,21 @@ export const ProfileScreen = () => {
 				schema={profileSchema}
 			/>
 			{/*
-			 * **Every card on this screen is glass, and only on this screen.** It is where the
-			 * material is being tried before it goes anywhere else, so `hasGlassSurface` is
-			 * opt-in at each call site rather than a default inside `CardSurface` — cards on
-			 * Home, Gruplarım and the group screen are untouched.
+			 * **No `hasGlassSurface` here any more — it is `CardSurface`'s default.** This screen
+			 * was where the material was tried, opted into per card while the rest of the app
+			 * stayed flat. It graduated: every section surface in the app is glass now, so saying
+			 * it at each call site would only imply the others aren't.
 			 */}
 			<View style={styles.statsRow}>
-				<StatTile
-					hasGlassSurface
-					label={t('babsRead')}
-					style={styles.statTile}
-					tone='accent'
-					value={stats.babsRead}
-				/>
-				<StatTile
-					hasGlassSurface
-					label={t('roundsDone')}
-					style={styles.statTile}
-					tone='accent'
-					value={stats.roundsCompleted}
-				/>
-				<StatTile
-					hasGlassSurface
-					label={t('streak')}
-					style={styles.statTile}
-					tone='accent'
-					value={stats.streakDays}
-				/>
+				<StatTile label={t('babsRead')} style={styles.statTile} tone='accent' value={stats.babsRead} />
+				<StatTile label={t('roundsDone')} style={styles.statTile} tone='accent' value={stats.roundsCompleted} />
+				<StatTile label={t('streak')} style={styles.statTile} tone='accent' value={stats.streakDays} />
 			</View>
-			<CardSurface hasGlassSurface>
+			<CardSurface>
 				<BodyStrongText style={styles.heatmapTitle}>{t('last30')}</BodyStrongText>
 				<ActivityHeatmap columns={15} days={stats.last30Days} />
 			</CardSurface>
-			<CardSurface hasGlassSurface isFlush>
+			<CardSurface isFlush>
 				<View style={styles.languageRow}>
 					<BodyStrongText>{t('language')}</BodyStrongText>
 					{/*

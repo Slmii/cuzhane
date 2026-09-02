@@ -1,3 +1,4 @@
+import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Typography } from '@/components/ui/Typography/Typography.component';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { StyleSheet, View } from 'react-native';
@@ -8,8 +9,15 @@ export const AssignmentBanner = ({ description, label, range, style }: Assignmen
 	const { theme } = useThemeContext();
 
 	return (
-		<View
-			style={[styles.banner, { backgroundColor: theme.colors.accentSoft, borderRadius: theme.radius.lg }, style]}
+		/*
+		 * A `CardSurface` for the radius and the hairline, but **not for the glass**: the sage
+		 * fill is what this panel is, and the material tints itself `surface` and washes over
+		 * whatever colour arrives through `style`. Same call as the group screen's own assigned
+		 * panel, which is the surface this one echoes.
+		 */
+		<CardSurface
+			hasGlassSurface={false}
+			style={[styles.banner, { backgroundColor: theme.colors.accentSoft }, style]}
 		>
 			<View style={[styles.badge, { backgroundColor: theme.colors.accent, borderRadius: theme.radius.sm + 4 }]}>
 				<Typography color={theme.colors.onAccent} style={styles.badgeLabel} variant='title'>
@@ -24,7 +32,7 @@ export const AssignmentBanner = ({ description, label, range, style }: Assignmen
 					{description}
 				</Typography>
 			</View>
-		</View>
+		</CardSurface>
 	);
 };
 

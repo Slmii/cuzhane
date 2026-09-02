@@ -4,7 +4,7 @@ import { useTranslation } from '@/lib/i18n/I18n.context';
 import type { TabStackParamList } from '@/navigation/types';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Alert } from 'react-native';
+import { confirmDestructive } from '@/lib/utils/confirmDestructive';
 import type { LeaveGroupButtonProps } from './LeaveGroupButton.types';
 
 /**
@@ -57,10 +57,13 @@ export const LeaveGroupButton = ({ groupId }: LeaveGroupButtonProps) => {
 	};
 
 	const handlePress = () => {
-		Alert.alert(t('leaveGroup'), t('leaveHint'), [
-			{ style: 'cancel', text: t('cancel') },
-			{ onPress: confirmLeave, style: 'destructive', text: t('leaveGroup') }
-		]);
+		confirmDestructive({
+			cancelLabel: t('cancel'),
+			confirmLabel: t('leaveGroup'),
+			message: t('leaveHint'),
+			onConfirm: confirmLeave,
+			title: t('leaveGroup')
+		});
 	};
 
 	return (
