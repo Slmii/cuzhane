@@ -3,7 +3,7 @@ import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Chip } from '@/components/ui/Chip/Chip.component';
-import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
+import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { ProgressBar } from '@/components/ui/ProgressBar/ProgressBar.component';
 import { SpotsGrid } from '@/components/ui/SpotsGrid/SpotsGrid.component';
 import { ToggleRow } from '@/components/ui/ToggleRow/ToggleRow.component';
@@ -15,6 +15,7 @@ import {
 	Typography
 } from '@/components/ui/Typography/Typography.component';
 import { useGetGroupById, useStartGroup, useUpdateGroup } from '@/lib/hooks/useGroup';
+import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { TabStackParamList } from '@/navigation/types';
@@ -38,6 +39,7 @@ export const LobbyScreen = ({ navigation, route }: Props) => {
 	const { t } = useTranslation();
 	const group = useGetGroupById(groupId);
 	const startGroup = useStartGroup();
+	const pullToRefresh = usePullToRefresh(group);
 
 	// 06a is the creator's lobby and the only one there is. A member waiting for the group
 	// to start has a designed screen of their own — the same "you're in, waiting" state they
@@ -62,11 +64,7 @@ export const LobbyScreen = ({ navigation, route }: Props) => {
 	}
 
 	if (group.isError || !group.data) {
-		return (
-			<ScreenContainer isScrollable>
-				<EmptyState actionLabel={t('retry')} onAction={() => group.refetch()} title={t('genericError')} />
-			</ScreenContainer>
-		);
+		return <ErrorState queries={[group]} />;
 	}
 
 	const detail = group.data;
@@ -124,7 +122,7 @@ export const LobbyScreen = ({ navigation, route }: Props) => {
 	}
 
 	return (
-		<ScreenContainer contentContainerStyle={styles.content} shouldIncludeTabBarOffset>
+		<ScreenContainer contentContainerStyle={styles.content} pullToRefresh={pullToRefresh} shouldIncludeTabBarOffset>
 			{/*
 			 * **One block, so `space-between` has exactly two children to separate.** It is what
 			 * pushes the start block to the foot; left to the children directly it spread every
@@ -213,11 +211,6 @@ const styles = StyleSheet.create({
 	 */
 	top: {
 		gap: 12
-	},
-	centered: {
-		alignItems: 'center',
-		flex: 1,
-		justifyContent: 'center'
 	},
 	fillBar: {
 		marginBottom: 13,

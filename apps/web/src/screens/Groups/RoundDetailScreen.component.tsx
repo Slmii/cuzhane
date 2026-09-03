@@ -6,12 +6,13 @@ import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { CellGrid } from '@/components/ui/CellGrid/CellGrid.component';
 import type { CellGridItem } from '@/components/ui/CellGrid/CellGrid.types';
-import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
+import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { Hatch } from '@/components/ui/Hatch/Hatch.component';
 import { CaptionText, NumericText, StatText } from '@/components/ui/Typography/Typography.component';
 import { useCurrentUserId } from '@/lib/hooks/useCurrentUserId';
 import { useGetGroupById } from '@/lib/hooks/useGroup';
 import { useGetGroupMembers } from '@/lib/hooks/useMembership';
+import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useCoverBabs, useGetRoundDetail } from '@/lib/hooks/useRounds';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
@@ -62,6 +63,7 @@ export const RoundDetailScreen = ({ route }: Props) => {
 	const roundQuery = useGetRoundDetail(groupId, roundIndex);
 	const membersQuery = useGetGroupMembers(groupId);
 	const coverBabs = useCoverBabs();
+	const pullToRefresh = usePullToRefresh(groupQuery, roundQuery, membersQuery);
 
 	/*
 	 * The hundred cells, memoised above the early returns like the queries themselves.
@@ -113,20 +115,7 @@ export const RoundDetailScreen = ({ route }: Props) => {
 	}
 
 	if (groupQuery.isError || roundQuery.isError || !groupQuery.data || !roundQuery.data) {
-		return (
-			<ScreenContainer isScrollable={false}>
-				<View style={styles.centered}>
-					<EmptyState
-						actionLabel={t('retry')}
-						onAction={() => {
-							groupQuery.refetch();
-							roundQuery.refetch();
-						}}
-						title={t('genericError')}
-					/>
-				</View>
-			</ScreenContainer>
-		);
+		return <ErrorState queries={[groupQuery, roundQuery]} />;
 	}
 
 	const round = roundQuery.data;
@@ -186,7 +175,7 @@ export const RoundDetailScreen = ({ route }: Props) => {
 	];
 
 	return (
-		<ScreenContainer>
+		<ScreenContainer pullToRefresh={pullToRefresh}>
 			<ScreenHeader eyebrow={`${t('roundN')} ${round.roundIndex + 1}`} hasBackButton title={t('missedTitle')} />
 
 			<View style={styles.statsRow}>
@@ -311,11 +300,6 @@ export const RoundDetailScreen = ({ route }: Props) => {
 };
 
 const styles = StyleSheet.create({
-	centered: {
-		alignItems: 'center',
-		flex: 1,
-		justifyContent: 'center'
-	},
 	gridCard: {
 		marginBottom: 11,
 		padding: 13

@@ -4,13 +4,14 @@ import { SCREEN_TITLE_PADDING_UNDER_BAR } from '@/components/ScreenTitle/ScreenT
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Chip } from '@/components/ui/Chip/Chip.component';
-import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
+import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
 import { ProgressBar } from '@/components/ui/ProgressBar/ProgressBar.component';
 import { SeatStack } from '@/components/ui/SeatStack/SeatStack.component';
 import { CaptionText, EyebrowText, Header2, TitleText } from '@/components/ui/Typography/Typography.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useGroupPreviewById, useJoinGroup } from '@/lib/hooks/useMembership';
+import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useRoundReset } from '@/lib/hooks/useRoundReset';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { cycleLabelKey, splitModeLabelKey } from '@/lib/utils/groups';
@@ -44,6 +45,7 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 
 	const preview = useGroupPreviewById(groupId);
 	const joinByGroupId = useJoinGroup();
+	const pullToRefresh = usePullToRefresh(preview);
 	/** Set on press — see `shownRows` below, which explains why the card has to stop updating. */
 	const [joinedShare, setJoinedShare] = useState<{ poolCount: number; rows: number[][] } | null>(null);
 	// Above the early returns with the other hooks — the loading branch below returns first.
@@ -62,11 +64,7 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 	}
 
 	if (preview.isError || !preview.data) {
-		return (
-			<ScreenContainer isScrollable>
-				<EmptyState actionLabel={t('retry')} onAction={() => preview.refetch()} title={t('genericError')} />
-			</ScreenContainer>
-		);
+		return <ErrorState queries={[preview]} />;
 	}
 
 	const data = preview.data;
@@ -81,7 +79,7 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 
 	if (data.isFull) {
 		return (
-			<ScreenContainer contentContainerStyle={styles.content} isScrollable>
+			<ScreenContainer contentContainerStyle={styles.content} isScrollable pullToRefresh={pullToRefresh}>
 				<View>
 					{/* Clears the navigator's back button, which this screen draws no link of
 					    its own beside. Same band every pushed screen's heading starts below. */}
@@ -244,7 +242,7 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 		.join(' ');
 
 	return (
-		<ScreenContainer contentContainerStyle={styles.content} isScrollable>
+		<ScreenContainer contentContainerStyle={styles.content} isScrollable pullToRefresh={pullToRefresh}>
 			<View>
 				{/* Status first, then cadence. The status chip takes the tone that says
 				    something — sage for running, sand for waiting — and the cadence chip

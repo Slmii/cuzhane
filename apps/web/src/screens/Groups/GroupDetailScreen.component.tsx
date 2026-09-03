@@ -10,7 +10,7 @@ import { SliceChip } from '@/components/SliceChip/SliceChip.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Chip } from '@/components/ui/Chip/Chip.component';
-import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
+import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
 import { NavRow } from '@/components/ui/NavRow/NavRow.component';
 import {
@@ -24,6 +24,7 @@ import {
 import { useGetBabs, useSetBabRead } from '@/lib/hooks/useBab';
 import { useCurrentUserId } from '@/lib/hooks/useCurrentUserId';
 import { useGetGroupById, useMarkPoolReleasesSeen } from '@/lib/hooks/useGroup';
+import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useRoundReset, useTimeUntilReset } from '@/lib/hooks/useRoundReset';
 import { useGetRounds } from '@/lib/hooks/useRounds';
 import { useTranslation } from '@/lib/i18n/I18n.context';
@@ -169,6 +170,7 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 	const roundsQuery = useGetRounds(groupId);
 	const setBabRead = useSetBabRead();
 	const markPoolReleasesSeen = useMarkPoolReleasesSeen();
+	const pullToRefresh = usePullToRefresh(groupQuery, babsQuery, roundsQuery);
 
 	/*
 	 * The two boards' cells, and the tap that opens one, memoised up here with the other
@@ -240,20 +242,7 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 	}
 
 	if (groupQuery.isError || babsQuery.isError || !groupQuery.data) {
-		return (
-			<ScreenContainer isScrollable={false}>
-				<View style={styles.centered}>
-					<EmptyState
-						actionLabel={t('retry')}
-						onAction={() => {
-							groupQuery.refetch();
-							babsQuery.refetch();
-						}}
-						title={t('genericError')}
-					/>
-				</View>
-			</ScreenContainer>
-		);
+		return <ErrorState queries={[groupQuery, babsQuery]} />;
 	}
 
 	const detail = groupQuery.data;
@@ -346,7 +335,7 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 
 	return (
 		<>
-			<ScreenContainer>
+			<ScreenContainer pullToRefresh={pullToRefresh}>
 				{header}
 				{/*
 				 * 07 / 07c. One card rather than two loose tiles: the reset line belongs to
@@ -716,11 +705,6 @@ const styles = StyleSheet.create({
 	actionsRow: {
 		flexDirection: 'row',
 		gap: 8
-	},
-	centered: {
-		alignItems: 'center',
-		flex: 1,
-		justifyContent: 'center'
 	},
 	sectionBody: {
 		gap: 12,

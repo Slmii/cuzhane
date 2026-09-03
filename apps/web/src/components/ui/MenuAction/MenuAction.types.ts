@@ -17,6 +17,22 @@ export interface MenuActionCommand extends MenuActionGlyph {
 	kind?: 'command';
 	label: string;
 	onPress: () => void;
+	/**
+	 * `destructive` paints the row in `danger` — D4's Temizle, which undoes every filter at once.
+	 * On iOS it is the `Button`'s own destructive role, which the system colours; the drawn path
+	 * colours the label and its glyph itself.
+	 */
+	tone?: 'destructive';
+}
+
+/**
+ * A heading over the rows that follow it — D4's "RİTİM" and "DURUM" inside the filter level,
+ * which mixes one choice with two toggles and needs to say which question each answers. Drawn
+ * as an eyebrow with a divider above it; SwiftUI menus render a `Section` for the same thing.
+ */
+export interface MenuActionSection {
+	kind: 'section';
+	label: string;
 }
 
 /**
@@ -55,9 +71,20 @@ export interface MenuActionSubmenu extends MenuActionGlyph {
 	kind: 'submenu';
 	label: string;
 	items: MenuActionItem[];
+	/**
+	 * What is currently chosen inside, shown on the row beside its chevron — "Filtrele · Günlük".
+	 * D4 puts it there so the root level answers the question without being opened. The native
+	 * menu has no slot for it and ignores it.
+	 */
+	value?: string;
 }
 
-export type MenuActionItem = MenuActionCommand | MenuActionToggle | MenuActionChoice | MenuActionSubmenu;
+export type MenuActionItem =
+	| MenuActionCommand
+	| MenuActionToggle
+	| MenuActionChoice
+	| MenuActionSubmenu
+	| MenuActionSection;
 
 export interface MenuActionProps {
 	/** Spoken label for the trigger — it is a glyph, so it has no visible text. */

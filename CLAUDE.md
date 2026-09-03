@@ -268,6 +268,84 @@ isCollapsed`), never unmount it: returning `null` from `tabBar` removed it the m
         shelf's, so it starts pending and an owner watched the members glyph turn into the gear. It
         seeds from `groupQueryKeys.groups()` via `getQueryData` — read off the cache rather than
         subscribing, which would fetch the whole shelf on a deep link to decide one glyph.
+-   **`ui/MenuAction`'s drawn panel is D4's two-level menu, and it is the fallback.** iOS keeps
+    SwiftUI's native `Menu` on every version; the drawn surface exists for Android and is the only
+    place the design's four row shapes are hand-built — action, submenu (chevron + current value),
+    choice (tick, dismisses), toggle (filled checkbox, stays open). Three things on the item types
+    exist for it: `MenuActionSubmenu.value` (the root row reads "Filtrele · Günlük" without being
+    opened), `MenuActionCommand.tone: 'destructive'` (Temizle in `danger`, the iOS `Button`'s
+    destructive role), and `kind: 'section'` (an eyebrow with a divider above it, for a level
+    that mixes a choice with toggles; SwiftUI ignores it). A choice draws its own label as an
+    eyebrow **unless it is the only item on its level**, where the back row already names it.
+    Motion is Reanimated CSS animations, never `entering`, for the reason `CellGrid` records: the
+    panel grows from its anchor corner (`om-menu`), and a level keyed on its label remounts so its
+    directional slide (`om-lvl-in` / `-back`) plays from the opening frame each time.
+-   **The interface language is a list (G4) in a sheet, reached from a row on Profil (G3).** It
+    was a three-way segmented control, which was already stacking onto its own line at three
+    languages. `LanguageSheet` is an `AppBottomSheet` like Profil's photo and feedback sheets, not
+    a route — the design's screen was tried as a root push and swapped for the sheet on sight.
+    **A row tap is the whole transaction**: it applies the language and closes. It briefly carried
+    create-group's × / ✓ pair with the choice held pending until the tick; that was two taps for a
+    decision that needs one, and it went. No search box: three rows do not need one. Each row
+    names its language twice —
+    `LANGUAGE_NATIVE_NAMES` (in itself, deliberately outside the strings tables so it never changes
+    with the interface language) over `langName*` (in the current one).
+-   **Sign-in failure is one generic banner, plus offline — `utils/signInErrors.ts` tells only
+    those two apart.** `network_error` → offline (with the pinned "Çevrimdışısın" strip);
+    every other refusal → server, one neutral "Giriş yapılamadı" with a status-code footnote
+    when Clerk sent one, and "Tekrar dene" resubmits. A2e's per-cause banners — wrong password,
+    unknown address, malformed address, lockout with its countdown — were built and then
+    **deliberately collapsed**: the screen no longer says whether an address exists or which
+    half of the credentials was wrong, and there are no field-level error lines. Don't bring a
+    cause back on its own; the decision was all-or-nothing. There is no netinfo dependency, so
+    `offline` is the failed request's verdict, not a live signal.
+-   **A failed screen is `ui/ErrorState`, frame 2a, and it is the whole screen.** Ring glyph
+    (`alertCircle`, traced from the frame), "Bir şeyler ters gitti", the line that nothing of
+    theirs is lost, a live "Tekrar dene", and a mono footer with the HTTP status and the time
+    it failed. The frame's "Çevrimdışı devam et" link was built and dropped on request: one
+    action, no second way out. It takes the screen's **query results** —
+    `<ErrorState queries={[groupQuery, babsQuery]} />` — and renders its own `ScreenContainer`,
+    so an error branch is that one line and nothing wraps it: no `SafeAreaView`, no centred
+    `View`, no `refetchAll` closure. It replaced a bare `EmptyState` line on every screen; the
+    design's brief was "instead of an empty black screen". `EmptyState` is still right for a
+    genuinely empty list and inside a sheet (`MembersSheet`), where a full page can't be.
+-   **Pull-to-refresh is each platform's own control, around the one scrollable, via
+    `ui/PullToRefresh`.** `usePullToRefresh(queryA, queryB)` takes the query objects and
+    returns `{ isRefreshing, onRefresh }`; `ScreenContainer` takes that as `pullToRefresh`, a
+    `FlatList` screen wraps its list in `<PullToRefresh {...pullToRefresh}>`. **iOS** clones
+    the child with React Native's own `RefreshControl` as its `refreshControl` — it must be
+    that element and not a component wrapping one, because `ScrollView` mounts the prop as its
+    native child. **Android** is Material 3's `PullToRefreshBox` from `@expo/ui`, with the
+    Expressive indicator the app's Compose sheets and dialogs already use; React Native's
+    Android control is `SwipeRefreshLayout`'s white disc and arrow, a generation older. The
+    list stays a React Native view inside `RNHostView`, which forwards its nested scrolling up
+    to Compose — **only if the list has `nestedScrollEnabled`**, which Android's `ScrollView`
+    leaves off by default and the wrapper turns on; without it the list never offers its
+    scroll and the box never hears the pull. `contentAlignment='topCenter'` because Expo's
+    wrapper leaves the indicator at the box's alignment. The Compose module is required behind
+    a `Platform` check and a `try`, as `DestructiveDialog` does. A short screen (the lobby, a
+    preview, a one-group shelf) is held one pixel taller than the host, because an Android
+    `ScrollView` whose content fits refuses the drag before it starts.
+    **Known gap, deliberately left unpatched:** `RNHostView` only tells Compose about a release
+    when Compose consumed movement on the *last* drag frame, so a finger that pauses before
+    lifting can leave the indicator hung mid-pull (seen once on Keşfet). A pnpm patch of the
+    Kotlin (settle on any gesture that moved Compose, send the pre-fling too) was built and
+    then removed on request — it is a native change and needs a full Android rebuild. If it
+    comes back, either patch `@expo/ui` upstream or fall back to React Native's own
+    `RefreshControl` on Android, which handles its own release. `ScreenContainer` moves the
+    top inset onto the *viewport* when it holds one (the same device the sticky header uses):
+    `UIRefreshControl` draws above the content's top edge, and with the inset carried by the
+    content that edge is the top of the screen, under the Dynamic Island. The `refreshing`
+    flag is the hook's own, up only for the pull's refetch — not the query's `isRefetching`,
+    which is also true on focus and reconnect, when a spinner nobody pulled reads as the app
+    doing something to them. The design (D2 /
+    D4 / D14 and their dark twins) prototypes the gesture as a drawn arc turning with the drag
+    and a label under it; on a phone that is `UIRefreshControl` and Android's indicator, which
+    already do both, and a JS-drawn one has to fight the scroll view's bounce for the same
+    pixels. What carries over is the accent tint and the copy as the iOS title
+    ("Yenilemek için çek" / "Yenileniyor…"). Gruplarım, Keşfet and its group preview, the
+    lobby, the group screen, Havuz, Turlar and a round's detail all pull; Home does not (its
+    ring docks on scroll).
 -   **The heading below that bar is `ScreenTitle`'s `isUnderNavigationBar`, not a padding.** Screens
     declare that they sit under a bar; the component owns the distance. It was a constant each call
     site applied, and Gruplarım declared the style and never passed it — so its title drew behind the
@@ -688,6 +766,13 @@ only one the app gives anybody a way to set; add a column back only alongside it
 
 -   Auth: Clerk is the source of truth in both apps. Server needs `CLERK_PUBLISHABLE_KEY` +
     `CLERK_SECRET_KEY`; client needs `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`.
+-   **A request with no session token signs the app out.** `wrapper.api.ts` asks Clerk for a
+    JWT (three tries, 120ms apart) and, finding none, calls the handler `useAuthTokenSync`
+    installed, which runs Clerk's `signOut` and clears the query cache — so the sign-in screen
+    appears instead of an error page whose retry could never succeed. It acts only while
+    Clerk still reports *signed in*: `AppNavigator` runs the settings query before it checks
+    `isSignedIn`, so a signed-out app makes token-less requests too, and signing out on those
+    would clear, refetch and loop. Once per episode, guarded by `isSigningOut`.
 -   Shared versions (`package.json` `overrides`): `react`/`react-dom` pinned to `19.1.0`,
     `@react-navigation/native` to `7.2.2`.
 -   Formatting: Prettier, tabs, width 120, single quotes, no trailing commas. ESLint 9 flat configs per app.

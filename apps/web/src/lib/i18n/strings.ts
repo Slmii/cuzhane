@@ -2,6 +2,17 @@ export const APP_LANGUAGES = ['tr', 'en', 'nl'] as const;
 
 export type AppLanguage = (typeof APP_LANGUAGES)[number];
 
+/**
+ * Each language's name **in itself** — what its own speakers call it. Not in the tables below,
+ * because it is the one string that must not change with the interface language: someone who
+ * can't read the current one still has to find their own in the list.
+ */
+export const LANGUAGE_NATIVE_NAMES: Record<AppLanguage, string> = {
+	en: 'English',
+	nl: 'Nederlands',
+	tr: 'Türkçe'
+};
+
 export const isAppLanguage = (value: unknown): value is AppLanguage =>
 	typeof value === 'string' && (APP_LANGUAGES as readonly string[]).includes(value);
 
@@ -198,11 +209,25 @@ const tr = {
 	fSeats: 'Boş kontenjan',
 	fSeatsSub: 'Katılabileceğin yer var',
 	sortTitle: 'Sırala',
-	sortNewest: 'Yeni eklenen',
-	sortMostSeats: 'En çok boş yer',
+	sortNewest: 'Yeni açılanlar',
+	sortMostSeats: 'Boş yeri çok',
 	sortStartingSoon: 'Yakında başlıyor',
 	filterApply: 'Uygula',
 	filterClear: 'Temizle',
+	// G4 — language picker
+	langNote: 'Cevşen metni her dilde aynı kalır; çeviri yalnız arayüz ve meal içindir.',
+	langNameTr: 'Türkçe',
+	langNameEn: 'İngilizce',
+	langNameNl: 'Felemenkçe',
+	// A2e — sign-in errors. Each kind names its cause and offers the one action that resolves it;
+	// the field-level line repeats nothing the banner already said.
+	errTryAgain: 'Tekrar dene',
+	errServerTitle: 'Giriş yapılamadı',
+	errServerBody: 'Bilgilerini kontrol edip tekrar dene; yazdıkların olduğu gibi duruyor.',
+	errServerFoot: 'Hata kodu {code}',
+	errOfflineTitle: 'İnternet bağlantısı yok',
+	errOfflineBody: 'Bağlantını kontrol et. Ağa döndüğünde girişin kaldığı yerden tamamlanır.',
+	errOfflineStrip: 'Çevrimdışısın',
 	step1of3: 'ADIM 1 / 3',
 	step2of3: 'ADIM 2 / 3',
 	step3of3: 'ADIM 3 / 3',
@@ -561,6 +586,11 @@ const tr = {
 	invalidEmail: 'Geçerli bir e-posta adresi gir',
 	codeIncomplete: 'Kodu eksiksiz gir',
 	genericError: 'Bir şeyler ters gitti.',
+	errStateTitle: 'Bir şeyler ters gitti',
+	errStateBody: 'Sorun sende değil. Veriler sunucudan gelmedi; hiçbir okuman kaybolmadı.',
+	errStateFoot: 'Hata {code} · {time}',
+	ptrPull: 'Yenilemek için çek',
+	ptrRefreshing: 'Yenileniyor…',
 	offline: 'Bağlantı yok.',
 	groupFullError: 'Bu grup dolu.',
 	alreadyMember: 'Bu gruba zaten üyesin.',
@@ -749,14 +779,27 @@ const en: Strings = {
 	filterStatus: 'Status',
 	fNotStarted: 'Not started yet',
 	fNotStartedSub: 'Waiting for its first round',
-	fSeats: 'Empty seats',
+	fSeats: 'Open spots',
 	fSeatsSub: 'Has room for you',
 	sortTitle: 'Sort',
 	sortNewest: 'Newest',
-	sortMostSeats: 'Most seats free',
+	sortMostSeats: 'Most spots left',
 	sortStartingSoon: 'Starting soon',
 	filterApply: 'Apply',
 	filterClear: 'Clear',
+	// G4 — language picker
+	langNote: 'The Cevşen text is the same in every language; translation covers the interface and the meaning only.',
+	langNameTr: 'Turkish',
+	langNameEn: 'English',
+	langNameNl: 'Dutch',
+	// A2e — sign-in errors
+	errTryAgain: 'Try again',
+	errServerTitle: "Couldn't sign you in",
+	errServerBody: 'Check your details and try again — nothing you typed is lost.',
+	errServerFoot: 'Error {code}',
+	errOfflineTitle: 'No internet connection',
+	errOfflineBody: "Check your connection. Sign-in resumes automatically once you're back online.",
+	errOfflineStrip: "You're offline",
 	step1of3: 'STEP 1 / 3',
 	step2of3: 'STEP 2 / 3',
 	step3of3: 'STEP 3 / 3',
@@ -1062,6 +1105,11 @@ const en: Strings = {
 	invalidEmail: 'Enter a valid email address',
 	codeIncomplete: 'Enter the full code',
 	genericError: 'Something went wrong.',
+	errStateTitle: 'Something went wrong',
+	errStateBody: "This one's on us. The data didn't load — none of your reading is lost.",
+	errStateFoot: 'Error {code} · {time}',
+	ptrPull: 'Pull to refresh',
+	ptrRefreshing: 'Refreshing…',
 	offline: 'No connection.',
 	groupFullError: 'This group is full.',
 	alreadyMember: "You're already in this group.",
@@ -1244,10 +1292,23 @@ const nl: Strings = {
 	fSeatsSub: 'Er is plek voor jou',
 	sortTitle: 'Sorteren',
 	sortNewest: 'Nieuwste',
-	sortMostSeats: 'Meeste vrije plekken',
+	sortMostSeats: 'Meeste plekken',
 	sortStartingSoon: 'Begint binnenkort',
 	filterApply: 'Toepassen',
 	filterClear: 'Wissen',
+	// G4 — language picker. The spec's tables carry these in tr and en; the nl is ours.
+	langNote: 'De Cevşen-tekst is in elke taal dezelfde; de vertaling geldt alleen voor de interface en de betekenis.',
+	langNameTr: 'Turks',
+	langNameEn: 'Engels',
+	langNameNl: 'Nederlands',
+	// A2e — sign-in errors
+	errTryAgain: 'Opnieuw proberen',
+	errServerTitle: 'Inloggen is niet gelukt',
+	errServerBody: 'Controleer je gegevens en probeer het opnieuw — wat je typte blijft staan.',
+	errServerFoot: 'Fout {code}',
+	errOfflineTitle: 'Geen internetverbinding',
+	errOfflineBody: 'Controleer je verbinding. Inloggen gaat automatisch verder zodra je weer online bent.',
+	errOfflineStrip: 'Je bent offline',
 	step1of3: 'STAP 1 / 3',
 	step2of3: 'STAP 2 / 3',
 	step3of3: 'STAP 3 / 3',
@@ -1548,6 +1609,11 @@ const nl: Strings = {
 	invalidEmail: 'Vul een geldig e-mailadres in',
 	codeIncomplete: 'Vul de volledige code in',
 	genericError: 'Er ging iets mis.',
+	errStateTitle: 'Er ging iets mis',
+	errStateBody: 'Dit ligt aan ons. De gegevens laadden niet — je voortgang is bewaard.',
+	errStateFoot: 'Fout {code} · {time}',
+	ptrPull: 'Trek om te vernieuwen',
+	ptrRefreshing: 'Vernieuwen…',
 	offline: 'Geen verbinding.',
 	groupFullError: 'Deze groep is vol.',
 	alreadyMember: 'Je bent al lid van deze groep.',

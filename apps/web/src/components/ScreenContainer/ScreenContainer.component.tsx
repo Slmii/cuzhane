@@ -1,3 +1,4 @@
+import { PullToRefresh } from '@/components/ui/PullToRefresh/PullToRefresh.component';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { HasTabBarContext, TAB_BAR_CONTENT_GAP, TabBarOffsetContext } from '@/navigation/TabBarOffsetContext';
 import { useIsFocused } from '@react-navigation/native';
@@ -12,6 +13,7 @@ export const ScreenContainer = ({
 	children,
 	contentContainerStyle,
 	isScrollable = true,
+	pullToRefresh,
 	shouldIncludeTabBarOffset = true,
 	shouldIncludeTopInset = true,
 	shouldScrollToTopOnFocus = false,
@@ -29,7 +31,11 @@ export const ScreenContainer = ({
 	// With one in play the inset moves onto the viewport instead, which shrinks it rather
 	// than the content, and the header comes to rest below the status bar.
 	const hasStickyHeader = Boolean(stickyHeaderIndices?.length) && isScrollable;
-	const shouldInsetViewport = hasStickyHeader && shouldIncludeTopInset;
+	// A refresh control has the same problem: `UIRefreshControl` draws above the content's
+	// top edge, and with the inset carried by the content that edge is the top of the screen,
+	// so the spinner turned under the Dynamic Island where nobody could see it.
+	const hasRefreshControl = pullToRefresh !== undefined && isScrollable;
+	const shouldInsetViewport = (hasStickyHeader || hasRefreshControl) && shouldIncludeTopInset;
 	/*
 	 * The `bottom` edge is ours only when nothing is below us. Asked of `HasTabBarContext` rather
 	 * than of the offset, because on Android the bar covers nothing and is still down there —
@@ -70,6 +76,27 @@ export const ScreenContainer = ({
 	}, [isFocused, isScrollable, shouldScrollToTopOnFocus]);
 
 	if (isScrollable) {
+		const scrollView = (
+			<ScrollView
+				ref={scrollRef}
+				contentContainerStyle={[
+					styles.scrollableContent,
+					{
+						paddingBottom,
+						paddingHorizontal: SCREEN_HORIZONTAL_PADDING,
+						paddingTop
+					},
+					contentContainerStyle
+				]}
+				keyboardShouldPersistTaps='handled'
+				scrollIndicatorInsets={{ bottom: paddingBottom }}
+				showsVerticalScrollIndicator={false}
+				{...(stickyHeaderIndices ? { stickyHeaderIndices } : {})}
+			>
+				{children}
+			</ScrollView>
+		);
+
 		return (
 			<SafeAreaView
 				edges={edges}
@@ -79,24 +106,7 @@ export const ScreenContainer = ({
 					style
 				]}
 			>
-				<ScrollView
-					ref={scrollRef}
-					contentContainerStyle={[
-						styles.scrollableContent,
-						{
-							paddingBottom,
-							paddingHorizontal: SCREEN_HORIZONTAL_PADDING,
-							paddingTop
-						},
-						contentContainerStyle
-					]}
-					keyboardShouldPersistTaps='handled'
-					scrollIndicatorInsets={{ bottom: paddingBottom }}
-					showsVerticalScrollIndicator={false}
-					{...(stickyHeaderIndices ? { stickyHeaderIndices } : {})}
-				>
-					{children}
-				</ScrollView>
+				{pullToRefresh ? <PullToRefresh {...pullToRefresh}>{scrollView}</PullToRefresh> : scrollView}
 			</SafeAreaView>
 		);
 	}

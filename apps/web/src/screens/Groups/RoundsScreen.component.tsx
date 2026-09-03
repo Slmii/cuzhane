@@ -1,12 +1,14 @@
 import { RoundCard } from '@/components/RoundCard/RoundCard.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
+import { PullToRefresh } from '@/components/ui/PullToRefresh/PullToRefresh.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Chip } from '@/components/ui/Chip/Chip.component';
-import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
+import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { ProgressBar } from '@/components/ui/ProgressBar/ProgressBar.component';
 import { CaptionText, NumericText, TitleText } from '@/components/ui/Typography/Typography.component';
 import { useGetGroupById } from '@/lib/hooks/useGroup';
+import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useGetRounds } from '@/lib/hooks/useRounds';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
@@ -39,6 +41,7 @@ export const RoundsScreen = ({ navigation, route }: Props) => {
 
 	const groupQuery = useGetGroupById(groupId);
 	const roundsQuery = useGetRounds(groupId);
+	const pullToRefresh = usePullToRefresh(groupQuery, roundsQuery);
 
 	/*
 	 * Derived **above the guards below**, because the list's callbacks are hooks and hooks
@@ -100,20 +103,7 @@ export const RoundsScreen = ({ navigation, route }: Props) => {
 	}
 
 	if (groupQuery.isError || roundsQuery.isError || !groupQuery.data || !roundsQuery.data) {
-		return (
-			<ScreenContainer isScrollable={false}>
-				<View style={styles.centered}>
-					<EmptyState
-						actionLabel={t('retry')}
-						onAction={() => {
-							groupQuery.refetch();
-							roundsQuery.refetch();
-						}}
-						title={t('genericError')}
-					/>
-				</View>
-			</ScreenContainer>
-		);
+		return <ErrorState queries={[groupQuery, roundsQuery]} />;
 	}
 
 	const header = (
@@ -157,28 +147,25 @@ export const RoundsScreen = ({ navigation, route }: Props) => {
 		 * the list rather than pinning a second scroll view above it.
 		 */
 		<ScreenContainer contentContainerStyle={styles.flush} isScrollable={false}>
-			<FlatList
-				contentContainerStyle={styles.listContent}
-				data={pastRounds}
-				initialNumToRender={8}
-				keyExtractor={keyExtractor}
-				ListHeaderComponent={header}
-				maxToRenderPerBatch={8}
-				removeClippedSubviews
-				renderItem={renderRound}
-				showsVerticalScrollIndicator={false}
-				windowSize={7}
-			/>
+			<PullToRefresh {...pullToRefresh}>
+				<FlatList
+					contentContainerStyle={styles.listContent}
+					data={pastRounds}
+					initialNumToRender={8}
+					keyExtractor={keyExtractor}
+					ListHeaderComponent={header}
+					maxToRenderPerBatch={8}
+					removeClippedSubviews
+					renderItem={renderRound}
+					showsVerticalScrollIndicator={false}
+					windowSize={7}
+				/>
+			</PullToRefresh>
 		</ScreenContainer>
 	);
 };
 
 const styles = StyleSheet.create({
-	centered: {
-		alignItems: 'center',
-		flex: 1,
-		justifyContent: 'center'
-	},
 	openCard: {
 		borderWidth: 1,
 		marginBottom: 12,

@@ -7,9 +7,11 @@ import { Avatar } from '@/components/ui/Avatar/Avatar.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
+import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { Hatch } from '@/components/ui/Hatch/Hatch.component';
 import { BodyStrongText, CaptionText, NumericText, Typography } from '@/components/ui/Typography/Typography.component';
 import { useGetPoolSlots, useReleasePoolSlot, useTakePoolSlot } from '@/lib/hooks/useGroup';
+import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useViewerIdentity } from '@/lib/hooks/useViewerIdentity';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
@@ -87,6 +89,7 @@ export const PoolScreen = ({ route }: Props) => {
 	const viewer = useViewerIdentity();
 	const takeSlot = useTakePoolSlot();
 	const releaseSlot = useReleasePoolSlot();
+	const pullToRefresh = usePullToRefresh(pool);
 
 	/** Seeded from the session store above, so the wording survives leaving and coming back. */
 	const [takenHere, setTakenHere] = useState<number[]>(() => [...(claimedThisSession.get(groupId) ?? [])]);
@@ -205,11 +208,7 @@ export const PoolScreen = ({ route }: Props) => {
 	}
 
 	if (pool.isError || !pool.data) {
-		return (
-			<ScreenContainer isScrollable>
-				<EmptyState actionLabel={t('retry')} onAction={() => pool.refetch()} title={t('genericError')} />
-			</ScreenContainer>
-		);
+		return <ErrorState queries={[pool]} />;
 	}
 
 	const slots = pool.data;
@@ -349,7 +348,7 @@ export const PoolScreen = ({ route }: Props) => {
 	};
 
 	return (
-		<ScreenContainer shouldIncludeTabBarOffset>
+		<ScreenContainer pullToRefresh={pullToRefresh} shouldIncludeTabBarOffset>
 			<ScreenHeader eyebrow={t('pool')} hasBackButton subtitle={t('poolSub')} title={t('poolTitle')} />
 			{slots.length === 0 ? (
 				<EmptyState title={t('poolNone')} />

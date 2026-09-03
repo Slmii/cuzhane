@@ -5,7 +5,7 @@ import { Avatar } from '@/components/ui/Avatar/Avatar.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Divider } from '@/components/ui/Divider/Divider.component';
-import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
+import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { Form } from '@/components/ui/Form/Form.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
 import {
@@ -13,12 +13,12 @@ import {
 	SegmentedControl
 } from '@/components/ui/SegmentedControl/SegmentedControl.component';
 import { StatTile } from '@/components/ui/StatTile/StatTile.component';
-import { BodyStrongText, MonoText } from '@/components/ui/Typography/Typography.component';
+import { BodyStrongText, CaptionText, MonoText } from '@/components/ui/Typography/Typography.component';
 import { useDeleteAccount } from '@/lib/hooks/useAccount';
 import { useGetProfileStats } from '@/lib/hooks/useProfileStats';
-import { useUpdateUserSettings } from '@/lib/hooks/useUserSettings';
+import { LanguageSheet } from '@/screens/Profile/LanguageSheet.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
-import { AppLanguage } from '@/lib/i18n/strings';
+import { LANGUAGE_NATIVE_NAMES } from '@/lib/i18n/strings';
 import { createProfileSchema, ProfileForm } from '@/lib/schemas/profile.schema';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { ThemeMode } from '@/lib/theme/tokens';
@@ -37,9 +37,9 @@ import { ProfileSkeleton } from './ProfileSkeleton.component';
 
 export const ProfileScreen = () => {
 	const { mode, setMode, theme } = useThemeContext();
-	const { language, setLanguage, t } = useTranslation();
-	const { data: stats, isError, isPending, refetch } = useGetProfileStats();
-	const updateSettings = useUpdateUserSettings();
+	const { language, t } = useTranslation();
+	const statsQuery = useGetProfileStats();
+	const { data: stats, isError, isPending } = statsQuery;
 	const deleteAccount = useDeleteAccount();
 	const { user } = useUser();
 	const { signOut } = useAuth();
@@ -47,18 +47,10 @@ export const ProfileScreen = () => {
 
 	const [isPhotoSheetOpen, setIsPhotoSheetOpen] = useState(false);
 	const [isFeedbackSheetOpen, setIsFeedbackSheetOpen] = useState(false);
+	const [isLanguageSheetOpen, setIsLanguageSheetOpen] = useState(false);
 	const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
 	const profileSchema = useMemo(() => createProfileSchema(t), [t]);
-
-	const handleLanguageChange = useCallback(
-		(value: string) => {
-			const nextLanguage = value as AppLanguage;
-			setLanguage(nextLanguage);
-			updateSettings.mutate({ language: nextLanguage });
-		},
-		[setLanguage, updateSettings]
-	);
 
 	const handleAppearanceChange = useCallback(
 		(value: string) => {
@@ -178,11 +170,7 @@ export const ProfileScreen = () => {
 	}
 
 	if (isError || !stats) {
-		return (
-			<ScreenContainer shouldIncludeTabBarOffset>
-				<EmptyState actionLabel={t('retry')} onAction={refetch} title={t('genericError')} />
-			</ScreenContainer>
-		);
+		return <ErrorState queries={[statsQuery]} />;
 	}
 
 	const memberSinceDate = new Intl.DateTimeFormat(language, { month: 'long', year: 'numeric' }).format(
@@ -332,23 +320,25 @@ export const ProfileScreen = () => {
 				<ActivityHeatmap columns={15} days={stats.last30Days} />
 			</CardSurface>
 			<CardSurface isFlush>
-				<View style={styles.languageRow}>
+				{/*
+				 * G3 → G4: the language is a row that opens a list, not a control in the row. A
+				 * segment per language was already stacking onto its own line at three and had
+				 * nowhere to go at four; a row reads the current choice — in that language's own
+				 * name, so it is legible whatever the interface is set to — and leaves the choosing
+				 * to a sheet with room for it. Same shape as the Feedback row below: label, where
+				 * it goes, chevron.
+				 */}
+				<Pressable
+					accessibilityRole='button'
+					onPress={() => setIsLanguageSheetOpen(true)}
+					style={({ pressed }) => [styles.settingsRow, { opacity: pressed ? 0.7 : 1 }]}
+				>
 					<BodyStrongText>{t('language')}</BodyStrongText>
-					{/*
-					 * A third language no longer fits beside the label on one line, so this
-					 * row stacks instead of sitting side by side like the appearance row below
-					 * it — the control still spans the full card width, just on its own line.
-					 */}
-					<SegmentedControl
-						onChange={handleLanguageChange}
-						options={[
-							{ label: 'Türkçe', value: 'tr' },
-							{ label: 'English', value: 'en' },
-							{ label: 'Nederlands', value: 'nl' }
-						]}
-						value={language}
-					/>
-				</View>
+					<View style={styles.settingsNav}>
+						<CaptionText color={theme.colors.subtext}>{LANGUAGE_NATIVE_NAMES[language]}</CaptionText>
+						<Icon color={theme.colors.faintText} name='chevronRight' size={15} strokeWidth={1.8} />
+					</View>
+				</Pressable>
 				<Divider />
 				<View style={styles.settingsRow}>
 					<BodyStrongText>{t('appearance')}</BodyStrongText>
@@ -435,6 +425,7 @@ export const ProfileScreen = () => {
 				onClose={() => setIsFeedbackSheetOpen(false)}
 				platform={Platform.OS}
 			/>
+			<LanguageSheet isVisible={isLanguageSheetOpen} onClose={() => setIsLanguageSheetOpen(false)} />
 		</ScreenContainer>
 	);
 };
@@ -474,10 +465,6 @@ const styles = StyleSheet.create({
 	},
 	heatmapTitle: {
 		marginBottom: 12
-	},
-	languageRow: {
-		gap: 10,
-		padding: 15
 	},
 	settingsNav: {
 		alignItems: 'center',

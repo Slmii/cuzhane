@@ -215,6 +215,9 @@ const GLYPHS: Record<IconName, Glyph> = {
 		paths: ['M4.5 8.5v8a1.6 1.6 0 0 0 1.6 1.6h11.8a1.6 1.6 0 0 0 1.6-1.6v-8', 'M9.2 18.1V8.5', 'M14.8 18.1V8.5']
 	},
 	alert: { paths: ['M12 4.8L3.6 19.2h16.8z', 'M12 10v3.6', 'M12 16.4v.2'] },
+	// Frame 2a's mark, traced: the exclamation in a ring, not the triangle above and not
+	// `info` (which is the same three shapes the other way up).
+	alertCircle: { circles: [[12, 12, 8.4]], paths: ['M12 7.6v5', 'M12 15.7v.2'] },
 	offline: {
 		paths: [
 			'M4 4l16 16',

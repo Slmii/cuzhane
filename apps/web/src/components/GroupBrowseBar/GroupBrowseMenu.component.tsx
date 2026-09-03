@@ -42,6 +42,25 @@ export const GroupBrowseMenu = () => {
 	 * Filtering is a submenu because it holds two questions at once; ordering holds one, but is
 	 * a submenu too so the top level reads as a pair rather than one row and a loose section.
 	 */
+	/*
+	 * Each root row carries **what is currently chosen inside it** — "Filtrele · Günlük",
+	 * "Sırala · Boş yeri çok" — so the menu answers at a glance what it used to make you open a
+	 * level to read. The cadence names the filter; the two status toggles don't, because two
+	 * booleans have no one word and "Günlük" already says the part worth saying.
+	 */
+	const cadenceLabel = browse.cycle ? t(cycleLabelKey(browse.cycle)) : t('allGroups');
+	const sortLabel = t(GROUP_SORT_OPTIONS.find(option => option.key === browse.sortKey)?.labelKey ?? 'sortNewest');
+
+	/*
+	 * Two levels, not one flat list: narrowing and ordering are different questions, and the flat
+	 * version ran cadence, status and order together as three unlabelled sections — you could
+	 * read which option was ticked but not what it was answering.
+	 *
+	 * Filtering is a submenu because it holds two questions at once — the cadence as a choice
+	 * under its own heading, and the status toggles under a `section` of theirs — so the level
+	 * says which question each row answers. Ordering holds one, but is a submenu too so the top
+	 * level reads as a pair rather than one row and a loose section.
+	 */
 	const items: MenuActionItem[] = [
 		{
 			assetName: 'filtre-filter',
@@ -59,6 +78,7 @@ export const GroupBrowseMenu = () => {
 					value: browse.cycle ?? ANY_CYCLE,
 					icon: 'calendar'
 				},
+				{ kind: 'section', label: t('filterStatus') },
 				{
 					icon: 'clock',
 					isOn: browse.isNotStartedOnly,
@@ -75,7 +95,8 @@ export const GroupBrowseMenu = () => {
 				}
 			],
 			kind: 'submenu',
-			label: t('filterTitle')
+			label: t('filterTitle'),
+			value: cadenceLabel
 		},
 		{
 			assetName: 'sirala-sort',
@@ -91,17 +112,20 @@ export const GroupBrowseMenu = () => {
 				}
 			],
 			kind: 'submenu',
-			label: t('sortTitle')
+			label: t('sortTitle'),
+			value: sortLabel
 		}
 	];
 
 	// Offered only when there is something to clear — which includes a changed sort order, since
-	// the clear resets that too. It keeps the search box's contents; see the predicate.
+	// the clear resets that too. It keeps the search box's contents; see the predicate. Red,
+	// because it undoes every answer above it at once.
 	if (isGroupBrowseMenuActive(browse)) {
 		items.push({
 			icon: 'close',
 			label: t('filterClear'),
-			onPress: () => setBrowse({ ...emptyGroupBrowseState, search: browse.search })
+			onPress: () => setBrowse({ ...emptyGroupBrowseState, search: browse.search }),
+			tone: 'destructive'
 		});
 	}
 

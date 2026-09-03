@@ -1,5 +1,5 @@
 import { AppButton } from '@/components/ui/Button/Button.component';
-import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
+import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { EyebrowText, Typography } from '@/components/ui/Typography/Typography.component';
 import type { CevsenInvocation } from '@/lib/content/cevsen';
 import { READER_FONT_SIZE_DEFAULT } from '@/lib/content/cevsen';
@@ -235,18 +235,7 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 	}
 
 	if (babsQuery.isError || settingsQuery.isError) {
-		return (
-			<SafeAreaView style={[styles.safeArea, styles.centered, { backgroundColor: theme.colors.background }]}>
-				<EmptyState
-					actionLabel={t('retry')}
-					onAction={() => {
-						babsQuery.refetch();
-						settingsQuery.refetch();
-					}}
-					title={t('genericError')}
-				/>
-			</SafeAreaView>
-		);
+		return <ErrorState queries={[babsQuery, settingsQuery]} />;
 	}
 
 	const babs = babsQuery.data ?? [];
@@ -657,10 +646,6 @@ const styles = StyleSheet.create({
 		paddingBottom: 26,
 		paddingHorizontal: 22,
 		paddingTop: 26
-	},
-	centered: {
-		alignItems: 'center',
-		justifyContent: 'center'
 	},
 	// A column now, not a row: the hint line sits above the buttons it explains.
 	// Even top and bottom. The 16 below was there to clear the home indicator when this bar

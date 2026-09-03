@@ -6,23 +6,39 @@ interface ApiError {
 }
 
 export class WrapperApiError extends Error {
+	/** The server's own error code from the response body — not always present. */
 	code: number;
+	/** The HTTP status the response actually carried; what an error page reports back. */
+	status: number;
 
-	constructor(error: ApiError) {
+	constructor(error: ApiError, status: number) {
 		super(error.message);
 		this.code = error.code;
+		this.status = status;
 		this.name = 'WrapperApiError';
 	}
 }
 
 /** Holds a reference to the Clerk `getToken` function, set at app startup. */
 let _getToken: (() => Promise<string | null>) | null = null;
+/**
+ * What to do when a request finds no session token to send. Set by the app layer to sign
+ * out: a signed-in session that can't produce a JWT is over as far as the server is
+ * concerned, and the sign-in screen is the only honest place to land — not an error page
+ * with a retry that can't succeed.
+ */
+let _onMissingToken: (() => void) | null = null;
 const AUTH_TOKEN_MAX_ATTEMPTS = 3;
 const AUTH_TOKEN_RETRY_DELAY_MS = 120;
 
 /** Call once from the app layer to wire token retrieval into the API client. */
 export const setAuthTokenResolver = (getter: () => Promise<string | null>) => {
 	_getToken = getter;
+};
+
+/** Call once from the app layer; see `_onMissingToken`. */
+export const setMissingTokenHandler = (handler: () => void) => {
+	_onMissingToken = handler;
 };
 
 const wait = async (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -68,10 +84,14 @@ export const wrapperApi = async <T>(endpoint: string, init?: RequestInit): Promi
 		if (__DEV__) {
 			console.log('[api:request] aborting — no token');
 		}
-		throw new WrapperApiError({
-			code: 401,
-			message: 'Authentication token is not ready. Please retry.'
-		});
+		_onMissingToken?.();
+		throw new WrapperApiError(
+			{
+				code: 401,
+				message: 'Authentication token is not ready. Please retry.'
+			},
+			401
+		);
 	}
 
 	let response: Response;
@@ -114,7 +134,7 @@ export const wrapperApi = async <T>(endpoint: string, init?: RequestInit): Promi
 			);
 		}
 
-		throw new WrapperApiError(data as ApiError);
+		throw new WrapperApiError(data as ApiError, response.status);
 	}
 
 	return data as T;

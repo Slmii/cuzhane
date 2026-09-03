@@ -61,6 +61,7 @@ export type IconName =
 	| 'countdown'
 	| 'range'
 	| 'alert'
+	| 'alertCircle'
 	| 'offline'
 	// Reader and pool
 	| 'ayahMark'

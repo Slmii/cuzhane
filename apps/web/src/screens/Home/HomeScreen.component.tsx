@@ -2,7 +2,7 @@ import { ShelfEmptyState } from '@/components/ShelfEmptyState/ShelfEmptyState.co
 import { SliceChip } from '@/components/SliceChip/SliceChip.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
-import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
+import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
 import { ProgressBar } from '@/components/ui/ProgressBar/ProgressBar.component';
 import { CaptionText, EyebrowText, Typography } from '@/components/ui/Typography/Typography.component';
@@ -59,7 +59,8 @@ export const HomeScreen = () => {
 	// iOS would actually show it.
 	useNotificationPermissionPrompt();
 
-	const { data: groups, isError, isPending, refetch } = useGetGroups();
+	const groupsQuery = useGetGroups();
+	const { data: groups, isError, isPending } = groupsQuery;
 	const setAllBabsRead = useSetAllBabsRead();
 
 	const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -134,13 +135,7 @@ export const HomeScreen = () => {
 	}
 
 	if (isError) {
-		return (
-			<SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
-				<View style={styles.padded}>
-					<EmptyState actionLabel={t('retry')} onAction={refetch} title={t('genericError')} />
-				</View>
-			</SafeAreaView>
-		);
+		return <ErrorState queries={[groupsQuery]} />;
 	}
 
 	if (!selected) {

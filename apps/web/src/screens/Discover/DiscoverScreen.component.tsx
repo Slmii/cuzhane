@@ -2,14 +2,16 @@ import { useGroupBrowse } from '@/components/GroupBrowseBar/GroupBrowse.context'
 import { GroupBrowseBar } from '@/components/GroupBrowseBar/GroupBrowseBar.component';
 import { GroupCard } from '@/components/GroupCard/GroupCard.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
+import { PullToRefresh } from '@/components/ui/PullToRefresh/PullToRefresh.component';
 import { ScreenTitle } from '@/components/ScreenTitle/ScreenTitle.component';
 import { ShelfEmptyState } from '@/components/ShelfEmptyState/ShelfEmptyState.component';
 import { GroupCardSkeleton } from '@/components/Skeleton/GroupCardSkeleton.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import type { ChipTone } from '@/components/ui/Chip/Chip.types';
-import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
+import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { SeatStack } from '@/components/ui/SeatStack/SeatStack.component';
 import { useDiscoverGroups } from '@/lib/hooks/useGroup';
+import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { GroupCycle } from '@/lib/types/domain';
@@ -70,12 +72,9 @@ export const DiscoverScreen = () => {
 		return () => clearTimeout(handle);
 	}, [browse.search]);
 
-	const {
-		data: groups,
-		isError,
-		isPending,
-		refetch
-	} = useDiscoverGroups({ cycle: browse.cycle, search: search || undefined });
+	const discoverQuery = useDiscoverGroups({ cycle: browse.cycle, search: search || undefined });
+	const { data: groups, isError, isPending } = discoverQuery;
+	const pullToRefresh = usePullToRefresh(discoverQuery);
 
 	/**
 	 * The cadence and the search term also go to the server, because they decide *which*
@@ -134,10 +133,12 @@ export const DiscoverScreen = () => {
 		[cardLayout, navigation, t]
 	);
 
+	if (isError) {
+		return <ErrorState queries={[discoverQuery]} />;
+	}
+
 	const empty = isPending ? (
 		<GroupCardSkeleton statusLabel={t('loadingDiscover')} />
-	) : isError ? (
-		<EmptyState actionLabel={t('retry')} onAction={refetch} title={t('genericError')} />
 	) : (
 		<ShelfEmptyState
 			actions={
@@ -164,21 +165,23 @@ export const DiscoverScreen = () => {
 		 * `paddingTop`, which is carrying the status-bar inset.
 		 */
 		<ScreenContainer contentContainerStyle={styles.flush} isScrollable={false} shouldIncludeTabBarOffset>
-			<FlatList
-				contentContainerStyle={styles.listContent}
-				data={visibleGroups}
-				initialNumToRender={6}
-				keyboardShouldPersistTaps='handled'
-				keyExtractor={keyExtractor}
-				ListEmptyComponent={empty}
-				ListHeaderComponent={header}
-				maxToRenderPerBatch={6}
-				removeClippedSubviews
-				renderItem={renderGroup}
-				showsVerticalScrollIndicator={false}
-				stickyHeaderIndices={[0]}
-				windowSize={7}
-			/>
+			<PullToRefresh {...pullToRefresh}>
+				<FlatList
+					contentContainerStyle={styles.listContent}
+					data={visibleGroups}
+					initialNumToRender={6}
+					keyboardShouldPersistTaps='handled'
+					keyExtractor={keyExtractor}
+					ListEmptyComponent={empty}
+					ListHeaderComponent={header}
+					maxToRenderPerBatch={6}
+					removeClippedSubviews
+					renderItem={renderGroup}
+					showsVerticalScrollIndicator={false}
+					stickyHeaderIndices={[0]}
+					windowSize={7}
+				/>
+			</PullToRefresh>
 		</ScreenContainer>
 	);
 };

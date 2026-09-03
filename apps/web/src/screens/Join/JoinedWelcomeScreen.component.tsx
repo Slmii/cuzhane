@@ -1,7 +1,7 @@
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
-import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
+import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { Hatch } from '@/components/ui/Hatch/Hatch.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
 import { ProgressBar } from '@/components/ui/ProgressBar/ProgressBar.component';
@@ -48,11 +48,7 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 	}
 
 	if (group.isError || !group.data) {
-		return (
-			<ScreenContainer isScrollable>
-				<EmptyState actionLabel={t('retry')} onAction={() => group.refetch()} title={t('genericError')} />
-			</ScreenContainer>
-		);
+		return <ErrorState queries={[group]} />;
 	}
 
 	const detail = group.data;

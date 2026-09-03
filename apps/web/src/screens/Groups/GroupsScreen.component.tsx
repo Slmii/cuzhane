@@ -2,13 +2,15 @@ import { GroupBrowseBar } from '@/components/GroupBrowseBar/GroupBrowseBar.compo
 import { GroupCard } from '@/components/GroupCard/GroupCard.component';
 import { RoundResetRow } from '@/components/RoundResetRow/RoundResetRow.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
+import { PullToRefresh } from '@/components/ui/PullToRefresh/PullToRefresh.component';
 import { ScreenTitle } from '@/components/ScreenTitle/ScreenTitle.component';
 import { ShelfEmptyState } from '@/components/ShelfEmptyState/ShelfEmptyState.component';
 import { GroupCardSkeleton } from '@/components/Skeleton/GroupCardSkeleton.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
-import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
+import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { Typography } from '@/components/ui/Typography/Typography.component';
 import { useGetGroups } from '@/lib/hooks/useGroup';
+import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { formatBabRange } from '@/lib/utils/babs';
@@ -42,7 +44,9 @@ export const GroupsScreen = () => {
 	const { theme } = useThemeContext();
 	const { language, t } = useTranslation();
 	const { user } = useUser();
-	const { data: groups, isError, isPending, refetch } = useGetGroups();
+	const groupsQuery = useGetGroups();
+	const { data: groups, isError, isPending } = groupsQuery;
+	const pullToRefresh = usePullToRefresh(groupsQuery);
 	const [isJoinSheetOpen, setIsJoinSheetOpen] = useState(false);
 	// Shared with the navigator's filter menu, which sits outside this screen — see the context.
 	const { browse, setBrowse } = useGroupBrowse();
@@ -203,10 +207,12 @@ export const GroupsScreen = () => {
 		[cardLayout, goToGathering, goToGroup, language, t]
 	);
 
+	if (isError) {
+		return <ErrorState queries={[groupsQuery]} />;
+	}
+
 	const empty = isPending ? (
 		<GroupCardSkeleton statusLabel={t('loadingGroups')} />
-	) : isError ? (
-		<EmptyState actionLabel={t('retry')} onAction={refetch} title={t('genericError')} />
 	) : !groups || groups.length === 0 ? (
 		<ShelfEmptyState
 			actions={
@@ -252,21 +258,23 @@ export const GroupsScreen = () => {
 			 * which is where the status-bar inset lives.
 			 */}
 			<ScreenContainer contentContainerStyle={styles.flush} isScrollable={false} shouldIncludeTabBarOffset>
-				<FlatList
-					contentContainerStyle={styles.listContent}
-					data={visibleGroups}
-					initialNumToRender={6}
-					keyboardShouldPersistTaps='handled'
-					keyExtractor={keyExtractor}
-					ListEmptyComponent={empty}
-					ListHeaderComponent={header}
-					maxToRenderPerBatch={6}
-					removeClippedSubviews
-					renderItem={renderGroup}
-					showsVerticalScrollIndicator={false}
-					stickyHeaderIndices={[0]}
-					windowSize={7}
-				/>
+				<PullToRefresh {...pullToRefresh}>
+					<FlatList
+						contentContainerStyle={styles.listContent}
+						data={visibleGroups}
+						initialNumToRender={6}
+						keyboardShouldPersistTaps='handled'
+						keyExtractor={keyExtractor}
+						ListEmptyComponent={empty}
+						ListHeaderComponent={header}
+						maxToRenderPerBatch={6}
+						removeClippedSubviews
+						renderItem={renderGroup}
+						showsVerticalScrollIndicator={false}
+						stickyHeaderIndices={[0]}
+						windowSize={7}
+					/>
+				</PullToRefresh>
 			</ScreenContainer>
 
 			<JoinByCodeSheet isVisible={isJoinSheetVisible} onClose={closeJoinSheet} />

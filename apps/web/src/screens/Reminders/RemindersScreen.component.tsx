@@ -4,7 +4,7 @@ import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.co
 import { ScreenTitle } from '@/components/ScreenTitle/ScreenTitle.component';
 import { BrandMark } from '@/components/ui/BrandMark/BrandMark.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
-import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
+import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { Form } from '@/components/ui/Form/Form.component';
 import { FormToggleRow } from '@/components/ui/Form/ToggleRow/ToggleRow.component';
 import {
@@ -135,7 +135,8 @@ const ReminderPersistence = ({ onRemindersEnabled, updateSettings, watch }: Remi
 export const RemindersScreen = () => {
 	const { theme } = useThemeContext();
 	const { t } = useTranslation();
-	const { data: settings, isError, isPending, refetch } = useGetUserSettings();
+	const settingsQuery = useGetUserSettings();
+	const { data: settings, isError, isPending } = settingsQuery;
 	const updateSettings = useUpdateUserSettings();
 	const { data: groups } = useGetGroups();
 
@@ -217,11 +218,7 @@ export const RemindersScreen = () => {
 	}
 
 	if (isError || !settings) {
-		return (
-			<ScreenContainer shouldIncludeTabBarOffset>
-				<EmptyState actionLabel={t('retry')} onAction={refetch} title={t('genericError')} />
-			</ScreenContainer>
-		);
+		return <ErrorState queries={[settingsQuery]} />;
 	}
 
 	// The scheduler's own sum, through the same helper, so this preview is the notification
