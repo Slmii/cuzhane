@@ -1,0 +1,47 @@
+# Caddy issues and renews the certificate itself; there is no certbot and no cron. It needs
+# ports 80 and 443 open and the domain's A record already pointing at this droplet — the
+# ACME challenge is answered on 80.
+#
+# CI copies this file to the droplet on every deploy; edit it here, not there.
+{
+	email {$ACME_EMAIL}
+
+	servers {
+		# Without these, a client can hold a connection open indefinitely by dribbling out a
+		# body — cheap for the attacker, and on a 2 GB box a few thousand of them are not
+		# cheap for us. Express's 300 KB JSON limit only applies once a body has arrived.
+		timeouts {
+			read_body 10s
+			read_header 5s
+			write 30s
+			idle 2m
+		}
+	}
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	# The API accepts nothing larger than 300 KB of JSON, so refuse the rest at the edge
+	# rather than proxying it.
+	request_body {
+		max_size 300KB
+	}
+
+	# Helmet sets these on the API's own responses, but Caddy answers some requests itself —
+	# redirects, proxy errors, TLS failures — and those never reach Express.
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		-Server
+	}
+
+	# So an incident can be reconstructed. Rotation is the container's, via compose's logging
+	# options — nothing is written to disk here.
+	log {
+		output stdout
+	}
+
+	reverse_proxy api:3001
+}

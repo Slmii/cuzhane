@@ -1,0 +1,133 @@
+# The droplet's whole stack. Lives at /opt/cuzhane on the server, beside a `.env` built from
+# `.env.example` in this folder. CI copies this file up on every deploy, so it is the source of
+# truth — never edit the copy on the box.
+#
+#   docker compose pull api && docker compose up -d --wait
+#
+# Postgres publishes **no port**. It is reachable only from the `back` network, which is what
+# keeps the database off the public internet without a firewall rule having to be right —
+# Docker's own iptables rules bypass ufw for any published port, so "don't publish it" is the
+# only guarantee here. Never add a `ports:` entry to postgres, not even for a moment.
+
+name: cuzhane
+
+services:
+    caddy:
+        # Pinned to the minor. A major bump should be somebody's decision.
+        image: caddy:2.11-alpine
+        restart: unless-stopped
+        ports:
+            - '80:80'
+            - '443:443'
+        environment:
+            DOMAIN: ${DOMAIN}
+            ACME_EMAIL: ${ACME_EMAIL}
+        volumes:
+            - ./Caddyfile:/etc/caddy/Caddyfile:ro
+            # The certificates live here. Losing this volume means re-issuing them, and Let's
+            # Encrypt rate-limits that — five per week for the same domain.
+            - caddy_data:/data
+            - caddy_config:/config
+        networks:
+            # The edge never touches the database.
+            - front
+        security_opt:
+            - no-new-privileges:true
+        logging: &logging
+            driver: json-file
+            options:
+                # Unrotated json-file logs fill a 48 GB disk given a few months and a stack
+                # trace per error — and a full disk stops Postgres accepting writes.
+                max-size: '10m'
+                max-file: '3'
+        depends_on:
+            - api
+
+    api:
+        image: ghcr.io/slmii/cuzhane-api:${IMAGE_TAG:-latest}
+        restart: unless-stopped
+        environment:
+            NODE_ENV: production
+            PORT: 3001
+            # The phone sends no Origin header, so this only matters if a browser ever calls
+            # the API. Left open rather than pretending otherwise: auth is bearer-only and no
+            # credentials ride on a cookie, so a hostile page cannot use a victim's session.
+            CORS_ORIGIN: ${CORS_ORIGIN:-*}
+            # `POSTGRES_PASSWORD` is spliced into a URI here — see `.env.example` for why it
+            # must not contain `/`, `@`, `:`, `#` or `?`.
+            DATABASE_URL: postgresql://cuzhane:${POSTGRES_PASSWORD}@postgres:5432/cuzhane
+            CLERK_PUBLISHABLE_KEY: ${CLERK_PUBLISHABLE_KEY}
+            CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
+            APP_STORE_URL: ${APP_STORE_URL:-}
+        networks:
+            - front
+            - back
+        # **This is what makes a deploy able to fail.** Without it `docker compose up -d`
+        # returns the moment the container is *created*, so a crash-looping API — a failed
+        # migration, a bad build — reported a green deploy while every request 502'd. With it,
+        # `up -d --wait` blocks until the API answers its own health route.
+        healthcheck:
+            test:
+                [
+                    'CMD',
+                    'node',
+                    '-e',
+                    "fetch('http://127.0.0.1:3001/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+                ]
+            interval: 10s
+            timeout: 5s
+            retries: 6
+            # Migrations run before the server listens, and they run inside this window.
+            start_period: 60s
+        # The image runs as `node` and writes nothing: no uploads, no cache, no logs to disk.
+        read_only: true
+        tmpfs:
+            - /tmp
+        security_opt:
+            - no-new-privileges:true
+        cap_drop:
+            - ALL
+        # On a 2 GB box the OOM killer's usual choice is Postgres, because it is the largest
+        # process. A ceiling on Node means a runaway request kills the API instead, and the API
+        # comes back on its own.
+        mem_limit: 768m
+        pids_limit: 256
+        logging: *logging
+        depends_on:
+            postgres:
+                condition: service_healthy
+
+    postgres:
+        image: postgres:17.11-alpine
+        restart: unless-stopped
+        environment:
+            POSTGRES_USER: cuzhane
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+            POSTGRES_DB: cuzhane
+        volumes:
+            - pgdata:/var/lib/postgresql/data
+        networks:
+            - back
+        healthcheck:
+            # The API runs its migrations at boot, so it must not start against a database
+            # that is still initialising.
+            test: ['CMD-SHELL', 'pg_isready -U cuzhane -d cuzhane']
+            interval: 5s
+            timeout: 5s
+            retries: 10
+        security_opt:
+            - no-new-privileges:true
+        mem_limit: 640m
+        logging: *logging
+
+networks:
+    # Two networks rather than one, so a compromised Caddy cannot open a socket to Postgres.
+    front:
+    back:
+
+volumes:
+    caddy_data:
+    caddy_config:
+    # `BabRead` is append-only and exists nowhere else. `docker compose down -v`, a volume
+    # prune, or losing the droplet destroys it — see `deploy/README.md`.
+    pgdata:

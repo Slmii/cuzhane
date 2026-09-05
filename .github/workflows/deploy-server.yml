@@ -1,0 +1,141 @@
+name: Deploy server
+
+# Only the API. The Expo app ships through EAS and has nothing to do with this.
+on:
+    push:
+        branches: [main]
+        paths:
+            - 'apps/server/**'
+            - 'deploy/**'
+            - 'package.json'
+            - 'pnpm-lock.yaml'
+            - 'pnpm-workspace.yaml'
+            - '.npmrc'
+            - '.github/workflows/deploy-server.yml'
+    workflow_dispatch:
+
+# Two pushes in quick succession must not race for the droplet: the second `up -d` could
+# otherwise start while the first is still swapping containers, and the image that ends up
+# running would be whichever finished last rather than whichever was newer.
+concurrency:
+    group: deploy-server
+    cancel-in-progress: false
+
+# The image name is lowercase on purpose: GHCR rejects a path with a capital in it, and the
+# owner here is `Slmii`.
+env:
+    IMAGE: ghcr.io/slmii/cuzhane-api
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            packages: write
+        steps:
+            # **Every action is pinned to a commit, not a tag.** A tag is mutable and points at
+            # code its author can replace; the deploy job below hands a key to whatever it
+            # resolves to. Renovate/Dependabot can bump these with a review.
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+            - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+
+            - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+              with:
+                  registry: ghcr.io
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+              with:
+                  # The repo root, because the Dockerfile installs a workspace.
+                  context: .
+                  file: apps/server/Dockerfile
+                  push: true
+                  tags: |
+                      ${{ env.IMAGE }}:latest
+                      ${{ env.IMAGE }}:${{ github.sha }}
+                  cache-from: type=gha
+                  cache-to: type=gha,mode=max
+
+    deploy:
+        needs: build
+        runs-on: ubuntu-latest
+        # `workflow_dispatch` can be aimed at any branch, and this job deploys to production.
+        if: github.ref == 'refs/heads/main'
+        permissions:
+            contents: read
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+            # **No third-party action holds the droplet's key.** A marketplace action given an
+            # SSH secret is a supply-chain foothold with root on the box (the tj-actions
+            # pattern); the runner's own `ssh` is a few more lines and nobody else's code.
+            # `DROPLET_HOST_KEY` is the droplet's public host key — without it this would
+            # trust-on-first-use every run, which is no check at all. Produce it once with
+            # `ssh-keyscan -t ed25519 <host>`.
+            - name: Open an SSH session to the droplet
+              env:
+                  KEY: ${{ secrets.DROPLET_SSH_KEY }}
+                  HOST_KEY: ${{ secrets.DROPLET_HOST_KEY }}
+              run: |
+                  mkdir -p ~/.ssh
+                  printf '%s\n' "$KEY" > ~/.ssh/id_deploy
+                  chmod 600 ~/.ssh/id_deploy
+                  printf '%s\n' "$HOST_KEY" > ~/.ssh/known_hosts
+
+            # Compose, Caddy and the backup script are part of the release. Without this the
+            # workflow triggers on `deploy/**` and then deploys a new image against whatever
+            # configuration the box happened to have — a release that adds an environment
+            # variable or a healthcheck would silently run without it.
+            - name: Ship the deployment files
+              env:
+                  HOST: ${{ secrets.DROPLET_HOST }}
+                  USER_NAME: ${{ secrets.DROPLET_USER }}
+              run: |
+                  scp -i ~/.ssh/id_deploy deploy/compose.yml deploy/Caddyfile deploy/backup.sh \
+                    "$USER_NAME@$HOST:/opt/cuzhane/"
+                  ssh -i ~/.ssh/id_deploy "$USER_NAME@$HOST" 'chmod +x /opt/cuzhane/backup.sh'
+
+            - name: Deploy
+              env:
+                  HOST: ${{ secrets.DROPLET_HOST }}
+                  USER_NAME: ${{ secrets.DROPLET_USER }}
+              run: |
+                  ssh -i ~/.ssh/id_deploy "$USER_NAME@$HOST" \
+                    "IMAGE_TAG='${{ github.sha }}' bash -s" <<'REMOTE'
+                  set -euo pipefail
+                  cd /opt/cuzhane
+
+                  # The only copy of the data from before this release's migrations. A
+                  # destructive migration is not recoverable without it.
+                  if [ -x ./backup.sh ]; then ./backup.sh; fi
+
+                  # Validate before anything is torn down: a compose file that does not parse
+                  # should fail the job, not leave the stack half-swapped.
+                  docker compose config --quiet
+
+                  # The exact commit, not `latest`. Two deploys in flight cannot then disagree
+                  # about which image `latest` means, and a rollback is this same line with an
+                  # older sha.
+                  docker compose pull api
+
+                  # `--wait` is what makes this able to fail: it blocks on the api container's
+                  # healthcheck and exits non-zero if it never becomes healthy, so a failed
+                  # migration or a crash-looping build turns the job red instead of reporting a
+                  # green deploy over a 502.
+                  docker compose up -d --wait --wait-timeout 180
+
+                  docker image prune -f
+                  REMOTE
+
+            - name: Smoke test over HTTPS
+              env:
+                  DOMAIN: ${{ secrets.DROPLET_DOMAIN }}
+              # The healthcheck runs inside the container; this is the same question asked from
+              # outside, so a broken certificate or proxy also fails the deploy.
+              run: curl -fsS --max-time 15 "https://$DOMAIN/health"
+
+            - name: Remove the key
+              if: always()
+              run: rm -f ~/.ssh/id_deploy

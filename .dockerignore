@@ -1,0 +1,23 @@
+# The build context is the repo root, so everything the API does not need is excluded here —
+# `apps/web` alone is several gigabytes of React Native dependencies and native build output.
+# **Never bake a `.env` into the image.** `apps/server/.env` holds the development Clerk
+# secret key, and `COPY apps/server` swept it in — where `dotenv.config()` then read it at
+# boot, quietly filling in whatever the container had not been given. The droplet's values
+# come from compose, and nothing else.
+.env
+.env.*
+**/.env
+**/.env.*
+!**/.env.example
+
+node_modules
+**/node_modules
+apps/web
+apps/server/dist
+apps/server/src/generated
+.git
+.expo
+.vscode
+design_handoff_cuzhane
+*.log
+.DS_Store
