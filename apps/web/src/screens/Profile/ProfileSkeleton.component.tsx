@@ -1,3 +1,4 @@
+import { SCREEN_TITLE_PADDING_UNDER_BAR } from '@/components/ScreenTitle/ScreenTitle.component';
 import { Bone } from '@/components/Skeleton/Skeleton.component';
 import { SkeletonStatusRow } from '@/components/Skeleton/SkeletonStatusRow.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
@@ -157,6 +158,7 @@ const styles = StyleSheet.create({
 		flexDirection: 'row',
 		gap: 14,
 		paddingBottom: 18,
-		paddingTop: 8
+		// Profil sits under a bar now (back chevron or the account/search item), like the loaded heading.
+		paddingTop: SCREEN_TITLE_PADDING_UNDER_BAR
 	}
 });

@@ -118,13 +118,12 @@ export const GroupBrowseMenu = () => {
 	];
 
 	// Offered only when there is something to clear — which includes a changed sort order, since
-	// the clear resets that too. It keeps the search box's contents; see the predicate. Red,
-	// because it undoes every answer above it at once.
+	// the clear resets that too. Red, because it undoes every answer above it at once.
 	if (isGroupBrowseMenuActive(browse)) {
 		items.push({
 			icon: 'close',
 			label: t('filterClear'),
-			onPress: () => setBrowse({ ...emptyGroupBrowseState, search: browse.search }),
+			onPress: () => setBrowse(emptyGroupBrowseState),
 			tone: 'destructive'
 		});
 	}

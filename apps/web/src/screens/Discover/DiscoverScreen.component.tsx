@@ -1,5 +1,4 @@
 import { useGroupBrowse } from '@/components/GroupBrowseBar/GroupBrowse.context';
-import { GroupBrowseBar } from '@/components/GroupBrowseBar/GroupBrowseBar.component';
 import { GroupCard } from '@/components/GroupCard/GroupCard.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { PullToRefresh } from '@/components/ui/PullToRefresh/PullToRefresh.component';
@@ -20,7 +19,7 @@ import { cycleLabelKey, splitModeLabelKey } from '@/lib/utils/groups';
 import { TabStackParamList } from '@/navigation/types';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 import Animated, { LinearTransition, useReducedMotion } from 'react-native-reanimated';
 
@@ -34,7 +33,6 @@ type DiscoverNavigationProp = NativeStackNavigationProp<TabStackParamList>;
  * own sake when the cause was a filter, not a scroll.
  */
 const CARD_LAYOUT = LinearTransition.springify().damping(20).stiffness(180).mass(0.7);
-const SEARCH_DEBOUNCE_MS = 300;
 
 const badgeToneForCycle = (cycle: GroupCycle): ChipTone => {
 	switch (cycle) {
@@ -53,8 +51,6 @@ export const DiscoverScreen = () => {
 	const { t } = useTranslation();
 	// Shared with the navigator's browse menu, which sits outside this screen — see the context.
 	const { browse, setBrowse } = useGroupBrowse();
-	/** Debounced copy of the query, so a request isn't sent per keystroke. */
-	const [search, setSearch] = useState('');
 
 	// Someone who has asked the OS for less motion gets the instant reorder they asked for.
 	const isReducedMotion = useReducedMotion();
@@ -66,34 +62,24 @@ export const DiscoverScreen = () => {
 
 	const clearNarrowing = () => setBrowse(emptyGroupBrowseState);
 
-	useEffect(() => {
-		const handle = setTimeout(() => setSearch(browse.search.trim()), SEARCH_DEBOUNCE_MS);
-
-		return () => clearTimeout(handle);
-	}, [browse.search]);
-
-	const discoverQuery = useDiscoverGroups({ cycle: browse.cycle, search: search || undefined });
+	const discoverQuery = useDiscoverGroups({ cycle: browse.cycle });
 	const { data: groups, isError, isPending } = discoverQuery;
 	const pullToRefresh = usePullToRefresh(discoverQuery);
 
 	/**
-	 * The cadence and the search term also go to the server, because they decide *which*
-	 * groups exist for this browse; re-applying them here is a no-op that keeps one function
-	 * responsible for what the controls mean. Durum and the sort are answered by fields
-	 * every row already carries, so sending them would be a round trip to reorder something
-	 * we are holding.
+	 * The cadence also goes to the server, because it decides *which* groups exist for this
+	 * browse; re-applying it here is a no-op that keeps one function responsible for what the
+	 * controls mean. Durum and the sort are answered by fields every row already carries, so
+	 * sending them would be a round trip to reorder something we are holding.
 	 */
-	const visibleGroups = useMemo(() => applyGroupBrowse(groups, { ...browse, search }), [browse, groups, search]);
+	const visibleGroups = useMemo(() => applyGroupBrowse(groups, browse), [browse, groups]);
 
-	// Title, search box and filter pinned as one block: searching a long list is exactly
-	// when you scroll away from the field, and having to scroll back up to change a term
-	// is what makes a search feel like a form rather than a filter.
+	// The title pinned as the list's header. No search box here: searching, open groups
+	// included, is the Ara tab's job; filter and sort are the navigator's pull-down.
 	const header = (
 		<View key='header' style={[styles.header, { backgroundColor: theme.colors.background }]}>
 			{/* Under the navigator's bar, which carries this screen's browse menu. */}
 			<ScreenTitle isUnderNavigationBar label={t('discover')} />
-			{/* Search only: filter and sort are the navigator's pull-down, as on Gruplarım. */}
-			<GroupBrowseBar hasControls={false} onChange={setBrowse} state={browse} />
 		</View>
 	);
 

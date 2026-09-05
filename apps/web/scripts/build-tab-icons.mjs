@@ -44,7 +44,9 @@ const GLYPHS = {
 	reminders: `<g ${STROKE}><path d="M6.3 17h11.4l-1.7-2.4v-3.7a4 4 0 0 0-8 0v3.7z"/><path d="M10.2 20h3.6"/></g>`,
 	remindersActive: `<g ${SOLID}><path d="M6.3 17h11.4l-1.7-2.4v-3.7a4 4 0 0 0-8 0v3.7z"/></g><g ${BOLD}><path d="M10.2 20h3.6"/></g>`,
 	profile: `<g ${STROKE}><circle cx="12" cy="8.8" r="3.4"/><path d="M5.6 19.4a6.4 6.4 0 0 1 12.8 0"/></g>`,
-	profileActive: `<g ${SOLID}><circle cx="12" cy="8.8" r="3.6"/><path d="M5.6 19.4a6.4 6.4 0 0 1 12.8 0z"/></g>`
+	profileActive: `<g ${SOLID}><circle cx="12" cy="8.8" r="3.6"/><path d="M5.6 19.4a6.4 6.4 0 0 1 12.8 0z"/></g>`,
+	search: `<g ${STROKE}><circle cx="11" cy="11" r="6.2"/><path d="M15.6 15.6L20 20"/></g>`,
+	searchActive: `<g ${BOLD}><circle cx="11" cy="11" r="6.2"/><path d="M15.6 15.6L20 20"/></g>`
 };
 
 const CHROME = join(

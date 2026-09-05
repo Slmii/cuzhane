@@ -4,20 +4,22 @@ import type { StringKey } from '@/lib/i18n/strings';
 import { appFonts } from '@/lib/theme/fonts';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { HasTabBarContext, TabBarOffsetContext } from '@/navigation/TabBarOffsetContext';
+import { setLinkGateReady } from '@/navigation/linkGate';
+import { forceTabBarHidden, useForcedTabBarHidden } from '@/navigation/tabBarVisibility';
 import { AuthStackParamList, RootStackParamList, RootTabParamList, TabStackParamList } from '@/navigation/types';
-import { useProfileTabPhoto } from '@/navigation/useProfileTabPhoto';
+import { TrailingCornerAction } from '@/navigation/TrailingCornerAction';
 import { ForgotPasswordScreen } from '@/screens/Auth/ForgotPasswordScreen.component';
 import { ResetCodeSentScreen } from '@/screens/Auth/ResetCodeSentScreen.component';
 import { SetNewPasswordScreen } from '@/screens/Auth/SetNewPasswordScreen.component';
 import { SignInScreen } from '@/screens/Auth/SignInScreen.component';
 import { SignUpScreen } from '@/screens/Auth/SignUpScreen.component';
 import { DiscoverScreen } from '@/screens/Discover/DiscoverScreen.component';
+import { DiscoverToolbar } from '@/screens/Discover/DiscoverToolbar.component';
 import { CreateGroupScreen } from '@/screens/Groups/CreateGroupScreen.component';
 import { GroupDetailScreen } from '@/screens/Groups/GroupDetailScreen.component';
 import { GroupDetailToolbar } from '@/screens/Groups/GroupDetailToolbar.component';
 import { GroupsScreen } from '@/screens/Groups/GroupsScreen.component';
 import { GroupBrowseProvider } from '@/components/GroupBrowseBar/GroupBrowse.context';
-import { GroupBrowseMenu } from '@/components/GroupBrowseBar/GroupBrowseMenu.component';
 import { GroupsToolbar } from '@/screens/Groups/GroupsToolbar.component';
 import { LobbyScreen } from '@/screens/Groups/LobbyScreen.component';
 import { PoolScreen } from '@/screens/Groups/PoolScreen.component';
@@ -32,8 +34,9 @@ import { AllBabsScreen } from '@/screens/Reader/AllBabsScreen.component';
 import { BabReaderScreen } from '@/screens/Reader/BabReaderScreen.component';
 import { ReaderToolbar } from '@/screens/Reader/ReaderToolbar.component';
 import { RemindersScreen } from '@/screens/Reminders/RemindersScreen.component';
+import { SearchScreen } from '@/screens/Search/SearchScreen.component';
 import { createNativeBottomTabNavigator, type NativeBottomTabNavigationProp } from '@bottom-tabs/react-navigation';
-import { useAuth, useUser } from '@clerk/expo';
+import { useAuth } from '@clerk/expo';
 import {
 	StackActions,
 	useNavigationState,
@@ -42,24 +45,26 @@ import {
 	type RouteProp
 } from '@react-navigation/native';
 import { createNativeStackNavigator, NativeStackNavigationOptions } from '@react-navigation/native-stack';
-import type { ComponentType } from 'react';
+import { useEffect, useState, type ComponentType } from 'react';
 import { ActivityIndicator, Platform, View, type ImageSourcePropType } from 'react-native';
-import { useBottomTabBarHeight } from 'react-native-bottom-tabs';
+import { useBottomTabBarHeight, type AppleIcon } from 'react-native-bottom-tabs';
 
 /**
  * Screens the bar steps out of the way for.
  *
- * Empty at the moment: the reader used to be listed here on the grounds that reading should
- * be immersive, and it is being tried with the bar left in — it stacks directly under the
- * reader's own prev · Okudum · next bar, so the two are worth looking at together before
- * deciding. Put `'BabReader'` back to restore the immersive version.
+ * `Search` is the one entry: K2's search mode *replaces* the bar with the glass field and
+ * Kapat, so the native bar goes while that tab is focused and comes back with Kapat. The
+ * reader used to be listed here on the grounds that reading should be immersive, and it is
+ * being tried with the bar left in — it stacks directly under the reader's own prev · Okudum ·
+ * next bar, so the two are worth looking at together before deciding. Put `'BabReader'`
+ * back to restore the immersive version.
  */
-const TAB_BAR_HIDDEN_ROUTES = new Set<string>([]);
+const TAB_BAR_HIDDEN_ROUTES = new Set<string>(['Search']);
 
 type AnyNavigationState = NavigationState | PartialState<NavigationState>;
 
 /** Walks the focused route down through every nested navigator to the visible screen. */
-const focusedRouteName = (state: AnyNavigationState | undefined): string | undefined => {
+export const focusedRouteName = (state: AnyNavigationState | undefined): string | undefined => {
 	let current: AnyNavigationState | undefined = state;
 	let name: string | undefined;
 
@@ -78,6 +83,46 @@ const focusedRouteName = (state: AnyNavigationState | undefined): string | undef
 };
 
 /**
+ * How long after the tab switch the bar is asked back. The switch is a single frame; this only
+ * has to clear it, and stay short enough that the bar's own slide reads as part of the same gesture.
+ */
+const TAB_BAR_UNHIDE_DELAY_MS = 120;
+
+/**
+ * **Hide at once, show a beat later.** The native bar has two hiding mechanisms stacked on top
+ * of each other: a UIKit `isHidden` toggle that snaps, and a per-page SwiftUI toolbar modifier
+ * that animates. Flip the flag in the same commit as the tab change — which is what leaving
+ * search does — and the bar snapped in with Ana sayfa, faded *out* as SwiftUI reconciled the
+ * page that was still hiding it, then faded in again. Recorded at 12fps: shown, gone, shown.
+ * Letting the selection settle first leaves SwiftUI one transition to play. Hiding has no such
+ * problem — a bar that vanishes at once is what search mode wants anyway.
+ */
+const useSettledTabBarHidden = (shouldHide: boolean) => {
+	const [previousShouldHide, setPreviousShouldHide] = useState(shouldHide);
+	// The bar stays hidden past the flag dropping, until the timer below lets it go.
+	const [isLingering, setIsLingering] = useState(false);
+
+	// Adjusted during render rather than from an effect — the React-sanctioned shape, and what
+	// keeps `react-hooks/set-state-in-effect` quiet.
+	if (previousShouldHide !== shouldHide) {
+		setPreviousShouldHide(shouldHide);
+		setIsLingering(!shouldHide);
+	}
+
+	useEffect(() => {
+		if (!isLingering) {
+			return;
+		}
+
+		const handle = setTimeout(() => setIsLingering(false), TAB_BAR_UNHIDE_DELAY_MS);
+
+		return () => clearTimeout(handle);
+	}, [isLingering]);
+
+	return shouldHide || isLingering;
+};
+
+/**
  * **The tab bar is the real UIKit one**, so on iOS 26 it is drawn in liquid glass by the
  * system — the float, the refraction over scrolling content and the selection pill are all the
  * OS, not us. That is the whole reason for using it over the JS bar.
@@ -93,7 +138,21 @@ const focusedRouteName = (state: AnyNavigationState | undefined): string | undef
  * this row alone — "pasif çizgili, aktif dolgulu". It is also what a real UITabBar does, so
  * for once the platform and the design want the same thing.
  */
-const TAB_ICONS: Record<keyof RootTabParamList, { active: ImageSourcePropType; resting: ImageSourcePropType }> = {
+type TabIconSource = ImageSourcePropType | AppleIcon;
+
+/**
+ * **The search tab wears Apple's own magnifier on iOS.** With `role: 'search'` the bar draws a
+ * detached circle, and the glyph the platform puts in that circle everywhere else is
+ * `magnifyingglass`; a rasterised copy of ours beside it read as a lookalike. The library only
+ * takes a *system* symbol there (no custom catalog names), so the icon set's drawing still ships
+ * as a PNG for Android, where the search tab is an ordinary fifth tab.
+ */
+const SEARCH_TAB_ICON: TabIconSource =
+	Platform.OS === 'ios' ? { sfSymbol: 'magnifyingglass' } : require('@/assets/tabs/search.png');
+const SEARCH_TAB_ICON_ACTIVE: TabIconSource =
+	Platform.OS === 'ios' ? { sfSymbol: 'magnifyingglass' } : require('@/assets/tabs/searchActive.png');
+
+const TAB_ICONS: Record<keyof RootTabParamList, { active: TabIconSource; resting: TabIconSource }> = {
 	Home: {
 		active: require('@/assets/tabs/homeActive.png'),
 		resting: require('@/assets/tabs/home.png')
@@ -110,6 +169,11 @@ const TAB_ICONS: Record<keyof RootTabParamList, { active: ImageSourcePropType; r
 		active: require('@/assets/tabs/remindersActive.png'),
 		resting: require('@/assets/tabs/reminders.png')
 	},
+	Search: {
+		active: SEARCH_TAB_ICON_ACTIVE,
+		resting: SEARCH_TAB_ICON
+	},
+	// Android's fifth tab — see `TrailingCornerAction` for why the platforms swap the two.
 	Profile: {
 		active: require('@/assets/tabs/profileActive.png'),
 		resting: require('@/assets/tabs/profile.png')
@@ -122,30 +186,6 @@ const tabIcon =
 		focused ? TAB_ICONS[name].active : TAB_ICONS[name].resting;
 
 /**
- * **Profile shows the reader's own photo when they have one**, per the Icon Set's note on
- * that tab: "Kişi. Avatar varsa ikon yerine 21 px avatar." The `person` glyph is the fallback
- * for an account with no picture, not the default.
- *
- * Two details make it work rather than look like a bug:
- *
- * - It renders in `original` mode. Every other icon here is a **template** image, which is
- *   what lets iOS tint it with the navigator's active colour — put a photograph through that
- *   and you get a flat green silhouette of a face.
- * - The URL carries a size. Clerk serves the original upload otherwise, which for a phone
- *   photo is a couple of megabytes fetched to fill 28 points.
- *
- * `hasImage` rather than `imageUrl`: Clerk always answers with a URL, generating a letter
- * avatar when there is no upload. That placeholder is a worse version of what `ui/Avatar`
- * already draws, and it is not what "has a photo" means here.
- */
-const PROFILE_PHOTO_PIXELS = 84;
-
-const sizedProfileUrl = (imageUrl: string) =>
-	`${imageUrl}${
-		imageUrl.includes('?') ? '&' : '?'
-	}width=${PROFILE_PHOTO_PIXELS}&height=${PROFILE_PHOTO_PIXELS}&fit=crop`;
-
-/**
  * The label has to be passed explicitly. A native tab falls back to the **screen title**,
  * which is the route name — so the bar came up reading "Home · Groups · Discover" in a Dutch
  * app. The old JS bar looked its label up from the strings table itself; this one is told.
@@ -155,6 +195,7 @@ const TAB_LABEL_KEYS: Record<keyof RootTabParamList, StringKey> = {
 	Groups: 'groups',
 	Discover: 'discover',
 	Reminders: 'reminders',
+	Search: 'search',
 	Profile: 'profile'
 };
 
@@ -219,6 +260,19 @@ const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const TabStack = createNativeStackNavigator<TabStackParamList>();
 
 const tabStackScreenOptions = { headerShown: false } as const;
+
+/**
+ * **A cancelled swipe-back must give the bar back.** The search screen asks for the bar to hide
+ * the moment a pop starts revealing it (`tabBarVisibility`), and withdraws that on blur. A
+ * swipe the user lets snap back never commits, so the search screen is never focused and never
+ * blurs — UIKit skips the disappear callbacks for a cancelled interactive pop — and the flag
+ * would stay up over the result screen. The dismissing screen does report the cancel, and a
+ * navigator's `screenListeners` hears every screen, so every tab stack withdraws it here.
+ * Harmless when search *is* focused: the route-based flag keeps the bar hidden on its own.
+ */
+const tabStackScreenListeners = {
+	gestureCancel: () => forceTabBarHidden(false)
+};
 
 /**
  * **The platform's own back control, and nothing else of a header.** Every pushed screen whose
@@ -289,12 +343,24 @@ const rootToolbarScreenOptions: NativeStackNavigationOptions = {
 };
 
 /**
+ * A pushed screen with nothing of its own in the bar: back on the left, the account on the
+ * right, which is where it sits on every screen. Screens with their own actions (the group
+ * screen, the readers) put the account at the end of their toolbar rows instead.
+ */
+const pushedScreenOptions: NativeStackNavigationOptions = {
+	...nativeBackScreenOptions,
+	headerRight: () => <TrailingCornerAction />
+};
+
+/**
  * Screens a group can be opened into. Registered in every tab that can reach a group so
  * they push *inside* the tab — which is what keeps the bottom bar on screen.
  */
 // Called per navigator rather than shared as one element: each stack needs its own
 // `Screen` elements, otherwise only the first navigator to mount registers them.
-const sharedTabScreens = () => (
+// `isProfileRoot`: Android's Profil tab already has `Profile` as its root, and a navigator
+// cannot register the same name twice.
+const sharedTabScreens = ({ isProfileRoot = false }: { isProfileRoot?: boolean } = {}) => (
 	<>
 		{/*
 		 * `headerRight` is registered here rather than set from the screen's own effect, so the
@@ -331,10 +397,10 @@ const sharedTabScreens = () => (
 			component={AllBabsScreen}
 			options={{ ...nativeBackScreenOptions, headerRight: () => <ReaderToolbar /> }}
 		/>
-		<TabStack.Screen name='Lobby' component={LobbyScreen} options={nativeBackScreenOptions} />
-		<TabStack.Screen name='Pool' component={PoolScreen} options={nativeBackScreenOptions} />
-		<TabStack.Screen name='Rounds' component={RoundsScreen} options={nativeBackScreenOptions} />
-		<TabStack.Screen name='RoundDetail' component={RoundDetailScreen} options={nativeBackScreenOptions} />
+		<TabStack.Screen name='Lobby' component={LobbyScreen} options={pushedScreenOptions} />
+		<TabStack.Screen name='Pool' component={PoolScreen} options={pushedScreenOptions} />
+		<TabStack.Screen name='Rounds' component={RoundsScreen} options={pushedScreenOptions} />
+		<TabStack.Screen name='RoundDetail' component={RoundDetailScreen} options={pushedScreenOptions} />
 		{/*
 		 * The native back button like every other pushed screen. It was the exception while its
 		 * heading carried a labelled "‹ Keşfet" link, on the reasoning that the label said where
@@ -342,7 +408,7 @@ const sharedTabScreens = () => (
 		 * absent from `linking.ts`, since an invitation is a code and never a URL), so back is
 		 * the only place it goes and the chevron already says so.
 		 */}
-		<TabStack.Screen name='InvitePreview' component={InvitePreviewScreen} options={nativeBackScreenOptions} />
+		<TabStack.Screen name='InvitePreview' component={InvitePreviewScreen} options={pushedScreenOptions} />
 		{/*
 		 * **It needs the back button like any other pushed screen.** Gruplarım navigates here for
 		 * a member whose group is still gathering, and that is a push onto the shelf — with no
@@ -354,7 +420,17 @@ const sharedTabScreens = () => (
 		 * the odd one out on iOS, and the gesture was only ever off to protect the join flow that
 		 * `replace` had already left behind.
 		 */}
-		<TabStack.Screen name='JoinedWelcome' component={JoinedWelcomeScreen} options={nativeBackScreenOptions} />
+		<TabStack.Screen name='JoinedWelcome' component={JoinedWelcomeScreen} options={pushedScreenOptions} />
+		{/* Pushed from the account item at the right end of every bar on iOS — see `TrailingCornerAction`. */}
+		{isProfileRoot ? null : (
+			<TabStack.Screen name='Profile' component={ProfileScreen} options={nativeBackScreenOptions} />
+		)}
+		{/*
+		 * On Android search is pushed from the bar's magnifier rather than being a tab, so the
+		 * screen is registered in every stack. It heads itself and closes with its ×, hence no
+		 * header; `TAB_BAR_HIDDEN_ROUTES` still steps the bar aside for it by route name.
+		 */}
+		{Platform.OS === 'android' ? <TabStack.Screen name='Search' component={SearchScreen} /> : null}
 	</>
 );
 
@@ -397,8 +473,21 @@ const withTabBarOffset = (Screen: ComponentType) => {
 };
 
 const HomeTabStack = () => (
-	<TabStack.Navigator screenOptions={tabStackScreenOptions}>
-		<TabStack.Screen name='Home' component={HomeScreen} />
+	<TabStack.Navigator screenListeners={tabStackScreenListeners} screenOptions={tabStackScreenOptions}>
+		{/*
+		 * The bar floats over H1's coloured top layer, which is where the design puts the account
+		 * anyway — beside the greeting rather than under it. Same item as every other tab root:
+		 * the photo on iOS, search on Android.
+		 */}
+		<TabStack.Screen
+			name='Home'
+			component={HomeScreen}
+			options={{
+				...rootToolbarScreenOptions,
+				// The one bar that is not over the page: the glyph follows H1's layer, not the theme.
+				headerRight: () => <TrailingCornerAction isOnHeaderSurface />
+			}}
+		/>
 		{sharedTabScreens()}
 	</TabStack.Navigator>
 );
@@ -410,7 +499,7 @@ const HomeTabStack = () => (
  */
 const GroupsTabStack = () => (
 	<GroupBrowseProvider>
-		<TabStack.Navigator screenOptions={tabStackScreenOptions}>
+		<TabStack.Navigator screenListeners={tabStackScreenListeners} screenOptions={tabStackScreenOptions}>
 			{/*
 			 * A tab root with a header, which is unusual here — every other root draws its own
 			 * heading and nothing else. This one carries its whole-screen actions in the bar
@@ -436,23 +525,66 @@ const GroupsTabStack = () => (
  */
 const DiscoverTabStack = () => (
 	<GroupBrowseProvider>
-		<TabStack.Navigator screenOptions={tabStackScreenOptions}>
-			{/* A bar for the browse menu, the same arrangement Gruplarım uses — see `GroupsToolbar`. */}
+		<TabStack.Navigator screenListeners={tabStackScreenListeners} screenOptions={tabStackScreenOptions}>
+			{/* A bar for the browse menu and the account, the same arrangement Gruplarım uses. */}
 			<TabStack.Screen
 				name='Discover'
 				component={DiscoverScreen}
-				options={{ ...rootToolbarScreenOptions, headerRight: () => <GroupBrowseMenu /> }}
+				options={{ ...rootToolbarScreenOptions, headerRight: () => <DiscoverToolbar /> }}
 			/>
 			{sharedTabScreens()}
 		</TabStack.Navigator>
 	</GroupBrowseProvider>
 );
 
+// A stack for a screen that pushes nothing of its own: the bar with the account in it is the
+// navigator's, and Profil is pushed inside this tab like everywhere else.
+const RemindersTabStack = () => (
+	<TabStack.Navigator screenListeners={tabStackScreenListeners} screenOptions={tabStackScreenOptions}>
+		<TabStack.Screen
+			name='Reminders'
+			component={RemindersScreen}
+			options={{ ...rootToolbarScreenOptions, headerRight: () => <TrailingCornerAction /> }}
+		/>
+		{sharedTabScreens()}
+	</TabStack.Navigator>
+);
+
+/*
+ * Search is a stack so that a result pushes *over* the search: back returns to the query and
+ * its results rather than to another tab's list, and the bar — hidden for `Search` alone —
+ * comes back for the pushed screen. The bar carries the account like every other tab root;
+ * the screen heads itself and closes with its ×.
+ */
+const SearchTabStack = () => (
+	<TabStack.Navigator screenListeners={tabStackScreenListeners} screenOptions={tabStackScreenOptions}>
+		<TabStack.Screen
+			name='Search'
+			component={SearchScreen}
+			options={{ ...rootToolbarScreenOptions, headerRight: () => <TrailingCornerAction /> }}
+		/>
+		{sharedTabScreens()}
+	</TabStack.Navigator>
+);
+
 const HomeTab = withTabBarOffset(HomeTabStack);
 const GroupsTab = withTabBarOffset(GroupsTabStack);
 const DiscoverTab = withTabBarOffset(DiscoverTabStack);
-const RemindersTab = withTabBarOffset(RemindersScreen);
-const ProfileTab = withTabBarOffset(ProfileScreen);
+const RemindersTab = withTabBarOffset(RemindersTabStack);
+const SearchTab = withTabBarOffset(SearchTabStack);
+
+// Android only: Profil as a tab root, with the bar's magnifier like every other root.
+const ProfileTabStack = () => (
+	<TabStack.Navigator screenListeners={tabStackScreenListeners} screenOptions={tabStackScreenOptions}>
+		<TabStack.Screen
+			name='Profile'
+			component={ProfileScreen}
+			options={{ ...rootToolbarScreenOptions, headerRight: () => <TrailingCornerAction /> }}
+		/>
+		{sharedTabScreens({ isProfileRoot: true })}
+	</TabStack.Navigator>
+);
+const ProfileTab = withTabBarOffset(ProfileTabStack);
 
 // The route is a transparent shell; `AppBottomSheet` inside it draws the surface and
 // owns the slide, backdrop and drag-to-dismiss, so every sheet in the app matches.
@@ -473,40 +605,27 @@ const sheetRouteOptions = {
 const TabsNavigator = () => {
 	const { theme } = useThemeContext();
 	const { t } = useTranslation();
-	const { user } = useUser();
-	// Sized down at the CDN — Clerk serves the original upload otherwise, which for a phone
-	// photo is megabytes fetched to fill 28 points.
-	const profilePhotoUrl = user?.hasImage ? sizedProfileUrl(user.imageUrl) : null;
-	const { captureElement, uri: profilePhotoUri } = useProfileTabPhoto(profilePhotoUrl);
 
-	const tabOptions = (name: keyof RootTabParamList) => {
-		const base = { tabBarIcon: tabIcon(name), tabBarLabel: t(TAB_LABEL_KEYS[name]) };
+	// The tabs are up: a link that arrived signed out or on Onboarding can be followed now.
+	useEffect(() => {
+		setLinkGateReady(true);
 
-		if (name !== 'Profile' || !profilePhotoUri) {
-			return base;
-		}
+		return () => setLinkGateReady(false);
+	}, []);
 
-		/*
-		 * **Profile stays in the row with the other four.** It was briefly detached into its
-		 * own circle beside the capsule — `role: 'search'`, the slot Apple Music puts search in
-		 * — and that is the only thing in the API that separates an item. It was dropped
-		 * because the detached item is icon-only: iOS draws no title on it, so "Profiel"
-		 * disappeared while the other four kept their labels. The role is also *search*
-		 * semantically, which the account tab is not.
-		 */
-		return {
-			...base,
-			// The same photo either way — the bar's selection pill and tint already say which
-			// tab you are on, and a face has no outlined and filled version of itself.
-			tabBarIcon: () => ({ uri: profilePhotoUri }),
-			tabBarIconRenderingMode: 'original' as const
-		};
-	};
+	const tabOptions = (name: keyof RootTabParamList) => ({
+		tabBarIcon: tabIcon(name),
+		tabBarLabel: t(TAB_LABEL_KEYS[name])
+	});
 
-	const isBarHidden = useNavigationState(state => {
+	const shouldHideBar = useNavigationState(state => {
 		const name = focusedRouteName(state);
 		return name !== undefined && TAB_BAR_HIDDEN_ROUTES.has(name);
 	});
+	const isSettledHidden = useSettledTabBarHidden(shouldHideBar);
+	// Raised by the search screen as a pop starts revealing it — see `tabBarVisibility`.
+	const isForcedHidden = useForcedTabBarHidden();
+	const isBarHidden = isSettledHidden || isForcedHidden;
 
 	/*
 	 * The floor, for anything rendered outside a tab scene. Every tab's own component is
@@ -514,9 +633,12 @@ const TabsNavigator = () => {
 	 */
 	return (
 		<TabBarOffsetContext.Provider value={0}>
-			{/* Off-screen, and only until the circular crop has been captured. */}
-			{captureElement}
 			<Tab.Navigator
+				/*
+				 * "Back" on a tab means the tab you came from, which is what Kapat on the search
+				 * screen does: it leaves search and lands where you were, bar restored.
+				 */
+				backBehavior='history'
 				/*
 				 * Translucent, which is what lets the system draw it in glass — opaque would
 				 * flatten it back into a plain bar and there would be nothing to look at.
@@ -542,7 +664,7 @@ const TabsNavigator = () => {
 				tabBarActiveTintColor={theme.colors.accent}
 				tabBarInactiveTintColor={theme.colors.subtext}
 				// Hidden natively rather than by a zero-height sibling — there is no custom bar
-				// left to collapse. `TAB_BAR_HIDDEN_ROUTES` is empty, so this is off today.
+				// left to collapse. Search mode is the one thing that hides it.
 				tabBarHidden={isBarHidden}
 				// Without it the scene wrapper does not fill, so a ScrollView inside grows to
 				// its content height and has nothing left to scroll.
@@ -561,8 +683,39 @@ const TabsNavigator = () => {
 					listeners={resetTabStack}
 					options={tabOptions('Discover')}
 				/>
-				<Tab.Screen name='Reminders' component={RemindersTab} options={tabOptions('Reminders')} />
-				<Tab.Screen name='Profile' component={ProfileTab} options={tabOptions('Profile')} />
+				<Tab.Screen
+					name='Reminders'
+					component={RemindersTab}
+					listeners={resetTabStack}
+					options={tabOptions('Reminders')}
+				/>
+				{/*
+				 * **The search tab is iOS 26's own detached search button** — `role: 'search'` is
+				 * the slot Apple Music puts search in, a circle beside the capsule, icon-only. K2
+				 * gave it the fifth slot in place of Profil, which moved to Ana sayfa's header.
+				 * The label still goes in for Android, which draws it as an ordinary fifth tab.
+				 */}
+				{Platform.OS === 'ios' ? (
+					<Tab.Screen
+						name='Search'
+						component={SearchTab}
+						listeners={resetTabStack}
+						options={{ ...tabOptions('Search'), role: 'search' }}
+					/>
+				) : (
+					/*
+					 * Material keeps the navigation bar for destinations and puts search in the
+					 * top bar, so Android swaps the two: Profil is the fifth tab here and search is
+					 * `TrailingCornerAction` at the right end of every bar, pushing `Search`
+					 * inside the current tab.
+					 */
+					<Tab.Screen
+						name='Profile'
+						component={ProfileTab}
+						listeners={resetTabStack}
+						options={tabOptions('Profile')}
+					/>
+				)}
 			</Tab.Navigator>
 		</TabBarOffsetContext.Provider>
 	);

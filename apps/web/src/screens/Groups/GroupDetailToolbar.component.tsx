@@ -3,6 +3,7 @@ import { groupQueryKeys } from '@/lib/hooks/queryKeys';
 import { useGetGroupById } from '@/lib/hooks/useGroup';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import type { GroupSummary } from '@/lib/types/domain';
+import { TrailingCornerAction } from '@/navigation/TrailingCornerAction';
 import type { TabStackParamList } from '@/navigation/types';
 import type { RouteProp } from '@react-navigation/native';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -79,6 +80,7 @@ export const GroupDetailToolbar = () => {
 				onPress={() => navigation.setParams({ sheet: 'share' })}
 				tone='surface'
 			/>
+			<TrailingCornerAction />
 		</View>
 	);
 };

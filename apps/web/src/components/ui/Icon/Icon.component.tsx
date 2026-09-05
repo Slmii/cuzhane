@@ -306,6 +306,16 @@ const GLYPHS: Record<IconName, Glyph> = {
 	chevronRight: { paths: ['M9.5 5.5L16 12l-6.5 6.5'] },
 	chevronLeft: { paths: ['M14.5 5.5L8 12l6.5 6.5'] },
 	close: { paths: ['M6 6l12 12', 'M18 6L6 18'] },
+	/** `sil-delete` — a lid over a tapering body with two staves. */
+	delete: {
+		paths: [
+			'M4.5 7h15',
+			'M6.4 7l.9 11.1a1.8 1.8 0 0 0 1.8 1.7h5.8a1.8 1.8 0 0 0 1.8-1.7L17.6 7',
+			'M9.6 7V5.4a1.4 1.4 0 0 1 1.4-1.4h2a1.4 1.4 0 0 1 1.4 1.4V7',
+			'M10.4 10.8v5.6',
+			'M13.6 10.8v5.6'
+		]
+	},
 	check: { paths: ['M5 12.6l4.4 4.4L19 7.4'] },
 	plus: { paths: ['M12 5.5v13', 'M5.5 12h13'] },
 	minus: { paths: ['M5.5 12h13'] },

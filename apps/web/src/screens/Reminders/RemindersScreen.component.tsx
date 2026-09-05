@@ -211,7 +211,7 @@ export const RemindersScreen = () => {
 	if (isPending) {
 		return (
 			<ScreenContainer shouldIncludeTabBarOffset>
-				<ScreenTitle label={t('reminders')} />
+				<ScreenTitle isUnderNavigationBar label={t('reminders')} />
 				<RemindersSkeleton />
 			</ScreenContainer>
 		);
@@ -227,7 +227,7 @@ export const RemindersScreen = () => {
 
 	return (
 		<ScreenContainer shouldIncludeTabBarOffset>
-			<ScreenTitle label={t('reminders')} />
+			<ScreenTitle isUnderNavigationBar label={t('reminders')} />
 			<Form<RemindersForm>
 				isFullHeight={false}
 				defaultValues={{

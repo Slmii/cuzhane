@@ -26,6 +26,7 @@ export type IconName =
 	| 'chevronLeft'
 	| 'close'
 	| 'check'
+	| 'delete'
 	| 'plus'
 	| 'minus'
 	| 'search'

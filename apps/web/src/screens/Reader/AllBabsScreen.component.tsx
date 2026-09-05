@@ -66,7 +66,8 @@ export const AllBabsScreen = ({ navigation, route }: Props) => {
 	 * rather than a thing you arrive at, so `linking.ts` registers this screen with no params
 	 * and there is nothing to deep-link to.
 	 */
-	const [babNumber, setBabNumber] = useState(1);
+	// Search may hand over a starting bab; from there the cursor is this screen's own.
+	const [babNumber, setBabNumber] = useState(route.params?.babNumber ?? 1);
 	// Opened from the navigator's bar, which is outside this screen — see `textSizeSheet`.
 	const textSize = textSizeSheet(navigation, route.params);
 	const [mealInvocation, setMealInvocation] = useState<CevsenInvocation | null>(null);

@@ -1,10 +1,12 @@
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
+import { PullToRefresh } from '@/components/ui/PullToRefresh/PullToRefresh.component';
 import { EyebrowText, Typography } from '@/components/ui/Typography/Typography.component';
 import type { CevsenInvocation } from '@/lib/content/cevsen';
 import { READER_FONT_SIZE_DEFAULT } from '@/lib/content/cevsen';
 import { useGetBabs, useSetBabRead } from '@/lib/hooks/useBab';
 import { useGetGroupById, useGetPoolSlots, useTakePoolSlot } from '@/lib/hooks/useGroup';
+import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useGetUserSettings, useUpdateUserSettings } from '@/lib/hooks/useUserSettings';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
@@ -83,6 +85,8 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 	// The pool's own slot→babs mapping, which is the only thing that knows what a seat offers
 	// this round. Deriving it from the bab number gets the rotation wrong.
 	const poolQuery = useGetPoolSlots(groupId);
+	// The three that describe the group's state; the text itself is bundled and never stale.
+	const pullToRefresh = usePullToRefresh(groupQuery, babsQuery, poolQuery);
 	const takePoolSlot = useTakePoolSlot();
 	const settingsQuery = useGetUserSettings();
 	const updateSettings = useUpdateUserSettings();
@@ -410,119 +414,136 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 			edges={['top', 'left', 'right']}
 			style={[styles.safeArea, { backgroundColor: theme.colors.background, paddingBottom: tabBarOffset }]}
 		>
-			<View style={[styles.header, { borderBottomColor: theme.colors.readerRule }]}>
-				{/*
-				 * The translucent surface alone — there was a `BlurView` under it, and it was
-				 * doing almost nothing for a real cost. `readerSurface` is 94% opaque and laid
-				 * over it edge to edge, so the blur could contribute at most six percent of the
-				 * colour, while live blur re-samples and composites the Arabic scrolling beneath
-				 * it every frame. Measured on the simulator: the reader's body scroll held a
-				 * 20.0ms median gap against 16.7ms on Home, with the blur the only material
-				 * difference between them.
-				 *
-				 * **Liquid Glass was tried here and reverted, for a reason worth recording.** This
-				 * header, the `ScrollView` and the footer are ordinary flex-column siblings — none
-				 * of them is absolutely positioned, so nothing ever passes *underneath* this bar.
-				 * The only thing behind it is the screen's flat `background`, and a material
-				 * sampling a flat colour renders as that flat colour: on device the glass version
-				 * was indistinguishable from this one. A scroll-edge material needs content
-				 * scrolling under it, which would mean overlaying the bars and re-doing the page's
-				 * insets — a layout change, not a swap. The 94% here is not an imitation of glass;
-				 * it is a tint over a solid background, and it only ever had to be that.
-				 */}
-				<View style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.readerSurface }]} />
-				<View style={styles.headerTopRow}>
-					<View style={styles.headerSide}>
+			{/*
+			 * **The pull belongs to the page, not to the text.** The header is the scroll view's
+			 * own sticky first child rather than a sibling above it, so the gesture starts at the
+			 * top of the screen and the refresh control appears over the strip it updates — the
+			 * hundred ticks are the thing worth pulling for, since somebody else marking a bab is
+			 * the only way this page goes stale. Sticky, so reading still keeps the bab number and
+			 * the strip in view. The Cevşen itself is bundled and never refreshes; the free reader
+			 * on B7 has no group behind it and no pull.
+			 */}
+			<PullToRefresh {...pullToRefresh}>
+				<ScrollView
+					contentContainerStyle={styles.page}
+					showsVerticalScrollIndicator={false}
+					stickyHeaderIndices={[0]}
+				>
+					<View style={[styles.header, { borderBottomColor: theme.colors.readerRule }]}>
 						{/*
-						 * **Empty on purpose — the back control is the navigator's.** Registered with a
-						 * transparent native header, so each platform draws its own over this corner.
-						 * The slot stays because it is what centres the eyebrow between two equal sides.
+						 * The translucent surface alone — there was a `BlurView` under it, and it was
+						 * doing almost nothing for a real cost. `readerSurface` is 94% opaque and laid
+						 * over it edge to edge, so the blur could contribute at most six percent of the
+						 * colour, while live blur re-samples and composites the Arabic scrolling beneath
+						 * it every frame. Measured on the simulator: the reader's body scroll held a
+						 * 20.0ms median gap against 16.7ms on Home, with the blur the only material
+						 * difference between them.
+						 *
+						 * **Liquid Glass was tried here and reverted, for a reason worth recording.** This
+						 * header, the `ScrollView` and the footer are ordinary flex-column siblings — none
+						 * of them is absolutely positioned, so nothing ever passes *underneath* this bar.
+						 * The only thing behind it is the screen's flat `background`, and a material
+						 * sampling a flat colour renders as that flat colour: on device the glass version
+						 * was indistinguishable from this one. A scroll-edge material needs content
+						 * scrolling under it, which would mean overlaying the bars and re-doing the page's
+						 * insets — a layout change, not a swap. The 94% here is not an imitation of glass;
+						 * it is a tint over a solid background, and it only ever had to be that.
 						 */}
-					</View>
-					<View style={styles.headerCenter}>
-						{/* Position in the cevşen, not in your share — "Bab 87 / 100". Which of
+						<View style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.readerSurface }]} />
+						<View style={styles.headerTopRow}>
+							<View style={styles.headerSide}>
+								{/*
+								 * **Empty on purpose — the back control is the navigator's.** Registered with a
+								 * transparent native header, so each platform draws its own over this corner.
+								 * The slot stays because it is what centres the eyebrow between two equal sides.
+								 */}
+							</View>
+							<View style={styles.headerCenter}>
+								{/* Position in the cevşen, not in your share — "Bab 87 / 100". Which of
 						    those hundred are yours is the chip's job, one line below. */}
-						<EyebrowText>{`${t('bab')} ${displayBab} / ${readableTotal}`}</EyebrowText>
-					</View>
-					<View style={[styles.headerSide, styles.headerSideEnd]}>
+								<EyebrowText>{`${t('bab')} ${displayBab} / ${readableTotal}`}</EyebrowText>
+							</View>
+							<View style={[styles.headerSide, styles.headerSideEnd]}>
+								{/*
+								 * **Empty for the same reason as the slot opposite — the text-size control
+								 * is the navigator's now.** It was an "Aa" chip here and it had stopped
+								 * responding: this row occupies the band the transparent native header
+								 * draws in, and the header is a view above the scene, so the taps never
+								 * reached it. See `ReaderToolbar`. The slot stays to centre the eyebrow.
+								 */}
+							</View>
+						</View>
+						<View style={styles.headerBottomRow}>
+							<Typography variant='title' weight='regular'>
+								{t('babOrdinal', { n: displayBab })}
+							</Typography>
+							{/*
+							 * Whose bab this is, in one word. It sits against the bab's name rather than
+							 * in the rail's row because it qualifies the name — "27. Bab, senin payın".
+							 */}
+							<View style={[styles.ownershipChip, { backgroundColor: ownershipChip.background }]}>
+								<Typography color={ownershipChip.foreground} variant='caption' weight='semibold'>
+									{ownershipChip.label}
+								</Typography>
+							</View>
+						</View>
 						{/*
-						 * **Empty for the same reason as the slot opposite — the text-size control
-						 * is the navigator's now.** It was an "Aa" chip here and it had stopped
-						 * responding: this row occupies the band the transparent native header
-						 * draws in, and the header is a view above the scene, so the taps never
-						 * reached it. See `ReaderToolbar`. The slot stays to centre the eyebrow.
+						 * The mini-map gets a **row of its own**, full width, under the title. Squeezed into
+						 * 148pt beside the bab name it could only ever show a fill and a dot; across the whole
+						 * header it fits one tick per bab, and can say which are yours, which sit in the pool
+						 * and which you have already read.
+						 *
+						 * Drag or tap anywhere along it to jump — the arrows step one bab, which is
+						 * ninety-nine taps end to end.
 						 */}
+						<GestureDetector gesture={railGesture}>
+							<View
+								accessibilityRole='adjustable'
+								accessibilityValue={{ max: BAB_COUNT, min: 1, now: babNumber }}
+								onLayout={event => setRailWidth(event.nativeEvent.layout.width)}
+								style={styles.babMapRow}
+							>
+								<ReaderBabMap
+									currentBab={displayBab}
+									scrubRatio={scrubRatio}
+									myBabNumbers={myBabNumbers}
+									poolBabNumbers={groupQuery.data?.poolBabNumbers ?? NO_BAB_NUMBERS}
+									readBabNumbers={readBabNumbers}
+									// What chunks the pool ticks into the blocks a seat actually offers.
+									{...(groupQuery.data ? { spots: groupQuery.data.spots } : {})}
+								/>
+							</View>
+						</GestureDetector>
 					</View>
-				</View>
-				<View style={styles.headerBottomRow}>
-					<Typography variant='title' weight='regular'>
-						{t('babOrdinal', { n: displayBab })}
-					</Typography>
-					{/*
-					 * Whose bab this is, in one word. It sits against the bab's name rather than
-					 * in the rail's row because it qualifies the name — "27. Bab, senin payın".
-					 */}
-					<View style={[styles.ownershipChip, { backgroundColor: ownershipChip.background }]}>
-						<Typography color={ownershipChip.foreground} variant='caption' weight='semibold'>
-							{ownershipChip.label}
-						</Typography>
-					</View>
-				</View>
-				{/*
-				 * The mini-map gets a **row of its own**, full width, under the title. Squeezed into
-				 * 148pt beside the bab name it could only ever show a fill and a dot; across the whole
-				 * header it fits one tick per bab, and can say which are yours, which sit in the pool
-				 * and which you have already read.
-				 *
-				 * Drag or tap anywhere along it to jump — the arrows step one bab, which is
-				 * ninety-nine taps end to end.
-				 */}
-				<GestureDetector gesture={railGesture}>
-					<View
-						accessibilityRole='adjustable'
-						accessibilityValue={{ max: BAB_COUNT, min: 1, now: babNumber }}
-						onLayout={event => setRailWidth(event.nativeEvent.layout.width)}
-						style={styles.babMapRow}
-					>
-						<ReaderBabMap
-							currentBab={displayBab}
-							scrubRatio={scrubRatio}
-							myBabNumbers={myBabNumbers}
-							poolBabNumbers={groupQuery.data?.poolBabNumbers ?? NO_BAB_NUMBERS}
-							readBabNumbers={readBabNumbers}
-							// What chunks the pool ticks into the blocks a seat actually offers.
-							{...(groupQuery.data ? { spots: groupQuery.data.spots } : {})}
-						/>
-					</View>
-				</GestureDetector>
-			</View>
 
-			<GestureDetector gesture={swipe}>
-				<ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
-					{/*
-					 * The page itself is `ReaderBody`, shared with the free reader on B7. Everything
-					 * this screen adds is *around* it — the header's ownership chip, the strip, and a
-					 * footer that can mark a bab read.
-					 *
-					 * No pool banner here any more. It was a card at the top of the page saying this
-					 * bab wasn't in your range — which the header's chip now says in one word and the
-					 * footer's hint says again right where it matters, next to the button it explains.
-					 *
-					 * No rosette opening the bab either: the header carries the number, the chip and
-					 * the hundred ticks, so a mark whose whole job was announcing "a reading starts
-					 * here" was saying something already said three times and pushing the text down a
-					 * line to do it. (`ui/Ornament` is still very much in use — the verse marks in the
-					 * text and the meal sheet's heading.)
-					 */}
-					<ReaderBody
-						babNumber={babNumber}
-						font={readerSettings.readerArabicFont}
-						fontSize={readerSettings.readerFontSize}
-						numerals={readerSettings.readerNumerals}
-						onLongPressInvocation={setMealInvocation}
-					/>
+					<GestureDetector gesture={swipe}>
+						<View style={styles.body}>
+							{/*
+							 * The page itself is `ReaderBody`, shared with the free reader on B7. Everything
+							 * this screen adds is *around* it — the header's ownership chip, the strip, and a
+							 * footer that can mark a bab read.
+							 *
+							 * No pool banner here any more. It was a card at the top of the page saying this
+							 * bab wasn't in your range — which the header's chip now says in one word and the
+							 * footer's hint says again right where it matters, next to the button it explains.
+							 *
+							 * No rosette opening the bab either: the header carries the number, the chip and
+							 * the hundred ticks, so a mark whose whole job was announcing "a reading starts
+							 * here" was saying something already said three times and pushing the text down a
+							 * line to do it. (`ui/Ornament` is still very much in use — the verse marks in the
+							 * text and the meal sheet's heading.)
+							 */}
+							<ReaderBody
+								babNumber={babNumber}
+								font={readerSettings.readerArabicFont}
+								fontSize={readerSettings.readerFontSize}
+								numerals={readerSettings.readerNumerals}
+								onLongPressInvocation={setMealInvocation}
+							/>
+						</View>
+					</GestureDetector>
 				</ScrollView>
-			</GestureDetector>
+			</PullToRefresh>
 
 			<View style={[styles.footer, { borderTopColor: theme.colors.readerRule }]}>
 				{/* Same flat surface as the header above, for the same reason — see the note there. */}
@@ -718,6 +739,10 @@ const styles = StyleSheet.create({
 	// carries the 13 this button was drawn with — so nothing else is left to say here.
 	markButtonSlot: {
 		flex: 1
+	},
+	/** The scroll view's own content: the sticky header and the page under it, nothing added. */
+	page: {
+		flexGrow: 1
 	},
 	safeArea: {
 		flex: 1

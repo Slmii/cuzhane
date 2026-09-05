@@ -51,16 +51,28 @@ export type TabDetailParamList = {
 	 * because a free read is a place you are rather than one you are sent to, and nothing —
 	 * no notification, no invite, no link — ever needs to open a particular bab here.
 	 */
-	/** Free reading, outside any group. `shouldOpenTextSize` as on `BabReader`. */
-	AllBabs: { shouldOpenTextSize?: boolean } | undefined;
+	/**
+	 * Free reading, outside any group. `shouldOpenTextSize` as on `BabReader`. `babNumber` is
+	 * the one exception to "no params": search lands here on a bab it found, and that is a
+	 * place you are sent to. It only seeds the cursor; the screen owns it from there.
+	 */
+	AllBabs: { shouldOpenTextSize?: boolean; babNumber?: number } | undefined;
+	/**
+	 * The account screen lost its tab to search (K2) and is pushed from the avatar at the right
+	 * end of every tab root's bar — inside that tab, so back returns to where it was opened.
+	 */
+	Profile: undefined;
+	/** Android only: search is pushed from the bar's magnifier rather than being a tab. */
+	Search: undefined;
 };
 
-export type GroupsScreenParams = { shouldOpenJoinSheet?: boolean } | undefined;
+/** `inviteCode` arrives from the QR's link (`groups/join/:inviteCode`) and opens the join sheet on that code. */
+export type GroupsScreenParams = { shouldOpenJoinSheet?: boolean; inviteCode?: string } | undefined;
 
 /** The sheets the group screen's bar can ask for. Not a route — each is `ui/BottomSheet`. */
 export type GroupDetailSheet = 'manage' | 'members' | 'share';
 
-/** The three tabs that own a stack accept a nested target. */
+/** Every tab owns a stack and accepts a nested target. */
 export type RootTabParamList = {
 	Home: NavigatorScreenParams<TabDetailParamList & { Home: undefined }> | undefined;
 	/**
@@ -75,8 +87,14 @@ export type RootTabParamList = {
 	 */
 	Groups: NavigatorScreenParams<TabDetailParamList & { Groups: GroupsScreenParams }> | undefined;
 	Discover: NavigatorScreenParams<TabDetailParamList & { Discover: undefined }> | undefined;
-	Reminders: undefined;
-	Profile: undefined;
+	Reminders: NavigatorScreenParams<TabDetailParamList & { Reminders: undefined }> | undefined;
+	/**
+	 * The search tab (K2): iOS 26's detached search button, opening one live screen. A stack
+	 * too, so a result pushes over the search and back returns to it with the query still in.
+	 */
+	Search: NavigatorScreenParams<TabDetailParamList & { Search: undefined }> | undefined;
+	/** Android's fifth tab, where iOS has search — see `TrailingCornerAction`. */
+	Profile: NavigatorScreenParams<TabDetailParamList & { Profile: undefined }> | undefined;
 };
 
 /**

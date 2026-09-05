@@ -23,6 +23,7 @@ const TAB_META: Record<keyof RootTabParamList, { labelKey: StringKey; icon: Icon
 	Groups: { labelKey: 'groups', icon: 'tabGroups' },
 	Discover: { labelKey: 'discover', icon: 'tabDiscover' },
 	Reminders: { labelKey: 'reminders', icon: 'tabReminders' },
+	Search: { labelKey: 'search', icon: 'search' },
 	Profile: { labelKey: 'profile', icon: 'tabProfile' }
 };
 

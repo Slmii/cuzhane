@@ -86,6 +86,22 @@ export type AppTheme = {
 		onPrimary: string;
 		onAccent: string;
 		onDanger: string;
+		/**
+		 * The QR's own palette, from the design's QR Generator: dark modules on a light plate in
+		 * both modes (a scanner does not read light modules on dark reliably), the plate a shade
+		 * warmer in dark mode, and the finder eyes and emblem in the sage that stays the deep
+		 * `#3E6B5C` in both — the dark theme's lighter accent would wash out on the plate.
+		 */
+		codePaper: string;
+		codeInk: string;
+		codeAccent: string;
+		/**
+		 * H1's coloured top layer and what is written on it. Not `accent`/`onAccent`: dark mode's
+		 * accent is a *light* sage meant for marks on a dark page, and a screenful of it would be
+		 * a lamp. The design gives the layer its own deep green there instead.
+		 */
+		headerSurface: string;
+		onHeaderSurface: string;
 		switchTrackOff: string;
 		switchThumbOff: string;
 		transparent: string;
@@ -214,6 +230,11 @@ export const lightTheme: AppTheme = {
 		onPrimary: '#FFFFFF',
 		onAccent: '#FFFFFF',
 		onDanger: '#FFFFFF',
+		codePaper: '#F7F5F0',
+		codeInk: '#1C1D1A',
+		codeAccent: '#3E6B5C',
+		headerSurface: '#3E6B5C',
+		onHeaderSurface: '#FFFFFF',
 		switchTrackOff: '#DEDCD5',
 		switchThumbOff: '#FFFFFF',
 		transparent: 'transparent',
@@ -294,6 +315,12 @@ export const darkTheme: AppTheme = {
 		onPrimary: '#141513',
 		onAccent: '#141513',
 		onDanger: '#FFFFFF',
+		// The generator's dark theme: the plate a shade warmer, the ink a shade deeper — see the type.
+		codePaper: '#F2F0EA',
+		codeInk: '#141513',
+		codeAccent: '#3E6B5C',
+		headerSurface: '#20372F',
+		onHeaderSurface: '#F2F0EA',
 		switchTrackOff: '#3A3C36',
 		switchThumbOff: '#191A18',
 		transparent: 'transparent',

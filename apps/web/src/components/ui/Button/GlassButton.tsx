@@ -77,7 +77,12 @@ const GLYPH_BY_ICON: Partial<Record<IconName, GlyphSource>> = {
 	close: { systemName: 'xmark' },
 	chevronRight: { systemName: 'chevron.right' },
 	copy: { assetName: 'kopyala-copy-link' },
+	// Ours, converted like the tick it sits opposite in Yönet — Apple's own `trash` is drawn to
+	// the full box the converted glyphs leave room in, so at one point size it came out visibly
+	// heavier than the tick.
+	delete: { assetName: 'sil-delete' },
 	leave: { assetName: 'ayril-leave' },
+	search: { assetName: 'ara-search' },
 	undo: { assetName: 'geri-al-undo' }
 };
 
@@ -107,6 +112,16 @@ const ICON_SIZE_BY_SIZE: Record<ButtonSize, number> = {
 	md: 14,
 	lg: 15
 };
+
+/**
+ * **A glyph on its own is the navigation bar's disc**, whatever `size` says: SwiftUI's `large`
+ * control in a circle — the 44pt the bar gives its back chevron — with the glyph at 20pt
+ * semibold, which is how that chevron is set. Create-group's × and ✓, the reader's arrows and
+ * the search field's × all read as the same control as the bar's, instead of three sizes of a
+ * different one. Mirrored by `ICON_ONLY_SIZE` / `ICON_ONLY_GLYPH_SIZE` in `Button.component.tsx`
+ * for the drawn path, and by `GlassCornerAction`'s own-glass variant.
+ */
+const ICON_ONLY_GLYPH_SIZE = 20;
 
 /**
  * **A mirror of `labelSizeStyleMap` in `Button.component.tsx` — change both together.**
@@ -208,6 +223,8 @@ export const GlassButton = ({
 
 	const glyph: GlyphSource | undefined =
 		systemIcon !== undefined ? { systemName: systemIcon } : icon !== undefined ? GLYPH_BY_ICON[icon] : undefined;
+	// A glyph and no word — the bar's disc, see `ICON_ONLY_GLYPH_SIZE`.
+	const isIconOnly = title === undefined && (imageUri !== undefined || glyph !== undefined);
 	// Built once so the two sides of the label can place the same element. One source or the
 	// other, never both — `GlyphSource` makes that a type error.
 	const glyphImage =
@@ -221,12 +238,22 @@ export const GlassButton = ({
 			 * three land at one size.
 			 */
 			<Image
-				modifiers={[resizable(), frame({ height: ICON_SIZE_BY_SIZE[size], width: ICON_SIZE_BY_SIZE[size] })]}
+				modifiers={[
+					resizable(),
+					frame(
+						isIconOnly
+							? { height: ICON_ONLY_GLYPH_SIZE, width: ICON_ONLY_GLYPH_SIZE }
+							: { height: ICON_SIZE_BY_SIZE[size], width: ICON_SIZE_BY_SIZE[size] }
+					)
+				]}
 				uiImage={imageUri}
 			/>
 		) : glyph === undefined ? null : (
 			<Image
-				size={ICON_SIZE_BY_SIZE[size]}
+				// The font modifier replaces `size`, and it is the only way to name a weight.
+				{...(isIconOnly
+					? { modifiers: [font({ size: ICON_ONLY_GLYPH_SIZE, weight: 'semibold' })] }
+					: { size: ICON_SIZE_BY_SIZE[size] })}
 				{...(glyph.assetName === undefined ? { systemName: glyph.systemName } : { assetName: glyph.assetName })}
 			/>
 		);
@@ -292,13 +319,17 @@ export const GlassButton = ({
 		 * `matchContents` is read once on mount, which is fine — no call site changes `fullWidth`.
 		 */
 		<Host
+			// A SwiftUI host dodges the keyboard on its own; the React layout around it
+			// already does, and a button that does both climbs off its row.
+			ignoreSafeArea='keyboard'
 			matchContents={fullWidth ? { vertical: true } : { horizontal: true, vertical: true }}
 			style={[fullWidth ? styles.stretch : null, style]}
 		>
 			<Button
 				modifiers={[
 					buttonStyle(glassToneByVariant.style),
-					controlSize(CONTROL_SIZE_BY_SIZE[size]),
+					// The glass style sizes its disc from the control size: `large` is the bar's 44.
+					controlSize(isIconOnly ? 'large' : CONTROL_SIZE_BY_SIZE[size]),
 					disabledModifier(disabled),
 					/*
 					 * **One shape for a pinned pair.** `glass` defaults to a capsule and
@@ -307,8 +338,21 @@ export const GlassButton = ({
 					 * lets create-group's header put a sage tick opposite a plain chevron without
 					 * the two reading as unrelated controls.
 					 */
-					...(fixedSize === null ? [] : [buttonBorderShape('capsule')]),
-					...(glassToneByVariant.tintColor === undefined ? [] : [tint(glassToneByVariant.tintColor)]),
+					...(isIconOnly
+						? [buttonBorderShape('circle')]
+						: fixedSize === null
+						? []
+						: [buttonBorderShape('capsule')]),
+					/*
+					 * A surface disc holding only a glyph is tinted with the text colour, as the
+					 * bar tints its back chevron: untinted, SwiftUI falls back to the app's accent,
+					 * which paints the glyph sage and leaves the glass a duller rim than the bar's.
+					 */
+					...(glassToneByVariant.tintColor !== undefined
+						? [tint(glassToneByVariant.tintColor)]
+						: isIconOnly
+						? [tint(theme.colors.text)]
+						: []),
 					// SwiftUI takes this as a modifier where the drawn button takes it as a prop.
 					...(accessibilityLabel === undefined ? [] : [accessibilityLabelModifier(accessibilityLabel)])
 				]}

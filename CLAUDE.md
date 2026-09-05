@@ -199,19 +199,95 @@ tidy up any rows left from before. Re-adding the feature means rebuilding that s
     `I18nProvider` → `QueryClientProvider` → `AppContainer` (`GestureHandlerRootView` → `KeyboardProvider`
     → `BottomSheetModalProvider` → `NavigationContainer`). Fonts load before render; splash held via
     `expo-splash-screen`.
--   Navigation: `src/navigation/AppNavigator.tsx` — a 5-tab bottom navigator (Home, Groups, Discover,
-    Reminders, Profile) inside a native stack. The stack's initial route is `Onboarding` until
+-   Navigation: `src/navigation/AppNavigator.tsx` — a 5-tab native bottom navigator (Home, Groups,
+    Discover, Reminders, Search) inside a native stack. The stack's initial route is `Onboarding` until
     `userSettings.hasSeenOnboarding` is true, so the navigator waits for settings before mounting.
--   **The bottom bar stays visible on every screen behind the tabs.** Home, Groups and Discover each own a
-    stack (`sharedTabScreens()` registers `GroupDetail`, `BabReader`, the rounds screens and the Keşfet
-    preview in all three), so detail screens push _inside_ a tab and each tab keeps its own back stack. Adding a pushed
+    **The fifth tab and the bar's trailing item swap by platform** (`TrailingCornerAction`). On
+    iOS the fifth slot is search (K2) and the account is `ProfileCornerAction` — the reader's own
+    photo (Clerk `hasImage`, fetched at 84px) or the `person` glyph — at the **right end of every
+    bar**: alone on Ana sayfa, Hatırlatma and the plain pushed screens (`pushedScreenOptions`), last
+    in the rows `GroupsToolbar`, `DiscoverToolbar`, `GroupDetailToolbar` and `ReaderToolbar` build.
+    On Android, Material keeps the navigation bar for destinations and puts search in the top bar,
+    so Profil is the fifth tab (`ProfileTabStack`) and `SearchCornerAction` takes the bar slot,
+    pushing `Search` inside the current tab. Both `Profile` and (Android only) `Search` are in
+    `sharedTabScreens`, so each pushes inside whichever tab you are on and back returns there —
+    `isProfileRoot` skips the one the Profil tab already has as its root. `linking.ts` forks the
+    fifth tab the same way.
+-   **An icon-only `AppButton` is the navigation bar's disc, whatever `size` says.** 44pt, a circle,
+    the glyph at 20pt semibold (the set's 2.1 stroke when drawn) — the same control iOS draws for
+    the back chevron, so create-group's × and ✓, the reader's arrows, a member row's × and the
+    search field's × all read as one control instead of three sizes of another. On glass that is
+    SwiftUI's `large` control with `buttonBorderShape('circle')` and the glyph set through the
+    `font` modifier, and a `surface` disc tinted with the **text** colour — untinted, SwiftUI
+    falls back to the accent, which painted the glyph sage and dulled the rim; `GlassCornerAction
+    hasOwnGlass` is the same recipe for a bar glyph used outside a bar. Filled variants keep
+    their tint (the ✓ stays prominent sage). `ICON_ONLY_GLYPH_SIZE`
+    is mirrored in `Button.component.tsx` and `GlassButton.tsx` — change both together. Every
+    SwiftUI `Host` the app draws a control in carries `ignoreSafeArea='keyboard'`: a host dodges
+    the keyboard by itself, and one inside a row that already rides the keyboard climbed twice
+    and sat above the search field. It has to be the **host's** prop — the same thing as a
+    modifier on the button inside never reached the hosting root.
+-   **A glyph beside a glass control is `ui/Icon/SymbolIcon`**: the icon set's own drawing as a
+    custom SF Symbol (`scripts/build-symbols.mjs <svg-dir> --only=<name>` → `CuzhaneSymbols.xcassets`),
+    placed in a SwiftUI host so it and the control next to it are rendered by one engine at one
+    weight; a stroked `Icon` beside a symbol read as two hands. The search field's magnifier is
+    `ara-search`. Gruplarım and Keşfet have **no search box of their own** any more — searching,
+    open groups included, is the Ara tab's job, and `GroupBrowseState` carries no `search`; their
+    filter and sort stay in the navigator's pull-down. Everywhere SwiftUI isn't, it is the ordinary `Icon`. **A new symbol
+    reaches the app only through a native build** — `expo prebuild -p ios` copies the catalog and
+    the app is rebuilt; on a dev client built before it the host draws nothing for that name.
+-   **Search (K2) is the `Search` tab, `role: 'search'`** — iOS 26's own detached search button beside
+    the capsule, wearing Apple's `magnifyingglass` (the tab library takes only *system* symbols
+    there, never the custom catalog), and an ordinary fifth tab on Android with the icon set's
+    drawing as a PNG from `build-tab-icons.mjs`. It is the one entry in `TAB_BAR_HIDDEN_ROUTES`:
+    search mode *replaces* the bar with `SearchField` (glass field + a × drawn as
+    `GlassCornerAction hasOwnGlass`, SwiftUI's own `glass` circle — the disc the header gives the
+    back chevron, asked for directly since there is no bar out here — riding the keyboard on
+    `KeyboardStickyView`, `KEYBOARD_GAP` above the keyboard), and that × clears query and scope and
+    goes **back** — the navigator's `backBehavior='history'` is what makes back on a tab mean the tab
+    you came from, bar restored. **Search is a stack** (`SearchTabStack` + `sharedTabScreens`): a
+    result pushes over the search, the bar returns for it, and back lands on the query and results
+    as left — the field focuses on arrival only while the query is empty, so coming back doesn't
+    throw the keyboard over the list. The title and the scope — the platform's `SegmentedControl`,
+    no per-scope counts (five native segments have no room; the sections still count) — sit above
+    the scroll view, so only the results scroll. **The bar is unhidden a beat after the tab switch**
+    (`useSettledTabBarHidden`, 120ms): the library hides it two ways at once — a UIKit `isHidden`
+    that snaps and a SwiftUI toolbar modifier that animates — and flipping the flag in the same
+    commit as the switch showed the bar, faded it out, and faded it in again (recorded at 12fps).
+    **And hidden before a pop lands**: coming back from a result the focused route only becomes
+    `Search` once the pop has committed, after the page is on view, so the bar was seen sliding
+    out of it; the screen raises `forceTabBarHidden` (`tabBarVisibility.ts`) on its
+    `transitionStart` and withdraws it on blur — **and every tab stack withdraws it on
+    `gestureCancel`** (`tabStackScreenListeners`): a swipe-back the user lets snap back never
+    focuses or blurs the search screen (UIKit skips the disappear callbacks for a cancelled
+    interactive pop), so without that the bar stayed hidden over the result. `linking.ts` gives
+    every tab `initialRouteName` (`tabLink`), or a cold-start link into a pushed screen builds a
+    stack with no root under it. On iOS the Search root carries the same bar as
+    every tab root, with the account in it, and the title shares that row
+    (`hasReservedSecondaryLabel={false}`, no under-bar padding) to give the results the height.
+    The corpora are real: own groups, open groups (`useDiscoverGroups` **asked for the query**,
+    debounced — Keşfet answers at most fifty, so filtering a whole fetch would miss anything past the
+    newest fifty), the hundred babs by exact number, and the text inside them — the Turkish meal and
+    the Arabic with its marks folded away, spaces kept so phrases match —
+    through `lib/utils/search.ts` (`normalizeSearch` / `findMatch` / `searchCevsen` / `searchGroups`,
+    tested). Bab and text hits open the free reader on that bab, which is why `AllBabs` grew a
+    `babNumber` param, the one exception to "no params" there. Recent searches (`recentSearches.ts`)
+    live on the device in `expo-secure-store`, like the theme and language, **under a key carrying
+    the Clerk user id** — one list per account, none while signed out, six entries, a query joining
+    only when a result is opened. They were session memory first, which lasted only until the app
+    was quit; a server column was judged not worth it for a convenience list. K2 is drawn
+    in Apple's system face and iOS blue; the screen keeps the app's type and accent and takes K2's
+    structure.
+-   **The bottom bar stays visible on every screen behind the tabs.** Every tab owns a stack
+    (`sharedTabScreens()` registers `GroupDetail`, `BabReader`, the rounds screens, the Keşfet preview
+    and `Profile` in all five), so detail screens push _inside_ a tab and each tab keeps its own back stack. Adding a pushed
     screen means adding it to `sharedTabScreens`, not to the root stack — the root stack holds only
     `Onboarding`, `Tabs` and sheet routes. Tabs carry `popToTopOnBlur`, so leaving a tab resets it to its
     root — switching away from a group and back lands on the tab's list, not the group you were in.
     `TAB_BAR_HIDDEN_ROUTES` lists the screens the bar steps aside for, and it also zeroes
-    `TabBarOffsetContext`, so never hide the bar without going through it. It is **currently empty**: the
-    reader was the one entry, on the grounds that reading should be immersive, and is being tried with the
-    bar left in. A screen that keeps the bar must not inset its own `bottom` safe-area edge — the bar is a
+    `TabBarOffsetContext`, so never hide the bar without going through it. It holds **only `Search`**:
+    the reader was once an entry, on the grounds that reading should be immersive, and is being tried
+    with the bar left in. A screen that keeps the bar must not inset its own `bottom` safe-area edge — the bar is a
     sibling below it and already clears the home indicator, and doing both stacks two gaps (which is exactly
     what opened up under `BabReader`'s action bar). Listed screens **collapse** the bar (`BottomNavBar
 isCollapsed`), never unmount it: returning `null` from `tabBar` removed it the moment you navigated, which
@@ -344,8 +420,10 @@ isCollapsed`), never unmount it: returning `null` from `tabBar` removed it the m
     already do both, and a JS-drawn one has to fight the scroll view's bounce for the same
     pixels. What carries over is the accent tint and the copy as the iOS title
     ("Yenilemek için çek" / "Yenileniyor…"). Gruplarım, Keşfet and its group preview, the
-    lobby, the group screen, Havuz, Turlar and a round's detail all pull; Home does not (its
-    ring docks on scroll).
+    lobby, the group screen, Havuz, Turlar, a round's detail, **Ana sayfa and the group reader**
+    all pull — Home was the one exception while its ring docked on scroll, and H1 has no dock to
+    fight. The reader's pull refreshes the **group** (its board, its pool), never the text, which
+    is bundled; the free reader on B7 has no group behind it and no pull.
 -   **The heading below that bar is `ScreenTitle`'s `isUnderNavigationBar`, not a padding.** Screens
     declare that they sit under a bar; the component owns the distance. It was a constant each call
     site applied, and Gruplarım declared the style and never passed it — so its title drew behind the
@@ -383,20 +461,58 @@ isCollapsed`), never unmount it: returning `null` from `tabBar` removed it the m
     screen by the bar's height. `TabBarOffsetContext` is therefore just a small content gap, not the bar's
     height; reserving the height again leaves a screenful of dead space under long content.
 -   Screens inside a tab type their navigation with `TabStackParamList`, not `RootStackParamList`.
--   Home is a single-group view of "today's" round — the first entry from `useGetGroups()` (newest-first).
-    Its primary action marks the reader's whole share at once via `PATCH /babs/:groupId/read-all`; don't
-    replace that with a loop over the single-bab endpoint, which would fire one request per bab.
-    **"Whole share" means the rotated block _and_ the pool blocks they volunteered for** — the same set
-    the serializer calls `myBabNumbers`, which is what the ring counts and offers to finish. It once
-    covered only the rotated half, on the reasoning that a volunteered block is extra; the screen
-    overruled that, since a tap on "33 bab · Bu grubu bitir" that moved seventeen of them read as
-    nothing having happened.
+-   **Ana sayfa is H1: two layers, and it is a list of every group, not one.** A deep-green top layer
+    (`headerSurface` / `onHeaderSurface` — *not* `accent`, whose dark value is a light sage meant for
+    marks) carries the greeting and the free-reading row; the navigator's bar floats over it with the
+    same trailing item every tab root has, which is where the design puts the account anyway. **That
+    item is the one bar glyph that does not follow the theme**: `TrailingCornerAction
+    isOnHeaderSurface`, set only on Home, paints it `onHeaderSurface` — white in both modes —
+    instead of `text`, which in light mode was a near-black magnifier on deep green. It reaches
+    whichever item the platform draws there, Android's search and iOS's `person` glyph when there is
+    no photo; every other bar sits on the page and keeps the theme's own colour. A paper
+    sheet rounded over that layer (radius 32, `overflow: hidden`) holds the rest — and **only the rows
+    scroll**: the streak card and the "Gruplarım" heading are pinned above them, as the search screen
+    pins its field, because scrolling the week away to reach the third group made the card read as a
+    banner. That dark layer is why `AppStatusBar` exists, and why Home's **error state renders inside
+    the sheet** rather than replacing the screen: the status bar follows the route, and a light bar over
+    `ErrorState`'s pale page would be unreadable.
+    Every running group with a share is a row of the same kind, ordered with the unfinished first —
+    **the row opens the group, its button opens the reader**. `StreakCard` and `HomeGroupRow` are its
+    parts; `weekStrip` (tested) decides the seven squares and takes "today" from the payload's last day,
+    not the device clock, so the strip cannot disagree with the counts it is drawing. The streak card is
+    **absent** until the stats arrive, rather than showing a zero streak and an empty week.
+    **Belonging to no group at all is H1-E, and it is not the same empty screen as owing nothing
+    today.** `HomeEmptyState` keeps both layers and replaces the sheet's contents: the mark, the
+    promise that a streak appears once a share is taken, "Davet kodum var" over "Yeni grup kur"
+    (joining leads — someone arriving with nothing is usually holding a friend's code, and a scanned
+    QR opens that same sheet), a rule, and Keşfet as a quieter row. **The streak card and the
+    "Gruplarım" heading go with the list there** — a run of days is a record of shares taken, so a
+    zero would be a loss they never had, which is exactly what the body copy promises instead. The
+    greeting turns into "Hoş geldin". Groups that simply owe nothing today (all gathering, all
+    finished) keep the streak card and the older `ShelfEmptyState` line, because the way out is the
+    group they are already in. The design draws a bare `ح` in the tile; it is `BrandMark` here, since
+    a letter set as an icon is the one thing the icon rules refuse.
+    **Nothing on Home marks a bab read any more.** It replaced 01g's docking ring, which showed one
+    group at a time and committed a whole share with `PATCH /babs/:groupId/read-all`; the rows open the
+    reader instead, and `DockRing`/`CountingText` were deleted with it, along with that screen's
+    strings. That endpoint is still the right way to mark a whole share at once if a screen ever needs
+    to again — don't loop the single-bab one. `longestStreakDays` was added to `ProfileStats` for the
+    card's "En uzunu" note (server and client types both).
 -   Data layer: `src/api/wrapper.api.ts` attaches the Clerk bearer token; feature APIs in `src/api/*.api.ts`
     are wrapped by TanStack Query hooks in `src/lib/hooks/use*.ts`. `queryKeys.ts` centralises cache keys.
     `useSetBabRead` and `useUpdateUserSettings` are optimistic — preserve the cancel/snapshot/rollback
     pattern when editing them.
 -   Theme: token system in `src/lib/theme/tokens.ts`, light + dark. **Never hardcode a hex in a component** —
-    every colour comes from `theme.colors.*` via `useThemeContext()`.
+    every colour comes from `theme.colors.*` via `useThemeContext()`. The **status bar** is
+    `navigation/AppStatusBar`, which follows the focused route as well as the theme: Ana sayfa's top
+    layer is dark in both modes, and light mode's dark clock vanished into it. It reads `navigationRef`
+    rather than `useNavigationState` — it sits beside the navigator, where that hook throws — and the
+    screen must not set the style itself: a child's effects run before its parents', so the root's own
+    `StatusBar` re-applied the theme's style over it on every theme change. `ThemeProvider`'s context value is
+    memoised on the **resolved** mode, not on `useColorScheme`: choosing a theme is two steps (the mode
+    changes, then `Appearance.setColorScheme` makes the scheme hook echo it back), and keyed on the hook
+    the same theme was rebuilt twice, so every consumer of a five-tab app that mounts all its tabs rendered
+    twice per switch — the stutter felt on a device.
 -   i18n: `src/lib/i18n/strings.ts` holds the full TR/EN table; `useTranslation()` gives `t(key, values)`
     with `{token}` interpolation. TR is the default. **No user-facing string may be hardcoded** — add a key.
     `en` is typed as `typeof tr`, so a key added to one language fails the build until added to the other.
@@ -410,7 +526,13 @@ isCollapsed`), never unmount it: returning `null` from `tabBar` removed it the m
     smuggles one past the rule, so the tick belongs in `AppButton`'s `icon` prop and the string stays
     plain. The one exception the design keeps is the home ring's core mark (`۞`/`✓`), which is a
     Newsreader display glyph the size of a heading and is animated as text. Pushed screens get their back
-    affordance from `ui/BackLink`.
+    affordance from `ui/BackLink`. An icon-only `AppButton` reaches the **glass** path only for an icon
+    in `GLYPH_BY_ICON` (`hasSfSymbol`); everything else silently falls back to the drawn button, which
+    is what left Yönet's delete flat beside a tick in glass until `sil-delete` was converted. Prefer a
+    **converted** symbol over Apple's for a glyph that sits beside one: Apple's are drawn to the full
+    box the converted ones leave room in, so at one point size `trash` came out heavier than `check` and
+    needed a fudge factor to match. Apple's stay right where nothing of ours sits next to them (`close`,
+    the chevrons).
 -   Avatars are DiceBear `thumbs` (`@dicebear/core` + `@dicebear/styles`), seeded on the person's name so
     they are stable, and re-tinted into the app palette — never DiceBear's default colours.
 -   **Screen titles**: every screen heads with `components/ScreenTitle` → `<ScreenTitle label secondaryLabel
@@ -433,7 +555,7 @@ defaultValues render={({ handleSubmit, watch, setValue }) => …} />`, which wir
     `useMemo(() => createX(t), [t])`.
 -   Base inputs are `components/ui/Input` → `AppInput` and `components/ui/Switch` → `AppSwitch`, both mirroring
     React Native's own contracts (`value` / `onChangeText` / `onValueChange`) so the `Controller` wrappers can
-    bind them. Use these directly only outside a `Form` (e.g. the Discover search box).
+    bind them. Use these directly only outside a `Form`.
 -   Settings-style screens (Reminders) still use `Form`, but persist on change rather than submit — see the
     `ReminderPersistence` component there, which subscribes via `watch`'s callback form so it never fires on
     mount and never trips `react-hooks/set-state-in-effect`.
@@ -487,11 +609,49 @@ defaultValues render={({ handleSubmit, watch, setValue }) => …} />`, which wir
     together. It takes a 52pt `topInset` because a list of twenty members genuinely runs long; the join
     flow deliberately does **not** — it sizes to its content like every other sheet, and a fixed detent
     there left a screenful of dead space under eight code cells.
--   **An invitation is a code and nothing else.** There is no shareable URL anywhere — no QR, no
-    `cuzhane://join/...`, no `https://cuzhane.app/j/...`, and `linking.ts` deliberately registers no invite
-    path. The code is the hero of the share sheet and of the lobby, "Kodu kopyala" puts the bare (un-dashed)
-    code on the clipboard, and it is typed back in on the other side. Don't reintroduce a link as a
-    convenience: it was removed on purpose, and a second unadvertised way in is worse than none.
+-   **Yönet is a corner pair over two sections.** Destroy on the left, keep on the right — the same
+    icon-only `AppButton`s create-group heads its steps with (`trash` in `dangerFilled`, `check` in
+    `accent`), above the sheet's own "Yönet" heading, so the sheet passes no `title` and draws that
+    heading itself. Under it, "Grup bilgileri" is a `Form` over `editGroupSchema` — name, intention,
+    visibility — and those are the **only** three things a group can still be told: `spots`, `splitMode`
+    and `cycle` divide the hundred and the server rejects them (`UpdateGroupBodySchema` has no such
+    fields). "Katılım" below is the open-to-join switch and the members row, which save on the touch
+    rather than waiting for the tick, because a name being typed is not an answer until it is finished.
+    Three details are load-bearing: **the form wraps the whole sheet**, or the tick in the corner would
+    have no `handleSubmit` to call; the sheet carries a `heightRatio` with the body in a `flex: 1`
+    scroller, as `MembersSheet` does, because content-sized it ran off the bottom of the screen; and the
+    form is keyed on `isVisible`, so reopening shows the saved values rather than an edit abandoned by
+    closing the sheet. The tick has no label to turn into "Kaydedildi", so it goes `surface` for a
+    moment instead.
+-   **An invitation is a code, shown two ways: typed and scanned.** The code is the hero of the share
+    sheet and of the lobby, "Kodu kopyala" puts the bare (un-dashed) code on the clipboard, and it is typed
+    back in on the other side. Under it, on the share sheet and in the lobby, `components/InviteQr` draws the
+    same code as a **QR in the design's own style** (`QR Generator.dc.html` / `cuzhane-qr.js`): the matrix
+    from `qrcode` (byte mode, ECC M), drawn with `react-native-svg` — dotted modules at `DOT_SCALE` 0.76,
+    sage rounded finder eyes, a 5×5 zone cleared for the Cüzhane mark on a sage plate, four quiet modules
+    in the viewBox. On the `codePaper`/`codeInk`/`codeAccent` tokens: a **light plate in both modes**
+    (a scanner does not read light-on-dark reliably), dark mode getting the generator's warmer plate and
+    deeper ink, and the eyes' sage pinned to the deep `#3E6B5C` because the dark theme's lighter accent
+    would wash out on the plate. The mark is `ui/BrandMark`'s `BrandMarkGlyph`, one geometry for the icon
+    and the emblem. The symbol is **pinned to version 3** and `inviteCode.test.ts` holds it there: the
+    cleared zone is only known to be safe at that version (clear of timing rows and the alignment pattern,
+    at most seven of ECC M's thirteen recoverable codewords), so a payload that outgrows it fails to
+    encode — and draws no QR — rather than scanning badly. Don't enlarge the emblem zone. It encodes
+    `inviteLink(code)` (`utils/inviteCode.ts`) = `cuzhane://groups/join/<CODE>`, the **one** link the app has: `linking.ts` aliases
+    it onto the Gruplarım root, which opens `JoinByCodeSheet` with `initialCode` and looks it up at once.
+    Nothing else emits or displays that URL, there is no web fallback (the scheme resolves only with the
+    app installed), and no `https://cuzhane.app/...` — that link was removed on purpose earlier and stays
+    removed; the QR came back on request because scanning is typing, not sharing. **Links wait for the
+    tabs** (`linkGate.ts`, wired as `getInitialURL`/`subscribe` in `linking.ts`): a URL arriving signed
+    out or on Onboarding is held and released when `TabsNavigator` mounts, because the auth stack drops a
+    `Tabs` link and a cold link would have skipped the tour — and the person scanning a QR is usually the
+    one who still has to sign up. The release waits for `navigationRef.isReady()`: effects fire
+    child-first, so at the tab navigator's mount the container cannot dispatch yet, and releasing at
+    once logged "The 'navigation' object hasn't been initialized" and dropped the link on the last step.
+    Holding a link also pops the mounted stack to its top: a scan from the camera otherwise surfaced
+    the app on whatever auth form was open, which read as the QR having done nothing — an invite is a
+    fresh start, so signed out it lands on sign-in. The join sheet keeps a lookup id so an answer arriving after close, or
+    after a newer scan, cannot set the step; a new scan over an open preview starts the sheet over.
 -   Joining by code is therefore a **sheet, not a route** — `screens/Join/JoinByCodeSheet`, one surface
     holding all three steps (code entry → preview → group-full), opened over whatever screen you are on.
     It is mounted from Gruplarım's key button, Gruplarım's empty state and Home's empty state; Onboarding's
@@ -544,10 +704,12 @@ defaultValues render={({ handleSubmit, watch, setValue }) => …} />`, which wir
     hands every cell a new object per render and silently restores the old cost.
 -   **The pool board is `components/PoolGrid`, and there is exactly one of it.** Numbered cells in three
     states — hatched "havuzda", a soft panel for "başkası üstlendi", solid accent with a `text` ring for
-    "sen üstlendin" — plus the matching three-item legend. The Havuz screen (07a/07b) and the group
-    screen's Havuz card (07c) both render it, because the card is the door to the screen and two
-    pictures of the same babs must not disagree. **07b is not a separate screen**: a crowded pool is the
-    same board with more slots. The ring is a per-cell `borderColor` at a uniform `borderWidth`, not the
+    "sen üstlendin" — plus the matching three-item legend. The Havuz screen (07a/07b) renders it; the
+    group screen's Havuz entry (07c) is now a **row card** in the "Geçen tur" shape — the whole pool's
+    count in a `sand` tile, "Ortak havuz", "N bab", a chevron — that navigates to the screen, on request
+    (the board on the group screen was dropped). It counts `poolAllBabNumbers` from the group, so it
+    neither waits on the board nor disappears once the last block is claimed. **07b is not a separate
+    screen**: a crowded pool is the same board with more slots. The ring is a per-cell `borderColor` at a uniform `borderWidth`, not the
     design's outer `box-shadow` — `CellGrid` clips its cells, so an outset shadow would never show, and
     a uniform width keeps every cell the same size. Cells are always **sorted by bab number**: under
     ROTATION the slots arrive in rotated order, and the two surfaces build their cells from different
@@ -558,10 +720,8 @@ defaultValues render={({ handleSubmit, watch, setValue }) => …} />`, which wir
     and spelled out it wrapped Home's ring onto three lines and doubled the group heading. `shareSlices`
     in `utils/groups.ts` picks the stretch holding `myNextBabNumber` (where the reader actually is, not
     their lowest number) and counts the rest; `components/SliceChip` renders the "+2 aralık daha" chip.
-    Three surfaces use the pair and must keep using it: Home's ring — where the chip lives _inside_ the
-    flying range node so it rides the docking transform rather than being kept in step by hand — Home's
-    shelf rows (`isCompact`, just "+2", because that column is 56pt), and the group screen's "Sana
-    atanan" heading. `babRuns`/`formatRun` underneath live in the **mirrored** `utils/babs.ts` pair, so
+    Two surfaces use the pair and must keep using it: H1's group rows (`isCompact`, just "+2", beside a
+    name that already has to fit) and the group screen's "Sana atanan" heading. `babRuns`/`formatRun` underneath live in the **mirrored** `utils/babs.ts` pair, so
     they change on both sides together.
 -   **Üstlen can be undone, but only in the session that did it.** A row you claimed on this visit keeps
     an avatar _and_ a "Geri al" beside it, sub-lined "az önce üstlendin"; older claims don't, because by

@@ -6,6 +6,8 @@ export type ProfileStats = {
 	babsRead: number;
 	roundsCompleted: number;
 	streakDays: number;
+	/** The longest run of consecutive reading days, ever — what the current streak is measured against. */
+	longestStreakDays: number;
 	memberSince: string;
 	last30Days: { date: string; count: number }[];
 };
@@ -94,11 +96,25 @@ export const getProfileStatsForUser = async (
 		cursor -= 1;
 	}
 
+	/*
+	 * The best run, over every day this reader has ever read — not just the thirty the heatmap
+	 * covers, which would quietly shrink somebody's record as it aged out of the window. The
+	 * days are already collected; sorting them and walking for gaps costs one pass.
+	 */
+	const readDays = Array.from(countsByDay.keys()).sort((a, b) => a - b);
+	let longestStreakDays = 0;
+	let runLength = 0;
+
+	readDays.forEach((day, index) => {
+		runLength = index > 0 && readDays[index - 1] === day - 1 ? runLength + 1 : 1;
+		longestStreakDays = Math.max(longestStreakDays, runLength);
+	});
+
 	const last30Days: { date: string; count: number }[] = [];
 	for (let offset = LAST_N_DAYS - 1; offset >= 0; offset--) {
 		const day = today - offset;
 		last30Days.push({ date: dayKey(day), count: countsByDay.get(day) ?? 0 });
 	}
 
-	return { babsRead, roundsCompleted, streakDays, memberSince, last30Days };
+	return { babsRead, roundsCompleted, streakDays, longestStreakDays, memberSince, last30Days };
 };

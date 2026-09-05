@@ -34,20 +34,6 @@ describe('applyGroupBrowse — filtering', () => {
 		expect(applyGroupBrowse(groups, state()).map(g => g.name)).toEqual(['A', 'B']);
 	});
 
-	it('matches the search case-insensitively and on part of the name', () => {
-		const groups = [group({ name: 'Şifa Hatmi' }), group({ name: 'Seher Hatmi' })];
-
-		expect(applyGroupBrowse(groups, state({ search: 'seher' })).map(g => g.name)).toEqual(['Seher Hatmi']);
-		expect(applyGroupBrowse(groups, state({ search: 'HATMI' })).length).toBe(2);
-	});
-
-	it('ignores surrounding whitespace in the search', () => {
-		const groups = [group({ name: 'Sas' })];
-
-		expect(applyGroupBrowse(groups, state({ search: '   ' })).length).toBe(1);
-		expect(applyGroupBrowse(groups, state({ search: '  sas  ' })).length).toBe(1);
-	});
-
 	it('narrows by cadence', () => {
 		const groups = [group({ cycle: 'DAILY', name: 'D' }), group({ cycle: 'WEEKLY', name: 'W' })];
 
@@ -73,10 +59,7 @@ describe('applyGroupBrowse — filtering', () => {
 			group({ cycle: 'WEEKLY', name: 'Sabah Nuru', spotsLeft: 4, status: 'GATHERING' })
 		];
 
-		const result = applyGroupBrowse(
-			groups,
-			state({ cycle: 'DAILY', hasSeatsOnly: true, isNotStartedOnly: true, search: 'sabah' })
-		);
+		const result = applyGroupBrowse(groups, state({ cycle: 'DAILY', hasSeatsOnly: true, isNotStartedOnly: true }));
 
 		expect(result.map(g => g.name)).toEqual(['Sabah Virdi']);
 	});
@@ -135,11 +118,9 @@ describe('isGroupBrowseNarrowed', () => {
 		expect(isGroupBrowseNarrowed(state({ cycle: 'DAILY' }))).toBe(true);
 		expect(isGroupBrowseNarrowed(state({ isNotStartedOnly: true }))).toBe(true);
 		expect(isGroupBrowseNarrowed(state({ hasSeatsOnly: true }))).toBe(true);
-		expect(isGroupBrowseNarrowed(state({ search: 'sas' }))).toBe(true);
 	});
 
-	it('is false for a blank search and for sorting, which reorder rather than narrow', () => {
-		expect(isGroupBrowseNarrowed(state({ search: '   ' }))).toBe(false);
+	it('is false for sorting, which reorders rather than narrows', () => {
 		expect(isGroupBrowseNarrowed(state({ sortKey: 'seats' }))).toBe(false);
 	});
 });
@@ -154,11 +135,5 @@ describe('isGroupBrowseMenuActive', () => {
 		expect(isGroupBrowseMenuActive(state({ isNotStartedOnly: true }))).toBe(true);
 		expect(isGroupBrowseMenuActive(state({ hasSeatsOnly: true }))).toBe(true);
 		expect(isGroupBrowseMenuActive(state({ sortKey: 'seats' }))).toBe(true);
-	});
-
-	// The search box is the screen's, not the menu's, and the clear leaves it alone — so a
-	// search on its own must not offer a "Temizle" that would then do nothing.
-	it('ignores the search term, which the clear keeps', () => {
-		expect(isGroupBrowseMenuActive(state({ search: 'sas' }))).toBe(false);
 	});
 });

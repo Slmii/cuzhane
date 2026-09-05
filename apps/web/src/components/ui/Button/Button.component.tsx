@@ -39,10 +39,25 @@ const sizeStyleMap: Record<ButtonSize, ViewStyle> = {
  * same shape. Applied after the inline block below, because that block writes `width` — an
  * explicit `undefined` there would otherwise erase the one set here.
  */
-const iconOnlySizeStyleMap: Record<ButtonSize, ViewStyle> = {
-	sm: { borderRadius: 18, height: 36, paddingHorizontal: 0, width: 36 },
-	md: { borderRadius: 23, height: 46, paddingHorizontal: 0, width: 46 },
-	lg: { borderRadius: 27, height: 54, paddingHorizontal: 0, width: 54 }
+/**
+ * **A glyph on its own is the navigation bar's disc, whatever `size` says** — 44pt, the box iOS
+ * gives its back chevron, with the glyph at 20pt and the set's active stroke, which is how that
+ * chevron is set. Mirrored by `ICON_ONLY_GLYPH_SIZE` in `GlassButton.tsx`, where SwiftUI's
+ * `large` control in a circle is the same disc — change both together.
+ */
+const ICON_ONLY_SIZE = 44;
+const ICON_ONLY_GLYPH_SIZE = 20;
+const ICON_ONLY_STROKE_WIDTH = 2.1;
+const iconOnlyStyle: ViewStyle = {
+	borderRadius: ICON_ONLY_SIZE / 2,
+	height: ICON_ONLY_SIZE,
+	// The size map's `minHeight` (54 at `lg`) and vertical padding outrank a bare `height`, and
+	// the disc came out an oval on the drawn path — 44 wide, 54 tall. Every vertical measure is
+	// pinned here so the circle is one number.
+	minHeight: ICON_ONLY_SIZE,
+	paddingHorizontal: 0,
+	paddingVertical: 0,
+	width: ICON_ONLY_SIZE
 };
 
 /**
@@ -173,22 +188,25 @@ export const AppButton = ({
 	 * sense that it is checked first — no caller passes both, and a brand mark is never
 	 * something the icon set could stand in for.
 	 */
+	/* A glyph standing on its own, which is the bar's disc rather than a padded rounded
+	   rectangle — see `iconOnlyStyle`. A button with neither a label nor a glyph keeps the
+	   ordinary box: there is nothing to centre in a disc, and it is a caller's mistake rather
+	   than a shape to design for. */
+	const isIconOnly = title === undefined && (imageIcon !== undefined || icon !== undefined);
+	const glyphSize = isIconOnly ? ICON_ONLY_GLYPH_SIZE : iconSizeMap[size];
+
 	const drawnGlyph =
 		imageIcon !== undefined ? (
 			// `contain`, so a square mark keeps its aspect at whatever the size map says.
-			<Image
-				resizeMode='contain'
-				source={imageIcon}
-				style={{ height: iconSizeMap[size], width: iconSizeMap[size] }}
-			/>
+			<Image resizeMode='contain' source={imageIcon} style={{ height: glyphSize, width: glyphSize }} />
 		) : icon !== undefined ? (
-			<Icon color={toneByVariant.textColor} name={icon} size={iconSizeMap[size]} strokeWidth={1.9} />
+			<Icon
+				color={toneByVariant.textColor}
+				name={icon}
+				size={glyphSize}
+				strokeWidth={isIconOnly ? ICON_ONLY_STROKE_WIDTH : 1.9}
+			/>
 		) : null;
-
-	/* A glyph standing on its own, which is a circle rather than a padded rounded rectangle. A
-	   button with neither a label nor a glyph keeps the ordinary box — there is nothing to
-	   centre in a disc, and it is a caller's mistake rather than a shape to design for. */
-	const isIconOnly = title === undefined && drawnGlyph !== null;
 
 	return (
 		<Pressable
@@ -208,7 +226,7 @@ export const AppButton = ({
 					width: fullWidth ? '100%' : undefined
 				},
 				// After the block above, which writes `width` — see the note on the map.
-				isIconOnly ? iconOnlySizeStyleMap[size] : null,
+				isIconOnly ? iconOnlyStyle : null,
 				style
 			]}
 		>

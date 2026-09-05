@@ -16,7 +16,6 @@ export const GROUP_SORT_OPTIONS: { key: GroupSortKey; labelKey: StringKey }[] = 
 export const DEFAULT_GROUP_SORT: GroupSortKey = 'newest';
 
 export type GroupBrowseState = {
-	search: string;
 	cycle: GroupCycle | undefined;
 	isNotStartedOnly: boolean;
 	hasSeatsOnly: boolean;
@@ -27,13 +26,12 @@ export const emptyGroupBrowseState: GroupBrowseState = {
 	cycle: undefined,
 	hasSeatsOnly: false,
 	isNotStartedOnly: false,
-	search: '',
 	sortKey: DEFAULT_GROUP_SORT
 };
 
 /** Anything narrowing the list — what decides whether "clear" is worth offering. */
 export const isGroupBrowseNarrowed = (state: GroupBrowseState) =>
-	state.cycle !== undefined || state.isNotStartedOnly || state.hasSeatsOnly || state.search.trim() !== '';
+	state.cycle !== undefined || state.isNotStartedOnly || state.hasSeatsOnly;
 
 export const isGroupSortActive = (state: GroupBrowseState) => state.sortKey !== DEFAULT_GROUP_SORT;
 
@@ -41,13 +39,9 @@ export const isGroupSortActive = (state: GroupBrowseState) => state.sortKey !== 
  * Whether the browse menu's "Temizle" has anything to undo: everything that menu sets — the
  * cadence, the two status filters **and the order**.
  *
- * Deliberately not the search box, which the clear leaves alone — the field is on screen showing
- * what it holds, so emptying it from the menu would undo something the reader can see and did not
- * ask about. It used to lean on `isGroupBrowseNarrowed`, which counts the search term, so with
- * only a search typed the row appeared and then did nothing at all.
- *
- * Distinct from `isGroupBrowseNarrowed` in the other direction too: that one asks whether the
- * *list* is narrowed, which is what the empty states need, and reordering narrows nothing.
+ * Distinct from `isGroupBrowseNarrowed`: that one asks whether the *list* is narrowed, which is
+ * what the empty states need, and reordering narrows nothing. (The per-screen search box that
+ * once complicated this is gone — searching is the Ara tab's job now.)
  */
 export const isGroupBrowseMenuActive = (state: GroupBrowseState) =>
 	state.cycle !== undefined || state.isNotStartedOnly || state.hasSeatsOnly || isGroupSortActive(state);
@@ -67,12 +61,10 @@ type BrowsableGroup = {
  * between two screens would be the same word doing two jobs.
  *
  * Everything here answers off fields the rows already carry, so it costs no round trip.
- * Keşfet additionally narrows by cadence and search on the server; passing them again is a
- * no-op there and does the real work on Gruplarım, which fetches the whole shelf at once.
+ * Keşfet additionally narrows by cadence on the server; passing it again is a no-op there and
+ * does the real work on Gruplarım, which fetches the whole shelf at once.
  */
 export const applyGroupBrowse = <T extends BrowsableGroup>(groups: T[] | undefined, state: GroupBrowseState): T[] => {
-	const query = state.search.trim().toLocaleLowerCase();
-
 	const filtered = (groups ?? []).filter(group => {
 		if (state.cycle !== undefined && group.cycle !== state.cycle) {
 			return false;
@@ -86,7 +78,7 @@ export const applyGroupBrowse = <T extends BrowsableGroup>(groups: T[] | undefin
 			return false;
 		}
 
-		return query === '' || group.name.toLocaleLowerCase().includes(query);
+		return true;
 	});
 
 	return [...filtered].sort((a, b) => {

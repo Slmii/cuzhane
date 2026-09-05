@@ -1,7 +1,9 @@
 import { GlassCornerAction } from '@/components/ui/CornerAction/GlassCornerAction.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
+import { TrailingCornerAction } from '@/navigation/TrailingCornerAction';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { StyleSheet, View } from 'react-native';
 
 /**
  * The reader's one whole-screen action: the size of the text.
@@ -27,12 +29,22 @@ export const ReaderToolbar = () => {
 	const { t } = useTranslation();
 
 	return (
-		<GlassCornerAction
-			accessibilityLabel={t('textSize')}
-			assetName='yazi-boyutu-text-size'
-			icon='textSize'
-			onPress={() => navigation.setParams({ shouldOpenTextSize: true })}
-			tone='surface'
-		/>
+		// No gap, as `GroupDetailToolbar` explains: each item is its own 44pt box.
+		<View style={styles.actions}>
+			<GlassCornerAction
+				accessibilityLabel={t('textSize')}
+				assetName='yazi-boyutu-text-size'
+				icon='textSize'
+				onPress={() => navigation.setParams({ shouldOpenTextSize: true })}
+				tone='surface'
+			/>
+			<TrailingCornerAction />
+		</View>
 	);
 };
+
+const styles = StyleSheet.create({
+	actions: {
+		flexDirection: 'row'
+	}
+});

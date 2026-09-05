@@ -37,19 +37,29 @@ try {
 
 /** The glyph's size. There is no shape around it on either path. */
 const GLYPH_SIZE = 26;
+/** With a disc of its own the glyph sits lighter, as the bar's back chevron does. */
+const OWN_GLASS_GLYPH_SIZE = 20;
 /** The touch target the glyph sits in, on both paths — Apple's minimum, and a toolbar's rhythm. */
 const TARGET_SIZE = 44;
 
 export const GlassCornerAction = ({
 	accessibilityLabel: label,
 	assetName,
+	hasOwnGlass = false,
 	icon,
+	isOnHeaderSurface = false,
 	onPress,
 	systemIcon,
 	tone = 'accent'
 }: GlassCornerActionProps) => {
 	const { theme } = useThemeContext();
-	const glyphColor = tone === 'accent' ? theme.colors.accent : theme.colors.text;
+	// Over H1's coloured layer the theme's own text colour is the wrong question: that layer is
+	// dark in light mode too, so the glyph follows the surface it is on rather than the mode.
+	const glyphColor = isOnHeaderSurface
+		? theme.colors.onHeaderSurface
+		: tone === 'accent'
+		? theme.colors.accent
+		: theme.colors.text;
 
 	/*
 	 * **The fork is by platform, and by nothing else.** This used to bail out on
@@ -69,7 +79,11 @@ export const GlassCornerAction = ({
 				accessibilityRole='button'
 				onPress={onPress}
 				// The touch target the glyph does not fill on its own. Nothing is painted here.
-				style={({ pressed }) => [styles.drawn, { opacity: pressed ? 0.6 : 1 }]}
+				style={({ pressed }) => [
+					styles.drawn,
+					hasOwnGlass ? { backgroundColor: theme.colors.surface, borderRadius: TARGET_SIZE / 2 } : null,
+					{ opacity: pressed ? 0.6 : 1 }
+				]}
 			>
 				<Icon color={glyphColor} name={icon} size={GLYPH_SIZE} strokeWidth={1.9} />
 			</Pressable>
@@ -77,7 +91,7 @@ export const GlassCornerAction = ({
 	}
 
 	const { Button, Host, Image } = swiftUi;
-	const { accessibilityLabel, buttonStyle, controlSize, frame, tint } = swiftUiModifiers;
+	const { accessibilityLabel, buttonBorderShape, buttonStyle, controlSize, font, frame, tint } = swiftUiModifiers;
 
 	return (
 		/*
@@ -92,7 +106,13 @@ export const GlassCornerAction = ({
 		 * known on the first frame and skips the round trip entirely.
 		 */
 		<View style={styles.host}>
-			<Host style={styles.host}>
+			{/*
+			 * A SwiftUI host dodges the keyboard by itself, so the search field's × — already
+			 * lifted by the sticky row it sits in — climbed a second time and sat above the
+			 * field. The row does the moving; the host must not. This is the host's own switch;
+			 * the same thing as a modifier on the button never reached the hosting root.
+			 */}
+			<Host ignoreSafeArea='keyboard' style={styles.host}>
 				<Button
 					modifiers={[
 						/*
@@ -103,9 +123,15 @@ export const GlassCornerAction = ({
 						 * toolbar action is.
 						 *
 						 * No `buttonBorderShape` with it: there is no shape left to shape.
+						 *
+						 * `hasOwnGlass` is the one exception — outside a bar, the same `glass`
+						 * style and circle the bar would have drawn around the glyph.
 						 */
-						buttonStyle('plain'),
-						controlSize('regular'),
+						buttonStyle(hasOwnGlass ? 'glass' : 'plain'),
+						...(hasOwnGlass ? [buttonBorderShape('circle')] : []),
+						// The glass style sizes its disc from the control size, not from the frame
+						// below: `regular` gives ~38pt, `large` the bar's 44.
+						controlSize(hasOwnGlass ? 'large' : 'regular'),
 						/*
 						 * **A 44pt box around a 19pt glyph.** `plain` draws no chrome, so the
 						 * button hugged its symbol — which left the pair almost touching inside
@@ -122,7 +148,12 @@ export const GlassCornerAction = ({
 				>
 					{/* Ours if we have converted it, Apple's if we have not — see the types. */}
 					<Image
-						size={GLYPH_SIZE}
+						// The bar sets its back chevron smaller and semibold; a disc of our own
+						// matches that through the font modifier (which replaces `size`), the
+						// bar's own items keep the 26.
+						{...(hasOwnGlass
+							? { modifiers: [font({ size: OWN_GLASS_GLYPH_SIZE, weight: 'semibold' })] }
+							: { size: GLYPH_SIZE })}
 						{...(assetName === undefined ? { systemName: systemIcon } : { assetName })}
 					/>
 				</Button>

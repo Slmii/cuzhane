@@ -222,6 +222,9 @@ export const ProfileScreen = () => {
 						<>
 							<ScreenTitle
 								description={t('memberSince', { date: memberSinceDate })}
+								// Pushed from Ana sayfa since K2 took its tab: the platform's back chevron
+								// sits above, and the title clears it.
+								isUnderNavigationBar
 								label={fullName}
 								size='name'
 								leading={

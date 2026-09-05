@@ -121,17 +121,24 @@ export const ThemeProvider = ({ children }: ThemeProviderProps) => {
 	 * below never consults it — no need to tell the two cases apart.
 	 */
 	const systemScheme = useColorScheme();
+	const resolvedMode: ResolvedThemeMode = mode === 'system' ? (systemScheme === 'dark' ? 'dark' : 'light') : mode;
 
-	const value = useMemo(() => {
-		const resolvedMode: ResolvedThemeMode = mode === 'system' ? (systemScheme === 'dark' ? 'dark' : 'light') : mode;
-
-		return {
+	/*
+	 * Keyed on the *resolved* mode, not on the scheme hook. Choosing a theme is two steps —
+	 * `mode` changes, then the effect above sets the override and `useColorScheme` echoes it
+	 * back — and with the scheme in these deps the second step rebuilt this object for the
+	 * same theme, so every consumer in a five-tab app that mounts all its tabs rendered twice
+	 * per switch. The second pass was the stutter on a device.
+	 */
+	const value = useMemo(
+		() => ({
 			mode,
 			resolvedMode,
 			theme: resolvedMode === 'dark' ? darkTheme : lightTheme,
 			setMode
-		};
-	}, [mode, systemScheme]);
+		}),
+		[mode, resolvedMode]
+	);
 
 	return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 };

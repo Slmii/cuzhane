@@ -1,3 +1,4 @@
+import { InviteQr } from '@/components/InviteQr/InviteQr.component';
 import { AppBottomSheet } from '@/components/ui/BottomSheet/BottomSheet.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
@@ -18,9 +19,10 @@ type Props = {
 const COPIED_RESET_MS = 1600;
 
 /**
- * The invite, and the whole of it. There is no shareable URL any more — no link to send,
- * no QR square standing in for one — so the code isn't a detail beside the real thing, it
- * *is* the thing, and the sheet sets it as the hero at 34pt with the copy button under it.
+ * The invite: the code as the hero at 34pt, to be read out and typed, and the same code as a
+ * QR beneath it for whoever is in the room. The QR encodes the app's one link (`inviteLink`)
+ * and nothing else displays that URL — scanning is a way of typing the code, not of sharing
+ * it, and there is no web fallback.
  */
 export const ShareSheet = ({ group, isVisible, onClose }: Props) => {
 	const { theme } = useThemeContext();
@@ -77,6 +79,10 @@ export const ShareSheet = ({ group, isVisible, onClose }: Props) => {
 						<Typography color={theme.colors.accent} style={styles.code} variant='header1' weight='regular'>
 							{group.inviteCode}
 						</Typography>
+						{/* The same code for whoever is in the room — see `InviteQr`. */}
+						<View style={styles.qr}>
+							<InviteQr inviteCode={group.inviteCode} />
+						</View>
 					</CardSurface>
 				) : null}
 				{/*
@@ -115,5 +121,8 @@ const styles = StyleSheet.create({
 		letterSpacing: 2.7,
 		lineHeight: 37,
 		marginTop: 8
+	},
+	qr: {
+		marginTop: 18
 	}
 });

@@ -25,7 +25,7 @@ import type { TabStackParamList } from '@/navigation/types';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Clipboard from 'expo-clipboard';
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
 import type { JoinByCodeSheetProps } from './JoinByCodeSheet.types';
 
@@ -33,6 +33,8 @@ type Step = 'code' | 'preview' | 'full' | 'notfound';
 
 const CODE_LENGTH = 8;
 const PASTED_LABEL_DURATION_MS = 1600;
+/** Past the platform sheet's slide-out, so a reset never paints while the sheet is still visible. */
+const SHEET_DISMISS_MS = 400;
 /** The design's invite grid is ten wide, however many seats the group has. */
 const SEAT_COLUMNS = 10;
 
@@ -51,7 +53,7 @@ const normalizeCode = (input: string) =>
  * are, and it either finds the group or it doesn't. Keeping it as one surface also keeps
  * the typed code alive across "Geri", which a popped screen could not.
  */
-export const JoinByCodeSheet = ({ isVisible, onClose }: JoinByCodeSheetProps) => {
+export const JoinByCodeSheet = ({ initialCode, isVisible, onClose }: JoinByCodeSheetProps) => {
 	const { theme } = useThemeContext();
 	const { t } = useTranslation();
 	const navigation = useNavigation<NativeStackNavigationProp<TabStackParamList>>();
@@ -62,17 +64,116 @@ export const JoinByCodeSheet = ({ isVisible, onClose }: JoinByCodeSheetProps) =>
 	const [step, setStep] = useState<Step>('code');
 	const [code, setCode] = useState('');
 	const [isPasted, setIsPasted] = useState(false);
+	// The scanned code already looked up, so a re-render never asks the server twice for it.
+	const lookedUpInitialCodeRef = useRef<string | null>(null);
 
 	const lookup = useLookupGroupByCode();
 	const joinByCode = useJoinGroupByCode();
 
+	// `mutateAsync` is stable; the mutation object it hangs off is rebuilt every render, and
+	// depending on that would have remade this on every keystroke.
+	const { mutateAsync: lookUpGroup, reset: resetLookup } = lookup;
+	/*
+	 * Which lookup is current. A lookup that resolves after the sheet closed, or after a newer
+	 * code replaced its own, must not set the step: closing resets the result, so a late
+	 * `preview` would reopen the sheet on an empty body, and a late answer for an older scan
+	 * would show one group under another's code. Closing and every new lookup bump it.
+	 */
+	const lookupIdRef = useRef(0);
+	const findGroup = useCallback(
+		async (candidate: string) => {
+			const lookupId = ++lookupIdRef.current;
+
+			try {
+				const found = await lookUpGroup(candidate);
+
+				if (lookupId !== lookupIdRef.current) {
+					return;
+				}
+
+				// A full group gets the dead-end state rather than a join button it can't honour —
+				// the same branch the standalone 01c screen used to be.
+				setStep(found.isFull ? 'full' : 'preview');
+			} catch {
+				if (lookupId !== lookupIdRef.current) {
+					return;
+				}
+
+				// A whole step, not a red line under the field. A code that finds nothing is the
+				// end of this attempt — it needs to say what probably went wrong and offer the two
+				// ways forward, which a one-line banner under eight cells cannot. Every failure
+				// lands here, because from the reader's side "the server is down" and "that code
+				// isn't a group" are the same sentence: this code got you nowhere.
+				setStep('notfound');
+			}
+		},
+		[lookUpGroup]
+	);
+
+	/*
+	 * A scanned QR opens the sheet on its code and goes looking straight away — the person
+	 * scanned instead of typing precisely so as not to type. The code lands in the field during
+	 * render (the previous-value pattern, which keeps `react-hooks/set-state-in-effect` quiet);
+	 * the lookup, a request, runs from the effect. Once per code: the ref is cleared with the
+	 * rest of the sheet's state on close.
+	 */
+	const [appliedInitialCode, setAppliedInitialCode] = useState<string | undefined>(undefined);
+	const scannedCode = isVisible && initialCode !== undefined ? normalizeCode(initialCode) : undefined;
+
+	if (initialCode !== appliedInitialCode) {
+		setAppliedInitialCode(initialCode);
+
+		if (scannedCode !== undefined) {
+			setCode(scannedCode);
+			// A scan over a sheet already showing a group starts over — the old preview must not
+			// stand under the new code while its lookup runs.
+			setStep('code');
+		}
+	}
+
+	useEffect(() => {
+		if (scannedCode === undefined || scannedCode.length !== CODE_LENGTH) {
+			return;
+		}
+
+		if (lookedUpInitialCodeRef.current === scannedCode) {
+			return;
+		}
+
+		lookedUpInitialCodeRef.current = scannedCode;
+		// The previous result goes before the new request, so nothing of the old group shows.
+		resetLookup();
+		void findGroup(scannedCode);
+	}, [findGroup, resetLookup, scannedCode]);
+
 	const handleClose = () => {
-		setStep('code');
-		setCode('');
-		// Or reopening the sheet would show the last group found, under a fresh empty field.
-		lookup.reset();
+		lookedUpInitialCodeRef.current = null;
+		// Whatever is still in flight answers to nobody now.
+		lookupIdRef.current += 1;
 		onClose();
 	};
+
+	/*
+	 * The sheet's own state is cleared *after* it has gone, not as it goes. Cleared in
+	 * `handleClose`, the code step flashed under the preview for the length of the platform's
+	 * dismiss animation — "Gruba katıl" closes the sheet from inside, so the reset painted
+	 * before the slide-out. Clearing it is still needed: reopened, the sheet would otherwise
+	 * show the last group found under a fresh empty field. A reopen inside the window keeps
+	 * the timer from firing, and a scanned code already resets the step on its own.
+	 */
+	useEffect(() => {
+		if (isVisible) {
+			return;
+		}
+
+		const handle = setTimeout(() => {
+			setStep('code');
+			setCode('');
+			resetLookup();
+		}, SHEET_DISMISS_MS);
+
+		return () => clearTimeout(handle);
+	}, [isVisible, resetLookup]);
 
 	const handleChangeText = (text: string) => {
 		setCode(normalizeCode(text));
@@ -95,20 +196,7 @@ export const JoinByCodeSheet = ({ isVisible, onClose }: JoinByCodeSheetProps) =>
 			return;
 		}
 
-		try {
-			const found = await lookup.mutateAsync(code);
-
-			// A full group gets the dead-end state rather than a join button it can't honour —
-			// the same branch the standalone 01c screen used to be.
-			setStep(found.isFull ? 'full' : 'preview');
-		} catch {
-			// A whole step, not a red line under the field. A code that finds nothing is the
-			// end of this attempt — it needs to say what probably went wrong and offer the two
-			// ways forward, which a one-line banner under eight cells cannot. Every failure
-			// lands here, because from the reader's side "the server is down" and "that code
-			// isn't a group" are the same sentence: this code got you nowhere.
-			setStep('notfound');
-		}
+		await findGroup(code);
 	};
 
 	const handleJoin = async () => {

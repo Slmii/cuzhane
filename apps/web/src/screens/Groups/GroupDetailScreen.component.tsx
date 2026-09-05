@@ -2,7 +2,6 @@ import { BabGrid } from '@/components/BabGrid/BabGrid.component';
 import { BabLegend } from '@/components/BabLegend/BabLegend.component';
 import { BabRow } from '@/components/BabRow/BabRow.component';
 import { GridSkeleton } from '@/components/GridSkeleton/GridSkeleton.component';
-import { PoolGrid } from '@/components/PoolGrid/PoolGrid.component';
 import { RoundResetRow } from '@/components/RoundResetRow/RoundResetRow.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
@@ -12,7 +11,6 @@ import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Chip } from '@/components/ui/Chip/Chip.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
-import { NavRow } from '@/components/ui/NavRow/NavRow.component';
 import {
 	BodyText,
 	CaptionText,
@@ -31,7 +29,7 @@ import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { GroupBab } from '@/lib/types/domain';
 import { BAB_COUNT } from '@/lib/utils/babs';
-import { shareSlices, toBabCells, toPoolCells } from '@/lib/utils/groups';
+import { shareSlices, toBabCells } from '@/lib/utils/groups';
 import type { TabStackParamList } from '@/navigation/types';
 import { LeaveGroupButton } from '@/screens/Groups/LeaveGroupButton.component';
 import { ManageSheet } from '@/screens/Groups/ManageSheet.component';
@@ -186,16 +184,6 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 	// are a different seat's block every round, so this can't be derived from assignment.
 	const myBabNumbers = groupQuery.data?.myBabNumbers ?? NO_NUMBERS;
 	const myBabNumberSet = useMemo(() => new Set(myBabNumbers), [myBabNumbers]);
-	// The pool as the Havuz screen counts it — every block of an empty seat, whether or not
-	// somebody has already volunteered for it.
-	const poolCells = useMemo(
-		() =>
-			toPoolCells(babs, {
-				poolAllBabNumbers: groupQuery.data?.poolAllBabNumbers ?? NO_NUMBERS,
-				viewerUserId: userId ?? null
-			}),
-		[babs, groupQuery.data?.poolAllBabNumbers, userId]
-	);
 	const babCells = useMemo(
 		() =>
 			toBabCells(babs, {
@@ -246,9 +234,6 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 	}
 
 	const detail = groupQuery.data;
-	// The pool card's own loading state: the group already says how big the pool is, but who
-	// holds each bab comes from the board.
-	const isPoolPending = babsQuery.isPending && detail.poolAllBabNumbers.length > 0;
 
 	// The redirect above has already fired; hold rather than render a board for a group that
 	// has no progress yet. It shows the *lobby's* skeleton, because that is where the redirect
@@ -604,39 +589,32 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 				) : null}
 
 				{/*
-				 * Only groups that started with seats to spare have a pool at all — but the
-				 * whole pool, not just the part still going. Counted off `poolBabNumbers`
-				 * this card used to shed cells as members claimed blocks and vanish once the
-				 * last one went, taking the only way to the Havuz screen with it.
-				 *
-				 * Whether there *is* a pool, and how big, comes from the group — so the
-				 * skeleton below is sized exactly rather than guessed. Only who holds each
-				 * bab needs the board, which is why this one section can still be waiting
-				 * while the rest of the screen is real.
+				 * "Ortak havuz" — the way into Havuz, in the same row shape as "Geçen tur" above:
+				 * a count in a tile, the name, a line under it, a chevron. It used to carry the
+				 * whole pool board; the board lives on the Havuz screen now, and this row is only
+				 * the door. Only groups that started with seats to spare have a pool at all — and
+				 * the *whole* pool is counted, not just the part still unclaimed, so the row
+				 * doesn't vanish once the last block is taken, taking the way to the screen with
+				 * it. The count comes from the group, so nothing here waits on the board.
 				 */}
-				{isPoolPending ? (
-					<GridSkeleton cellCount={detail.poolAllBabNumbers.length} />
-				) : poolCells.length > 0 ? (
-					<CardSurface isFlush>
-						<View style={[styles.sectionHeader, { borderBottomColor: theme.colors.divider }]}>
-							<TitleText>{t('pool')}</TitleText>
-							{/* Just "15 bab" — the card is already headed "Ortak havuz", so
-							    repeating "sahipsiz" here says it twice. The Havuz screen's own
-							    header carries the fuller wording, where it isn't redundant. */}
-							<Chip label={`${poolCells.length} ${t('babs')}`} tone='sand' />
+				{detail.poolAllBabNumbers.length > 0 ? (
+					<CardSurface onPress={() => navigation.navigate('Pool', { groupId })} style={styles.lastRoundCard}>
+						<View style={[styles.lastRoundBadge, { backgroundColor: theme.colors.sand }]}>
+							<Typography
+								color={theme.colors.sandText}
+								style={styles.lastRoundBadgeLabel}
+								variant='title'
+							>
+								{detail.poolAllBabNumbers.length}
+							</Typography>
 						</View>
-						<View style={styles.sectionBody}>
-							{/* Literally the Havuz screen's board, component and all — this card
-							    is the door to that screen, so the two cannot be allowed to
-							    describe the same babs differently. */}
-							<PoolGrid cells={poolCells} />
-							<CaptionText color={theme.colors.subtext}>{t('poolHint')}</CaptionText>
-							<NavRow
-								label={t('poolSee')}
-								onPress={() => navigation.navigate('Pool', { groupId })}
-								style={styles.poolNav}
-							/>
+						<View style={styles.lastRoundCopy}>
+							<CaptionText weight='semibold'>{t('pool')}</CaptionText>
+							<CaptionText color={theme.colors.subtext} style={styles.lastRoundSub}>
+								{`${detail.poolAllBabNumbers.length} ${t('babs')}`}
+							</CaptionText>
 						</View>
+						<Icon color={theme.colors.faintText} name='chevronRight' size={15} strokeWidth={1.8} />
 					</CardSurface>
 				) : null}
 
@@ -734,9 +712,6 @@ const styles = StyleSheet.create({
 		paddingBottom: 13,
 		paddingHorizontal: 16,
 		paddingTop: 15
-	},
-	poolNav: {
-		marginTop: 1
 	},
 	myBabsBadge: {
 		alignItems: 'center',

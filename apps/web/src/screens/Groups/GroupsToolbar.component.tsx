@@ -6,6 +6,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { StyleSheet, View } from 'react-native';
 import { GroupBrowseMenu } from '@/components/GroupBrowseBar/GroupBrowseMenu.component';
+import { TrailingCornerAction } from '@/navigation/TrailingCornerAction';
 
 /**
  * Composed rather than taken from `TabStackParamList`, whose `Groups` is the **tab's** params —
@@ -37,13 +38,14 @@ export const GroupsToolbar = () => {
 	// Nothing on the shelf: the design drops the bar entirely, because the empty state already
 	// offers these same two errands as full-width buttons. Kept in step with `GroupsScreen`'s
 	// own `isEmpty` — a bar over nothing is a control with no subject.
+	// An empty shelf has nothing to narrow or add to; the account stays.
 	if (!isPending && !isError && (!groups || groups.length === 0)) {
-		return null;
+		return <TrailingCornerAction />;
 	}
 
 	return (
 		<View style={styles.actions}>
-			{/* Narrowing first, then adding — the order the shelf is read in. */}
+			{/* Narrowing first, then adding, then the account at the end — the order the shelf is read in. */}
 			<GroupBrowseMenu />
 			<MenuAction
 				accessibilityLabel={t('addGroup')}
@@ -69,6 +71,7 @@ export const GroupsToolbar = () => {
 				// toolbar glyphs, which are monochrome. A sage + read as a coloured outlier.
 				tone='surface'
 			/>
+			<TrailingCornerAction />
 		</View>
 	);
 };

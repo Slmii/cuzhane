@@ -206,6 +206,8 @@ export type ProfileStats = {
 	babsRead: number;
 	roundsCompleted: number;
 	streakDays: number;
+	/** The longest run of consecutive reading days, ever — what the current streak is measured against. */
+	longestStreakDays: number;
 	memberSince: string;
 	/** Exactly 30 entries, oldest first — read counts per day for the heatmap. */
 	last30Days: { date: string; count: number }[];

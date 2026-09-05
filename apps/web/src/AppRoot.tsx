@@ -7,6 +7,7 @@ import { I18nProvider } from '@/lib/i18n/I18n.context';
 import { buildNavigationTheme } from '@/lib/theme/navigationTheme';
 import { ThemeProvider, useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { AppNavigator } from '@/navigation/AppNavigator';
+import { AppStatusBar } from '@/navigation/AppStatusBar';
 import { linking } from '@/navigation/linking';
 import { navigationRef } from '@/navigation/navigationRef';
 import { OnboardingDevTrigger } from '@/screens/Onboarding/OnboardingDevTrigger.component';
@@ -25,7 +26,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
 import * as Notifications from 'expo-notifications';
 import * as SplashScreen from 'expo-splash-screen';
-import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 // Aliased: `SplashScreen` above is Expo's native-splash controller, this is the animated
@@ -83,7 +83,7 @@ const AppContainer = () => {
 			 */}
 			<KeyboardProvider>
 				<NavigationContainer linking={linking} ref={navigationRef} theme={navigationTheme}>
-					<StatusBar style={theme.mode === 'dark' || isSplashVisible ? 'light' : 'dark'} />
+					<AppStatusBar isSplashVisible={isSplashVisible} />
 					<AppNavigator />
 					{/* Renders nothing until something calls `confirmDestructive`, and nothing at
 					    all off Android — iOS takes `Alert.alert`. Mounted here because Android

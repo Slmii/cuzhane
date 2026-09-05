@@ -1,4 +1,3 @@
-import { GroupBrowseBar } from '@/components/GroupBrowseBar/GroupBrowseBar.component';
 import { GroupCard } from '@/components/GroupCard/GroupCard.component';
 import { RoundResetRow } from '@/components/RoundResetRow/RoundResetRow.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
@@ -55,14 +54,16 @@ export const GroupsScreen = () => {
 	// of being open rather than copied into state by an effect — the arriving param is
 	// already a render's worth of information, and mirroring it would only cascade.
 	const shouldOpenJoinSheet = route.params?.shouldOpenJoinSheet === true;
-	const isJoinSheetVisible = isJoinSheetOpen || shouldOpenJoinSheet;
+	// A scanned QR lands here too (`groups/join/:inviteCode`), with the code to open the sheet on.
+	const scannedInviteCode = route.params?.inviteCode;
+	const isJoinSheetVisible = isJoinSheetOpen || shouldOpenJoinSheet || scannedInviteCode !== undefined;
 
 	const closeJoinSheet = () => {
 		setIsJoinSheetOpen(false);
 
-		// Cleared on dismissal, or the flag would reopen the sheet on the next render.
-		if (shouldOpenJoinSheet) {
-			navigation.setParams({ shouldOpenJoinSheet: undefined });
+		// Cleared on dismissal, or the params would reopen the sheet on the next render.
+		if (shouldOpenJoinSheet || scannedInviteCode !== undefined) {
+			navigation.setParams({ inviteCode: undefined, shouldOpenJoinSheet: undefined });
 		}
 	};
 
@@ -113,10 +114,7 @@ export const GroupsScreen = () => {
 				label={t('myGroups')}
 				secondaryLabel={t('greet', { name: user?.firstName ?? '' })}
 			/>
-			{/* Not on an empty shelf: a search box over nothing is a control with no subject,
-			    and the empty state already offers the only three things worth doing. */}
-			{/* Search only: filter and sort are the navigator's pull-down on this screen. */}
-			{isEmpty ? null : <GroupBrowseBar hasControls={false} onChange={setBrowse} state={browse} />}
+			{/* No search box: searching is the Ara tab's job. Filter and sort are the navigator's pull-down. */}
 		</View>
 	);
 
@@ -277,7 +275,11 @@ export const GroupsScreen = () => {
 				</PullToRefresh>
 			</ScreenContainer>
 
-			<JoinByCodeSheet isVisible={isJoinSheetVisible} onClose={closeJoinSheet} />
+			<JoinByCodeSheet
+				{...(scannedInviteCode === undefined ? {} : { initialCode: scannedInviteCode })}
+				isVisible={isJoinSheetVisible}
+				onClose={closeJoinSheet}
+			/>
 		</>
 	);
 };

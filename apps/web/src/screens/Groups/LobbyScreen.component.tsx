@@ -1,3 +1,4 @@
+import { InviteQr } from '@/components/InviteQr/InviteQr.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
@@ -165,6 +166,12 @@ export const LobbyScreen = ({ navigation, route }: Props) => {
 								variant='accent'
 							/>
 						</View>
+						{/* The same code for whoever is in the room — see `InviteQr`. */}
+						{detail.inviteCode ? (
+							<View style={styles.inviteQr}>
+								<InviteQr inviteCode={detail.inviteCode} />
+							</View>
+						) : null}
 					</View>
 					<ToggleRow
 						hint={t('autoStartHint')}
@@ -227,6 +234,9 @@ const styles = StyleSheet.create({
 	},
 	inviteLabel: {
 		marginBottom: 7
+	},
+	inviteQr: {
+		marginTop: 16
 	},
 	inviteRow: {
 		alignItems: 'center',

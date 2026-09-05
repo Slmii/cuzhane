@@ -44,8 +44,13 @@ export const useGetGroupById = (groupId: string) => {
 	});
 };
 
-export const useDiscoverGroups = ({ search, cycle }: DiscoverGroupsParams) => {
+export const useDiscoverGroups = (
+	{ search, cycle }: DiscoverGroupsParams,
+	// `isEnabled: false` keeps the query dormant — the search screen while its field is empty.
+	{ isEnabled = true }: { isEnabled?: boolean } = {}
+) => {
 	return useQuery({
+		enabled: isEnabled,
 		queryKey: groupQueryKeys.discover(search, cycle),
 		queryFn: () => discoverGroups({ search, cycle }),
 		/**
