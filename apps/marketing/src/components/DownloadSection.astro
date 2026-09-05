@@ -1,0 +1,137 @@
+---
+import { APP_STORE_URL, PLAY_STORE_URL } from '../config';
+import { copyFor, type Locale } from '../i18n/copy';
+import BrandMark from './BrandMark.astro';
+
+interface Props {
+	locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = copyFor(locale);
+
+const stores = [
+	{ href: APP_STORE_URL, label: t.storeIos, tone: 'solid' },
+	{ href: PLAY_STORE_URL, label: t.storeAndroid, tone: 'ghost' }
+] as const;
+---
+
+<section id="indir" class="shell">
+	<div class="end">
+		<BrandMark size={40} solid="#F2F0EA" faded="#8FB8A6" />
+		<h2 class="reveal">{t.endTitle}</h2>
+		<p class="body">{t.endBody}</p>
+
+		<div class="stores">
+			{
+				stores.map(store =>
+					store.href === null ? (
+						/* Not a link, deliberately — see `config.ts`. */
+						<span class:list={['store', store.tone, 'soon']}>
+							{store.label}
+							<em>{t.storeSoon}</em>
+						</span>
+					) : (
+						<a class:list={['store', store.tone]} href={store.href}>
+							{store.label}
+						</a>
+					)
+				)
+			}
+		</div>
+
+		<p class="meta">{t.endMeta}</p>
+	</div>
+</section>
+
+<style>
+	.end {
+		margin-top: 78px;
+		background: var(--ink);
+		border-radius: 30px;
+		padding: 56px 44px;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 22px;
+		text-align: center;
+	}
+
+	h2 {
+		font-size: clamp(28px, 3.6vw, 42px);
+		line-height: 1.14;
+		letter-spacing: -0.018em;
+		color: var(--card);
+		margin: 0;
+		max-width: 520px;
+	}
+
+	.body {
+		font: 400 14.5px/1.65 var(--sans);
+		color: rgba(247, 245, 240, 0.62);
+		margin: 0;
+		max-width: 420px;
+	}
+
+	.stores {
+		display: flex;
+		gap: 10px;
+		flex-wrap: wrap;
+		justify-content: center;
+		margin-top: 4px;
+	}
+
+	.store {
+		display: inline-flex;
+		align-items: baseline;
+		gap: 8px;
+		text-decoration: none;
+		border-radius: 14px;
+		padding: 15px 26px;
+		font: 600 13.5px var(--sans);
+		transition:
+			transform 0.22s cubic-bezier(0.2, 0.9, 0.25, 1),
+			box-shadow 0.22s ease,
+			background 0.22s ease;
+	}
+
+	.store.solid {
+		background: #8fb8a6;
+		color: #141513;
+	}
+
+	a.store.solid:hover {
+		transform: translateY(-2px);
+		box-shadow: 0 14px 30px rgba(143, 184, 166, 0.32);
+	}
+
+	.store.ghost {
+		background: rgba(247, 245, 240, 0.1);
+		border: 1px solid rgba(247, 245, 240, 0.2);
+		color: var(--card);
+	}
+
+	a.store.ghost:hover {
+		background: rgba(247, 245, 240, 0.2);
+		transform: translateY(-2px);
+	}
+
+	.store.soon {
+		cursor: default;
+		opacity: 0.72;
+	}
+
+	.store.soon em {
+		font: 500 10px var(--mono);
+		font-style: normal;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		opacity: 0.72;
+	}
+
+	.meta {
+		font: 400 12px var(--sans);
+		color: rgba(247, 245, 240, 0.74);
+		margin: 0;
+	}
+</style>

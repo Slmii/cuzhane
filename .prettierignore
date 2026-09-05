@@ -27,6 +27,12 @@ apps/server/prisma/migrations
 # they are good for: diffing the next export against this one to see what actually changed.
 design_handoff_cuzhane
 
+# Astro components. Prettier needs `prettier-plugin-astro` to parse a `.astro` file at all,
+# and without it every one of them is an error rather than a skip. The plugin is a dependency
+# for formatting alone; these files are hand-formatted to match the rest of the repo instead.
+*.astro
+**/*.astro
+
 # Lockfile. Prettier *will* reformat this YAML, and a reformatted lockfile is a diff nobody
 # wants and a merge conflict waiting to happen. (The old entry here named package-lock.json,
 # which this repo has never had — it is pnpm.)

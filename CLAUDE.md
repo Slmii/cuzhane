@@ -4,10 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repo Layout
 
-pnpm-workspaces monorepo with two apps:
+pnpm-workspaces monorepo with three apps:
 
 -   `apps/server` — Express 5 + TypeScript (ESM), Clerk auth, Prisma/PostgreSQL
 -   `apps/web` — Expo React Native client (iOS/Android/web) using Clerk Expo, TanStack Query, React Navigation
+-   `apps/marketing` — Astro static site (the public page, privacy and support), served from the same droplet
 
 Root-level scripts live in the top `package.json`; run them from the repo root.
 
@@ -736,7 +737,21 @@ defaultValues render={({ handleSubmit, watch, setValue }) => …} />`, which wir
     numbers; `GroupInvitePreview.poolBabNumbers` is the whole pool too, `GroupSummary.poolBabNumbers`
     only the unclaimed part (it feeds the board, where a claimed bab is someone's work).
 -   Environment: `EXPO_PUBLIC_API_URL` (localhost auto-resolves to the Metro host for devices) and
-    `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`.
+    `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`. Locally these come from `apps/web/.env`, which is gitignored
+    and points at localhost; **release builds take them from EAS environment variables** on the
+    `production` and `preview` environments, so a build never carries a developer's machine in it.
+    `eas env:list` is not the way to check them — it shows every candidate, including account-wide
+    variables shared across every project on the account, and says nothing about which one wins.
+    **`eas env:exec production '<command>'` resolves them the way a build does**, and it is what
+    caught an account-wide `EXPO_PUBLIC_API_URL` from another app outranking this project's own:
+    production would have shipped pointing at a different API and a different Clerk instance, while
+    preview resolved correctly, so testing would not have found it.
+-   **iPhone only — `supportsTablet` is `false`, deliberately.** Every layout here is designed to a
+    phone's width: H1's two layers, the hundred-cell board, the reader's measure, the bottom bar and
+    the platform sheets. On a 13" iPad they stretch rather than adapt. Declaring iPad support also
+    makes iPad screenshots mandatory in App Store Connect, for a form factor that has never been
+    laid out or tested. Adding it later is a feature; removing it later takes it away from people
+    who already have it.
 -   Path alias: `@/*` → `src/*`.
 
 ## The Cevşen text
@@ -921,6 +936,48 @@ reminder for good with the Reminders toggle still reading "on". It was dropped
 (`20260828090000_drop_notifications_enabled`) from the schema, the zod body, the service,
 the domain type and the API input. `reminderEnabled` is the only switch, because it is the
 only one the app gives anybody a way to set; add a column back only alongside its UI.
+
+## Marketing site (`apps/marketing`)
+
+Astro, static output, built from the designer's `Cüzhane Tanıtım.dc.html`. It is the public page,
+and it is also where the **privacy policy and support page** live — App Store Connect will not
+accept a listing without both as live URLs.
+
+-   **Zero JavaScript ships.** The page is text and CSS; there is no island, no framework, no
+    hydration. Everything that moves is a CSS animation. Verified by the absence of any `.js` in
+    `dist`.
+-   **Three languages, three URLs, and the site's default is not the app's.** `/` is **English**,
+    `/tr/` and `/nl/` are prefixed — while the app itself opens in Turkish. `pathFor` in
+    `i18n/routing.ts` is the only place that rule lives, `DEFAULT_LOCALE` beside it, and
+    `astro.config.mjs` must agree with both. A language *switcher* on one URL was the prototype's
+    approach and is wrong here: Google would index one page in one language. Every page declares
+    all three as `hreflang` alternates plus `x-default`, reciprocally — a one-way set is ignored.
+-   **Copy lives in `i18n/copy.ts`, typed `en: typeof tr`** exactly as the app's `strings.ts` is,
+    so a key added to one language fails the build until it exists in all three.
+-   **`i18n/legal.ts` is checked against the code, not against a template.** Apple's privacy
+    questionnaire, that page, and the app's actual behaviour all have to agree; a new column on
+    `UserSettings`, or a new third-party service, changes this file in the same commit.
+-   **An animation must never be what makes content visible.** The prototype's `animation: … both`
+    declarations meant the hero was `opacity: 0` until it ran, so with Reduce Motion the page was
+    an empty green box. Entrance animations sit inside `@media (prefers-reduced-motion:
+no-preference)`, and the scroll-driven `.reveal` needs `@supports (animation-timeline: view())`
+    as well — a browser that ignores the timeline would otherwise hold the `from` keyframe
+    forever. Screenshot with `--force-prefers-reduced-motion` to check this, which is how it was
+    caught.
+-   **A section carries both `.shell` and `.section`, so `.section` must use padding *longhand*.**
+    A `padding` shorthand wins on source order and resets the shell's horizontal padding to zero —
+    invisible at desktop widths and flush against the edge on a phone.
+-   Store buttons read "coming soon" and are **not links** until `APP_STORE_URL` / `PLAY_STORE_URL`
+    in `src/config.ts` are filled in. A button pointing at `#` reads as broken and a crawler
+    follows it.
+-   Fonts are self-hosted through `@fontsource`, not fetched from Google — a third-party
+    render-blocking round trip is the single biggest thing between this page and a good LCP.
+-   `.astro` files are in `.prettierignore`: Prettier cannot parse one without
+    `prettier-plugin-astro`, and without it every file is an error rather than a skip.
+-   Deployment is `deploy-marketing.yml` — build, `rsync --delete` into `/opt/cuzhane/www`, then
+    curl three URLs to prove it is served. Caddy has a second site block for `$SITE_DOMAIN`
+    pointing at that directory, with `_astro/*` cached forever (the filenames are fingerprinted)
+    and HTML not cached at all.
 
 ## Cross-Cutting
 

@@ -30,5 +30,8 @@ coverage
 .expo
 .expo-shared
 
-.tanstack
+# Astro's generated types and content cache, rewritten on every build
+apps/marketing/.astro
 
+.tanstack
+.playwright-mcp

@@ -1,0 +1,55 @@
+---
+
+import { copyFor, type Locale } from '../i18n/copy';
+import { pathFor } from '../i18n/routing';
+
+interface Props {
+	locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = copyFor(locale);
+---
+
+<footer class="shell foot">
+	<span>{t.footLeft}</span>
+	<span class="links">
+		{/* App Store Connect requires both of these as live URLs before a listing can be
+		    submitted, which is why they are real pages rather than anchors. */}
+		<a href={pathFor(locale, 'privacy')}>{t.footPrivacy}</a>
+		{/* A page rather than a `mailto:` — App Store Connect wants a support *URL*, and the
+		    page carries the address anyway. */}
+		<a href={pathFor(locale, 'support')}>{t.footContact}</a>
+	</span>
+</footer>
+
+<style>
+	.foot {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 18px;
+		flex-wrap: wrap;
+		padding-top: 26px;
+		padding-bottom: 40px;
+		font: 400 12px var(--sans);
+		color: rgba(28, 29, 26, 0.64);
+	}
+
+	.links {
+		display: flex;
+		gap: 18px;
+		flex-wrap: wrap;
+	}
+
+	.links a {
+		text-decoration: none;
+		font: 500 11.5px var(--sans);
+		color: var(--muted);
+		transition: color 0.2s ease;
+	}
+
+	.links a:hover {
+		color: var(--ink);
+	}
+</style>

@@ -1,0 +1,73 @@
+name: Deploy marketing site
+
+# Static files only. The API has its own workflow and its own trigger paths, so a change to
+# one never rebuilds the other.
+on:
+    push:
+        branches: [main]
+        paths:
+            - 'apps/marketing/**'
+            - 'deploy/Caddyfile'
+            - '.github/workflows/deploy-marketing.yml'
+    workflow_dispatch:
+
+concurrency:
+    group: deploy-marketing
+    cancel-in-progress: false
+
+jobs:
+    deploy:
+        runs-on: ubuntu-latest
+        if: github.ref == 'refs/heads/main'
+        permissions:
+            contents: read
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+            - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+              with:
+                  version: 10.25.0
+
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+              with:
+                  node-version: 22
+                  cache: pnpm
+
+            - run: pnpm install --frozen-lockfile --filter @cuzhane/marketing...
+
+            - run: pnpm --filter @cuzhane/marketing build
+
+            - name: Open an SSH session to the droplet
+              env:
+                  KEY: ${{ secrets.DROPLET_SSH_KEY }}
+                  HOST_KEY: ${{ secrets.DROPLET_HOST_KEY }}
+              run: |
+                  mkdir -p ~/.ssh
+                  printf '%s\n' "$KEY" > ~/.ssh/id_deploy
+                  chmod 600 ~/.ssh/id_deploy
+                  printf '%s\n' "$HOST_KEY" > ~/.ssh/known_hosts
+
+            # `--delete` so a page removed from the repo disappears from the site, and
+            # `--checksum` because a static build's timestamps change on every run while its
+            # contents usually do not.
+            - name: Publish
+              env:
+                  HOST: ${{ secrets.DROPLET_HOST }}
+                  USER_NAME: ${{ secrets.DROPLET_USER }}
+              run: |
+                  ssh -i ~/.ssh/id_deploy "$USER_NAME@$HOST" 'mkdir -p /opt/cuzhane/www'
+                  rsync -az --delete --checksum \
+                    -e "ssh -i ~/.ssh/id_deploy" \
+                    apps/marketing/dist/ "$USER_NAME@$HOST:/opt/cuzhane/www/"
+
+            - name: Check it is served
+              env:
+                  SITE: ${{ secrets.SITE_DOMAIN }}
+              run: |
+                  curl -fsS --max-time 15 "https://$SITE/" > /dev/null
+                  curl -fsS --max-time 15 "https://$SITE/privacy/" > /dev/null
+                  curl -fsS --max-time 15 "https://$SITE/tr/" > /dev/null
+
+            - name: Remove the key
+              if: always()
+              run: rm -f ~/.ssh/id_deploy

@@ -1,0 +1,47 @@
+---
+interface Props {
+	size?: number;
+	/** The three solid columns and the baseline. */
+	solid?: string;
+	/** The two columns that stand for what has not been read yet. */
+	faded?: string;
+}
+
+const { faded = '#3E6B5C', size = 30, solid = '#3E6B5C' } = Astro.props;
+
+/**
+ * Five reading columns over a baseline — the same geometry `apps/web`'s `BrandMark` draws, so
+ * the site and the app icon cannot drift apart.
+ */
+const COLUMNS = [
+	{ h: 38, x: 8, y: 42 },
+	{ h: 54, x: 26, y: 26 },
+	{ h: 46, x: 44, y: 34 },
+	{ h: 62, x: 62, y: 18 },
+	{ h: 32, x: 80, y: 48 }
+] as const;
+const SOLID_COUNT = 3;
+---
+
+<svg width={size} height={size} viewBox="0 0 100 100" aria-hidden="true" focusable="false">
+	{
+		COLUMNS.map((column, index) => (
+			<rect
+				x={column.x}
+				y={column.y}
+				width="12"
+				height={column.h}
+				rx="6"
+				fill={index < SOLID_COUNT ? solid : faded}
+			/>
+		))
+	}
+	<rect x="8" y="86" width="84" height="8" rx="4" fill={solid} />
+</svg>
+
+<style>
+	svg {
+		display: block;
+		flex: none;
+	}
+</style>

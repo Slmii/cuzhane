@@ -1,0 +1,259 @@
+---
+import '@fontsource-variable/manrope';
+import '@fontsource-variable/newsreader';
+import '@fontsource/ibm-plex-mono/400.css';
+import '@fontsource/ibm-plex-mono/500.css';
+import { LOCALES, LOCALE_TAGS, copyFor, type Locale } from '../i18n/copy';
+import { DEFAULT_LOCALE, pathFor } from '../i18n/routing';
+
+interface Props {
+	locale: Locale;
+	/** The route below the language prefix — '' for the home page, 'privacy', 'support'. */
+	path?: string;
+	title?: string;
+	description?: string;
+	/** JSON-LD blocks, already shaped. Serialised into the head. */
+	schema?: unknown[];
+}
+
+const { description, locale, path = '', schema = [], title } = Astro.props;
+const t = copyFor(locale);
+
+const pageTitle = title ?? t.metaTitle;
+const pageDescription = description ?? t.metaDescription;
+const canonical = new URL(pathFor(locale, path), Astro.site).href;
+const ogImage = new URL('/og.png', Astro.site).href;
+---
+
+<!doctype html>
+<html lang={LOCALE_TAGS[locale]}>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+		<title>{pageTitle}</title>
+		<meta name="description" content={pageDescription} />
+		<link rel="canonical" href={canonical} />
+
+		{/*
+		 * **Every language declares every language, itself included.** A one-way alternate is
+		 * the usual mistake and Google ignores the set when it isn't reciprocal. `x-default`
+		 * points at English, the site's default, which is where a reader with no matching
+		 * language lands.
+		 */}
+		{
+			LOCALES.map(alternate => (
+				<link
+					rel="alternate"
+					hreflang={LOCALE_TAGS[alternate]}
+					href={new URL(pathFor(alternate, path), Astro.site).href}
+				/>
+			))
+		}
+		<link rel="alternate" hreflang="x-default" href={new URL(pathFor(DEFAULT_LOCALE, path), Astro.site).href} />
+
+		<meta property="og:type" content="website" />
+		<meta property="og:title" content={pageTitle} />
+		<meta property="og:description" content={pageDescription} />
+		<meta property="og:url" content={canonical} />
+		<meta property="og:image" content={ogImage} />
+		<meta property="og:locale" content={LOCALE_TAGS[locale].replace('-', '_')} />
+		<meta property="og:site_name" content="Cüzhane" />
+		<meta name="twitter:card" content="summary_large_image" />
+		<meta name="twitter:title" content={pageTitle} />
+		<meta name="twitter:description" content={pageDescription} />
+		<meta name="twitter:image" content={ogImage} />
+
+		<meta name="theme-color" content="#3E6B5C" />
+		<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+		<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+		{
+			schema.map(block => (
+				<script type="application/ld+json" set:html={JSON.stringify(block)} is:inline />
+			))
+		}
+	</head>
+	<body>
+		<a class="skip" href="#main">{t.skipToContent}</a>
+		<slot />
+	</body>
+</html>
+
+<style is:global>
+	/*
+	 * The design's palette, lifted from the prototype so the site and the app cannot drift.
+	 * `--paper` is the page, `--sage` the accent, `--ink` the text.
+	 */
+	:root {
+		--paper: #efede7;
+		--card: #f7f5f0;
+		--white: #ffffff;
+		--ink: #1c1d1a;
+		--sage: #3e6b5c;
+		--sage-deep: #2f5347;
+		--sage-wash: #e8efea;
+		--sand: #f0ebe2;
+		--sand-ink: #6e5b3e;
+		--line: rgba(28, 29, 26, 0.09);
+		--muted: rgba(28, 29, 26, 0.62);
+		--faint: rgba(28, 29, 26, 0.45);
+		--serif: 'Newsreader Variable', Newsreader, Georgia, serif;
+		--sans: 'Manrope Variable', Manrope, system-ui, sans-serif;
+		--mono: 'IBM Plex Mono', ui-monospace, monospace;
+		--shell: 1180px;
+	}
+
+	html {
+		scroll-behavior: smooth;
+	}
+
+	body {
+		margin: 0;
+		background: var(--paper);
+		color: var(--ink);
+		font-family: var(--sans);
+		-webkit-font-smoothing: antialiased;
+	}
+
+	a {
+		color: var(--sage);
+	}
+
+	a:hover {
+		color: var(--sage-deep);
+	}
+
+	h1,
+	h2,
+	h3 {
+		font-family: var(--serif);
+		font-weight: 400;
+		letter-spacing: -0.015em;
+		text-wrap: pretty;
+	}
+
+	/* Keyboard users get a way past the header without tabbing every nav link. */
+	.skip {
+		position: absolute;
+		left: -9999px;
+		top: 0;
+		background: var(--ink);
+		color: var(--card);
+		padding: 12px 18px;
+		border-radius: 0 0 12px 0;
+		font: 600 13px var(--sans);
+		text-decoration: none;
+		z-index: 10;
+	}
+
+	.skip:focus {
+		left: 0;
+	}
+
+	.shell {
+		max-width: var(--shell);
+		margin: 0 auto;
+		padding: 0 22px;
+	}
+
+	.eyebrow {
+		font: 500 11px var(--sans);
+		letter-spacing: 0.16em;
+		text-transform: uppercase;
+		color: var(--faint);
+		margin: 0;
+	}
+
+	/*
+	 * **Longhand, deliberately.** Sections carry both `.shell` and `.section`; a `padding`
+	 * shorthand here wins on source order and resets the shell's 22px horizontal padding to
+	 * zero, which put every heading flush against the edge of a phone screen. Invisible at
+	 * desktop widths, where the viewport is wider than the shell's max-width anyway.
+	 */
+	.section {
+		padding-top: 78px;
+	}
+
+	.section h2 {
+		font-size: clamp(28px, 3.4vw, 40px);
+		line-height: 1.15;
+		margin: 12px 0 0;
+	}
+
+	.lede {
+		font: 400 14.5px/1.7 var(--sans);
+		color: rgba(28, 29, 26, 0.66);
+		margin: 16px 0 0;
+		max-width: 440px;
+		text-wrap: pretty;
+	}
+
+	/*
+	 * The prototype's entrance animations, kept as scroll-driven CSS. `animation-timeline` is
+	 * progressively enhanced: browsers without it simply show the finished state, which is why
+	 * every rule below sets its resting appearance rather than starting from `opacity: 0`.
+	 */
+	@keyframes cz-rise {
+		from {
+			opacity: 0;
+			transform: translateY(14px);
+		}
+		to {
+			opacity: 1;
+			transform: none;
+		}
+	}
+
+	@keyframes cz-reveal {
+		from {
+			opacity: 0;
+			transform: translateY(26px);
+		}
+		to {
+			opacity: 1;
+			transform: none;
+		}
+	}
+
+	@keyframes cz-fill {
+		from {
+			transform: scaleX(0);
+		}
+		to {
+			transform: scaleX(1);
+		}
+	}
+
+	/*
+	 * Two gates, both required. `@supports` keeps the scroll-driven animation off browsers that
+	 * would ignore `animation-timeline` and be left holding the `from` keyframe — an invisible
+	 * page. `prefers-reduced-motion` is the reader's own request, and it must switch the
+	 * animation *off* rather than merely shorten it: the global `animation-duration: 0.01ms`
+	 * override below does nothing to a scroll timeline, whose progress comes from the scroll
+	 * position rather than from a clock.
+	 */
+	@media (prefers-reduced-motion: no-preference) {
+		@supports (animation-timeline: view()) {
+			.reveal {
+				animation: cz-reveal linear both;
+				animation-timeline: view();
+				animation-range: entry 4% cover 26%;
+			}
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		html {
+			scroll-behavior: auto;
+		}
+
+		*,
+		*::before,
+		*::after {
+			animation-duration: 0.01ms !important;
+			animation-iteration-count: 1 !important;
+			transition-duration: 0.01ms !important;
+		}
+	}
+</style>

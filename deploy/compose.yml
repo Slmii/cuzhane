@@ -21,9 +21,12 @@ services:
             - '443:443'
         environment:
             DOMAIN: ${DOMAIN}
+            SITE_DOMAIN: ${SITE_DOMAIN}
             ACME_EMAIL: ${ACME_EMAIL}
         volumes:
             - ./Caddyfile:/etc/caddy/Caddyfile:ro
+            # The built marketing site. CI rsyncs into this directory; Caddy only reads it.
+            - ./www:/srv/www:ro
             # The certificates live here. Losing this volume means re-issuing them, and Let's
             # Encrypt rate-limits that — five per week for the same domain.
             - caddy_data:/data

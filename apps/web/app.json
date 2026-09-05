@@ -9,7 +9,7 @@
 		"userInterfaceStyle": "automatic",
 		"assetBundlePatterns": ["**/*"],
 		"ios": {
-			"supportsTablet": true,
+			"supportsTablet": false,
 			"usesAppleSignIn": true,
 			"icon": "./src/assets/icon.png",
 			"bundleIdentifier": "com.cuzhaneapp.app",

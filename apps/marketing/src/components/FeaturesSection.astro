@@ -1,0 +1,125 @@
+---
+import { copyFor, type Locale } from '../i18n/copy';
+
+interface Props {
+	locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = copyFor(locale);
+
+/**
+ * The six glyphs, in the design's order: pool, bookmark, nudge, discover, QR, night. Traced
+ * from the same icon set the app uses — 24 grid, 1.5 stroke, no fill.
+ */
+const PATHS = [
+	'<path d="M12 3.8s5.4 5 5.4 8.7a5.4 5.4 0 0 1-10.8 0C6.6 8.8 12 3.8 12 3.8z"/><path d="M9.3 13.4a2.7 2.7 0 0 0 2.7 2.7"/>',
+	'<path d="M7 4.5h10v15l-5-3.8-5 3.8z"/>',
+	'<path d="M11.2 4.8l1.6 4.4 4.4 1.6-4.4 1.6-1.6 4.4-1.6-4.4-4.4-1.6 4.4-1.6z"/><path d="M17.6 16.4l.7 1.9 1.9.7-1.9.7-.7 1.9-.7-1.9-1.9-.7 1.9-.7z"/>',
+	'<circle cx="12" cy="12" r="8.6"/><path d="M15.6 8.4l-1.9 5.3-5.3 1.9 1.9-5.3z"/>',
+	'<rect x="4.5" y="4.5" width="6" height="6" rx="1.4"/><rect x="13.5" y="4.5" width="6" height="6" rx="1.4"/><rect x="4.5" y="13.5" width="6" height="6" rx="1.4"/><path d="M14 14h2.2"/><path d="M19.5 14v5.5H14"/>',
+	'<path d="M17.6 15.2A7.2 7.2 0 0 1 8.8 6.4a7.6 7.6 0 1 0 8.8 8.8z"/>'
+] as const;
+---
+
+<section id="ozellikler" class="shell section">
+	<h2 class="reveal">{t.featTitle}</h2>
+
+	<ul class="grid">
+		{
+			t.feats.map((feature, index) => (
+				<li class="cell">
+					<span class="glyph" aria-hidden="true">
+						<svg
+							width="20"
+							height="20"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="1.5"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							set:html={PATHS[index]}
+						/>
+					</span>
+					<h3>{feature.title}</h3>
+					<p>{feature.body}</p>
+				</li>
+			))
+		}
+	</ul>
+</section>
+
+<style>
+	h2 {
+		max-width: 560px;
+	}
+
+	/* One-pixel gaps over a tinted background make the hairline grid, so the cells share
+	   borders rather than each drawing their own and doubling up. */
+	/*
+	 * **Three across, not the design's four.** There are six features, and the prototype's
+	 * 258px minimum resolves to four columns at this width — which leaves the last row two
+	 * cells short and the tinted grid background showing through as a grey void. Three columns
+	 * fill two rows exactly, and the cards are more readable for the extra width.
+	 */
+	.grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+		gap: 1px;
+		background: rgba(28, 29, 26, 0.1);
+		border: 1px solid rgba(28, 29, 26, 0.1);
+		border-radius: 22px;
+		overflow: hidden;
+		margin: 32px 0 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.cell {
+		background: var(--card);
+		padding: 26px 24px 28px;
+		display: flex;
+		flex-direction: column;
+		gap: 11px;
+		transition: background 0.3s ease;
+	}
+
+	.cell:hover {
+		background: var(--white);
+	}
+
+	.glyph {
+		width: 34px;
+		height: 34px;
+		border-radius: 10px;
+		background: var(--sage-wash);
+		color: var(--sage);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		transition:
+			background 0.3s ease,
+			color 0.3s ease,
+			transform 0.3s cubic-bezier(0.2, 0.9, 0.25, 1);
+	}
+
+	.cell:hover .glyph {
+		background: var(--sage);
+		color: var(--card);
+		transform: rotate(-6deg) scale(1.06);
+	}
+
+	.cell h3 {
+		font: 600 13.5px var(--sans);
+		margin: 3px 0 0;
+		letter-spacing: 0;
+	}
+
+	.cell p {
+		font: 400 13px/1.6 var(--sans);
+		color: rgba(28, 29, 26, 0.68);
+		margin: 0;
+		text-wrap: pretty;
+	}
+</style>

@@ -1,0 +1,122 @@
+---
+import { LOCALES, LOCALE_NAMES, copyFor, type Locale } from '../i18n/copy';
+import { pathFor } from '../i18n/routing';
+import BrandMark from './BrandMark.astro';
+
+interface Props {
+	locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = copyFor(locale);
+const home = pathFor(locale);
+---
+
+<header class="shell head">
+	<a class="brand" href={home}>
+		<BrandMark size={30} />
+		<span>Cüzhane</span>
+	</a>
+
+	{/* Anchors are absolute, not bare fragments: the same header sits on the privacy and
+	    support pages, where `#havuz` would point at a section that isn't there. */}
+	<nav aria-label="Cüzhane">
+		<a href={`${home}#havuz`}>{t.navPool}</a>
+		<a href={`${home}#nasil`}>{t.navHow}</a>
+		<a href={`${home}#ozellikler`}>{t.navFeat}</a>
+		<a href={`${home}#sorular`}>{t.navFaq}</a>
+
+		{/*
+		 * **Links, not buttons.** The prototype swapped the language in JavaScript on one URL;
+		 * three real URLs is what lets each language be crawled and indexed, and it means the
+		 * picker still works with no JavaScript at all. `hreflang` tells a crawler these are
+		 * the same page rather than three thin ones.
+		 */}
+		<div class="langs">
+			{
+				LOCALES.map(candidate => (
+					<a
+						href={pathFor(candidate)}
+						hreflang={candidate}
+						lang={candidate}
+						class:list={['lang', { on: candidate === locale }]}
+						aria-current={candidate === locale ? 'true' : undefined}
+						title={LOCALE_NAMES[candidate]}
+					>
+						{candidate}
+					</a>
+				))
+			}
+		</div>
+	</nav>
+</header>
+
+<style>
+	.head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 18px;
+		flex-wrap: wrap;
+		padding-top: 22px;
+		padding-bottom: 8px;
+	}
+
+	.brand {
+		display: flex;
+		align-items: center;
+		gap: 11px;
+		text-decoration: none;
+		color: var(--ink);
+		font: 600 15px var(--sans);
+		letter-spacing: -0.01em;
+	}
+
+	nav {
+		display: flex;
+		align-items: center;
+		gap: 22px;
+		flex-wrap: wrap;
+	}
+
+	nav > a {
+		text-decoration: none;
+		font: 500 13px var(--sans);
+		color: var(--muted);
+		transition: color 0.2s ease;
+	}
+
+	nav > a:hover {
+		color: var(--ink);
+	}
+
+	.langs {
+		display: flex;
+		gap: 2px;
+		background: rgba(28, 29, 26, 0.06);
+		border-radius: 9px;
+		padding: 3px;
+	}
+
+	.lang {
+		border-radius: 7px;
+		padding: 6px 9px;
+		text-decoration: none;
+		font: 600 10.5px var(--mono);
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+		color: var(--muted);
+		transition:
+			background 0.25s ease,
+			color 0.25s ease;
+	}
+
+	.lang:hover {
+		color: var(--ink);
+	}
+
+	.lang.on {
+		background: var(--white);
+		color: var(--ink);
+	}
+</style>

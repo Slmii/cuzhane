@@ -1,0 +1,75 @@
+---
+import { SITE_URL } from '../config';
+import { copyFor, type Locale } from '../i18n/copy';
+import Page from '../layouts/Page.astro';
+import DownloadSection from './DownloadSection.astro';
+import FaqSection from './FaqSection.astro';
+import FeaturesSection from './FeaturesSection.astro';
+import Hero from './Hero.astro';
+import HowSection from './HowSection.astro';
+import PoolSection from './PoolSection.astro';
+import ProgressSection from './ProgressSection.astro';
+import ReaderSection from './ReaderSection.astro';
+import ShelfSection from './ShelfSection.astro';
+import SiteFooter from './SiteFooter.astro';
+import SiteHeader from './SiteHeader.astro';
+
+interface Props {
+	locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = copyFor(locale);
+
+/**
+ * Two structured-data blocks, both describing markup that is genuinely on the page.
+ *
+ * `FAQPage` is the one with a visible payoff — Google can expand the four questions under the
+ * result — and it is only allowed because the answers are in the HTML rather than behind an
+ * accordion. `MobileApplication` is what makes a search for the name return an app rather than
+ * a page; `offers` at zero is how "free" is stated in a way a machine reads.
+ */
+const schema = [
+	{
+		'@context': 'https://schema.org',
+		'@type': 'MobileApplication',
+		applicationCategory: 'LifestyleApplication',
+		description: t.metaDescription,
+		inLanguage: ['tr', 'en', 'nl'],
+		name: 'Cüzhane',
+		offers: { '@type': 'Offer', price: '0', priceCurrency: 'EUR' },
+		operatingSystem: 'iOS, Android',
+		url: SITE_URL
+	},
+	{
+		'@context': 'https://schema.org',
+		'@type': 'FAQPage',
+		mainEntity: t.faq.map(entry => ({
+			'@type': 'Question',
+			acceptedAnswer: { '@type': 'Answer', text: entry.a },
+			name: entry.q
+		}))
+	}
+];
+---
+
+<Page locale={locale} schema={schema}>
+	<SiteHeader locale={locale} />
+
+	<main id="main">
+		<div class="shell">
+			<Hero locale={locale} />
+		</div>
+
+		<PoolSection locale={locale} />
+		<HowSection locale={locale} />
+		<ReaderSection locale={locale} />
+		<ShelfSection locale={locale} />
+		<ProgressSection locale={locale} />
+		<FeaturesSection locale={locale} />
+		<FaqSection locale={locale} />
+		<DownloadSection locale={locale} />
+	</main>
+
+	<SiteFooter locale={locale} />
+</Page>

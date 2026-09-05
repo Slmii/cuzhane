@@ -1,0 +1,61 @@
+---
+import { copyFor, type Locale } from '../i18n/copy';
+
+interface Props {
+	locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = copyFor(locale);
+---
+
+{/*
+ * Questions and answers both rendered in the HTML, not behind a disclosure widget. An
+ * accordion would hide the answers from the text a crawler weighs, and these are four short
+ * answers — there is nothing to collapse. The `FAQPage` schema in the head describes exactly
+ * this markup, which is the condition for it being honest.
+ */}
+<section id="sorular" class="shell section">
+	<h2 class="reveal">{t.faqTitle}</h2>
+
+	<dl class="faq">
+		{
+			t.faq.map(entry => (
+				<div class="item reveal">
+					<dt>{entry.q}</dt>
+					<dd>{entry.a}</dd>
+				</div>
+			))
+		}
+	</dl>
+</section>
+
+<style>
+	/*
+	 * Two columns for four questions, so the last row is full. The design's 300px minimum gives
+	 * three at this width and leaves the fourth question stranded on a row of its own.
+	 * `min(100%, …)` is what lets it still collapse to one column on a phone.
+	 */
+	.faq {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
+		gap: 14px 34px;
+		margin: 30px 0 0;
+	}
+
+	.item {
+		border-top: 1px solid rgba(28, 29, 26, 0.13);
+		padding: 18px 0 4px;
+	}
+
+	dt {
+		font: 600 13.5px var(--sans);
+	}
+
+	dd {
+		font: 400 13px/1.65 var(--sans);
+		color: rgba(28, 29, 26, 0.68);
+		margin: 8px 0 0;
+		text-wrap: pretty;
+	}
+</style>
