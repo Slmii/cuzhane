@@ -109,7 +109,18 @@ jobs:
 
                   # The only copy of the data from before this release's migrations. A
                   # destructive migration is not recoverable without it.
-                  if [ -x ./backup.sh ]; then ./backup.sh; fi
+                  #
+                  # Guarded on Postgres actually running, because on the very first deploy it
+                  # is not: `backup.sh` calls `docker compose exec postgres`, which fails with
+                  # "service postgres is not running", and `set -e` then aborts a deploy that
+                  # had nothing to lose in the first place. The guard is here rather than in
+                  # the script so that the nightly cron still fails loudly when the database
+                  # it is meant to be dumping is down.
+                  if [ -x ./backup.sh ] && docker compose ps --services --filter status=running | grep -qx postgres; then
+                    ./backup.sh
+                  else
+                    echo "postgres not running — skipping the pre-deploy dump"
+                  fi
 
                   # Validate before anything is torn down: a compose file that does not parse
                   # should fail the job, not leave the stack half-swapped.
