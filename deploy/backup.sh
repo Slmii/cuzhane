@@ -32,8 +32,14 @@ flock -n 9 || {
 STAMP=$(date +%Y-%m-%d-%H%M%S)
 FILE="$DIR/cuzhane-$STAMP.sql.gz"
 
+# **`< /dev/null` is load-bearing.** `exec -T` still attaches stdin, and CI runs this script
+# from inside a remote shell that is itself being fed through stdin (`ssh … bash -s <<'REMOTE'`).
+# Without this redirect the dump consumed the rest of the deployment script: the backup ran, the
+# pull and restart never did, and bash exited 0 — so the deploy reported success while production
+# was never touched. It fooled us once precisely because it only bites when Postgres is already
+# running, which is every deploy after the first.
 docker compose -f /opt/cuzhane/compose.yml exec -T postgres \
-	pg_dump -U cuzhane -d cuzhane --clean --if-exists | gzip >"$FILE"
+	pg_dump -U cuzhane -d cuzhane --clean --if-exists </dev/null | gzip >"$FILE"
 
 # A dump that failed halfway still leaves a file, so check it decompresses before trusting it
 # and before the pruning below removes an older, good one. This proves the gzip, not that

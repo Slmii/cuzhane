@@ -137,6 +137,18 @@ jobs:
                   # green deploy over a 502.
                   docker compose up -d --wait --wait-timeout 180
 
+                  # **Prove the deploy actually happened.** A green job used to mean only that
+                  # the script exited 0 — and it did exit 0 while doing nothing at all, when a
+                  # command inside it ate the rest of this script from stdin. Comparing the
+                  # running container's image against the commit being deployed is the one check
+                  # that cannot be fooled by a step that silently never ran.
+                  RUNNING=$(docker inspect --format '{{.Config.Image}}' cuzhane-api-1)
+                  echo "running image: $RUNNING"
+                  case "$RUNNING" in
+                    *"$IMAGE_TAG") echo "image matches the commit" ;;
+                    *) echo "DEPLOY DID NOT TAKE: expected $IMAGE_TAG"; exit 1 ;;
+                  esac
+
                   docker image prune -f
                   REMOTE
 
