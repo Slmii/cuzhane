@@ -197,9 +197,22 @@ tidy up any rows left from before. Re-adding the feature means rebuilding that s
 ## Web Architecture (`apps/web`)
 
 -   Entry: `index.ts` → `src/AppRoot.tsx`. Provider order: `ClerkProvider` → `ThemeProvider` →
-    `I18nProvider` → `QueryClientProvider` → `AppContainer` (`GestureHandlerRootView` → `KeyboardProvider`
-    → `BottomSheetModalProvider` → `NavigationContainer`). Fonts load before render; splash held via
-    `expo-splash-screen`.
+    `I18nProvider` → `QueryClientProvider` → `AppContainer` (`GestureHandlerRootView` →
+    `SafeAreaProvider` → `KeyboardProvider` → `NavigationContainer`). Fonts load before render; splash
+    held via `expo-splash-screen`.
+-   **`SafeAreaProvider` belongs to the app, not to the navigators, and it was missing for a long
+    time without anyone noticing.** React Navigation renders `SafeAreaProviderCompat` around each
+    navigator's own scenes, so every screen inside a navigator was covered — but anything rendered
+    _instead of_ the navigator has nothing above it, and `useSafeAreaInsets` throws "No safe area value
+    available". In a release build that is an unhandled JS exception, which aborts the process.
+    `AppNavigator`'s gate does exactly that: `HomeSkeleton` while the settings load after sign-in, and
+    `ErrorState` when they fail. It presented as **"the app closes after Google sign-in"** and cost days
+    on the wrong suspect — Clerk, the redirect allowlist, `linkGate`, the SDK generation — because the
+    crash report says only `abort() called` on `expo.controller.errorRecoveryQueue`, which is
+    expo-updates re-raising a JS error it swallowed. The message is in the device's own log; see
+    `memory/expo-crash-js-error-from-device.md` for pulling it with `devicectl`. It is mounted with
+    `initialMetrics={initialWindowMetrics}` so it has nothing to measure and costs no first frame, and
+    the compat providers inside each navigator find the context already there and step aside.
 -   Navigation: `src/navigation/AppNavigator.tsx` — a 5-tab native bottom navigator (Home, Groups,
     Discover, Reminders, Search) inside a native stack. The stack's initial route is `Onboarding` until
     `userSettings.hasSeenOnboarding` is true, so the navigator waits for settings before mounting.
