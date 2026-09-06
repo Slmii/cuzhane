@@ -11,7 +11,11 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
  * there instead of replacing the stack.
  */
 export const OnboardingDevTrigger = () => {
-	if (__DEV__) {
+	// Inverted once, which is the worst way for this to be wrong: the button vanished in
+	// development — where it is the entire point — and appeared over every screen of the
+	// release build, where it is a debug control shipped to users. Found on a preview build,
+	// one step before the App Store.
+	if (!__DEV__) {
 		return null;
 	}
 
