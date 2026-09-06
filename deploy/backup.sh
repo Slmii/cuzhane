@@ -13,6 +13,14 @@
 
 set -euo pipefail
 
+# **cron runs with `PATH=/usr/bin:/bin` and nothing else.** `rclone` is installed under
+# `/usr/local/bin` (the distribution's 2022 build is too old for R2 and was removed), so without
+# this line the nightly run finds no rclone at all while an interactive test of the same script
+# works perfectly. Declared here rather than in the crontab so the script is correct wherever it
+# is called from — cron, CI, or a shell.
+PATH=/usr/local/bin:/usr/bin:/bin
+export PATH
+
 # Before anything is created. A database dump is the whole application's data in one file, and
 # the default umask would leave it readable by every user on the box.
 umask 077
@@ -66,10 +74,21 @@ echo "$(date -Is) backup ok: $FILE ($(du -h "$FILE" | cut -f1))"
 # droplet.
 # ---------------------------------------------------------------------------------------------
 
-if [ -r /opt/cuzhane/backup.env ]; then
-	# shellcheck disable=SC1091
-	. /opt/cuzhane/backup.env
-fi
+# **Read named keys rather than sourcing the file.** `. backup.env` executes it, so a single
+# mistyped line redefines whatever it names — and one did: `PATH=r2:…` instead of `R2_PATH=…`
+# would have wiped the shell's command path, so `age` and `rclone` would simply have stopped
+# existing halfway through the script. Only these four names can come out of this file now.
+CONFIG=/opt/cuzhane/backup.env
+
+conf() {
+	[ -r "$CONFIG" ] || return 0
+	sed -nE "s/^$1=(.*)\$/\1/p" "$CONFIG" | tail -1
+}
+
+AGE_RECIPIENT=$(conf AGE_RECIPIENT)
+R2_PATH=$(conf R2_PATH)
+R2_KEEP_DAYS=$(conf R2_KEEP_DAYS)
+R2_BUDGET_BYTES=$(conf R2_BUDGET_BYTES)
 
 if [ -z "${AGE_RECIPIENT:-}" ] || [ -z "${R2_PATH:-}" ]; then
 	echo "$(date -Is) offsite skipped (no AGE_RECIPIENT / R2_PATH in /opt/cuzhane/backup.env)"
