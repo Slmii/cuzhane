@@ -79,7 +79,12 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 	 * meant popping, which tore the content down mid-flight. With the content gone the sheet had
 	 * nothing left to size itself from and snapped to a fallback detent on its way out: it grew
 	 * to full height for a frame and then vanished. Asking it to dismiss and popping on its own
-	 * `onClose` lets it animate down the way every other sheet does.
+	 * `onDismissed` lets it animate down the way every other sheet does.
+	 *
+	 * **`onDismissed`, not `onClose`.** `onClose` fires only for a dismissal the *reader*
+	 * performed; closing with the ✕ sets `isVisible` false, which is the case it suppresses — so
+	 * the route never popped and its transparent modal stayed over the app, eating every touch
+	 * while the screen underneath looked perfectly normal.
 	 */
 	const [isSheetVisible, setIsSheetVisible] = useState(true);
 
@@ -146,7 +151,7 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 
 	// The same height on every step — see `SHEET_HEIGHT_RATIO`. Never make this conditional.
 	return (
-		<AppBottomSheet heightRatio={SHEET_HEIGHT_RATIO} isVisible={isSheetVisible} onClose={handleDismissed}>
+		<AppBottomSheet heightRatio={SHEET_HEIGHT_RATIO} isVisible={isSheetVisible} onDismissed={handleDismissed}>
 			<Form<GroupForm>
 				/*
 				 * **`onChange`, because this form is advanced by `trigger` rather than submitted.**
@@ -266,7 +271,7 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 										    capacity being chosen, not who has joined yet. */}
 											{/* Sized for the largest option, so stepping 20 → 10 doesn't drop a
 										    row out from under the plan options below it. */}
-										<SpotsGrid filled={spots} maxTotal={MAX_SPOTS} total={spots} />
+											<SpotsGrid filled={spots} maxTotal={MAX_SPOTS} total={spots} />
 										</View>
 										<CaptionText color={theme.colors.faintText}>{t('spotsNote')}</CaptionText>
 										<FieldLabelText style={styles.fieldLabel}>{t('readingPlan')}</FieldLabelText>

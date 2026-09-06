@@ -33,7 +33,24 @@ const hold = (url: string) => {
 	}
 };
 
+/**
+ * **The OAuth redirect is not an app link.** `linking.ts` claims the whole `cuzhane://` scheme,
+ * so the URL Clerk sends the browser back to — `cuzhane://sso-callback` — arrives here looking
+ * like navigation. It is not: the auth session consumes it, and there is no screen behind it.
+ *
+ * Left to the gate it did real damage. Signed out the tabs are not mounted, so it took the
+ * `hold` path and dispatched `popToTop()` **on the auth stack, mid sign-in**, tearing the
+ * screen out from under a flow that had not finished; then, once the tabs came up, the gate
+ * released a URL that matches no route. Sign-in is the one moment this scheme is used for
+ * something other than a link.
+ */
+const isAuthCallback = (url: string) => url.includes('sso-callback');
+
 const deliver = (url: string) => {
+	if (isAuthCallback(url)) {
+		return;
+	}
+
 	if (isReady && listener !== null) {
 		listener(url);
 	} else {
@@ -45,8 +62,8 @@ const deliver = (url: string) => {
 export const getGatedInitialURL = async () => {
 	const url = await Linking.getInitialURL();
 
-	if (url === null || isReady) {
-		return url;
+	if (url === null || isAuthCallback(url) || isReady) {
+		return url === null || isAuthCallback(url) ? null : url;
 	}
 
 	hold(url);

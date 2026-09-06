@@ -1,5 +1,5 @@
-import { BrandMark } from '@/components/ui/BrandMark/BrandMark.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
+import { SplashScreen as AnimatedSplash } from '@/screens/Splash/SplashScreen.component';
 import { useGetUserSettings } from '@/lib/hooks/useUserSettings';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import type { StringKey } from '@/lib/i18n/strings';
@@ -28,6 +28,7 @@ import { PoolScreen } from '@/screens/Groups/PoolScreen.component';
 import { RoundDetailScreen } from '@/screens/Groups/RoundDetailScreen.component';
 import { RoundsScreen } from '@/screens/Groups/RoundsScreen.component';
 import { HomeScreen } from '@/screens/Home/HomeScreen.component';
+import { HomeSkeleton } from '@/screens/Home/HomeSkeleton.component';
 import { InvitePreviewScreen } from '@/screens/Join/InvitePreviewScreen.component';
 import { JoinedWelcomeScreen } from '@/screens/Join/JoinedWelcomeScreen.component';
 import { OnboardingScreen } from '@/screens/Onboarding/OnboardingScreen.component';
@@ -48,7 +49,7 @@ import {
 } from '@react-navigation/native';
 import { createNativeStackNavigator, NativeStackNavigationOptions } from '@react-navigation/native-stack';
 import { useEffect, useState, type ComponentType } from 'react';
-import { Platform, View, type ImageSourcePropType } from 'react-native';
+import { Platform, type ImageSourcePropType } from 'react-native';
 import { useBottomTabBarHeight, type AppleIcon } from 'react-native-bottom-tabs';
 
 /**
@@ -742,31 +743,18 @@ const AuthNavigator = () => (
  * The gap between the native splash and the first screen — Clerk resolving, then the settings
  * that decide whether this account has seen the tour.
  *
- * **The app's own mark, not a platform spinner.** No screen exists yet at this point, so there
- * is nothing to draw a skeleton of; the honest thing to show is that the app is still opening,
- * which is what the splash was already saying. A spinner said something different — that a
- * request was in flight — and was the one `ActivityIndicator` left in an app that skeletons
- * everything else.
+ * **The app's own splash, not a second thing that looks like it.** `AppRoot` shows
+ * `SplashScreen` over the navigator for a fixed two seconds; if the account's settings take
+ * longer than that, the timer unmounts it and whatever the navigator is holding becomes
+ * visible. Drawing a bare mark here meant the reader saw the splash, then a still, plainer
+ * imitation of it — two loading screens in a row for one launch.
  *
- * Static, deliberately. `expo-splash-screen` shows a still image and this continues it; a
- * pulsing logo would announce a wait that is usually two frames long.
+ * Rendering the same component means there is nothing to notice: both mount at launch, so the
+ * one underneath has already played its entrance by the time the one above it goes, and the
+ * hand-over is invisible. It is also, unavoidably, the same screen after sign-in, where there
+ * was never a splash to continue.
  */
-const SplashHold = () => {
-	const { theme } = useThemeContext();
-
-	return (
-		<View
-			style={{
-				alignItems: 'center',
-				backgroundColor: theme.colors.background,
-				flex: 1,
-				justifyContent: 'center'
-			}}
-		>
-			<BrandMark size={64} />
-		</View>
-	);
-};
+const SplashHold = () => <AnimatedSplash />;
 
 export const AppNavigator = () => {
 	const { isLoaded, isSignedIn } = useAuth();
@@ -774,6 +762,36 @@ export const AppNavigator = () => {
 	// below, so it needs the object rather than a snapshot of it.
 	const settingsQuery = useGetUserSettings();
 	const { data: settings, isError: hasSettingsError, isPending: isSettingsPending } = settingsQuery;
+
+	/*
+	 * **Has this account's settings ever arrived?** The splash below is right on a cold start
+	 * and wrong on the way out: signing out clears the query cache a frame or two before Clerk
+	 * reports the session gone, so the gate briefly sees "signed in, settings pending" and put
+	 * the splash up on the way to the sign-in screen. Once settings have resolved even once,
+	 * a pending query is a transition rather than a launch, and the right thing to draw is
+	 * nothing at all for those few frames.
+	 */
+	// State adjusted during render rather than a ref, which is the React-sanctioned shape and
+	// what `useSettledTabBarHidden` above already does — reading a ref while rendering is what
+	// the lint rule refuses.
+	const [hasEverSettled, setHasEverSettled] = useState(false);
+
+	if (settings !== undefined && !hasEverSettled) {
+		setHasEverSettled(true);
+	}
+
+	/*
+	 * **Did this session pass through the sign-in screens?** It is what separates the three
+	 * things the wait below used to look identical for: a cold start (a launch — the splash
+	 * belongs), signing out (on its way to the auth screens — draw nothing), and signing in
+	 * (on its way to Ana sayfa — draw Ana sayfa's own skeleton, which is what the reader is
+	 * about to get). Only signing in can have shown the auth navigator first.
+	 */
+	const [hasShownAuth, setHasShownAuth] = useState(false);
+
+	if (isLoaded && !isSignedIn && !hasShownAuth) {
+		setHasShownAuth(true);
+	}
 
 	if (!isLoaded) {
 		return <SplashHold />;
@@ -786,7 +804,11 @@ export const AppNavigator = () => {
 	// Hold the stack until settings resolve — mounting Tabs first and then swapping
 	// the initial route would flash the group list behind the onboarding screen.
 	if (isSettingsPending) {
-		return <SplashHold />;
+		if (hasShownAuth) {
+			return <HomeSkeleton />;
+		}
+
+		return hasEverSettled ? null : <SplashHold />;
 	}
 
 	/*

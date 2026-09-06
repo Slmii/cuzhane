@@ -2,8 +2,25 @@ import type { ReactNode } from 'react';
 
 export interface AppBottomSheetProps {
 	isVisible: boolean;
-	/** Fired once the sheet has finished animating away, or when the backdrop is tapped. */
-	onClose: () => void;
+	/**
+	 * **The reader dismissed it** — a downward drag or a tap on the backdrop. Deliberately not
+	 * fired when the caller closed the sheet itself by flipping `isVisible`, because the caller
+	 * has already done whatever this would do, and the native close arrives hundreds of
+	 * milliseconds later — late enough to land after the *next* sheet has opened and shut it
+	 * again. Use it to keep state in step with a dismissal you did not ask for.
+	 */
+	onClose?: () => void;
+	/**
+	 * **The sheet has finished animating away**, whoever started it — a drag, the backdrop, or
+	 * the caller setting `isVisible` to false.
+	 *
+	 * This exists because `onClose` alone cannot express "it is gone now". Create-group is a
+	 * *route*, and it popped itself from `onClose`; closing it with its own ✕ set `isVisible`
+	 * false, which is exactly the case `onClose` suppresses, so the pop never happened and a
+	 * `containedTransparentModal` stayed mounted over the app — invisible, and swallowing every
+	 * touch. Anything that has to unwind *after* the animation belongs here rather than there.
+	 */
+	onDismissed?: () => void;
 	title?: string;
 	description?: string;
 	/**

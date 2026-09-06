@@ -48,6 +48,7 @@ export const AppBottomSheet = ({
 	heightRatio,
 	isVisible,
 	onClose,
+	onDismissed,
 	title
 }: AppBottomSheetProps) => {
 	const { theme } = useThemeContext();
@@ -84,8 +85,12 @@ export const AppBottomSheet = ({
 	const handleClose = () => {
 		setIsMounted(false);
 
+		// Always: the sheet is gone, whoever closed it. Callers that have to unwind afterwards
+		// — a sheet that is a route and must pop itself — hang off this rather than `onClose`.
+		onDismissed?.();
+
 		if (isVisible) {
-			onClose();
+			onClose?.();
 		}
 	};
 
