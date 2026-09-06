@@ -10,7 +10,6 @@ import { AppNavigator } from '@/navigation/AppNavigator';
 import { AppStatusBar } from '@/navigation/AppStatusBar';
 import { linking } from '@/navigation/linking';
 import { navigationRef } from '@/navigation/navigationRef';
-import { OnboardingDevTrigger } from '@/screens/Onboarding/OnboardingDevTrigger.component';
 import { IBMPlexMono_400Regular, IBMPlexMono_500Medium } from '@expo-google-fonts/ibm-plex-mono';
 import {
 	Manrope_400Regular,
@@ -91,7 +90,6 @@ const AppContainer = () => {
 					    that live inside bottom sheets reach it from the root. */}
 					<DestructiveDialog />
 					<NotificationOrchestrator />
-					<OnboardingDevTrigger />
 					{/*
 					 * Over the app rather than in front of it: the navigator mounts and starts
 					 * fetching underneath, so the splash is spending time the app needed

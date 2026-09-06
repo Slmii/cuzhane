@@ -2,12 +2,15 @@ import { PullToRefresh } from '@/components/ui/PullToRefresh/PullToRefresh.compo
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { HasTabBarContext, TAB_BAR_CONTENT_GAP, TabBarOffsetContext } from '@/navigation/TabBarOffsetContext';
 import { useIsFocused } from '@react-navigation/native';
-import { useContext, useEffect, useRef } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { useContext, useEffect, useRef, type ComponentRef } from 'react';
+import { StyleSheet, View } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { Edge, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ScreenContainerProps } from './ScreenContainer.types';
 
 const SCREEN_HORIZONTAL_PADDING = 20;
+/** Breathing room between the focused field and the top of the keyboard. */
+const KEYBOARD_GAP = 24;
 
 export const ScreenContainer = ({
 	children,
@@ -25,7 +28,8 @@ export const ScreenContainer = ({
 	const isFocused = useIsFocused();
 	const tabBarHeight = useContext(TabBarOffsetContext);
 	const hasTabBar = useContext(HasTabBarContext);
-	const scrollRef = useRef<ScrollView | null>(null);
+	// The keyboard-aware view's own ref type — a `ScrollView` plus the method it adds.
+	const scrollRef = useRef<ComponentRef<typeof KeyboardAwareScrollView> | null>(null);
 	// A sticky header pins to the scroll *viewport*, not to the content — so it rises above
 	// the content padding that normally carries the top inset and lands under the notch.
 	// With one in play the inset moves onto the viewport instead, which shrinks it rather
@@ -77,7 +81,20 @@ export const ScreenContainer = ({
 
 	if (isScrollable) {
 		const scrollView = (
-			<ScrollView
+			/*
+			 * **Keyboard-aware, not a plain `ScrollView`.** Every form in the app is inside one
+			 * of these, and none of them moved for the keyboard: on sign-in the fields sat
+			 * behind it, so you could neither read what you had typed nor reach the paste
+			 * callout. `KeyboardAwareScrollView` scrolls the focused input into view and
+			 * restores the position afterwards — it is the same library the search field
+			 * already rides on, and `KeyboardProvider` is mounted in `AppRoot`, so this is a
+			 * swap rather than a new dependency.
+			 *
+			 * `bottomOffset` is the gap left under the focused field. Zero puts an input flush
+			 * against the keyboard's top edge, where iOS draws the paste bar over it.
+			 */
+			<KeyboardAwareScrollView
+				bottomOffset={KEYBOARD_GAP}
 				ref={scrollRef}
 				contentContainerStyle={[
 					styles.scrollableContent,
@@ -94,7 +111,7 @@ export const ScreenContainer = ({
 				{...(stickyHeaderIndices ? { stickyHeaderIndices } : {})}
 			>
 				{children}
-			</ScrollView>
+			</KeyboardAwareScrollView>
 		);
 
 		return (
