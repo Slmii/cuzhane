@@ -793,8 +793,14 @@ export const AppNavigator = () => {
 		setHasShownAuth(true);
 	}
 
+	/*
+	 * **The splash belongs to a launch, and nothing else.** Clerk drops `isLoaded` while it
+	 * signs out too, so this branch — not the settings one below — is what put the splash in
+	 * front of the sign-in screen on the way out. Once anything has resolved in this session
+	 * we are not launching, and the honest thing to draw for those few frames is nothing.
+	 */
 	if (!isLoaded) {
-		return <SplashHold />;
+		return hasEverSettled || hasShownAuth ? null : <SplashHold />;
 	}
 
 	if (!isSignedIn) {

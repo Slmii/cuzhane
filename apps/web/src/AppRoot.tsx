@@ -27,6 +27,7 @@ import * as Notifications from 'expo-notifications';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context';
 // Aliased: `SplashScreen` above is Expo's native-splash controller, this is the animated
 // brand screen that takes over once it hides.
 import { SplashScreen as AnimatedSplash } from '@/screens/Splash/SplashScreen.component';
@@ -80,24 +81,43 @@ const AppContainer = () => {
 			 * `@expo/ui` keeps a `BottomSheetModalProvider` export only so gorhom's can be deleted
 			 * without touching the file it sat in, and it renders its children and nothing else.
 			 */}
-			<KeyboardProvider>
-				<NavigationContainer linking={linking} ref={navigationRef} theme={navigationTheme}>
-					<AppStatusBar isSplashVisible={isSplashVisible} />
-					<AppNavigator />
-					{/* Renders nothing until something calls `confirmDestructive`, and nothing at
+			{/*
+			 * **The safe area belongs to the app, not to the navigators.** Every screen used to
+			 * get its insets from React Navigation's `SafeAreaProviderCompat`, which each
+			 * navigator renders around its own scenes — so anything drawn *outside* a navigator
+			 * had no provider above it and `useSafeAreaInsets` threw "No safe area value
+			 * available", an unhandled JS exception that abort()s the app in release. That is
+			 * precisely what `AppNavigator`'s gate does: `HomeSkeleton` while the settings load
+			 * after sign-in, and `ErrorState` when they fail, are both full screens standing in
+			 * for the navigator rather than inside it. Diagnosed from the device's expo-updates
+			 * log (`Library/Application Support/dev.expo.modules.core.logging.expo-updates.txt`),
+			 * which keeps the JS message the crash report reduces to "abort() called".
+			 *
+			 * `initialMetrics` is what keeps this free: with the window's insets known
+			 * synchronously the provider has nothing to measure, so it renders its children on
+			 * the first frame instead of after a layout pass — and the compat providers inside
+			 * each navigator find a context already in place and step aside.
+			 */}
+			<SafeAreaProvider initialMetrics={initialWindowMetrics}>
+				<KeyboardProvider>
+					<NavigationContainer linking={linking} ref={navigationRef} theme={navigationTheme}>
+						<AppStatusBar isSplashVisible={isSplashVisible} />
+						<AppNavigator />
+						{/* Renders nothing until something calls `confirmDestructive`, and nothing at
 					    all off Android — iOS takes `Alert.alert`. Mounted here because Android
 					    presents it in a window of its own, which is what lets the two callers
 					    that live inside bottom sheets reach it from the root. */}
-					<DestructiveDialog />
-					<NotificationOrchestrator />
-					{/*
-					 * Over the app rather than in front of it: the navigator mounts and starts
-					 * fetching underneath, so the splash is spending time the app needed
-					 * anyway instead of adding to it.
-					 */}
-					{isSplashVisible ? <AnimatedSplash /> : null}
-				</NavigationContainer>
-			</KeyboardProvider>
+						<DestructiveDialog />
+						<NotificationOrchestrator />
+						{/*
+						 * Over the app rather than in front of it: the navigator mounts and starts
+						 * fetching underneath, so the splash is spending time the app needed
+						 * anyway instead of adding to it.
+						 */}
+						{isSplashVisible ? <AnimatedSplash /> : null}
+					</NavigationContainer>
+				</KeyboardProvider>
+			</SafeAreaProvider>
 		</GestureHandlerRootView>
 	);
 };
