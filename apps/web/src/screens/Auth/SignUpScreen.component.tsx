@@ -311,7 +311,6 @@ export const SignUpScreen = ({ navigation }: SignUpScreenProps) => {
 							autoCorrect={false}
 							helperText={t('passwordHint', { count: PASSWORD_MIN_LENGTH })}
 							label={t('password')}
-							messageStyle={styles.passwordHint}
 							name='password'
 							onSubmitEditing={handleSubmit(handleSignUp)}
 							returnKeyType='go'
@@ -348,11 +347,6 @@ const styles = StyleSheet.create({
 	},
 	// The design sets this line smaller than a normal field message and flush with the
 	// column, so it overrides both.
-	passwordHint: {
-		fontSize: 10.5,
-		marginLeft: 0,
-		marginTop: 6
-	},
 	social: {
 		flexDirection: 'row',
 		gap: 9,

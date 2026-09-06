@@ -1,3 +1,4 @@
+import { BrandMark } from '@/components/ui/BrandMark/BrandMark.component';
 import { useGetUserSettings } from '@/lib/hooks/useUserSettings';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import type { StringKey } from '@/lib/i18n/strings';
@@ -46,7 +47,7 @@ import {
 } from '@react-navigation/native';
 import { createNativeStackNavigator, NativeStackNavigationOptions } from '@react-navigation/native-stack';
 import { useEffect, useState, type ComponentType } from 'react';
-import { ActivityIndicator, Platform, View, type ImageSourcePropType } from 'react-native';
+import { Platform, View, type ImageSourcePropType } from 'react-native';
 import { useBottomTabBarHeight, type AppleIcon } from 'react-native-bottom-tabs';
 
 /**
@@ -736,7 +737,20 @@ const AuthNavigator = () => (
 	</AuthStack.Navigator>
 );
 
-const FullScreenLoader = () => {
+/**
+ * The gap between the native splash and the first screen — Clerk resolving, then the settings
+ * that decide whether this account has seen the tour.
+ *
+ * **The app's own mark, not a platform spinner.** No screen exists yet at this point, so there
+ * is nothing to draw a skeleton of; the honest thing to show is that the app is still opening,
+ * which is what the splash was already saying. A spinner said something different — that a
+ * request was in flight — and was the one `ActivityIndicator` left in an app that skeletons
+ * everything else.
+ *
+ * Static, deliberately. `expo-splash-screen` shows a still image and this continues it; a
+ * pulsing logo would announce a wait that is usually two frames long.
+ */
+const SplashHold = () => {
 	const { theme } = useThemeContext();
 
 	return (
@@ -748,7 +762,7 @@ const FullScreenLoader = () => {
 				justifyContent: 'center'
 			}}
 		>
-			<ActivityIndicator color={theme.colors.accent} size='large' />
+			<BrandMark size={64} />
 		</View>
 	);
 };
@@ -758,7 +772,7 @@ export const AppNavigator = () => {
 	const { data: settings, isPending: isSettingsPending } = useGetUserSettings();
 
 	if (!isLoaded) {
-		return <FullScreenLoader />;
+		return <SplashHold />;
 	}
 
 	if (!isSignedIn) {
@@ -768,7 +782,7 @@ export const AppNavigator = () => {
 	// Hold the stack until settings resolve — mounting Tabs first and then swapping
 	// the initial route would flash the group list behind the onboarding screen.
 	if (isSettingsPending) {
-		return <FullScreenLoader />;
+		return <SplashHold />;
 	}
 
 	return (
