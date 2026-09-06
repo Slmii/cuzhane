@@ -111,12 +111,42 @@ migration and nothing else — not a deleted droplet, not a corrupted filesystem
 actual plan. `BabRead` is append-only and exists in no other system: losing it loses every
 member's reading history permanently.
 
+## Connecting a database client
+
+Postgres is bound to the droplet's loopback, so a client reaches it through SSH rather than over
+the network. In DBeaver: a **PostgreSQL** connection whose _SSH_ tab is enabled.
+
+| Field           | Value                                        |
+| --------------- | -------------------------------------------- |
+| SSH host / port | the droplet's IP, `22`                       |
+| SSH user        | `root`                                       |
+| SSH auth        | Public key → `~/.ssh/digitalocean_sbytes`    |
+| Database host   | `localhost` (resolved **on the droplet**)    |
+| Database port   | `5432`                                       |
+| Database / user | `cuzhane` / `cuzhane`                        |
+| Password        | `POSTGRES_PASSWORD` from `/opt/cuzhane/.env` |
+
+The database host is `localhost` because DBeaver resolves it at the far end of the tunnel. Putting
+the droplet's public IP there instead is the usual mistake — it would try to reach 5432 across the
+internet, where nothing is listening.
+
+The same thing without a GUI:
+
+```sh
+ssh -L 5433:localhost:5432 <droplet>   # then connect to localhost:5433 locally
+```
+
+**This is a superuser connection to production.** There is no read-only role: a stray `UPDATE`
+with no `WHERE` lands on real data, and `BabRead` is the one table that cannot be reconstructed.
+Take a dump before anything you have not run before — `/opt/cuzhane/backup.sh`.
+
 ## Things not to do
 
--   **Never add `ports:` to the postgres service.** Docker writes its own iptables rules and a
-    published port bypasses ufw entirely — the database would be on the public internet with the
-    firewall still reporting that it is closed. It is reachable from the `back` network and that
-    is enough.
+-   **Never publish postgres on `0.0.0.0`.** Docker writes its own iptables rules ahead of ufw, so
+    a bare `5432:5432` puts the database on the public internet while `ufw status` still reports
+    the port as closed. The published mapping is `127.0.0.1:5432:5432` — loopback only, reachable
+    from the droplet itself and from nothing else, which is what the SSH tunnel below connects to.
+    Dropping the `127.0.0.1` prefix is the whole difference between the two.
 -   **Never `docker compose down -v`.** The `-v` deletes the `pgdata` volume. So does
     `docker system prune --volumes`.
 -   Don't edit `/opt/cuzhane/compose.yml` or `Caddyfile` on the box. CI overwrites them.

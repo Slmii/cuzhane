@@ -103,6 +103,14 @@ services:
     postgres:
         image: postgres:17.11-alpine
         restart: unless-stopped
+        # **Loopback only, and the address is the whole point.** `127.0.0.1:5432:5432` is
+        # reachable from the droplet itself and from nothing else, which is what lets a laptop
+        # connect through an SSH tunnel. A bare `5432:5432` would bind 0.0.0.0 — and *that* is
+        # the case where Docker writes its own iptables rules ahead of ufw and puts the database
+        # on the public internet while `ufw status` still says the port is closed. Never drop
+        # the address.
+        ports:
+            - '127.0.0.1:5432:5432'
         environment:
             POSTGRES_USER: cuzhane
             POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
