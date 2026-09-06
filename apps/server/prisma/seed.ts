@@ -52,7 +52,19 @@ if (process.env.NODE_ENV === 'production') {
 
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
 
-const OWNER_USER_ID = 'dev_user';
+/**
+ * Who the fixtures belong to.
+ *
+ * `dev_user` is the default and is nobody — useful for exercising the API, useless the moment
+ * you open the app, because every seeded group belongs to an account you are not signed in as
+ * and Ana sayfa looks empty. Pass a real Clerk id to make the fixtures yours:
+ *
+ *   SEED_USER_ID=user_xxx pnpm --filter @cuzhane/server db:seed
+ *
+ * Which is what taking App Store screenshots needs — a populated home screen belonging to the
+ * account on the device.
+ */
+const OWNER_USER_ID = process.env.SEED_USER_ID ?? 'dev_user';
 
 /** [display name, babs this seat has read], or `null` for a seat with no member. */
 type MemberSeed = [string, number] | null;

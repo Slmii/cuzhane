@@ -1,4 +1,5 @@
 import { BrandMark } from '@/components/ui/BrandMark/BrandMark.component';
+import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { useGetUserSettings } from '@/lib/hooks/useUserSettings';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import type { StringKey } from '@/lib/i18n/strings';
@@ -769,7 +770,10 @@ const SplashHold = () => {
 
 export const AppNavigator = () => {
 	const { isLoaded, isSignedIn } = useAuth();
-	const { data: settings, isPending: isSettingsPending } = useGetUserSettings();
+	// The whole query, not just its data: `ErrorState` refetches it from the failure branch
+	// below, so it needs the object rather than a snapshot of it.
+	const settingsQuery = useGetUserSettings();
+	const { data: settings, isError: hasSettingsError, isPending: isSettingsPending } = settingsQuery;
 
 	if (!isLoaded) {
 		return <SplashHold />;
@@ -783,6 +787,19 @@ export const AppNavigator = () => {
 	// the initial route would flash the group list behind the onboarding screen.
 	if (isSettingsPending) {
 		return <SplashHold />;
+	}
+
+	/*
+	 * **The gate needs a way out, not just a way to wait.** Holding the splash was the only
+	 * behaviour here, so an unreachable API left the app on the mark indefinitely: no error, no
+	 * retry, nothing to distinguish it from a hang — and this gate runs before any screen
+	 * exists, so it is the one place an outage is most visible and was the one place with no
+	 * answer for it. `ErrorState` is what every other screen shows, down to the retry and the
+	 * HTTP status; it draws its own `ScreenContainer` and touches no navigation, so it renders
+	 * here in place of the navigator exactly as `SplashHold` does.
+	 */
+	if (hasSettingsError) {
+		return <ErrorState queries={[settingsQuery]} />;
 	}
 
 	return (
