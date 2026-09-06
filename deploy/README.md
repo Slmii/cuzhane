@@ -111,6 +111,57 @@ migration and nothing else — not a deleted droplet, not a corrupted filesystem
 actual plan. `BabRead` is append-only and exists in no other system: losing it loses every
 member's reading history permanently.
 
+## Restoring
+
+Two paths, and which one you want depends on what went wrong.
+
+### From a local dump — no key needed
+
+For the ordinary emergency: a bad migration, a wrong `DELETE`, anything where the droplet is
+still standing. The dumps in `/opt/cuzhane/backups` are plain gzip, so this needs nothing but
+SSH.
+
+```sh
+ssh <droplet>
+cd /opt/cuzhane
+ls -t backups/                       # newest first
+zcat backups/cuzhane-<stamp>.sql.gz |
+  docker compose exec -T postgres psql -U cuzhane -d cuzhane
+```
+
+The dumps carry `--clean --if-exists`, so they drop and recreate each table as they go. Stop the
+API first (`docker compose stop api`) if you would rather it not write during the restore.
+
+### From R2 — the private key never goes near the droplet
+
+For when the droplet is gone, or its disk with it. The object is encrypted to a public key the
+server holds; only `~/cuzhane-backup-key.txt` on your machine can read it. So the decryption
+happens **on your machine, in the middle of the pipe** — the ciphertext comes down, the plaintext
+goes back up inside SSH, and the key is never copied anywhere.
+
+```sh
+# From your machine. Pick the object first:
+ssh <droplet> 'rclone --config /root/.config/rclone/rclone.conf lsl r2:cuzhane-backups/db'
+
+# Then stream: download → decrypt locally → restore over ssh.
+ssh <droplet> 'rclone --config /root/.config/rclone/rclone.conf cat r2:cuzhane-backups/db/<file>.age' |
+  age -d -i ~/cuzhane-backup-key.txt |
+  gunzip |
+  ssh <droplet> 'cd /opt/cuzhane && docker compose exec -T postgres psql -U cuzhane -d cuzhane'
+```
+
+Rebuilding on a **fresh** droplet is the same pipe with the last step pointed at the new box, after
+`docker compose up -d` has created an empty database.
+
+**Copying the key to the server "just for the restore" defeats the whole arrangement.** The reason
+the droplet cannot read its own backups is that taking the server must not hand over every user's
+email address and reading history. A key pasted there during an incident is a key that was there
+while you were distracted.
+
+And the corollary: `~/cuzhane-backup-key.txt` is the only thing that can read anything in R2. It
+belongs in a password manager as well as on the laptop — one machine is one failure away from
+ninety days of unreadable noise.
+
 ## Connecting a database client
 
 Postgres is bound to the droplet's loopback, so a client reaches it through SSH rather than over
