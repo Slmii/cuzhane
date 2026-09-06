@@ -1,8 +1,19 @@
-import { Bone } from '@/components/Skeleton/Skeleton.component';
+import { Bone, SkeletonPulse } from '@/components/Skeleton/Skeleton.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
+import { Typography } from '@/components/ui/Typography/Typography.component';
+import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { toAlphaColor } from '@/lib/theme/tokens';
+import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
+import Animated, {
+	Easing,
+	useAnimatedStyle,
+	useReducedMotion,
+	useSharedValue,
+	withRepeat,
+	withTiming
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /** Enough rows to fill the fold without promising how many groups there are. */
@@ -11,24 +22,69 @@ const DAY_COUNT = 7;
 const SHEET_RADIUS = 32;
 const DAY_SIZE = 27;
 const AVATAR_SIZE = 36;
+/** The status ring, and the turn it makes. */
+const RING_SIZE = 13;
+const RING_WIDTH = 1.8;
+const RING_TURN_MS = 800;
 
 /**
- * H1 while it waits: the coloured layer with its greeting and free-reading row, then the
- * paper sheet with the streak card, the groups heading and a few rows.
+ * The one thing on this screen that is not a bone: a ring that actually turns, telling the
+ * reader the app is working rather than stuck. It is a drawn ring rather than
+ * `ActivityIndicator` because the whole screen is the app's own drawing — a platform spinner
+ * in the middle of it reads as a different app's furniture.
+ */
+const StatusRing = () => {
+	const { theme } = useThemeContext();
+	const isReducedMotion = useReducedMotion();
+	const turn = useSharedValue(0);
+
+	useEffect(() => {
+		if (isReducedMotion) {
+			return;
+		}
+
+		turn.value = withRepeat(withTiming(360, { duration: RING_TURN_MS, easing: Easing.linear }), -1, false);
+	}, [isReducedMotion, turn]);
+
+	const spinStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${turn.value}deg` }] }));
+
+	return (
+		<Animated.View
+			style={[styles.ring, { borderColor: theme.colors.border, borderTopColor: theme.colors.accent }, spinStyle]}
+		/>
+	);
+};
+
+/**
+ * **B8L — H1 while it waits.** The coloured layer with its greeting and free-reading row, then
+ * the paper sheet with the streak card, the groups heading and a few rows: the same furniture
+ * the real screen puts in the same places, so nothing jumps when the data lands.
  *
  * The top layer is drawn for real rather than boned — it is a flat colour either way, and a
  * grey block where the sage belongs would flash a different screen for half a second. Only the
  * text on it is stubbed, in the layer's own ink at low opacity rather than the skeleton tone,
  * which is mixed for paper.
+ *
+ * **One pulse for the whole screen, not one per bone.** The design gives every placeholder its
+ * own animation with a stagger — seven in the week strip, three more down the rows. That is
+ * twenty-odd Reanimated mappers on the screen that is on display precisely while the app is
+ * busy, and it is the same mistake that once made the bab board unscrollable (CLAUDE.md).
+ * `SkeletonPulse` breathes the subtree as one. The stagger is what is lost; the screen still
+ * reads as alive, and it costs a single mapper.
+ *
+ * The status line at the bottom is outside that wrapper on purpose: it is real text about a
+ * real state, and a label that faded in and out with the bones would read as another
+ * placeholder.
  */
 export const HomeSkeleton = () => {
 	const { theme } = useThemeContext();
+	const { t } = useTranslation();
 	const insets = useSafeAreaInsets();
 	const onHeader = toAlphaColor(theme.colors.onHeaderSurface, 0.16);
 
 	return (
 		<View style={[styles.root, { backgroundColor: theme.colors.headerSurface }]}>
-			<View style={[styles.header, { paddingTop: insets.top + theme.spacing.xs }]}>
+			<SkeletonPulse style={[styles.header, { paddingTop: insets.top + theme.spacing.xs }]}>
 				<View style={styles.headerRow}>
 					<View style={styles.greeting}>
 						<View style={[styles.bar, { backgroundColor: onHeader, height: 11, width: 84 }]} />
@@ -43,10 +99,10 @@ export const HomeSkeleton = () => {
 						<View style={[styles.bar, { backgroundColor: onHeader, height: 9, width: 168 }]} />
 					</View>
 				</View>
-			</View>
+			</SkeletonPulse>
 
 			<View style={[styles.sheet, { backgroundColor: theme.colors.background }]}>
-				<View style={styles.content}>
+				<SkeletonPulse style={styles.content}>
 					<CardSurface style={styles.streak}>
 						<View style={styles.streakHead}>
 							<View style={styles.streakCopy}>
@@ -85,6 +141,15 @@ export const HomeSkeleton = () => {
 							<Bone height={32} radius={10} width={58} />
 						</CardSurface>
 					))}
+				</SkeletonPulse>
+
+				{/* The screen's own name rather than "Loading…": it says *what* is coming, and it
+				    is the word the tab bar already uses for it. */}
+				<View style={styles.status}>
+					<StatusRing />
+					<Typography color={theme.colors.faintText} style={styles.statusLabel}>
+						{t('home')}
+					</Typography>
 				</View>
 			</View>
 		</View>
@@ -153,6 +218,12 @@ const styles = StyleSheet.create({
 		flexDirection: 'row',
 		gap: 12
 	},
+	ring: {
+		borderRadius: RING_SIZE / 2,
+		borderWidth: RING_WIDTH,
+		height: RING_SIZE,
+		width: RING_SIZE
+	},
 	root: {
 		flex: 1
 	},
@@ -180,6 +251,18 @@ const styles = StyleSheet.create({
 		borderTopRightRadius: SHEET_RADIUS,
 		flex: 1,
 		overflow: 'hidden'
+	},
+	status: {
+		alignItems: 'center',
+		flexDirection: 'row',
+		gap: 8,
+		justifyContent: 'center',
+		paddingBottom: 2,
+		paddingTop: 16
+	},
+	statusLabel: {
+		fontSize: 10.5,
+		lineHeight: 14
 	},
 	streak: {
 		paddingBottom: 4,
