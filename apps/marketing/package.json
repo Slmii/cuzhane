@@ -8,7 +8,8 @@
 		"build": "astro build",
 		"preview": "astro preview",
 		"check-types": "astro check",
-		"lint": "astro check"
+		"lint": "astro check",
+		"og": "node scripts/build-og.mjs"
 	},
 	"dependencies": {
 		"@astrojs/sitemap": "^3.7.0",

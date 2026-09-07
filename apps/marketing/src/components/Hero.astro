@@ -1,5 +1,7 @@
 ---
-import { MOCK_ROWS, WEEK_INITIALS, copyFor, type Locale } from '../i18n/copy';
+import { Image } from 'astro:assets';
+import homeShot from '../assets/01-home.png';
+import { copyFor, type Locale } from '../i18n/copy';
 
 interface Props {
 	locale: Locale;
@@ -7,11 +9,6 @@ interface Props {
 
 const { locale } = Astro.props;
 const t = copyFor(locale);
-const week = WEEK_INITIALS[locale];
-const rows = MOCK_ROWS[locale];
-
-/** Four days read, today outlined, the rest of the week still ahead. */
-const DAY_STATES = ['read', 'read', 'read', 'read', 'today', 'ahead', 'ahead'] as const;
 ---
 
 <section class="hero">
@@ -27,67 +24,19 @@ const DAY_STATES = ['read', 'read', 'read', 'read', 'today', 'ahead', 'ahead'] a
 	</div>
 
 	{/*
-	 * The phone is drawn, not photographed: a screenshot would be a 400 KB image that goes
-	 * stale the moment the app changes, and this stays sharp at any density. It is decorative
-	 * scaffolding around real copy, so it carries an accessible name and nothing else.
+	 * **A real screenshot, not a drawing.** This was a hand-built CSS replica of Ana sayfa —
+	 * chosen so it would stay sharp at any density and never go stale. The design replaced it,
+	 * and it is the right call: a drawn approximation quietly misrepresents the product, and
+	 * every app change made the two drift anyway. `astro:assets` answers the sharpness half at
+	 * build time — it emits width-appropriate WebP and the `srcset` to pick between them, so
+	 * the 1320px-wide source never reaches anyone.
+	 *
+	 * `loading='eager'` because this is the LCP element; lazy-loading the hero image is how
+	 * you lose a second of Largest Contentful Paint to a request that could have started in
+	 * the markup.
 	 */}
 	<div class="stage">
-		<div class="phone" role="img" aria-label={t.mockAlt}>
-			<div class="phone-head">
-				<div class="greet">
-					<div>
-						<span class="greet-small">{t.mockGreet}</span>
-						<span class="greet-name">{t.mockName}</span>
-					</div>
-					<span class="avatar" aria-hidden="true">E</span>
-				</div>
-				<div class="pool-row">
-					<span class="pool-badge" aria-hidden="true">۱۰۰</span>
-					<span class="pool-copy">
-						<span class="pool-title">{t.mockPoolTitle}</span>
-						<span class="pool-sub">{t.mockPoolSub}</span>
-					</span>
-					<span class="chev" aria-hidden="true">›</span>
-				</div>
-			</div>
-
-			<div class="sheet">
-				<div class="streak">
-					<div class="streak-cap">{t.mockStreakCap}</div>
-					<div class="streak-val">{t.mockStreakVal}</div>
-					<div class="week">
-						{
-							week.map((initial, index) => (
-								<span class="day">
-									<span class="day-letter">{initial}</span>
-									<span class:list={['mark', DAY_STATES[index]]}>
-										{DAY_STATES[index] === 'read' ? '✓' : String(index + 1)}
-									</span>
-								</span>
-							))
-						}
-					</div>
-				</div>
-
-				<div class="groups-cap">{t.mockGroupsCap}</div>
-				{
-					rows.map(row => (
-						<div class="row">
-							<span class="row-copy">
-								<span class="row-title">
-									<span class="row-range">{row.range}</span>
-									<span class="row-name">{row.name}</span>
-								</span>
-								<span class="bar">
-									<span class="bar-fill" style={`width:${row.pct}`} />
-								</span>
-							</span>
-							<span class:list={['row-cta', { done: row.pct === '100%' }]}>{row.cta}</span>
-						</div>
-					))
-				}
-			</div>
-		</div>
+		<Image class="phone" src={homeShot} alt={t.shotHome} widths={[300, 600, 900]} sizes="300px" loading="eager" />
 	</div>
 </section>
 
@@ -120,12 +69,26 @@ const DAY_STATES = ['read', 'read', 'read', 'read', 'today', 'ahead', 'ahead'] a
 			animation: cz-rise 0.6s cubic-bezier(0.2, 0.9, 0.25, 1) both;
 		}
 
+		/*
+		 * Rises once, then breathes. The float is the design's, and it is deliberately slow
+		 * and tiny — 9s for 6px — so it reads as the page being alive rather than as
+		 * something asking to be looked at. Both are inside this query, so Reduce Motion
+		 * gets a still phone rather than a slower one.
+		 */
 		.phone {
-			animation: cz-rise 0.8s cubic-bezier(0.2, 0.9, 0.25, 1) 0.12s both;
+			animation:
+				cz-rise 0.8s cubic-bezier(0.2, 0.9, 0.25, 1) 0.12s both,
+				cz-float 9s ease-in-out 1.4s infinite;
 		}
+	}
 
-		.bar-fill {
-			animation: cz-fill 1.1s cubic-bezier(0.2, 0.9, 0.3, 1) 0.55s both;
+	@keyframes cz-float {
+		0%,
+		100% {
+			transform: none;
+		}
+		50% {
+			transform: translateY(-6px);
 		}
 	}
 
@@ -200,255 +163,25 @@ const DAY_STATES = ['read', 'read', 'read', 'read', 'today', 'ahead', 'ahead'] a
 		align-items: flex-end;
 	}
 
+	/*
+	 * **Cropped, not scaled.** The screenshot is 1320×2868 — at 300px wide it wants to be
+	 * 652px tall, and the design gives it 560. `object-fit: cover` with the origin pinned to
+	 * the top keeps the greeting and the streak card at full size and lets the bottom run off
+	 * the fold, which is what the square-off corners (`38px 38px 0 0`) are drawn for. Scaling
+	 * the whole screen down to fit instead would shrink the text into illegibility.
+	 */
 	.phone {
 		flex: none;
 		width: 300px;
 		max-width: 100%;
 		height: 560px;
-		background: var(--card);
+		object-fit: cover;
+		object-position: top center;
 		border-radius: 38px 38px 0 0;
 		box-shadow:
 			0 -6px 60px rgba(0, 0, 0, 0.28),
 			0 0 0 8px #16171a;
-		overflow: hidden;
-		display: flex;
-		flex-direction: column;
-	}
-
-	.phone-head {
-		flex: none;
-		background: var(--sage);
-		padding: 16px 20px 18px;
-		color: #fff;
-	}
-
-	.greet {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 10px;
-	}
-
-	.greet-small {
 		display: block;
-		font: 500 10.5px var(--sans);
-		color: rgba(255, 255, 255, 0.6);
 	}
 
-	.greet-name {
-		display: block;
-		font: 400 19px/1.1 var(--serif);
-		margin-top: 3px;
-	}
-
-	.avatar {
-		flex: none;
-		width: 30px;
-		height: 30px;
-		border-radius: 50%;
-		background: #efe7d8;
-		border: 2px solid rgba(255, 255, 255, 0.5);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font: 600 11px var(--sans);
-		color: var(--sand-ink);
-	}
-
-	.pool-row {
-		display: flex;
-		align-items: center;
-		gap: 9px;
-		margin-top: 15px;
-		padding: 10px 12px;
-		border-radius: 13px;
-		background: rgba(255, 255, 255, 0.14);
-		border: 1px solid rgba(255, 255, 255, 0.2);
-	}
-
-	.pool-badge {
-		flex: none;
-		width: 26px;
-		height: 26px;
-		border-radius: 8px;
-		background: rgba(255, 255, 255, 0.18);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font: 400 12px var(--serif);
-	}
-
-	.pool-copy {
-		flex: 1;
-		display: flex;
-		flex-direction: column;
-		gap: 1px;
-		min-width: 0;
-	}
-
-	.pool-title {
-		font: 600 11.5px var(--sans);
-	}
-
-	.pool-sub {
-		font: 400 10px var(--sans);
-		color: rgba(255, 255, 255, 0.62);
-	}
-
-	.chev {
-		flex: none;
-		font: 400 13px var(--sans);
-		color: rgba(255, 255, 255, 0.6);
-	}
-
-	.sheet {
-		flex: 1;
-		min-height: 0;
-		background: var(--card);
-		border-radius: 26px 26px 0 0;
-		margin-top: -14px;
-		padding: 15px 15px 0;
-		display: flex;
-		flex-direction: column;
-		gap: 10px;
-	}
-
-	.streak {
-		background: var(--white);
-		border: 1px solid rgba(28, 29, 26, 0.08);
-		border-radius: 16px;
-		padding: 13px 14px 6px;
-	}
-
-	.streak-cap {
-		font: 500 10px var(--sans);
-		letter-spacing: 0.1em;
-		text-transform: uppercase;
-		color: var(--sage);
-	}
-
-	.streak-val {
-		font: 400 24px/1 var(--serif);
-		margin-top: 5px;
-	}
-
-	.week {
-		display: flex;
-		gap: 4px;
-		margin-top: 12px;
-		border-top: 1px solid rgba(28, 29, 26, 0.07);
-		padding: 11px 0;
-	}
-
-	.day {
-		flex: 1;
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: 6px;
-	}
-
-	.day-letter {
-		font: 500 9px var(--sans);
-		color: rgba(28, 29, 26, 0.4);
-	}
-
-	.mark {
-		width: 24px;
-		height: 24px;
-		border-radius: 50%;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font: 600 10px var(--sans);
-		border: 1px solid transparent;
-	}
-
-	.mark.read {
-		background: var(--sage-wash);
-		color: var(--sage);
-	}
-
-	.mark.today {
-		border-color: var(--sage);
-		color: var(--sage);
-	}
-
-	.mark.ahead {
-		border-color: rgba(28, 29, 26, 0.12);
-		color: rgba(28, 29, 26, 0.35);
-	}
-
-	.groups-cap {
-		font: 500 12.5px var(--sans);
-		padding: 2px 2px 0;
-	}
-
-	.row {
-		background: var(--white);
-		border: 1px solid rgba(28, 29, 26, 0.08);
-		border-radius: 16px;
-		padding: 12px 13px;
-		display: flex;
-		align-items: center;
-		gap: 11px;
-	}
-
-	.row-copy {
-		flex: 1;
-		display: flex;
-		flex-direction: column;
-		gap: 7px;
-		min-width: 0;
-	}
-
-	.row-title {
-		display: flex;
-		align-items: baseline;
-		gap: 7px;
-		min-width: 0;
-	}
-
-	.row-range {
-		flex: none;
-		font: 400 14px/1 var(--serif);
-		color: var(--sage);
-	}
-
-	.row-name {
-		flex: 1;
-		font: 600 11.5px var(--sans);
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-
-	.bar {
-		display: block;
-		height: 6px;
-		border-radius: 3px;
-		background: #eceae4;
-		overflow: hidden;
-	}
-
-	.bar-fill {
-		display: block;
-		height: 100%;
-		background: var(--sage);
-		transform-origin: left;
-	}
-
-	.row-cta {
-		flex: none;
-		background: var(--sage);
-		color: #fff;
-		border-radius: 10px;
-		padding: 8px 14px;
-		font: 600 11px var(--sans);
-	}
-
-	.row-cta.done {
-		background: var(--sage-wash);
-		color: var(--sage);
-	}
 </style>

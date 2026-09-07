@@ -983,6 +983,37 @@ no-preference)`, and the scroll-driven `.reveal` needs `@supports (animation-tim
 -   Store buttons read "coming soon" and are **not links** until `APP_STORE_URL` / `PLAY_STORE_URL`
     in `src/config.ts` are filled in. A button pointing at `#` reads as broken and a crawler
     follows it.
+-   **The three phones on the page are real screenshots, and they used to be drawn.** Hero,
+    "İlerleme" and "Okuma" each carried a hand-built CSS replica of the app — chosen so they
+    would stay sharp at any density and never cost a 400 KB download. The design replaced all
+    three (`src/assets/01-home.png`, `04-group.png`, `07-reader.png`, 1320×2868 from the
+    designer's `screenshots/src/`), and it was the right call twice over: a drawn approximation
+    quietly misrepresents the product and drifted from it with every app change, and
+    `astro:assets` answers the weight objection at build time — `<Image widths={[300,600,900]}
+sizes="300px">` emits WebP and a `srcset`, so the 300px variant a phone actually downloads is
+    **11 KB**. The mockups' fourteen copy keys and the `MOCK_ROWS`/`WEEK_INITIALS` tables went
+    with them; `shotHome`/`shotGroup`/`shotReader` are the alt text that replaced them. The hero's
+    shot is `object-fit: cover` pinned to the top rather than scaled to fit — the design gives it
+    300×560 against a 300×652 image, and the crop is what the squared-off bottom corners are for.
+    Only the hero is `loading='eager'`; it is the LCP element.
+-   **The share cards are generated, committed, and one per language.** `pnpm --filter
+@cuzhane/marketing og` runs `scripts/build-og.mjs`, which renders the design's `OG Images.dc.html`
+    through headless Chrome into `public/og-{en,tr,nl}.png` (1200×630) and `public/og-square.png`
+    (1200×1200, for WhatsApp's chat list and the `schema.org` logo — a 1.91:1 card cropped square
+    cuts the wordmark in half). The build does **not** run it; re-run it and commit the PNGs when
+    the copy, palette or mark changes. Two things it must keep: the fonts are inlined as data URIs
+    so a render never touches the network, and each card is rendered under its own **`lang`** —
+    the eyebrows are `text-transform: uppercase` and Turkish casing is not the default one, so
+    without it "takibi" bakes into the PNG as "TAKIBI" instead of "TAKİBİ" and no CSS can undo it
+    afterwards. The prototype's three stats were *usage* numbers ("12 active groups", "9 day
+    average streak"); they are product facts here instead ("100 babs · one round", "3 languages",
+    "0 ads"), because a share card carries no framing that would read invented metrics as an
+    illustration.
+-   **`og:locale` is not `hreflang`.** Open Graph wants `language_TERRITORY`, so a bare `en` —
+    a perfectly good `hreflang` — is invalid and Facebook silently substitutes `en_US`.
+    `OG_LOCALES` in `copy.ts` spells all three out, separately from `LOCALE_TAGS`. Every page also
+    declares `og:image:width`/`height`: without them a crawler must fetch the image before it can
+    lay the card out, so the first share of a link often renders with no picture at all.
 -   Fonts are self-hosted through `@fontsource`, not fetched from Google — a third-party
     render-blocking round trip is the single biggest thing between this page and a good LCP.
 -   `.astro` files are in `.prettierignore`: Prettier cannot parse one without

@@ -35,6 +35,12 @@ const schema = [
 		'@type': 'MobileApplication',
 		applicationCategory: 'LifestyleApplication',
 		description: t.metaDescription,
+		/*
+		 * The 1:1 card. Google's guidance for an entity image is a square it can crop to any
+		 * of its own aspect ratios, which is exactly what the 1200×630 share card is not —
+		 * cropping that to a square cuts the wordmark in half.
+		 */
+		image: new URL('/og-square.png', SITE_URL).href,
 		inLanguage: ['tr', 'en', 'nl'],
 		name: 'Cüzhane',
 		offers: { '@type': 'Offer', price: '0', priceCurrency: 'EUR' },

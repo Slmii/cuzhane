@@ -3,7 +3,7 @@ import '@fontsource-variable/manrope';
 import '@fontsource-variable/newsreader';
 import '@fontsource/ibm-plex-mono/400.css';
 import '@fontsource/ibm-plex-mono/500.css';
-import { LOCALES, LOCALE_TAGS, copyFor, type Locale } from '../i18n/copy';
+import { LOCALES, LOCALE_TAGS, OG_LOCALES, copyFor, type Locale } from '../i18n/copy';
 import { DEFAULT_LOCALE, pathFor } from '../i18n/routing';
 
 interface Props {
@@ -22,7 +22,20 @@ const t = copyFor(locale);
 const pageTitle = title ?? t.metaTitle;
 const pageDescription = description ?? t.metaDescription;
 const canonical = new URL(pathFor(locale, path), Astro.site).href;
-const ogImage = new URL('/og.png', Astro.site).href;
+
+/*
+ * **One share card per language, and the URL must be absolute.** Facebook, WhatsApp and X
+ * fetch the image from their own servers with no page context, so a relative path resolves
+ * against nothing and the card renders blank — which is why every one of these goes through
+ * `new URL(…, Astro.site)`. The card carries the headline as baked-in type, so a Turkish page
+ * offering the English card would be advertising itself in the wrong language; `og-<locale>`
+ * keeps each page's card in its own.
+ *
+ * The square card (`/og-square.png`) is the same brand at 1:1, for WhatsApp's chat list and
+ * for `schema.org`'s logo — `HomePage` puts it in the JSON-LD, which is the only thing that
+ * asks for it.
+ */
+const ogImage = new URL(`/og-${locale}.png`, Astro.site).href;
 ---
 
 <!doctype html>
@@ -53,16 +66,32 @@ const ogImage = new URL('/og.png', Astro.site).href;
 		<link rel="alternate" hreflang="x-default" href={new URL(pathFor(DEFAULT_LOCALE, path), Astro.site).href} />
 
 		<meta property="og:type" content="website" />
+		<meta property="og:site_name" content="Cüzhane" />
 		<meta property="og:title" content={pageTitle} />
 		<meta property="og:description" content={pageDescription} />
 		<meta property="og:url" content={canonical} />
+		<meta property="og:locale" content={OG_LOCALES[locale]} />
+		{
+			LOCALES.filter(alternate => alternate !== locale).map(alternate => (
+				<meta property="og:locale:alternate" content={OG_LOCALES[alternate]} />
+			))
+		}
+		{/*
+		 * **Declaring the dimensions is not decoration.** Without them a crawler has to fetch
+		 * the image before it can lay the card out, so the first share of a link often renders
+		 * with no picture at all and only fills in once someone re-scrapes it. Stating the size
+		 * lets the card reserve the space on the first pass.
+		 */}
 		<meta property="og:image" content={ogImage} />
-		<meta property="og:locale" content={LOCALE_TAGS[locale].replace('-', '_')} />
-		<meta property="og:site_name" content="Cüzhane" />
+		<meta property="og:image:width" content="1200" />
+		<meta property="og:image:height" content="630" />
+		<meta property="og:image:type" content="image/png" />
+		<meta property="og:image:alt" content={t.ogImageAlt} />
 		<meta name="twitter:card" content="summary_large_image" />
 		<meta name="twitter:title" content={pageTitle} />
 		<meta name="twitter:description" content={pageDescription} />
 		<meta name="twitter:image" content={ogImage} />
+		<meta name="twitter:image:alt" content={t.ogImageAlt} />
 
 		<meta name="theme-color" content="#3E6B5C" />
 		<link rel="icon" href="/favicon.svg" type="image/svg+xml" />

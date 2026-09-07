@@ -1,4 +1,6 @@
 ---
+import { Image } from 'astro:assets';
+import readerShot from '../assets/07-reader.png';
 import { copyFor, type Locale } from '../i18n/copy';
 
 interface Props {
@@ -7,16 +9,6 @@ interface Props {
 
 const { locale } = Astro.props;
 const t = copyFor(locale);
-
-/** The reader's tick strip: a hundred columns, the current bab taller and dark. */
-const STRIP = Array.from({ length: 100 }, (_, index) => {
-	const bab = index + 1;
-	const state = bab <= 46 ? 0 : bab <= 62 ? 1 : bab <= 74 ? 2 : bab <= 78 ? 0 : bab <= 88 ? 1 : 3;
-
-	return { isHere: index === 45, state };
-});
-
-const STRIP_COLOR = ['var(--sage)', '#c9dcd2', '#e4c98f', '#dcd9d0'] as const;
 ---
 
 <section id="okuma" class="shell section reader">
@@ -42,81 +34,7 @@ const STRIP_COLOR = ['var(--sage)', '#c9dcd2', '#e4c98f', '#dcd9d0'] as const;
 	</div>
 
 	<div class="stage">
-		<div class="phone reveal" role="img" aria-label={t.readerAlt}>
-			<div class="bar">
-				<div class="bar-top">
-					<span class="icon" aria-hidden="true">
-						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-							<path d="M14.5 5.5L8 12l6.5 6.5" />
-						</svg>
-					</span>
-					<span class="bab">{t.readerBab}</span>
-					<span class="aa">{t.readerAa}</span>
-				</div>
-				<div class="bab-row">
-					<span class="bab-num">٤٦</span>
-					<span class="own">{t.readerOwn}</span>
-				</div>
-				<div class="strip">
-					{
-						STRIP.map(column => (
-							<span
-								class="col"
-								style={`height:${column.isHere ? '17px' : column.state === 0 ? '13px' : '9px'};background:${column.isHere ? 'var(--ink)' : STRIP_COLOR[column.state]}`}
-							/>
-						))
-					}
-				</div>
-			</div>
-
-			{/*
-			 * The Arabic is deliberately *not* set here — the Cevşen's text is never
-			 * reproduced outside the app. These are ruled lines standing in for it, with the
-			 * verse rosette drawn as the app draws it.
-			 */}
-			<div class="body">
-				<div class="ornament-open" aria-hidden="true">۞</div>
-				<div class="lines">
-					<span class="line"></span>
-					<span class="line"></span>
-					<span class="line-row">
-						<span class="line grow"></span>
-						<span class="rosette" aria-hidden="true">
-							<svg width="26" height="26" viewBox="0 0 26 26">
-								<g fill="none" stroke="#A65D5D" stroke-width=".9">
-									<circle cx="18.4" cy="13" r="3"></circle>
-									<circle cx="16.82" cy="9.18" r="3"></circle>
-									<circle cx="13" cy="7.6" r="3"></circle>
-									<circle cx="9.18" cy="9.18" r="3"></circle>
-									<circle cx="7.6" cy="13" r="3"></circle>
-									<circle cx="9.18" cy="16.82" r="3"></circle>
-									<circle cx="13" cy="18.4" r="3"></circle>
-									<circle cx="16.82" cy="16.82" r="3"></circle>
-								</g>
-								<circle cx="13" cy="13" r="6.3" fill="var(--card)" stroke="#A65D5D" stroke-width="1.1"></circle>
-							</svg>
-							<span class="rosette-n">٣</span>
-						</span>
-					</span>
-					<span class="line"></span>
-					<span class="line short"></span>
-				</div>
-			</div>
-
-			<div class="actions">
-				<span class="pill" aria-hidden="true">
-					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-						<path d="M14.5 5.5L8 12l6.5 6.5" />
-					</svg>
-				</span>
-				<span class="mark">{t.readerMark}</span>
-				<span class="pill" aria-hidden="true">
-					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-						<path d="M9.5 5.5L16 12l-6.5 6.5" />
-					</svg>
-				</span>
-			</div>
-		</div>
+		<Image class="phone reveal" src={readerShot} alt={t.shotReader} widths={[300, 600, 900]} sizes="300px" />
 	</div>
 </section>
 
@@ -177,172 +95,11 @@ const STRIP_COLOR = ['var(--sage)', '#c9dcd2', '#e4c98f', '#dcd9d0'] as const;
 		flex: none;
 		width: 300px;
 		max-width: 100%;
-		background: var(--card);
+		height: auto;
 		border-radius: 34px;
 		box-shadow:
 			0 22px 54px rgba(28, 29, 26, 0.16),
 			0 0 0 8px #16171a;
-		overflow: hidden;
-		display: flex;
-		flex-direction: column;
-	}
-
-	.bar {
-		flex: none;
-		background: rgba(247, 245, 240, 0.96);
-		padding: 16px 18px 12px;
-		border-bottom: 1px solid rgba(28, 29, 26, 0.07);
-	}
-
-	.bar-top {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 10px;
-	}
-
-	.icon {
-		display: flex;
-		color: rgba(28, 29, 26, 0.5);
-	}
-
-	.bab {
-		font: 500 10.5px var(--sans);
-		letter-spacing: 0.1em;
-		text-transform: uppercase;
-		color: rgba(28, 29, 26, 0.5);
-	}
-
-	.aa {
-		border: 1px solid rgba(28, 29, 26, 0.14);
-		background: var(--white);
-		border-radius: 9px;
-		padding: 5px 9px;
-		font: 600 11px var(--sans);
-	}
-
-	.bab-row {
-		display: flex;
-		align-items: center;
-		gap: 9px;
-		margin-top: 11px;
-	}
-
-	.bab-num {
-		font: 400 17px var(--serif);
-	}
-
-	.own {
-		border-radius: 7px;
-		padding: 3px 8px;
-		font: 600 10px var(--sans);
-		background: var(--sage-wash);
-		color: var(--sage);
-	}
-
-	.strip {
-		display: flex;
-		align-items: flex-end;
-		gap: 1px;
-		height: 18px;
-		margin-top: 12px;
-	}
-
-	.col {
-		flex: 1;
-		min-width: 0;
-		border-radius: 1.5px;
-	}
-
-	.body {
-		padding: 22px 20px 16px;
-		direction: rtl;
-		text-align: right;
-	}
-
-	.ornament-open {
-		font: 400 15px/1 var(--serif);
-		color: var(--sage);
-		text-align: center;
-		margin-bottom: 18px;
-	}
-
-	.lines {
-		display: flex;
-		flex-direction: column;
-		gap: 9px;
-	}
-
-	.line {
-		height: 9px;
-		border-radius: 5px;
-		background-image: repeating-linear-gradient(
-			135deg,
-			rgba(28, 29, 26, 0.09) 0 6px,
-			transparent 6px 12px
-		);
-	}
-
-	.line.short {
-		width: 72%;
-	}
-
-	.line-row {
-		display: flex;
-		align-items: center;
-		gap: 9px;
-	}
-
-	.line.grow {
-		flex: 1;
-	}
-
-	.rosette {
-		flex: none;
-		position: relative;
-		width: 26px;
-		height: 26px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-	}
-
-	.rosette svg {
-		position: absolute;
-		inset: 0;
-	}
-
-	.rosette-n {
-		position: relative;
-		font: 400 10px/1 var(--serif);
-		color: #a65d5d;
-	}
-
-	.actions {
-		flex: none;
-		border-top: 1px solid rgba(28, 29, 26, 0.07);
-		padding: 11px 18px 18px;
-		display: flex;
-		gap: 8px;
-		align-items: center;
-	}
-
-	.pill {
-		flex: none;
-		border: 1px solid rgba(28, 29, 26, 0.14);
-		background: var(--white);
-		border-radius: 13px;
-		padding: 13px 15px;
-		display: flex;
-	}
-
-	.mark {
-		flex: 1;
-		text-align: center;
-		background: var(--ink);
-		color: #fff;
-		border-radius: 13px;
-		padding: 14px 12px;
-		font: 600 12.5px var(--sans);
+		display: block;
 	}
 </style>

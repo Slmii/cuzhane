@@ -32,6 +32,7 @@ coverage
 
 # Astro's generated types and content cache, rewritten on every build
 apps/marketing/.astro
+apps/marketing/marketing-video
 
 .tanstack
 .playwright-mcp

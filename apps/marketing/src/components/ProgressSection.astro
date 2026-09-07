@@ -1,4 +1,6 @@
 ---
+import { Image } from 'astro:assets';
+import groupShot from '../assets/04-group.png';
 import { copyFor, type Locale } from '../i18n/copy';
 
 interface Props {
@@ -7,9 +9,6 @@ interface Props {
 
 const { locale } = Astro.props;
 const t = copyFor(locale);
-
-/** The last row is the pool's own share rather than a member's, and is drawn in sand. */
-const POOL_ROW_INDEX = 3;
 ---
 
 <section id="ilerleme" class="shell section progress">
@@ -19,41 +18,13 @@ const POOL_ROW_INDEX = 3;
 		<p class="lede reveal">{t.progBody}</p>
 	</div>
 
-	<div class="card reveal">
-		<div class="card-top">
-			<span class="round">{t.progRound}</span>
-			<span class="count">
-				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
-					<circle cx="12" cy="12" r="8.3"></circle>
-					<path d="M12 7.6V12l3 1.8"></path>
-				</svg>
-				{t.progCountdown}
-			</span>
-		</div>
-
-		<div class="total">
-			<span class="total-n">78</span>
-			<span class="total-l">{t.progDone}</span>
-		</div>
-		<div class="bar"><div class="bar-fill"></div></div>
-
-		<p class="members-cap">{t.progMembersCap}</p>
-		<ul class="members">
-			{
-				t.progMembers.map((member, index) => (
-					<li class:list={{ pool: index === POOL_ROW_INDEX }}>
-						<span class="chip">{member.r}</span>
-						<span class="who">
-							<span class="name">{member.n}</span>
-							<span class="mbar">
-								<span class="mbar-fill" style={`width:${member.p}`} />
-							</span>
-						</span>
-						<span class="pct">{member.p}</span>
-					</li>
-				))
-			}
-		</ul>
+	{/*
+	 * The board as it actually looks, rather than a card approximating it. Same treatment as
+	 * the reader's shot below — a 34px frame and the 8px bezel the design uses everywhere a
+	 * phone appears on the page.
+	 */}
+	<div class="stage">
+		<Image class="phone reveal" src={groupShot} alt={t.shotGroup} widths={[300, 600, 900]} sizes="300px" />
 	</div>
 </section>
 
@@ -69,150 +40,20 @@ const POOL_ROW_INDEX = 3;
 		max-width: 440px;
 	}
 
-	.card {
-		background: var(--white);
-		border: 1px solid var(--line);
-		border-radius: 24px;
-		box-shadow: 0 14px 40px rgba(28, 29, 26, 0.07);
-		padding: 24px 24px 12px;
-	}
-
-	.card-top {
+	.stage {
 		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 12px;
-		flex-wrap: wrap;
+		justify-content: center;
 	}
 
-	.round {
-		font: 600 11px var(--sans);
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
-		background: var(--sage-wash);
-		color: var(--sage);
-		border-radius: 7px;
-		padding: 5px 9px;
-	}
-
-	.count {
-		display: flex;
-		align-items: center;
-		gap: 7px;
-		font: 400 12px var(--sans);
-		color: #8c6a3c;
-	}
-
-	.total {
-		display: flex;
-		align-items: baseline;
-		gap: 8px;
-		margin: 18px 0 9px;
-	}
-
-	.total-n {
-		font: 400 34px/1 var(--serif);
-		color: var(--sage);
-	}
-
-	.total-l {
-		font: 400 12.5px var(--sans);
-		color: rgba(28, 29, 26, 0.55);
-	}
-
-	.bar {
-		height: 7px;
-		border-radius: 4px;
-		background: #eceae4;
-		overflow: hidden;
-	}
-
-	.bar-fill {
-		height: 100%;
-		width: 78%;
-		border-radius: 4px;
-		background: var(--sage);
-	}
-
-	.members-cap {
-		font: 500 10.5px var(--sans);
-		letter-spacing: 0.1em;
-		text-transform: uppercase;
-		color: rgba(28, 29, 26, 0.45);
-		margin: 22px 0 4px;
-	}
-
-	.members {
-		margin: 0;
-		padding: 0;
-		list-style: none;
-	}
-
-	.members li {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-		padding: 13px 0;
-		border-top: 1px solid rgba(28, 29, 26, 0.07);
-	}
-
-	.chip {
+	.phone {
 		flex: none;
-		font: 600 11px var(--sans);
-		background: var(--sage-wash);
-		color: var(--sage);
-		border-radius: 7px;
-		padding: 5px 8px;
-		white-space: nowrap;
-	}
-
-	.who {
-		flex: 1;
-		min-width: 0;
-		display: flex;
-		flex-direction: column;
-		gap: 6px;
-	}
-
-	.name {
-		font: 600 12.5px var(--sans);
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-
-	.mbar {
+		width: 300px;
+		max-width: 100%;
+		height: auto;
+		border-radius: 34px;
+		box-shadow:
+			0 22px 54px rgba(28, 29, 26, 0.16),
+			0 0 0 8px #16171a;
 		display: block;
-		height: 5px;
-		border-radius: 3px;
-		background: #eceae4;
-		overflow: hidden;
-	}
-
-	.mbar-fill {
-		display: block;
-		height: 100%;
-		background: var(--sage);
-	}
-
-	.pct {
-		flex: none;
-		font: 500 11px var(--mono);
-		color: rgba(28, 29, 26, 0.5);
-	}
-
-	/* The pool's row is the one nobody has taken; sand rather than sage says "still open"
-	   without reading as a member who has fallen behind. */
-	.pool .chip {
-		background: #f7eedc;
-		color: #8c6a3c;
-	}
-
-	.pool .name {
-		color: #8c6a3c;
-	}
-
-	.pool .mbar-fill {
-		background: #e4c98f;
 	}
 </style>

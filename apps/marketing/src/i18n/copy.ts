@@ -24,6 +24,19 @@ export const LOCALE_TAGS: Record<Locale, string> = {
 	tr: 'tr-TR'
 };
 
+/**
+ * `og:locale` is not `hreflang`, and lowercasing the tag with an underscore in it is the usual
+ * way to get this wrong. Open Graph wants `language_TERRITORY` — a bare `en`, which is a
+ * perfectly good `hreflang`, is not a valid `og:locale` and Facebook falls back to `en_US`
+ * silently. Spelled out rather than derived, because the territory is a choice: `en_US` is the
+ * one Facebook actually recognises, not `en_GB`, whatever the copy's spelling.
+ */
+export const OG_LOCALES: Record<Locale, string> = {
+	en: 'en_US',
+	nl: 'nl_NL',
+	tr: 'tr_TR'
+};
+
 const tr = {
 	// Head — not shown on the page, but the most-read words on it.
 	metaTitle: 'Cüzhane · Cevşen gruplarında payını oku, turu tamamla',
@@ -44,14 +57,10 @@ const tr = {
 	ctaJoin: 'Kodla katıl',
 	heroMeta: 'iOS ve Android · Türkçe, English, Nederlands · reklamsız',
 
-	mockGreet: 'İyi akşamlar',
-	mockName: 'Emine',
-	mockPoolTitle: 'Sahipsiz bablar',
-	mockPoolSub: ' 3 bab havuzda · üstlenmek için dokun',
-	mockStreakCap: 'Seri',
-	mockStreakVal: '12 gün',
-	mockGroupsCap: 'Gruplarım',
-	mockAlt: 'Cüzhane ana ekranı: seri, hafta şeridi ve grup satırları',
+	shotHome: 'Cüzhane ana ekranı: seri, hafta şeridi ve grup satırları',
+	shotGroup: 'Cüzhane grup ekranı: yüz bablık pano ve üyelerin payları',
+	shotReader: 'Cüzhane okuma ekranı: bab şeridi, Arapça metin ve okundu işareti',
+	ogImageAlt: 'Cüzhane uygulamasının grup okuma ekranı',
 
 	poolEyebrow: 'Uygulamanın kalbi',
 	poolTitle: 'Yüz bab, ortada duran bir havuz.',
@@ -90,11 +99,6 @@ const tr = {
 		'Ayete uzun basınca meali açılır',
 		'Kaldığın bab hatırlanır; gece temasıyla devam eder'
 	],
-	readerBab: '46. bab · 100 içinde',
-	readerMark: 'Okundu işaretle',
-	readerAa: 'Aa',
-	readerOwn: 'Payım',
-	readerAlt: 'Cüzhane okuma ekranı: bab şeridi, Arapça metin ve okundu işareti',
 
 	shelfTitle: 'Raf tamamen dolduğunda tur tamamlanır.',
 	shelfBody:
@@ -106,16 +110,6 @@ const tr = {
 	progTitle: 'Tur nerede, kim nerede — tek bakışta.',
 	progBody:
 		'Her tur için grup ilerlemesi, üstlenilen bablar ve süre geri sayımı. Eksik bab kalırsa gruba nazikçe hatırlatılır; suçlayan bir liste değil, birlikte kapatılacak bir boşluk.',
-	progRound: 'Tur 23',
-	progCountdown: '6 sa 12 dk kaldı',
-	progDone: '78 / 100 bab',
-	progMembersCap: 'Üyeler ve payları',
-	progMembers: [
-		{ n: 'Emine', r: '1–5 bab', p: '100%' },
-		{ n: 'Yusuf', r: '6–12 bab', p: '72%' },
-		{ n: 'Havva', r: '13–18 bab', p: '48%' },
-		{ n: 'Havuzda', r: '19–24 bab', p: '0%' }
-	],
 
 	featTitle: 'Bir turu birlikte yürütmek için gereken her şey.',
 	feats: [
@@ -187,14 +181,10 @@ const en: typeof tr = {
 	ctaJoin: 'Join with a code',
 	heroMeta: 'iOS and Android · Türkçe, English, Nederlands · no ads',
 
-	mockGreet: 'Good evening',
-	mockName: 'Emine',
-	mockPoolTitle: 'Unclaimed babs',
-	mockPoolSub: '3 babs in the pool · tap to claim',
-	mockStreakCap: 'Streak',
-	mockStreakVal: '12 days',
-	mockGroupsCap: 'My groups',
-	mockAlt: "Cüzhane's home screen: streak, week strip and group rows",
+	shotHome: "Cüzhane's home screen: streak, week strip and group rows",
+	shotGroup: "Cüzhane's group screen: the hundred-bab board and each member's share",
+	shotReader: "Cüzhane's reader: the bab strip, Arabic text and the mark-as-read action",
+	ogImageAlt: 'Group reading screen of the Cüzhane app',
 
 	poolEyebrow: 'The heart of the app',
 	poolTitle: 'A hundred babs, and a pool left in the open.',
@@ -233,11 +223,6 @@ const en: typeof tr = {
 		'Long-press a verse to open its translation',
 		'Your last bab is remembered, and carries over into the dark theme'
 	],
-	readerBab: 'bab 46 of 100',
-	readerMark: 'Mark as read',
-	readerAa: 'Aa',
-	readerOwn: 'My share',
-	readerAlt: "Cüzhane's reader: the bab strip, Arabic text and the mark-as-read action",
 
 	shelfTitle: 'When the shelf is full, the round is complete.',
 	shelfBody:
@@ -249,16 +234,6 @@ const en: typeof tr = {
 	progTitle: 'Where the round stands, and where everyone is.',
 	progBody:
 		'Progress, claimed babs and the countdown for every round. If babs are left over, the group gets a gentle reminder — not a list of blame, just a gap to close together.',
-	progRound: 'Round 23',
-	progCountdown: '6 h 12 m left',
-	progDone: '78 / 100 babs',
-	progMembersCap: 'Members and their shares',
-	progMembers: [
-		{ n: 'Emine', r: 'babs 1–5', p: '100%' },
-		{ n: 'Yusuf', r: 'babs 6–12', p: '72%' },
-		{ n: 'Havva', r: 'babs 13–18', p: '48%' },
-		{ n: 'In the pool', r: 'babs 19–24', p: '0%' }
-	],
 
 	featTitle: 'Everything a group round actually needs.',
 	feats: [
@@ -333,14 +308,10 @@ const nl: typeof tr = {
 	ctaJoin: 'Meedoen met code',
 	heroMeta: 'iOS en Android · Türkçe, English, Nederlands · geen advertenties',
 
-	mockGreet: 'Goedenavond',
-	mockName: 'Emine',
-	mockPoolTitle: 'Vrije babs',
-	mockPoolSub: '3 babs in de pool · tik om te nemen',
-	mockStreakCap: 'Reeks',
-	mockStreakVal: '12 dagen',
-	mockGroupsCap: 'Mijn groepen',
-	mockAlt: 'Het beginscherm van Cüzhane: reeks, weekstrook en groepsrijen',
+	shotHome: 'Het beginscherm van Cüzhane: reeks, weekstrook en groepsrijen',
+	shotGroup: 'Het groepsscherm van Cüzhane: het bord van honderd babs en ieders deel',
+	shotReader: 'Het leesscherm van Cüzhane: de babstrook, Arabische tekst en de afvinkknop',
+	ogImageAlt: 'Groepsleesscherm van de Cüzhane-app',
 
 	poolEyebrow: 'Het hart van de app',
 	poolTitle: 'Honderd babs en een pool die open blijft.',
@@ -379,11 +350,6 @@ const nl: typeof tr = {
 		'Houd een vers vast om de vertaling te openen',
 		'Je laatste bab wordt onthouden, ook in het donkere thema'
 	],
-	readerBab: 'bab 46 van 100',
-	readerMark: 'Als gelezen markeren',
-	readerAa: 'Aa',
-	readerOwn: 'Mijn deel',
-	readerAlt: 'Het leesscherm van Cüzhane: de babstrook, Arabische tekst en de afvinkknop',
 
 	shelfTitle: 'Is het rek vol, dan is de ronde klaar.',
 	shelfBody:
@@ -395,16 +361,6 @@ const nl: typeof tr = {
 	progTitle: 'Waar de ronde staat en waar iedereen zit.',
 	progBody:
 		'Voortgang, genomen babs en de aftelling voor elke ronde. Blijven er babs liggen, dan krijgt de groep een vriendelijke herinnering — geen lijst met verwijten, maar een gat om samen te dichten.',
-	progRound: 'Ronde 23',
-	progCountdown: '6 u 12 m over',
-	progDone: '78 / 100 babs',
-	progMembersCap: 'Leden en hun delen',
-	progMembers: [
-		{ n: 'Emine', r: 'bab 1–5', p: '100%' },
-		{ n: 'Yusuf', r: 'bab 6–12', p: '72%' },
-		{ n: 'Havva', r: 'bab 13–18', p: '48%' },
-		{ n: 'In de pool', r: 'bab 19–24', p: '0%' }
-	],
 
 	featTitle: 'Alles wat een ronde in groep echt nodig heeft.',
 	feats: [
@@ -468,29 +424,3 @@ export type Copy = typeof tr;
 const COPY: Record<Locale, Copy> = { en, nl, tr };
 
 export const copyFor = (locale: Locale): Copy => COPY[locale];
-
-/** The seven weekday initials the phone mock's streak strip draws. */
-export const WEEK_INITIALS: Record<Locale, readonly string[]> = {
-	en: ['M', 'T', 'W', 'T', 'F', 'S', 'S'],
-	nl: ['M', 'D', 'W', 'D', 'V', 'Z', 'Z'],
-	tr: ['P', 'S', 'Ç', 'P', 'C', 'C', 'P']
-};
-
-/** The three groups in the phone mock, whose names are the only translated part. */
-export const MOCK_ROWS: Record<Locale, readonly { range: string; name: string; pct: string; cta: string }[]> = {
-	en: [
-		{ cta: 'Read', name: 'Neighbourhood', pct: '72%', range: '1–5' },
-		{ cta: 'Done', name: 'Friday circle', pct: '100%', range: '12' },
-		{ cta: 'Read', name: 'Family', pct: '34%', range: '23–24' }
-	],
-	nl: [
-		{ cta: 'Lees', name: 'Wijkgroep', pct: '72%', range: '1–5' },
-		{ cta: 'Klaar', name: 'Vrijdagkring', pct: '100%', range: '12' },
-		{ cta: 'Lees', name: 'Familie', pct: '34%', range: '23–24' }
-	],
-	tr: [
-		{ cta: 'Oku', name: 'Mahalle grubu', pct: '72%', range: '1–5' },
-		{ cta: 'Bitti', name: 'Cuma halkası', pct: '100%', range: '12' },
-		{ cta: 'Oku', name: 'Aile', pct: '34%', range: '23–24' }
-	]
-};
