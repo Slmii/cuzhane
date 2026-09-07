@@ -78,6 +78,8 @@ const privacyTr: LegalPage = {
 			heading: 'Verini silmek',
 			paragraphs: [
 				'Uygulama içinden Profil → Hesabı sil yolunu izlediğinde hesabın ve verin kalıcı olarak silinir: kurduğun gruplar üyeleriyle birlikte, katıldığın gruplardaki üyeliklerin, ayarların, cihaz anahtarların ve gönderdiğin geri bildirimler. Bu işlem geri alınamaz.',
+				'Katıldığın (ama kurmadığın) bir grupta, hangi babın hangi turda okunduğu kaydı grubun geçmişinde kalır — kalmasaydı diğer üyelerin birlikte tamamladığı turlar eksik görünürdü. Bu kayıt yalnızca bir hesap kimliği taşır; adın, e-postan ve fotoğrafın silindiği için artık bir kişiye çözülmez.',
+				'Veritabanının şifreli yedekleri sunucuda 14 gün, sunucu dışında en fazla 90 gün tutulur; silinen bir kayıt en çok o kadar süre yedeklerde kalır. Ayrıntı: /delete-account sayfası.',
 				`Silme, düzeltme veya verine erişim taleplerin için ${CONTACT_EMAIL} adresine yazabilirsin.`
 			]
 		},
@@ -141,6 +143,8 @@ const privacyEn: LegalPage = {
 			heading: 'Deleting your data',
 			paragraphs: [
 				'Profile → Delete account, inside the app, permanently deletes your account and your data: groups you own along with their members, your memberships in groups you joined, your settings, your device keys, and any feedback you sent. This cannot be undone.',
+				'In a group you joined but did not create, the record that a bab was read in a given round stays in that group’s history — without it, rounds the other members finished together would develop holes. That record carries an account identifier and nothing else, and once your account is gone it no longer resolves to a person.',
+				'Encrypted backups of the database are kept for 14 days on the server and at most 90 days off-site, so a deleted record persists in those snapshots for up to that long. The account deletion page has the detail.',
 				`For access, correction or deletion requests, write to ${CONTACT_EMAIL}.`
 			]
 		},
@@ -204,6 +208,8 @@ const privacyNl: LegalPage = {
 			heading: 'Je gegevens verwijderen',
 			paragraphs: [
 				'Via Profiel → Account verwijderen in de app worden je account en je gegevens definitief verwijderd: groepen die je zelf maakte inclusief hun leden, je lidmaatschappen in andere groepen, je instellingen, je apparaatsleutels en de feedback die je stuurde. Dit kan niet ongedaan worden gemaakt.',
+				'In een groep waaraan je deelnam maar die je niet zelf maakte, blijft de vastlegging dat een bab in een bepaalde ronde is gelezen in de geschiedenis van die groep staan — anders zouden rondes die de andere leden samen afmaakten gaten vertonen. Die vastlegging bevat alleen een account-identificatie en verwijst na verwijdering van je account niet meer naar een persoon.',
+				'Versleutelde back-ups van de database worden 14 dagen op de server bewaard en maximaal 90 dagen daarbuiten; een verwijderde vastlegging blijft zolang in die momentopnamen bestaan. De pagina over accountverwijdering geeft de details.',
 				`Voor inzage, correctie of verwijdering kun je mailen naar ${CONTACT_EMAIL}.`
 			]
 		},
@@ -327,5 +333,204 @@ const supportNl: LegalPage = {
 	]
 };
 
+/*
+ * **The account-deletion page, and it exists because Google asks for it by URL.** Play Console
+ * requires a public page that names the app, spells out the steps, and says which data is
+ * deleted, which is kept and for how long — a link into a section of the privacy policy does
+ * not reliably satisfy a reviewer, so this is a page of its own.
+ *
+ * Two facts on it are easy to get wrong and are checked against the code rather than assumed:
+ *
+ *  · `account.service.ts` does **not** delete `BabRead`. Groups the reader *owned* are deleted
+ *    outright and their reads cascade with them, but in a group they merely *joined* the record
+ *    that a bab was read in a given round stays — otherwise every past round would develop
+ *    holes for the members who are still in that group. Those rows carry the account id and no
+ *    other identifier.
+ *  · Backups outlive the delete. `deploy/backup.sh` keeps 14 days on the droplet and
+ *    `R2_KEEP_DAYS` 90 off-site, so a deleted row survives in encrypted snapshots for up to 90
+ *    days before the last one holding it is dropped. That is exactly the "additional retention
+ *    period" Play asks about, so it is stated rather than glossed.
+ */
+const deleteAccountTr: LegalPage = {
+	title: 'Hesabını silmek',
+	metaTitle: 'Hesabını silmek · Cüzhane',
+	metaDescription:
+		'Cüzhane hesabını ve verini nasıl silersin, silindiğinde ne gider, ne kalır ve ne kadar süreyle.',
+	updated: UPDATED,
+	intro:
+		'Cüzhane hesabını uygulamanın içinden kendin silebilirsin. Silme kalıcıdır ve geri alınamaz.',
+	sections: [
+		{
+			heading: 'Uygulamadan sil',
+			paragraphs: ['Hesabını silmek için:'],
+			bullets: [
+				'Cüzhane uygulamasını aç ve hesabınla giriş yap.',
+				'Alt bardan Profil sekmesine geç.',
+				'Hesabı sil satırına dokun.',
+				'Çıkan onayı kabul et.'
+			]
+		},
+		{
+			heading: 'Giriş yapamıyorsan',
+			paragraphs: [
+				`Hesabına ulaşamıyorsan ${CONTACT_EMAIL} adresine, hesabında kayıtlı e-posta adresinden yaz. Talebi doğruladıktan sonra hesabı 30 gün içinde sileriz.`
+			]
+		},
+		{
+			heading: 'Silinen veriler',
+			paragraphs: ['Hesabınla birlikte şunlar kalıcı olarak silinir:'],
+			bullets: [
+				'Hesabın: e-posta adresin, adın ve varsa profil fotoğrafın.',
+				'Kurduğun gruplar — üyeleri, panoları ve davet kodlarıyla birlikte.',
+				'Katıldığın gruplardaki üyeliklerin ve üstlendiğin bablar.',
+				'Ayarların: dil, tema, hatırlatma saati.',
+				'Bildirim için saklanan cihaz anahtarların.',
+				'Uygulamadan gönderdiğin geri bildirim mesajları.'
+			]
+		},
+		{
+			heading: 'Kalan veriler',
+			paragraphs: [
+				'Katıldığın (ama kurmadığın) bir grupta, hangi babın hangi turda okunduğu kaydı grubun geçmişinde kalır. Kalmasaydı, o gruptaki diğer üyelerin tamamladığı turlar eksik görünürdü. Bu kayıt yalnızca bir hesap kimliği taşır; adın, e-postan veya fotoğrafın silindiği için bu kimlik artık bir kişiye çözülmez.',
+				'Kurduğun gruplar tümüyle silindiği için oradaki okuma kayıtları da gider.'
+			]
+		},
+		{
+			heading: 'Yedekler',
+			paragraphs: [
+				'Veritabanının şifreli yedekleri sunucuda 14 gün, sunucu dışında en fazla 90 gün tutulur. Silinen bir kayıt, o yedeklerin sonuncusu düşene kadar — en çok 90 gün — şifreli olarak var olmaya devam eder. Yedekler yalnızca felaket kurtarma için tutulur, uygulamaya geri okunmaz.'
+			]
+		},
+		{
+			heading: 'Hesabını silmeden veri silmek',
+			paragraphs: [
+				`Verinin bir kısmının silinmesini istiyorsan — örneğin gönderdiğin geri bildirimler — hesabını silmeden ${CONTACT_EMAIL} adresine yazabilirsin. Erişim ve düzeltme talepleri de aynı adrese.`
+			]
+		}
+	]
+};
+
+const deleteAccountEn: LegalPage = {
+	title: 'Delete your account',
+	metaTitle: 'Delete your account · Cüzhane',
+	metaDescription:
+		'How to delete your Cüzhane account and your data, what is removed, what is kept, and for how long.',
+	updated: UPDATED,
+	intro: 'You can delete your Cüzhane account yourself, from inside the app. Deletion is permanent and cannot be undone.',
+	sections: [
+		{
+			heading: 'Delete it in the app',
+			paragraphs: ['To delete your account:'],
+			bullets: [
+				'Open the Cüzhane app and sign in to your account.',
+				'Go to the Profile tab in the bottom bar.',
+				'Tap Delete account.',
+				'Confirm when asked.'
+			]
+		},
+		{
+			heading: 'If you cannot sign in',
+			paragraphs: [
+				`If you cannot get into your account, write to ${CONTACT_EMAIL} from the email address the account uses. Once we have confirmed the request, the account is deleted within 30 days.`
+			]
+		},
+		{
+			heading: 'What is deleted',
+			paragraphs: ['Deleting your account permanently removes:'],
+			bullets: [
+				'Your account: your email address, your name, and your profile photo if you set one.',
+				'Groups you created — along with their members, boards and invite codes.',
+				'Your memberships in groups you joined, and any babs you had claimed.',
+				'Your settings: language, theme, reminder time.',
+				'The device keys stored for notifications.',
+				'Feedback messages you sent from the app.'
+			]
+		},
+		{
+			heading: 'What is kept, and why',
+			paragraphs: [
+				'In a group you joined but did not create, the record that a bab was read in a given round stays in that group’s history. Without it, rounds the other members finished together would develop holes. That record carries an account identifier and nothing else — no name, no email, no photo — and once the account is gone the identifier no longer resolves to a person.',
+				'Groups you created are deleted outright, so the reading records inside them go too.'
+			]
+		},
+		{
+			heading: 'Backups',
+			paragraphs: [
+				'Encrypted backups of the database are kept for 14 days on the server and for at most 90 days off-site. A deleted record therefore continues to exist inside those encrypted snapshots until the last one holding it is dropped — at most 90 days. Backups exist for disaster recovery and are never read back into the app.'
+			]
+		},
+		{
+			heading: 'Deleting data without deleting your account',
+			paragraphs: [
+				`If you want part of your data removed — the feedback you sent, for instance — without deleting your account, write to ${CONTACT_EMAIL}. Requests for access to or correction of your data go to the same address.`
+			]
+		}
+	]
+};
+
+const deleteAccountNl: LegalPage = {
+	title: 'Je account verwijderen',
+	metaTitle: 'Je account verwijderen · Cüzhane',
+	metaDescription:
+		'Hoe je je Cüzhane-account en je gegevens verwijdert, wat er weggaat, wat er blijft en hoelang.',
+	updated: UPDATED,
+	intro:
+		'Je kunt je Cüzhane-account zelf verwijderen, vanuit de app. Verwijderen is definitief en kan niet ongedaan worden gemaakt.',
+	sections: [
+		{
+			heading: 'Verwijderen in de app',
+			paragraphs: ['Zo verwijder je je account:'],
+			bullets: [
+				'Open de Cüzhane-app en log in op je account.',
+				'Ga naar het tabblad Profiel in de onderste balk.',
+				'Tik op Account verwijderen.',
+				'Bevestig wanneer daarom wordt gevraagd.'
+			]
+		},
+		{
+			heading: 'Als je niet kunt inloggen',
+			paragraphs: [
+				`Kom je niet meer in je account, mail dan naar ${CONTACT_EMAIL} vanaf het e-mailadres dat bij het account hoort. Na bevestiging van het verzoek verwijderen we het account binnen 30 dagen.`
+			]
+		},
+		{
+			heading: 'Wat er wordt verwijderd',
+			paragraphs: ['Bij het verwijderen van je account gaat het volgende definitief weg:'],
+			bullets: [
+				'Je account: je e-mailadres, je naam en je profielfoto als je die hebt ingesteld.',
+				'Groepen die je zelf hebt gemaakt — inclusief hun leden, borden en uitnodigingscodes.',
+				'Je lidmaatschappen in groepen waaraan je deelnam, en babs die je had genomen.',
+				'Je instellingen: taal, thema, herinneringstijd.',
+				'De apparaatsleutels die voor meldingen worden bewaard.',
+				'Feedbackberichten die je vanuit de app hebt gestuurd.'
+			]
+		},
+		{
+			heading: 'Wat er blijft, en waarom',
+			paragraphs: [
+				'In een groep waaraan je deelnam maar die je niet zelf maakte, blijft de vastlegging dat een bab in een bepaalde ronde is gelezen in de geschiedenis van die groep staan. Zonder die vastlegging zouden rondes die de andere leden samen hebben afgemaakt gaten vertonen. Die vastlegging bevat alleen een account-identificatie — geen naam, geen e-mailadres, geen foto — en zodra het account weg is, verwijst die identificatie niet meer naar een persoon.',
+				'Groepen die je zelf maakte worden volledig verwijderd, dus de leesvastleggingen daarin gaan mee.'
+			]
+		},
+		{
+			heading: 'Back-ups',
+			paragraphs: [
+				'Versleutelde back-ups van de database worden 14 dagen op de server bewaard en maximaal 90 dagen daarbuiten. Een verwijderde vastlegging blijft daardoor in die versleutelde momentopnamen bestaan tot de laatste back-up die haar bevat vervalt — maximaal 90 dagen. Back-ups bestaan voor noodherstel en worden nooit teruggelezen in de app.'
+			]
+		},
+		{
+			heading: 'Gegevens verwijderen zonder je account te verwijderen',
+			paragraphs: [
+				`Wil je een deel van je gegevens laten verwijderen — bijvoorbeeld de feedback die je stuurde — zonder je account op te heffen, mail dan naar ${CONTACT_EMAIL}. Verzoeken om inzage of correctie gaan naar hetzelfde adres.`
+			]
+		}
+	]
+};
+
 export const PRIVACY: Record<Locale, LegalPage> = { en: privacyEn, nl: privacyNl, tr: privacyTr };
 export const SUPPORT: Record<Locale, LegalPage> = { en: supportEn, nl: supportNl, tr: supportTr };
+export const DELETE_ACCOUNT: Record<Locale, LegalPage> = {
+	en: deleteAccountEn,
+	nl: deleteAccountNl,
+	tr: deleteAccountTr
+};

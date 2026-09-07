@@ -1,6 +1,7 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/generated/prisma/client';
 import { BAB_COUNT, babNumbersForRound, babNumbersForSlot } from '../src/utils/babs';
+import { INVITE_CODE_ALPHABET } from '../src/utils/inviteCode';
 import { DEFAULT_TIME_ZONE, ROUND_DAYS, roundEndsAt, roundIndexSince, roundStartedAtFor } from '../src/utils/rounds';
 
 /**
@@ -65,6 +66,61 @@ const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) })
  * account on the device.
  */
 const OWNER_USER_ID = process.env.SEED_USER_ID ?? 'dev_user';
+
+/**
+ * **A second account's fixtures, alongside the first rather than instead of it.**
+ *
+ * Every group below carries a fixed invite code, and `seedGroup` finds the existing row *by
+ * that code* and deletes it before rebuilding. That is what makes re-running the seed safe —
+ * and it also means a second run under a different `SEED_USER_ID` would hand the same fifteen
+ * groups to the new account and take them off the old one. Fine when you are moving fixtures,
+ * useless when you want a phone signed in as A and a phone signed in as B both looking
+ * populated at once, which is what taking iOS and Android screenshots in one sitting needs.
+ *
+ * A namespace gives the second account its own fifteen. It replaces the **last character** of
+ * every invite code, so:
+ *
+ *   SEED_USER_ID=user_aaa pnpm --filter @cuzhane/server db:seed
+ *   SEED_USER_ID=user_bbb SEED_NAMESPACE=9 pnpm --filter @cuzhane/server db:seed
+ *
+ * leaves both sets standing. The last character rather than a prefix or an extra one because
+ * `INVITE_CODE_LENGTH` is 8 and the QR emblem zone is only known to be safe at symbol version
+ * 3 — `inviteCode.test.ts` pins that, and a ninth character would push the payload over.
+ */
+const SEED_NAMESPACE = process.env.SEED_NAMESPACE;
+
+/**
+ * The code this run should use for a fixture. Unnamespaced runs get the literal code, so the
+ * default fixtures keep the codes they have always had and a plain re-seed still replaces them
+ * in place.
+ */
+const codeFor = (base: string): string => (SEED_NAMESPACE ? base.slice(0, -1) + SEED_NAMESPACE : base);
+
+/** Runs before the first write, because half a seeded namespace is worse than none. */
+const assertNamespaceIsUsable = () => {
+	if (SEED_NAMESPACE === undefined) {
+		return;
+	}
+
+	if (SEED_NAMESPACE.length !== 1 || !INVITE_CODE_ALPHABET.includes(SEED_NAMESPACE)) {
+		throw new Error(
+			`SEED_NAMESPACE must be exactly one character from ${INVITE_CODE_ALPHABET} — got ${JSON.stringify(SEED_NAMESPACE)}.`
+		);
+	}
+
+	/*
+	 * The fifteen base codes have distinct first seven characters, so swapping the eighth keeps
+	 * them unique among themselves. Asserted rather than assumed: a future fixture whose code
+	 * differs from another's only in its last character would silently seed fourteen groups,
+	 * the second quietly deleting the first.
+	 */
+	const codes = GROUPS.map(spec => codeFor(spec.inviteCode));
+	const collisions = [...new Set(codes.filter((code, index) => codes.indexOf(code) !== index))];
+
+	if (collisions.length > 0) {
+		throw new Error(`SEED_NAMESPACE=${SEED_NAMESPACE} collapses invite codes: ${collisions.join(', ')}.`);
+	}
+};
 
 /** [display name, babs this seat has read], or `null` for a seat with no member. */
 type MemberSeed = [string, number] | null;
@@ -626,7 +682,8 @@ const seedGroup = async (spec: GroupSeed) => {
 		throw new Error(`"${spec.name}": a group that hasn't started has no closed rounds to describe.`);
 	}
 
-	const existing = await prisma.group.findUnique({ where: { inviteCode: spec.inviteCode } });
+	const inviteCode = codeFor(spec.inviteCode);
+	const existing = await prisma.group.findUnique({ where: { inviteCode } });
 
 	if (existing) {
 		// Cascades through members, babs, cheers and waitlist entries.
@@ -660,7 +717,7 @@ const seedGroup = async (spec: GroupSeed) => {
 			autoStartWhenFull: spec.autoStartWhenFull,
 			cycle: spec.cycle,
 			spots: spec.spots,
-			inviteCode: spec.inviteCode,
+			inviteCode,
 			openToJoin: true,
 			reminderEnabled: true,
 			reminderTime: spec.reminderTime,
@@ -817,6 +874,8 @@ const seedGroup = async (spec: GroupSeed) => {
 };
 
 const seed = async () => {
+	assertNamespaceIsUsable();
+
 	for (const spec of GROUPS) {
 		await seedGroup(spec);
 	}
