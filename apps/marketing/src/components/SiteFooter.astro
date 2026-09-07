@@ -1,5 +1,6 @@
 ---
-
+import { Image } from 'astro:assets';
+import companyLogo from '../assets/company.png';
 import { copyFor, type Locale } from '../i18n/copy';
 import { pathFor } from '../i18n/routing';
 
@@ -12,7 +13,25 @@ const t = copyFor(locale);
 ---
 
 <footer class="shell foot">
-	<span>{t.footLeft}</span>
+	<span class="made">
+		{t.footLeft}
+		<span class="sep" aria-hidden="true">·</span>
+		{t.footMadeBy}
+		{/*
+		 * **The chip is not decoration — the logo is white-only.** Every opaque pixel of the
+		 * wordmark is #FFF (the leaves and the "it" carry the coral); on the footer's `--paper`
+		 * beige "sbytes" would simply not be there. The alternatives were recolouring somebody
+		 * else's mark, which isn't ours to do, or asking for a dark-ground variant — so it sits
+		 * on a small ink plate instead and keeps its own colours exactly.
+		 *
+		 * `alt` names the company rather than describing the picture, because the visible "Made
+		 * by" already supplies the verb: a screen reader should hear "Made by s-bytes it", not
+		 * "Made by company logo".
+		 */}
+		<a class="chip" href="https://sbytes-it.com" rel="noopener noreferrer" target="_blank">
+			<Image src={companyLogo} alt="s-bytes it" widths={[96, 192]} sizes="96px" loading="lazy" />
+		</a>
+	</span>
 	<span class="links">
 		{/* App Store Connect requires both of these as live URLs before a listing can be
 		    submitted, which is why they are real pages rather than anchors. */}
@@ -34,6 +53,38 @@ const t = copyFor(locale);
 		padding-bottom: 40px;
 		font: 400 12px var(--sans);
 		color: rgba(28, 29, 26, 0.64);
+	}
+
+	.made {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		flex-wrap: wrap;
+	}
+
+	.sep {
+		color: rgba(28, 29, 26, 0.3);
+	}
+
+	.chip {
+		display: inline-flex;
+		align-items: center;
+		line-height: 0;
+		transition:
+			opacity 0.2s ease,
+			transform 0.2s cubic-bezier(0.2, 0.9, 0.25, 1);
+	}
+
+	.chip:hover {
+		opacity: 0.86;
+		transform: translateY(-1px);
+	}
+
+	/* The mark is 2835×502 — a hair under 5.65:1 — so height alone fixes the box. */
+	.chip img {
+		display: block;
+		width: auto;
+		height: 15px;
 	}
 
 	.links {

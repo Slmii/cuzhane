@@ -159,7 +159,8 @@ const tr = {
 
 	footLeft: 'Cüzhane · 2026',
 	footPrivacy: 'Gizlilik',
-	footContact: 'İletişim'
+	footContact: 'İletişim',
+	footMadeBy: 'Yapan',
 };
 
 const en: typeof tr = {
@@ -286,7 +287,8 @@ const en: typeof tr = {
 
 	footLeft: 'Cüzhane · 2026',
 	footPrivacy: 'Privacy',
-	footContact: 'Contact'
+	footContact: 'Contact',
+	footMadeBy: 'Made by',
 };
 
 const nl: typeof tr = {
@@ -416,7 +418,8 @@ const nl: typeof tr = {
 
 	footLeft: 'Cüzhane · 2026',
 	footPrivacy: 'Privacy',
-	footContact: 'Contact'
+	footContact: 'Contact',
+	footMadeBy: 'Gemaakt door',
 };
 
 export type Copy = typeof tr;
