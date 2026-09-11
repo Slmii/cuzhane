@@ -21,7 +21,7 @@ import { textSizeSheet } from '@/screens/Reader/textSizeSheet';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
 import { useKeepAwake } from 'expo-keep-awake';
-import { useCallback, useContext, useMemo, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS, useSharedValue } from 'react-native-reanimated';
@@ -150,6 +150,20 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 	 */
 	const [scrubBab, setScrubBab] = useState<number | null>(null);
 	const displayBab = scrubBab ?? babNumber;
+
+	/*
+	 * **A new bab starts at its top.** Same reason as the free reader: the page swaps under a
+	 * scroll position belonging to the bab before it, so stepping from a long bab to a short
+	 * one landed mid-text. Unanimated, because by the time this runs the new bab is already
+	 * rendered and a smooth scroll would be travelling through it rather than through the old
+	 * one. `babNumber` is a route param here, so this fires for the arrows, the scrub rail and
+	 * a deep link alike.
+	 */
+	const scrollRef = useRef<ScrollView | null>(null);
+
+	useEffect(() => {
+		scrollRef.current?.scrollTo({ animated: false, y: 0 });
+	}, [babNumber]);
 
 	// Both halves of landing, in one JS call so they batch into a single render — clearing
 	// the scrub separately would blink the old bab number between the two.
@@ -426,6 +440,7 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 			<PullToRefresh {...pullToRefresh}>
 				<ScrollView
 					contentContainerStyle={styles.page}
+					ref={scrollRef}
 					showsVerticalScrollIndicator={false}
 					stickyHeaderIndices={[0]}
 				>

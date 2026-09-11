@@ -15,7 +15,7 @@ import { TextSizeSheet } from '@/screens/Reader/TextSizeSheet.component';
 import { textSizeSheet } from '@/screens/Reader/textSizeSheet';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useKeepAwake } from 'expo-keep-awake';
-import { useContext, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS, useSharedValue } from 'react-native-reanimated';
@@ -82,6 +82,19 @@ export const AllBabsScreen = ({ navigation, route }: Props) => {
 	 */
 	const [scrubBab, setScrubBab] = useState<number | null>(null);
 	const displayBab = scrubBab ?? babNumber;
+
+	/*
+	 * **A new bab starts at its top.** The page swaps under a scroll position that belonged to
+	 * the bab before it, so stepping from a long bab to a short one landed mid-text — or past
+	 * the end of it, on a blank stretch. Unanimated deliberately: the content has already been
+	 * replaced by the time this runs, so a smooth scroll would be travelling through the *new*
+	 * bab rather than showing the old one leaving.
+	 */
+	const scrollRef = useRef<ScrollView | null>(null);
+
+	useEffect(() => {
+		scrollRef.current?.scrollTo({ animated: false, y: 0 });
+	}, [babNumber]);
 
 	const commitScrub = (next: number) => {
 		setScrubBab(null);
@@ -209,7 +222,7 @@ export const AllBabsScreen = ({ navigation, route }: Props) => {
 				</GestureDetector>
 			</View>
 
-			<ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
+			<ScrollView contentContainerStyle={styles.body} ref={scrollRef} showsVerticalScrollIndicator={false}>
 				<ReaderBody
 					babNumber={babNumber}
 					font={readerSettings.readerArabicFont}
