@@ -1,5 +1,6 @@
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { SplashScreen as AnimatedSplash } from '@/screens/Splash/SplashScreen.component';
+import { userSettingsQueryKeys } from '@/lib/hooks/queryKeys';
 import { useGetUserSettings } from '@/lib/hooks/useUserSettings';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import type { StringKey } from '@/lib/i18n/strings';
@@ -40,6 +41,7 @@ import { RemindersScreen } from '@/screens/Reminders/RemindersScreen.component';
 import { SearchScreen } from '@/screens/Search/SearchScreen.component';
 import { createNativeBottomTabNavigator, type NativeBottomTabNavigationProp } from '@bottom-tabs/react-navigation';
 import { useAuth } from '@clerk/expo';
+import { useQueryClient } from '@tanstack/react-query';
 import {
 	StackActions,
 	useNavigationState,
@@ -48,7 +50,7 @@ import {
 	type RouteProp
 } from '@react-navigation/native';
 import { createNativeStackNavigator, NativeStackNavigationOptions } from '@react-navigation/native-stack';
-import { useEffect, useState, type ComponentType } from 'react';
+import { useEffect, useRef, useState, type ComponentType } from 'react';
 import { Platform, type ImageSourcePropType } from 'react-native';
 import { useBottomTabBarHeight, type AppleIcon } from 'react-native-bottom-tabs';
 
@@ -762,6 +764,40 @@ export const AppNavigator = () => {
 	// below, so it needs the object rather than a snapshot of it.
 	const settingsQuery = useGetUserSettings();
 	const { data: settings, isError: hasSettingsError, isPending: isSettingsPending } = settingsQuery;
+
+	/*
+	 * **A failure collected while signed out must not survive into the session.** This query
+	 * runs from the moment the navigator mounts, which is before anyone has signed in, so its
+	 * first attempt is a token-less 401 — and TanStack keeps that error. The gate below checks
+	 * `isSignedIn` first, so the error is invisible on the auth screens and then lands in front
+	 * of a reader who has just signed in successfully. It looked Google-specific because the
+	 * default three retries span roughly seven seconds: email and Apple land inside that window
+	 * and one retry succeeds, while a first Google sign-in — browser, account picker, consent —
+	 * routinely outlasts it, so the query has already settled into a cached error.
+	 *
+	 * Resetting on the transition is what makes the timing irrelevant. The previous result
+	 * belongs to a different identity (nobody), so it is discarded rather than reasoned about,
+	 * and the refetch that follows carries a token.
+	 *
+	 * **Note what this deliberately does not do.** Gating the query on `isSignedIn` is the
+	 * obvious alternative and it was shipped once: it moves the first request to the instant
+	 * Clerk flips signed-in, before a JWT can be minted, and `wrapper.api.ts` answers a missing
+	 * token by calling the handler that **signs the reader out** — `useAuthTokenSync` only
+	 * returns early while `isSignedIn` is false. Firing this query while signed out is exactly
+	 * what keeps that 401 harmless. Leave it running.
+	 */
+	const queryClient = useQueryClient();
+	const wasSignedIn = useRef(isSignedIn);
+
+	useEffect(() => {
+		const hasJustSignedIn = isSignedIn === true && wasSignedIn.current !== true;
+
+		wasSignedIn.current = isSignedIn;
+
+		if (hasJustSignedIn) {
+			void queryClient.resetQueries({ queryKey: userSettingsQueryKeys.settings() });
+		}
+	}, [isSignedIn, queryClient]);
 
 	/*
 	 * **Has this account's settings ever arrived?** The splash below is right on a cold start
