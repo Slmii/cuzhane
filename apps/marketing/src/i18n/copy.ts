@@ -109,7 +109,7 @@ const tr = {
 	progEyebrow: 'Grup ilerlemesi',
 	progTitle: 'Tur nerede, kim nerede — tek bakışta.',
 	progBody:
-		'Her tur için grup ilerlemesi, üstlenilen bablar ve süre geri sayımı. Eksik bab kalırsa gruba nazikçe hatırlatılır; suçlayan bir liste değil, birlikte kapatılacak bir boşluk.',
+		'Her tur için grup ilerlemesi, üstlenilen bablar ve süre geri sayımı. Eksik bablar suçlayan bir liste değil; birlikte kapatılacak bir boşluk.',
 
 	featTitle: 'Bir turu birlikte yürütmek için gereken her şey.',
 	feats: [
@@ -122,8 +122,8 @@ const tr = {
 			body: 'Bıraktığın babda devam et. Okuma ekranı yazı boyutunu ve mealini hatırlar.'
 		},
 		{
-			title: 'Nazik hatırlatma',
-			body: 'Süre doluyorsa gruba tek dokunuşluk dürtme — suçlama değil, hatırlatma.'
+			title: 'Günlük hatırlatma',
+			body: 'Seçtiğin saatte, her gruptaki payını tek satırda toplar. Telefonunda kalır — sunucudan bildirim gelmez.'
 		},
 		{ title: 'Açık gruplar', body: "Keşfet'ten herkese açık turlara katıl ya da kendi grubunu listele." },
 		{
@@ -234,7 +234,7 @@ const en: typeof tr = {
 	progEyebrow: 'Group progress',
 	progTitle: 'Where the round stands, and where everyone is.',
 	progBody:
-		'Progress, claimed babs and the countdown for every round. If babs are left over, the group gets a gentle reminder — not a list of blame, just a gap to close together.',
+		'Progress, claimed babs and the countdown for every round. Babs left over aren’t a list of blame — just a gap to close together.',
 
 	featTitle: 'Everything a group round actually needs.',
 	feats: [
@@ -247,8 +247,8 @@ const en: typeof tr = {
 			body: 'Resume on the exact bab. The reader remembers your text size and translation.'
 		},
 		{
-			title: 'Gentle nudge',
-			body: 'Deadline closing in? Send the group a one-tap nudge — a reminder, not a scolding.'
+			title: 'A daily reminder',
+			body: 'At a time you choose, counting what you still owe across every group. It lives on your phone — nothing is pushed from a server.'
 		},
 		{ title: 'Open groups', body: 'Join a public round from Discover, or list your own group for others.' },
 		{
@@ -362,7 +362,7 @@ const nl: typeof tr = {
 	progEyebrow: 'Voortgang van de groep',
 	progTitle: 'Waar de ronde staat en waar iedereen zit.',
 	progBody:
-		'Voortgang, genomen babs en de aftelling voor elke ronde. Blijven er babs liggen, dan krijgt de groep een vriendelijke herinnering — geen lijst met verwijten, maar een gat om samen te dichten.',
+		'Voortgang, genomen babs en de aftelling voor elke ronde. Babs die blijven liggen zijn geen lijst met verwijten, maar een gat om samen te dichten.',
 
 	featTitle: 'Alles wat een ronde in groep echt nodig heeft.',
 	feats: [
@@ -375,8 +375,8 @@ const nl: typeof tr = {
 			body: 'Ga verder op precies dezelfde bab, met je tekstgrootte en vertaling.'
 		},
 		{
-			title: 'Vriendelijk duwtje',
-			body: 'Loopt de tijd af? Stuur de groep met één tik een herinnering, geen verwijt.'
+			title: 'Dagelijkse herinnering',
+			body: 'Op een tijd die jij kiest, met wat je in al je groepen nog openstaat. Hij blijft op je toestel — er wordt niets vanaf een server gestuurd.'
 		},
 		{
 			title: 'Open groepen',

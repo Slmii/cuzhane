@@ -759,6 +759,26 @@ defaultValues render={({ handleSubmit, watch, setValue }) => …} />`, which wir
     caught an account-wide `EXPO_PUBLIC_API_URL` from another app outranking this project's own:
     production would have shipped pointing at a different API and a different Clerk instance, while
     preview resolved correctly, so testing would not have found it.
+-   **`eas update` MUST carry `--environment`, every single time.** `EXPO_PUBLIC_*` is inlined into
+    the JS bundle when the update is built, not read at runtime — so `eas update --branch production`
+    on its own bakes in whatever `apps/web/.env` says, which is `http://localhost:3001` and a
+    `pk_test_` Clerk key. The CLI's own help calls the flag *"Required for projects using Expo SDK 55
+    or greater"* and this project is on 57, yet it publishes without complaint. The result reaches
+    every installed app: `fetch` to localhost throws, so there is **no HTTP response and no status
+    code** — `ErrorState`'s footer shows only a time, because `code` is `null` for anything that
+    isn't a `WrapperApiError`. That missing status is the tell, and it is what finally separated
+    this from a 401. The correct form, on both channels:
+
+    ```
+    eas update --branch preview    --environment preview    -m "…"
+    eas update --branch production --environment production -m "…"
+    ```
+
+    It also explains a confusing symptom worth recognising: a **preview build looks fine while
+    production is broken**, even though the two builds are byte-identical (same native fingerprint).
+    The preview install was still running its *embedded* bundle — built by EAS with the right
+    environment — while the App Store install had taken the bad update. The builds were never the
+    difference; the bundle each was running was.
 -   **iPhone only — `supportsTablet` is `false`, deliberately.** Every layout here is designed to a
     phone's width: H1's two layers, the hundred-cell board, the reader's measure, the bottom bar and
     the platform sheets. On a 13" iPad they stretch rather than adapt. Declaring iPad support also
