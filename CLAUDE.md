@@ -785,6 +785,25 @@ defaultValues render={({ handleSubmit, watch, setValue }) => …} />`, which wir
     The preview install was still running its *embedded* bundle — built by EAS with the right
     environment — while the App Store install had taken the bad update. The builds were never the
     difference; the bundle each was running was.
+-   **`eas update` runs from `apps/web`, never from the repo root.** The root is not the Expo
+    project: `apps/web/package.json` is what declares `main: index.ts`, and `apps/web/app.json`
+    holds the name, plugins and the fixed `runtimeVersion: "1.0.0"`. A root-run publish resolves
+    the entry as `expo/AppEntry.js`, which imports `../../App` and fails — and the root once
+    carried a **stub `app.json`** that made it look like a project while declaring a *different*
+    `runtimeVersion` policy, so a publish from there would have been accepted, reported as
+    success, and delivered to nobody. That stub is deleted; don't let `eas update:configure`
+    recreate it (run from `apps/web` and it writes to the right file). It also installs
+    `expo-updates` into whichever workspace it is run in — the root does not need it, `apps/web`
+    already has it.
+-   **A channel is not a branch, and matching names do not link them.** A build asks its
+    **channel** for updates; `eas update` publishes to a **branch**; a mapping joins the two and
+    nothing creates it implicitly. `preview` had a channel and a branch both called `preview` and
+    no mapping between them, so an installed preview build asked and was correctly told there was
+    nothing — while `eas update:list` showed the update sitting there with the right runtime
+    version. The tell is `eas channel:view <name>` reporting *"No branches are pointed to this
+    channel"*; the fix is `eas channel:edit <name> --branch <name>`. **Check the mapping, not the
+    names** — production was mapped from the start, which is why only preview and development
+    were ever silent.
 -   **iPhone only — `supportsTablet` is `false`, deliberately.** Every layout here is designed to a
     phone's width: H1's two layers, the hundred-cell board, the reader's measure, the bottom bar and
     the platform sheets. On a 13" iPad they stretch rather than adapt. Declaring iPad support also
