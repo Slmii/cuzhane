@@ -1,5 +1,6 @@
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Chip } from '@/components/ui/Chip/Chip.component';
+import { Icon } from '@/components/ui/Icon/Icon.component';
 import { ProgressBar } from '@/components/ui/ProgressBar/ProgressBar.component';
 import { CaptionText, MonoText } from '@/components/ui/Typography/Typography.component';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
@@ -17,6 +18,13 @@ import type { RoundCardProps } from './RoundCard.types';
  *
  * All the wording is done by the caller: this component formats nothing, which is what keeps
  * it free of the `t`/locale dependencies that would otherwise change its props each render.
+ *
+ * **The chevron says it opens.** Nothing else on the card did: a chip and a progress bar read as
+ * a summary, and the whole history looked like a list of read-outs rather than fourteen ways in.
+ * It is the same mark, size and colour the group screen's "Geçen tur" and "Ortak havuz" rows
+ * carry, because it means the same thing in all three places. The round still **in progress** has
+ * no `onPress` and therefore no chevron — which is the distinction the mark is here to draw, so
+ * it must not be given one for symmetry.
  */
 export const RoundCard = memo(
 	({ isComplete, label, missedLabel, onPress, percent, readLabel, whenText }: RoundCardProps) => {
@@ -24,24 +32,27 @@ export const RoundCard = memo(
 
 		return (
 			<CardSurface onPress={onPress} style={styles.card}>
-				<View style={styles.header}>
-					<View style={styles.heading}>
-						<CaptionText weight='semibold'>{label}</CaptionText>
-						<CaptionText color={theme.colors.subtext} style={styles.when}>
-							{whenText}
-						</CaptionText>
+				<View style={styles.body}>
+					<View style={styles.header}>
+						<View style={styles.heading}>
+							<CaptionText weight='semibold'>{label}</CaptionText>
+							<CaptionText color={theme.colors.subtext} style={styles.when}>
+								{whenText}
+							</CaptionText>
+						</View>
+						<Chip label={missedLabel} tone={isComplete ? 'accent' : 'missed'} />
 					</View>
-					<Chip label={missedLabel} tone={isComplete ? 'accent' : 'missed'} />
+					<View style={styles.progress}>
+						<ProgressBar
+							percent={percent}
+							style={styles.bar}
+							// A short round fills in clay so the bar and its chip agree.
+							{...(isComplete ? {} : { fillColor: theme.colors.missed })}
+						/>
+						<MonoText color={theme.colors.faintText}>{readLabel}</MonoText>
+					</View>
 				</View>
-				<View style={styles.progress}>
-					<ProgressBar
-						percent={percent}
-						style={styles.bar}
-						// A short round fills in clay so the bar and its chip agree.
-						{...(isComplete ? {} : { fillColor: theme.colors.missed })}
-					/>
-					<MonoText color={theme.colors.faintText}>{readLabel}</MonoText>
-				</View>
+				<Icon color={theme.colors.faintText} name='chevronRight' size={15} strokeWidth={1.8} />
 			</CardSurface>
 		);
 	}
@@ -53,7 +64,15 @@ const styles = StyleSheet.create({
 	bar: {
 		flex: 1
 	},
+	// The chevron rides the full height of the card, centred, so the two stacked rows stay a
+	// block and the mark sits against them rather than inside either one.
+	body: {
+		flex: 1,
+		gap: 10
+	},
 	card: {
+		alignItems: 'center',
+		flexDirection: 'row',
 		gap: 10,
 		padding: 14
 	},

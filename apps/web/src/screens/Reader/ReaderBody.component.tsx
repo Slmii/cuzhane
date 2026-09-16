@@ -14,13 +14,17 @@ import type { ReaderBodyProps } from './ReaderBody.types';
  * face that does, while the words stay in the face that was chosen.
  *
  * **Having the glyph is not the same as enclosing with it.** Enclosing is a shaping decision
- * the font makes across the mark *and* the digits, and these two decline it in different
- * ways: KFGQPC draws a wide standalone rosette that the number then sits beside, so you get
- * two marks; Hüsrev drew a hollow ring with the number stranded outside it. A face missing
- * the glyph altogether is worse again — iOS substitutes it from a system font, and glyphs
- * from two different fonts can never combine. Look at a real bab before adding a face.
+ * the font makes across the mark *and* the digits, and the faces that decline it do so in
+ * different ways: KFGQPC draws a wide standalone rosette that the number then sits beside, so
+ * you get two marks; Hüsrev drew a hollow ring with the number stranded outside it. A face
+ * missing the glyph altogether is worse again — iOS substitutes it from a system font, and
+ * glyphs from two different fonts can never combine. Look at a real bab before adding a face.
+ *
+ * `uthman` is listed on the strength of its sibling rather than its own inspection: it carries
+ * the mark at 0.708 × 0.855 em, the same standalone proportions the Madinah face had. Take it
+ * out and look at a bab if that is worth checking — it is one word either way.
  */
-const FACES_WITHOUT_ENCLOSING_MARK = new Set<ReaderArabicFont>(['madinah']);
+const FACES_WITHOUT_ENCLOSING_MARK = new Set<ReaderArabicFont>(['uthman']);
 
 const ornamentFaceFor = (font: ReaderArabicFont) =>
 	FACES_WITHOUT_ENCLOSING_MARK.has(font) ? ('naskh' as const) : font;

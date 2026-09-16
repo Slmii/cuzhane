@@ -6,6 +6,7 @@ import { RoundResetRow } from '@/components/RoundResetRow/RoundResetRow.componen
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
 import { SliceChip } from '@/components/SliceChip/SliceChip.component';
+import { TourTarget } from '@/components/Tour/TourTarget.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Chip } from '@/components/ui/Chip/Chip.component';
@@ -328,37 +329,40 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 				 * exactly. Split apart, the countdown reads as the reader's own clock when it
 				 * never was.
 				 */}
-				<CardSurface isFlush>
-					<View style={styles.statsRow}>
-						<View
-							style={[
-								styles.statCell,
-								styles.statCellDivided,
-								{ borderRightColor: theme.colors.divider }
-							]}
-						>
-							<NumericText>{`${detail.memberCount} / ${detail.spots}`}</NumericText>
-							<StatText color={theme.colors.faintText} style={styles.statLabel}>
-								{t('members')}
-							</StatText>
+				{/* Stop 4 of the first-use tour: the group's whole rhythm in one card. */}
+				<TourTarget id='groupSummary'>
+					<CardSurface isFlush>
+						<View style={styles.statsRow}>
+							<View
+								style={[
+									styles.statCell,
+									styles.statCellDivided,
+									{ borderRightColor: theme.colors.divider }
+								]}
+							>
+								<NumericText>{`${detail.memberCount} / ${detail.spots}`}</NumericText>
+								<StatText color={theme.colors.faintText} style={styles.statLabel}>
+									{t('members')}
+								</StatText>
+							</View>
+							<View style={styles.statCell}>
+								<NumericText>{leftValue}</NumericText>
+								<StatText color={theme.colors.faintText} style={styles.statLabel}>
+									{/* A DAILY round counts down in hours — "1 gün" would say nothing. */}
+									{isDaily ? t('untilMidnight') : t('left')}
+								</StatText>
+							</View>
 						</View>
-						<View style={styles.statCell}>
-							<NumericText>{leftValue}</NumericText>
-							<StatText color={theme.colors.faintText} style={styles.statLabel}>
-								{/* A DAILY round counts down in hours — "1 gün" would say nothing. */}
-								{isDaily ? t('untilMidnight') : t('left')}
-							</StatText>
-						</View>
-					</View>
-					{reset ? (
-						<RoundResetRow
-							groupLabel={reset.group}
-							localLabel={reset.local}
-							style={[styles.statsReset, { borderTopColor: theme.colors.divider }]}
-							variant='panel'
-						/>
-					) : null}
-				</CardSurface>
+						{reset ? (
+							<RoundResetRow
+								groupLabel={reset.group}
+								localLabel={reset.local}
+								style={[styles.statsReset, { borderTopColor: theme.colors.divider }]}
+								variant='panel'
+							/>
+						) : null}
+					</CardSurface>
+				</TourTarget>
 
 				{/*
 				 * The sage "Sana atanan" strip *is* the collapsible's header now. It used to be
@@ -376,63 +380,71 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 					isFlush
 					style={isMyBabsOpen ? null : { backgroundColor: theme.colors.accentSoft }}
 				>
-					<Pressable
-						// The eyebrow and the sentence are gone from the row, so the label they carried
-						// has to come from here or it announces nothing but its numbers.
-						accessibilityLabel={`${t('assigned')} ${mySlices.current}`}
-						accessibilityRole='button'
-						accessibilityState={{ expanded: isMyBabsOpen }}
-						onPress={toggleMyBabs}
-						style={[
-							styles.myBabsHeader,
-							{ backgroundColor: theme.colors.accentSoft },
-							isMyBabsOpen
-								? {
-										borderBottomColor: theme.colors.divider,
-										borderBottomWidth: StyleSheet.hairlineWidth
-								  }
-								: null
-						]}
-					>
-						{/* The badge carries one slice, not the whole share, with the count of the
+					{/* Stop 5 of the first-use tour frames this row, closed or open. */}
+					<TourTarget id='assigned'>
+						<Pressable
+							// The eyebrow and the sentence are gone from the row, so the label they carried
+							// has to come from here or it announces nothing but its numbers.
+							accessibilityLabel={`${t('assigned')} ${mySlices.current}`}
+							accessibilityRole='button'
+							accessibilityState={{ expanded: isMyBabsOpen }}
+							onPress={toggleMyBabs}
+							style={[
+								styles.myBabsHeader,
+								{ backgroundColor: theme.colors.accentSoft },
+								isMyBabsOpen
+									? {
+											borderBottomColor: theme.colors.divider,
+											borderBottomWidth: StyleSheet.hairlineWidth
+									  }
+									: null
+							]}
+						>
+							{/* The badge carries one slice, not the whole share, with the count of the
 						    others pinned to it — spelled out, "1–13, 27–39" ran the badge to twice
 						    the width and wrapped the sentence beside it onto three lines. The chip
 						    belongs *here*, against the range it is counting, rather than up beside
 						    the eyebrow where it read as a tag on the words. */}
-						<View style={styles.myBabsBadgeRow}>
-							<View style={[styles.myBabsBadge, { backgroundColor: theme.colors.accent }]}>
-								<Typography
-									color={theme.colors.onAccent}
-									style={styles.myBabsBadgeLabel}
-									variant='title'
-								>
-									{mySlices.current}
-								</Typography>
+							<View style={styles.myBabsBadgeRow}>
+								<View style={[styles.myBabsBadge, { backgroundColor: theme.colors.accent }]}>
+									<Typography
+										color={theme.colors.onAccent}
+										style={styles.myBabsBadgeLabel}
+										variant='title'
+									>
+										{mySlices.current}
+									</Typography>
+								</View>
+								<SliceChip count={mySlices.moreCount} isCompact tone='surface' />
 							</View>
-							<SliceChip count={mySlices.moreCount} isCompact tone='surface' />
-						</View>
-						{/* The eyebrow stays; the sentence under it went. It named the range a second
+							{/* The eyebrow stays; the sentence under it went. It named the range a second
 						    time and, once the share came in pieces, needed three lines to do it —
 						    while the badge beside it had already said where you are. */}
-						<View style={styles.myBabsCopy}>
-							<Typography
-								color={theme.colors.accent}
-								style={styles.myBabsLabel}
-								variant='stat'
-								weight='medium'
-							>
-								{t('assigned')}
-							</Typography>
-						</View>
-						<View style={styles.myBabsMeta}>
-							<CaptionText color={theme.colors.accent} weight='semibold'>{`${myReadCount} / ${
-								myBabNumbers.length
-							} ${t('done')}`}</CaptionText>
-							<Animated.View style={chevronStyle}>
-								<Icon color={theme.colors.faintText} name='chevronRight' size={15} strokeWidth={1.8} />
-							</Animated.View>
-						</View>
-					</Pressable>
+							<View style={styles.myBabsCopy}>
+								<Typography
+									color={theme.colors.accent}
+									style={styles.myBabsLabel}
+									variant='stat'
+									weight='medium'
+								>
+									{t('assigned')}
+								</Typography>
+							</View>
+							<View style={styles.myBabsMeta}>
+								<CaptionText color={theme.colors.accent} weight='semibold'>{`${myReadCount} / ${
+									myBabNumbers.length
+								} ${t('done')}`}</CaptionText>
+								<Animated.View style={chevronStyle}>
+									<Icon
+										color={theme.colors.faintText}
+										name='chevronRight'
+										size={15}
+										strokeWidth={1.8}
+									/>
+								</Animated.View>
+							</View>
+						</Pressable>
+					</TourTarget>
 					{/* Clipped, and inert while closed: the rows stay mounted so the panel has a
 					    height to animate to, which also means they would otherwise still be
 					    reachable by a tap or by VoiceOver in a card that reads as shut. */}
@@ -521,38 +533,42 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 				 * worse than no row.
 				 */}
 				{lastClosedRound ? (
-					<CardSurface
-						onPress={() => navigation.navigate('Rounds', { groupId })}
-						style={styles.lastRoundCard}
-					>
-						<View
-							style={[
-								styles.lastRoundBadge,
-								{
-									backgroundColor: lastClosedRound.missedCount
-										? theme.colors.missedSurface
-										: theme.colors.accentSoft
-								}
-							]}
+					// Stop 6 of the first-use tour. Inside the guard, so a group with no closed
+					// round registers nothing and that stop centres its card.
+					<TourTarget id='lastRound'>
+						<CardSurface
+							onPress={() => navigation.navigate('Rounds', { groupId })}
+							style={styles.lastRoundCard}
 						>
-							<Typography
-								color={lastClosedRound.missedCount ? theme.colors.missed : theme.colors.accent}
-								style={styles.lastRoundBadgeLabel}
-								variant='title'
+							<View
+								style={[
+									styles.lastRoundBadge,
+									{
+										backgroundColor: lastClosedRound.missedCount
+											? theme.colors.missedSurface
+											: theme.colors.accentSoft
+									}
+								]}
 							>
-								{lastClosedRound.missedCount}
-							</Typography>
-						</View>
-						<View style={styles.lastRoundCopy}>
-							<CaptionText weight='semibold'>
-								{`${t('lastRound')} · ${t('roundN')} ${lastClosedRound.roundIndex + 1}`}
-							</CaptionText>
-							<CaptionText color={theme.colors.subtext} style={styles.lastRoundSub}>
-								{`${lastClosedRound.missedCount} ${t('missedBabs')}`}
-							</CaptionText>
-						</View>
-						<Icon color={theme.colors.faintText} name='chevronRight' size={15} strokeWidth={1.8} />
-					</CardSurface>
+								<Typography
+									color={lastClosedRound.missedCount ? theme.colors.missed : theme.colors.accent}
+									style={styles.lastRoundBadgeLabel}
+									variant='title'
+								>
+									{lastClosedRound.missedCount}
+								</Typography>
+							</View>
+							<View style={styles.lastRoundCopy}>
+								<CaptionText weight='semibold'>
+									{`${t('lastRound')} · ${t('roundN')} ${lastClosedRound.roundIndex + 1}`}
+								</CaptionText>
+								<CaptionText color={theme.colors.subtext} style={styles.lastRoundSub}>
+									{`${lastClosedRound.missedCount} ${t('missedBabs')}`}
+								</CaptionText>
+							</View>
+							<Icon color={theme.colors.faintText} name='chevronRight' size={15} strokeWidth={1.8} />
+						</CardSurface>
+					</TourTarget>
 				) : null}
 
 				{/*
@@ -598,24 +614,30 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 				 * it. The count comes from the group, so nothing here waits on the board.
 				 */}
 				{detail.poolAllBabNumbers.length > 0 ? (
-					<CardSurface onPress={() => navigation.navigate('Pool', { groupId })} style={styles.lastRoundCard}>
-						<View style={[styles.lastRoundBadge, { backgroundColor: theme.colors.sand }]}>
-							<Typography
-								color={theme.colors.sandText}
-								style={styles.lastRoundBadgeLabel}
-								variant='title'
-							>
-								{detail.poolAllBabNumbers.length}
-							</Typography>
-						</View>
-						<View style={styles.lastRoundCopy}>
-							<CaptionText weight='semibold'>{t('pool')}</CaptionText>
-							<CaptionText color={theme.colors.subtext} style={styles.lastRoundSub}>
-								{`${detail.poolAllBabNumbers.length} ${t('babs')}`}
-							</CaptionText>
-						</View>
-						<Icon color={theme.colors.faintText} name='chevronRight' size={15} strokeWidth={1.8} />
-					</CardSurface>
+					// Stop 7 of the first-use tour, guarded the same way as the row above.
+					<TourTarget id='pool'>
+						<CardSurface
+							onPress={() => navigation.navigate('Pool', { groupId })}
+							style={styles.lastRoundCard}
+						>
+							<View style={[styles.lastRoundBadge, { backgroundColor: theme.colors.sand }]}>
+								<Typography
+									color={theme.colors.sandText}
+									style={styles.lastRoundBadgeLabel}
+									variant='title'
+								>
+									{detail.poolAllBabNumbers.length}
+								</Typography>
+							</View>
+							<View style={styles.lastRoundCopy}>
+								<CaptionText weight='semibold'>{t('pool')}</CaptionText>
+								<CaptionText color={theme.colors.subtext} style={styles.lastRoundSub}>
+									{`${detail.poolAllBabNumbers.length} ${t('babs')}`}
+								</CaptionText>
+							</View>
+							<Icon color={theme.colors.faintText} name='chevronRight' size={15} strokeWidth={1.8} />
+						</CardSurface>
+					</TourTarget>
 				) : null}
 
 				{/*

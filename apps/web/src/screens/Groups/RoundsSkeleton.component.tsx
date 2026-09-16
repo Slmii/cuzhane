@@ -125,6 +125,10 @@ const styles = StyleSheet.create({
 	},
 	pastCard: {
 		paddingHorizontal: 15,
+		// The real card ends with a chevron — 15pt of glyph and a 10pt gap — so the bones stop
+		// where its content does. Without this the chip visibly jumped left as the list resolved,
+		// which is the same thing the open card's accent border is here to avoid.
+		paddingRight: 15 + 15 + 10,
 		paddingVertical: 14
 	},
 	pastHeader: {

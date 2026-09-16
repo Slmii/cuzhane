@@ -590,6 +590,12 @@ defaultValues render={({ handleSubmit, watch, setValue }) => …} />`, which wir
     forwards `containerColor` and can skip its half-height detent. `AppInput` no longer swaps in a
     sheet-aware `TextInput`, and `IsInsideSheetContext` is gone with it — an OS sheet moves itself for
     its own keyboard.
+-   **The content paints its own ground.** iOS presents a sheet on a translucent material and
+    expects the app to fill it; with nothing behind the padding the screen behind read straight
+    through the panel. `containerColor` is the Android sheet's own prop and has no iOS half, so
+    `AppBottomSheet` puts `theme.colors.sheet` on the content view — which is the whole sheet,
+    every sheet here being sized by what it holds. The surface, the grabber and the corner radius
+    are still the platform's.
 -   **Every sheet sizes to its content, and `snapPoints` is never passed to the platform.** A sheet that
     needs a fixed height gives its *content* one, via `AppBottomSheet`'s `heightRatio` (a fraction of the
     screen) — the members list is `0.75`, create-group `0.82`, everything else omits it and is as tall as
@@ -912,9 +918,41 @@ without it a reminder arriving while the app is open is delivered silently.
 ## Push notifications
 
 The daily reminder above is **local**. Separately there is now a **server push** path, for
-things only the server can know about — the first is a pool claim released because somebody
-joined the seat it was covering.
+things only the server can know about. There are two: a pool claim released because somebody
+joined the seat it was covering, and somebody in your group reading a bab.
 
+-   **"Someone in your group finished their share" is `UserSettings.groupReadsEnabled`, off by
+    default, and it fires once per *range* — never per bab.** It fired on every read first, which
+    meant a member working through a thirteen-bab share sent thirteen notifications to everybody
+    opted in, one per tap of Okudum. `notifyGroupOfShareRead` (in `babs.service.ts`) is reached
+    only when the last bab of a share lands: both read paths count the share's unread babs
+    **inside the same transaction that wrote the read**, and the push names the range
+    (`shareRange`, built from the mirrored `babRuns`/`formatRun`) rather than a number. Marking a
+    whole share at once therefore sends the same single notification the bab-by-bab route does.
+    It is the one notification in the app that fires on another person's action, so it is opt-in,
+    from the second switch on Hatırlatma. That flag is read **before** anything else: on an
+    account that never turned it on the recipient query comes back empty and nothing else is
+    looked up, which keeps a Clerk name lookup off the hot path. Every recipient's language comes
+    out of that same query — `toPushLanguage`, not a `pushLanguageFor` each. The whole body is
+    wrapped in a `catch`: it runs **after** the commit, so a failed lookup there must not turn a
+    successful write into a 5xx and make the client roll its optimistic update back. **It is said
+    once per round**: finishing a share is not a one-way door — Geri al on the last bab and Okudum
+    again made it true a second time and sent the same range twice — so `claimShareNotice` inserts
+    a `ShareReadNotice` row (unique on group + user + round, `skipDuplicates`) **on the read's own
+    transaction** and only a `count` of 1 notifies. The unique key is also what settles two
+    requests finishing the same share at once, and `roundIndex` being part of it means the next
+    round announces itself again with nothing to clean up. Covering a
+    bab from a *closed* round (`roundHistory.service.ts`) deliberately sends nothing: a different
+    event, and it would need its own copy. Switching it on also registers a push token there and
+    then — the reconciler only ever registers a device that already had permission, so a device
+    granting it that second would otherwise have no row until the next launch.
+-   **The reminder reconciler stands down while the tour runs.** `useReminderNotificationSync`
+    reads `useGetGroups`, which answers with the stand-in shelf during the walkthrough, and
+    `contentSig` carries the bab count — so without the guard it cancelled the reader's real
+    reminder and re-added one about three groups they are not in, then swapped it back a minute
+    later. A force-quit mid-tour left the demo one standing. The tour is a fourth **unknown**
+    answer beside the two queries and signed-out, so it joins `isReady` rather than getting a
+    branch of its own.
 -   `push.service.ts` → `sendPushToUser(userId, payload)` fans out across the user's devices via
     `expo-server-sdk`, and **never throws**: callers reach it from inside domain flows where the
     write is the point and the push is a courtesy. It prunes `DeviceNotRegistered` tokens, which
@@ -961,6 +999,185 @@ joined the seat it was covering.
     Expo API. Resetting notification permission to re-see the prompt needs an **uninstall and
     reinstall** — `simctl privacy` has no notifications service, and toggling it off in Settings
     sets _denied_, which the prompt deliberately skips.
+
+## The first-use tour (section O)
+
+`components/Tour` — a walkthrough over the live app: a welcome card, fourteen stops, and a
+closing card. `hasSeenTour` on `UserSettings` decides whether it opens by itself.
+
+-   **The flag defaults to `false`, and that is the whole migration.** Everyone already using the
+    app is shown the tour once too, because the column's default says so — no backfill, no
+    special case, nobody excluded. `useShouldAutoStartTour` also requires `hasSeenOnboarding`, so
+    a brand-new account gets the tour *after* the tour it already has rather than on top of it.
+-   **It opens from Ana sayfa, not from `AppRoot`.** `useTourAutoStart` is called by `HomeScreen`
+    because the first two stops point at things on that screen, and starting at the root would
+    open the tour over Onboarding, over the auth stack, or over whatever a notification tap had
+    just pushed. That also satisfies the design's `A1·5 → O1` for free: onboarding sets
+    `hasSeenOnboarding` and lands on Ana sayfa, where the condition is suddenly true.
+-   **The welcome card navigates nobody.** It is a sheet over whatever screen the reader was on,
+    so "Daha sonra" leaves them exactly there — dragging someone from Profil to Ana sayfa to ask
+    whether they want a tour, and stranding them there when they decline, is worse than not asking
+    from that screen. Stop 1 does the unwinding instead, a tap later. That also removes a race at
+    its source rather than mitigating it: navigating here put a `popToTop` and a tab switch in the
+    same commit as an OS sheet presenting, which is the shape that already lost to UIKit once over
+    the splash.
+-   **The app underneath is inert while the tour is over it — `TourBlocker`.** The scrim paints
+    over the tab bar and the navigation bar but does **not** receive their touches: drawing order
+    and hit-testing order agree only inside one view hierarchy, and the navigator's screens, its
+    native bar and its tab bar each live in their own view controller. A group row under the scrim
+    still opened its group. `pointerEvents='none'` on an ancestor doesn't care — UIKit's hit test
+    skips a view with interaction disabled **and its whole subtree** — and it carries
+    `accessibilityElementsHidden` / `importantForAccessibility` with it, since a finger is not the
+    only way into a dimmed control — nor is a finger the only way *out*: Android's back button is
+    a system gesture the blocker never sees, so `TourOverlay` swallows `hardwareBackPress` for the
+    same window, or back pops the screen a stop is standing on out from under the scrim. It
+    engages on `isActive && !isBlocked && stepIndex > WELCOME_STEP`, which is **exactly** when the
+    overlay draws: the two disagreed at first,
+    leaving two states where the app was inert with nothing over it to say why — one of them the
+    documented "the sheet never presented" race, with no way out but killing the app. The welcome
+    card needs nothing from it, being a platform sheet, which blocks what is behind it already.
+-   **The overlay is an ordinary view beside the navigator, not a `Modal`.** It was a modal at
+    first, on the grounds that the bottom bar is a real UIKit tab bar and nothing inside the
+    navigator draws over it — true of a screen, and not true of a view rendered as the navigator's
+    sibling in `AppRoot`, which dims the bar perfectly well. A modal brings a separate UIWindow
+    and its own touch routing for no gain here. The rectangles still live in a context either way:
+    the things being measured are inside the navigator and the thing drawing the hole is outside it.
+-   **Fourteen stops across five screens, and the tour drives the navigation itself.** Section O's
+    own list is `streak · groups · tabs · mine · pool · rd · settings`; the bottom bar went
+    because it names itself under every icon. Added: the Read button, the group's summary card,
+    the closed round, sharing, the reader's type controls split from its action bar, and Profil's
+    numbers split from its settings — one element each, in the order they are met on screen. The
+    closed round and the pool register their rects **inside the guards that render those rows**,
+    so a group with neither simply centres those two cards. A step carries the screen it belongs to
+    (`TourStep.place`) and `useTourNavigation` pushes there when that screen changes — never per
+    step, since four pairs of stops share one. **Two of the five places are tabs rather than
+    pushed screens** — Ana sayfa and Hatırlatma — so `TAB_BY_PLACE` and `goToTourTab` reach
+    those by unwinding the pushes and switching tab, while the group screen, the reader and
+    Profil go through `navigate` inside whichever tab is current. `goToTourTab` runs at the
+    **welcome** card too, so the tour starts on Ana sayfa wherever it was opened from: replaying
+    it from the row on Profil used to leave the reader there while the first three cards
+    described Ana sayfa. Everything is pushed inside the tab the tour
+    is running in, so one `popToTop` **whenever the tour ends anywhere else** puts the reader back
+    on Ana sayfa — not only at the closing card: "Atla" is on every card, six of the fourteen
+    stops stand on a *stand-in* group's screen, and skipping from one of those left someone on
+    `GroupDetail` for `tour-demo-group-1`, whose queries flip to the real keys the instant
+    `isActive` drops and land on `ErrorState`. It is skipped when `currentPlace` is already
+    `home`, because the closing card's "Yeni grup kur" opens create-group on the **root** stack
+    and an unwind would pop it straight back off —
+    **and it must carry a `target`.** An action dispatched without one is offered to a navigator
+    and then bubbles *up*; it never descends into a tab's nested stack, so the untargeted pop was
+    silently doing nothing and the closing card was read over Profil. `useTourNavigation`'s
+    `focusedStackKey` finds the stack from the root state; `AppNavigator`'s `resetTabStack` is the
+    same move from inside the tree, and predates it.
+    Ana sayfa nominates the group to walk through (`TourSubject`, the topmost row), and without
+    one — a reader in no group, which is who the tour opens for — the later stops keep their
+    centred cards and nothing is navigated.
+-   **The tour always supplies its own data** — **three groups**, built by one factory in
+    `tourDemoData` so each one's share, board, counts and rounds cannot disagree. It opens
+    straight after onboarding, when Ana sayfa is `HomeEmptyState`, the group screen cannot be
+    reached and Profil reads zero over an empty month, so ten of the thirteen stops would
+    describe a blank app and the rest would pause on a spinner at every navigation. Three groups
+    rather than one because one is not a shelf: stop 2 says "each row is a group" and stop 3 says
+    Read resumes, and both need a list to point at. They differ the way rows actually differ —
+    one owned and barely begun, one joined and nearly done, one finished, which is the row that
+    sinks to the bottom and reads "Tamam". **Its month ends on the most recent Friday, not on
+    today**: Home's week strip is the calendar week containing the last entry with the days ahead
+    drawn faint, so a month ending on a Monday gave a card reading "6 gün" over six blank squares.
+    Ending on a Friday shows a week taking shape whatever day the tour is opened.
+    **It was conditional at first**, on the account having no groups of its own, and that made
+    the walkthrough two different things: the copy has to describe what is on screen, and what
+    was on screen depended on who was looking. `useIsTourDemo` is now simply "the tour is
+    running", which also keeps it honest — a flag derived from the shelf would see the stand-in
+    shelf it had just installed and flip back, once a frame. The cost is that a reader with real
+    groups sees these three for the minute it lasts, and their own the moment it ends.
+    Five hooks (`useGetGroups`, `useGetGroupById`, `useGetBabs`, `useGetRounds`,
+    `useGetProfileStats`) answer from the fixtures under a **separate key namespace**
+    (`tourDemoQueryKeys`), so the real entries are left untouched and nothing has to be
+    invalidated when the tour ends. Each of those five also passes **`initialData`**: a `queryFn`
+    is a promise however fast it settles, so without it the first render after mount is still
+    `isPending` — and the group screen's gate is exactly that, which flashed its skeleton every
+    time the tour navigated onto it.
+-   **A bar glyph's rectangle is arithmetic, never measured.** `headerRight` is hosted in a
+    container of its own, so `measureInWindow` inside it does not answer in window coordinates:
+    the reader's Aa control reported `y: 0` and an `x` counted from that container's left edge,
+    which put the spotlight on the back chevron at the opposite corner of the screen. Correcting
+    `y` by the top inset moved the hole but left it on the chevron, which is how the `x` half was
+    found. `useTourBarTarget(id, indexFromRight)` computes it instead — 44pt discs flush against
+    the right edge, the last one ending 24pt from it, the pair sitting at `y: 62` under a 59pt
+    inset. **Both platforms' numbers were read off a screenshot**, from the glyph centres on the
+    group screen's toolbar: iOS leaves 24 between the last item and the right edge and sits 3
+    below the top inset, Android leaves 16 and sits 6. Same 44 item on both, since that disc is
+    the app's own.
+-   **Stop 3 is the Read button on the first group row, and it replaced section O's bottom bar.**
+    Naming the five tabs was the one stop that described furniture rather than anything the reader
+    was about to do, and the bar labels itself. What is not self-evident is that Read *resumes* —
+    it opens the bab they stopped at, not the group's first — so the cut-out moved there.
+    `HomeGroupRow` takes `isTourTarget` and the screen sets it on the topmost row only; every
+    other row renders the same button with no measured box around it. `tour3Title`/`tour3Sub` were
+    rewritten in all three languages rather than a key being added, so the numbering still follows
+    the order of the stops. The bar's rectangle was arithmetic over `useBottomTabBarHeight` (a
+    UIKit bar has no React view to measure) and went with the stop.
+-   **Closing the hole means fading the mask's rectangle, not the ring.** A mask reads brightness,
+    so the black rectangle that punches the cut-out closes it again only by going to opacity 0.
+    The four stops that point at nothing faded the hairline ring and left the hole exactly where
+    the previous stop had put it, so they were read over an undimmed patch of the screen behind
+    them. The opacity belongs on the animated `Rect` inside the `Mask`.
+-   **The card is pinned to the bottom, and the arrow went with the change.** It used to take
+    whichever side of the spotlight was free, which put it somewhere different at almost every
+    stop: the reader had to find the words again thirteen times and Devam moved out from under
+    their thumb between taps. A fixed home beats adjacency, since the cut-out already says which
+    thing is being described — and an arrow pointing at something half a screen away says nothing,
+    so `TourStepCard` no longer draws one. The exception is measured, not guessed: a card at the
+    bottom would be *on top of* a target low on the screen, so those stops (the reader's action
+    bar, Profil's settings list) put the card at the top instead. Eleven of the thirteen keep
+    Devam in exactly the same place.
+-   **A centred card is centred with flex, never a percentage translate.** The closing card used
+    the browser idiom, `top: '50%'` with a `-50%` translate, and sat visibly above centre: a
+    percentage translate resolves against the animated box, and that wrapper carries an entrance
+    that moves it. `top: 0, bottom: 0, justifyContent: 'center'` has nothing to resolve against.
+-   **The safe area is a floor on the card's position, not a margin.** `marginTop: insets.top` on
+    the absolutely positioned wrapper *adds* to the `top` it was given, which put the height of the
+    notch of scrim between the spotlight and the card pointing at it. `Math.max` against the inset
+    keeps the card clear of the notch and the home indicator without moving it when it is near
+    neither.
+-   **Measure with `measureInWindow`, never `onLayout`'s own numbers.** `onLayout` reports a box
+    relative to the parent; the scrim is full-screen. The two only agree on a screen with no
+    header, no inset and no scroll offset, which is no screen in this app. `TourTarget`
+    re-measures on every layout rather than once, because Ana sayfa's streak card is **absent
+    until the stats arrive** — a mount-time measurement would record a box about to move.
+-   **The hole is the design's own `box-shadow`, after a spell as an SVG mask.** The prototype
+    paints scrim and hole with one view and a 2000px spread; the mask was picked over it because
+    nothing else in the app uses `boxShadow`. It worked and it was slow — a full-screen `Svg`
+    whose `Mask` rectangle animates re-composites the whole screen every frame, and the tour moved
+    between stops in visible steps rather than gliding. One view costs a frame nothing, and it is
+    the scrim, the cut-out *and* the design's hairline ring at once; the ring had been a second
+    view only because a mask cannot draw one. A stop with nothing to point at gets a plain scrim
+    view instead, and the two cross-fade on the same shared value so there is no seam between a
+    spotlit stop and a centred one.
+-   **A stop whose target isn't on screen centres its card instead.** This is not a fallback, it
+    is most of the tour: section O describes the group screen, the reader and Profil, and the
+    tour opens when the reader belongs to **no group at all** and Ana sayfa is showing
+    `HomeEmptyState`. Navigating them into a group that does not exist is not an option, and
+    drawing a mock of one is what the marketing site already learned not to do. `TourTarget`
+    withdraws its rect on **blur, not unmount** — the tabs are not lazy and Profil is pushed
+    inside a tab, so Ana sayfa is still mounted underneath and unmount cleanup never runs.
+    Withdrawing on unmount meant replaying from Profil cut a hole through Profil at Ana sayfa's
+    coordinates. It also re-measures when the tour opens: `onLayout` fires when a view's own box
+    changes, which is not the same as the view having moved, and the streak card arrives *above*
+    the group rows and pushes them down without touching theirs.
+-   **The closing card's mark is a drawn mosque, not a tick** — `TourDoneMark`, ported from
+    `Tur Bitti Animasyonu.dc.html`: ground, walls, dome, minarets, then a crescent and two stars,
+    each stroke easing its own `strokeDashoffset` with the frame's own delays, over a pulsing
+    radial halo. The strokes are **animated props**, not styles, because `strokeDashoffset` is an
+    SVG attribute — the shape `ProgressRing` already uses. Two things the frame carries that are
+    easy to drop: `fill="none"` on the root `svg` (without it SVG's default fill is black, and
+    the dome and minarets come out solid), and the glow drawn in its **own** `Svg`, since it is
+    larger than the mark's box and React Native clips to it rather than honouring
+    `overflow: visible`. Reduce Motion gets the finished drawing.
+-   Copy is `tour1…tour14` in `strings.ts`, three languages, numbered in the order the stops are
+    visited — so inserting a stop renumbers the keys after it rather than appending, the same way
+    stop 3's text was rewritten rather than a key added. `tourStep` interpolates `{a}` and `{b}`;
+    the counter reads "1 / 14" because the welcome and closing cards are not steps.
 
 There is **no account-wide notifications switch.** `UserSettings.notificationsEnabled` was
 a column with an update endpoint and no control in any screen, so nothing ever wrote

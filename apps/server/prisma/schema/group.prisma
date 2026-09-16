@@ -53,6 +53,7 @@ model Group {
     cheers       Cheer[]
     waitlist     GroupWaitlistEntry[]
     poolReleases PoolClaimRelease[]
+    shareNotices ShareReadNotice[]
 
     @@index([ownerUserId])
     @@index([visibility, openToJoin, createdAt])

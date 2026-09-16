@@ -22,15 +22,27 @@ export const arabicReaderFonts = {
 	naskh: 'Kitab_400Regular',
 	amiri: 'AmiriQuran_400Regular',
 	/**
-	 * The Madinah mushaf's own face — KFGQPC Uthmanic Script HAFS, from the King Fahd
-	 * Complex. Bundled **unmodified**, which its licence requires: free to use, copy and
-	 * distribute, but not to sell, modify or alter. That rules out subsetting it, so the
-	 * whole 246KB ships.
+	 * KFGQPC Uthman Taha Naskh, from the King Fahd Complex — the face the Risale-i Nur library
+	 * sets the Cevşen in, and **the reader's default**. Bundled **unmodified**, which its
+	 * licence requires: free to use, copy and distribute, never to sell, modify or alter. That
+	 * rules out subsetting it, so the whole 260KB ships.
 	 *
-	 * Its sibling, KFGQPC Uthman Taha Naskh, was rejected — it is missing 119 characters
-	 * this text uses, including all three ornament marks.
+	 * It is the default because of one mark. The subscript alef is this edition's own long î,
+	 * 549 of them across seventy babs, and this face draws it as the narrow upright stroke it
+	 * should be: 0.080 × 0.254 em, which is the reference every other face here was measured
+	 * against.
+	 *
+	 * **It replaced KFGQPC Uthmanic Script HAFS**, the Madinah mushaf's face, which drew that
+	 * same mark 0.304 × 0.210 em — wider than it is tall, and in two pieces. The `madinah` key
+	 * is gone from this table and its font file with it; the database enum keeps the value
+	 * because dropping one is destructive, and `toReaderArabicFont` on the server reads a
+	 * legacy row as this face.
+	 *
+	 * **It lacks exactly one character the text uses**: `U+06DE`, the rub el hizb mark, which
+	 * appears once — in the du'a after the hundredth bab, where it separates the phrases. iOS
+	 * substitutes it from a system face there.
 	 */
-	madinah: 'UthmanicHafs_400Regular'
+	uthman: 'UthmanTahaNaskh_400Regular'
 } as const;
 
 /**
@@ -51,5 +63,6 @@ export const arabicReaderFonts = {
 export const arabicReaderFontScale: Record<keyof typeof arabicReaderFonts, number> = {
 	naskh: 1.12,
 	amiri: 1.04,
-	madinah: 1.14
+	// Alef, lam, kaf and tah average 0.698 em in this face, the shortest of the three.
+	uthman: 1.15
 };

@@ -24,12 +24,17 @@ export const pushLanguageFor = async (userId: string): Promise<PushLanguage> => 
 		select: { language: true }
 	});
 
-	if (settings?.language === 'tr' || settings?.language === 'nl') {
-		return settings.language;
-	}
-
-	return 'en';
+	return toPushLanguage(settings?.language);
 };
+
+/**
+ * The same defaulting, for a language already in hand.
+ *
+ * A send that fans out across a group reads every recipient's row in **one** query, so it must
+ * not then call `pushLanguageFor` per person and issue N more.
+ */
+export const toPushLanguage = (language: string | null | undefined): PushLanguage =>
+	language === 'tr' || language === 'nl' ? language : 'en';
 
 /**
  * "A joiner took over the block you volunteered for."
@@ -56,5 +61,48 @@ export const poolClaimReleasedPush = (language: PushLanguage, range: string) => 
 	return {
 		title: 'Babs you took were passed on',
 		body: `Babs ${range} became a new member's share. Anything you already read still counts for you.`
+	};
+};
+
+/**
+ * "Someone in your group finished their share."
+ *
+ * **The group's name is the title, not the body.** Several groups can be running at once and the
+ * notification is only useful if you can tell at a glance which board moved — and a body reading
+ * "Ahmet finished 1–13 in Aile Hatmi" is the same fact said twice on a lock screen.
+ *
+ * **It names the range, and it is sent once.** This used to fire per bab with a number in it,
+ * which meant a thirteen-bab share sent thirteen notifications; the range is what the reader
+ * actually took on, and finishing it is the one moment worth interrupting anybody for.
+ *
+ * No pronoun for the reader in any of the three: a name says nothing about how somebody is
+ * addressed, and "his share" would be a guess printed on someone else's lock screen.
+ */
+export const groupReadPush = (
+	language: PushLanguage,
+	input: { groupName: string; range: string; readerName: string }
+) => {
+	const { groupName, range, readerName } = input;
+
+	if (language === 'tr') {
+		return {
+			title: groupName,
+			// "Okumasını", not "payını": the range can carry a pool block taken on top of the
+			// share, and calling that their share would be untrue. English and Dutch state the
+			// babs rather than claim anything about whose they were, so they needed no change.
+			body: `${readerName} okumasını tamamladı (${range}).`
+		};
+	}
+
+	if (language === 'nl') {
+		return {
+			title: groupName,
+			body: `${readerName} is klaar met babs ${range}.`
+		};
+	}
+
+	return {
+		title: groupName,
+		body: `${readerName} finished babs ${range}.`
 	};
 };

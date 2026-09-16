@@ -1,6 +1,7 @@
 import { isNextReminderTomorrow, reminderTotals } from '@/lib/utils/reminder';
 import { RemindersSkeleton } from './RemindersSkeleton.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
+import { TourTarget } from '@/components/Tour/TourTarget.component';
 import { ScreenTitle } from '@/components/ScreenTitle/ScreenTitle.component';
 import { BrandMark } from '@/components/ui/BrandMark/BrandMark.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
@@ -16,6 +17,7 @@ import {
 import { useGetGroups } from '@/lib/hooks/useGroup';
 import { useGetUserSettings, useUpdateUserSettings } from '@/lib/hooks/useUserSettings';
 import { useTranslation } from '@/lib/i18n/I18n.context';
+import { registerDeviceForPush } from '@/lib/utils/notifications/pushRegistration';
 import { createRemindersSchema, RemindersForm } from '@/lib/schemas/profile.schema';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { toAlphaColor } from '@/lib/theme/tokens';
@@ -47,15 +49,21 @@ const toDate = (time: { hour: number; minute: number }) => {
 type ReminderPersistenceProps = {
 	updateSettings: ReturnType<typeof useUpdateUserSettings>;
 	watch: UseFormWatch<RemindersForm>;
-	/** Fired when the reader switches daily reminders on, to ask the OS for permission. */
-	onRemindersEnabled: () => void;
+	/**
+	 * Fired when the reader switches either notification on, to ask the OS for permission.
+	 *
+	 * Both switches need it, and for different reasons: the daily reminder is scheduled on the
+	 * device and the group one is delivered from the server, and neither arrives without the
+	 * permission — nor without a registered push token, which is why this also registers one.
+	 */
+	onNotificationsEnabled: () => void;
 };
 
 /**
  * Non-visual: mirrors form changes to the server as they happen. The time write is
  * debounced so holding a stepper doesn't fire a request per tap; toggles persist right away.
  */
-const ReminderPersistence = ({ onRemindersEnabled, updateSettings, watch }: ReminderPersistenceProps) => {
+const ReminderPersistence = ({ onNotificationsEnabled, updateSettings, watch }: ReminderPersistenceProps) => {
 	const writeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	/** The value a pending debounce is holding, so it can be forced out early. */
 	const pendingTimeRef = useRef<string | null>(null);
@@ -114,7 +122,17 @@ const ReminderPersistence = ({ onRemindersEnabled, updateSettings, watch }: Remi
 				updateSettings.mutate({ reminderEnabled: values.reminderEnabled });
 
 				if (values.reminderEnabled) {
-					onRemindersEnabled();
+					onNotificationsEnabled();
+				}
+
+				return;
+			}
+
+			if (name === 'groupReadsEnabled' && values.groupReadsEnabled !== undefined) {
+				updateSettings.mutate({ groupReadsEnabled: values.groupReadsEnabled });
+
+				if (values.groupReadsEnabled) {
+					onNotificationsEnabled();
 				}
 
 				return;
@@ -127,7 +145,7 @@ const ReminderPersistence = ({ onRemindersEnabled, updateSettings, watch }: Remi
 			// dropping it with the timer.
 			flushPendingTime();
 		};
-	}, [flushPendingTime, onRemindersEnabled, updateSettings, watch]);
+	}, [flushPendingTime, onNotificationsEnabled, updateSettings, watch]);
 
 	return null;
 };
@@ -189,20 +207,27 @@ export const RemindersScreen = () => {
 		return () => subscription.remove();
 	}, []);
 
-	// Asking only when reminders are switched on keeps the prompt tied to the moment it
+	// Asking only when a notification is switched on keeps the prompt tied to the moment it
 	// makes sense. iOS only ever shows the system dialog once; after that this resolves
 	// to the standing answer, and the hint below points at Settings.
 	const requestNotifPermission = useCallback(async () => {
 		try {
 			const current = await Notifications.getPermissionsAsync();
+			const isGranted =
+				current.status === 'granted' || (await Notifications.requestPermissionsAsync()).status === 'granted';
 
-			if (current.status === 'granted') {
-				setHasNotifPermission(true);
-				return;
+			setHasNotifPermission(isGranted);
+
+			/*
+			 * **The token is registered here, not left to the next launch.** The group-reads
+			 * notification is a server push, so it needs a row in `PushToken` — and
+			 * `usePushTokenRegistration` only registers a device that *already* has permission,
+			 * which a device granting it this second does not. Home's prompt registers at the
+			 * same moment for the same reason. Best effort: the switch is saved either way.
+			 */
+			if (isGranted) {
+				await registerDeviceForPush();
 			}
-
-			const requested = await Notifications.requestPermissionsAsync();
-			setHasNotifPermission(requested.status === 'granted');
 		} catch {
 			// Leave the hint as-is if the platform refuses to answer.
 		}
@@ -232,7 +257,8 @@ export const RemindersScreen = () => {
 				isFullHeight={false}
 				defaultValues={{
 					reminderTime: settings.reminderTime,
-					reminderEnabled: settings.reminderEnabled
+					reminderEnabled: settings.reminderEnabled,
+					groupReadsEnabled: settings.groupReadsEnabled
 				}}
 				render={({ setValue, watch }) => {
 					const time = parseTime(watch('reminderTime'));
@@ -265,7 +291,7 @@ export const RemindersScreen = () => {
 					return (
 						<>
 							<ReminderPersistence
-								onRemindersEnabled={() => void requestNotifPermission()}
+								onNotificationsEnabled={() => void requestNotifPermission()}
 								updateSettings={updateSettings}
 								watch={watch}
 							/>
@@ -309,13 +335,27 @@ export const RemindersScreen = () => {
 									</View>
 								) : null}
 							</CardSurface>
-							<CardSurface isFlush>
-								<FormToggleRow
-									hint={t('dailyReminderHint')}
-									name='reminderEnabled'
-									title={t('dailyReminder')}
-								/>
-							</CardSurface>
+							{/*
+							 * Both switches in one section, because they answer the same question
+							 * from two directions: what the app should interrupt you for. The
+							 * first is the device's own repeating alarm, the second is the server
+							 * telling you the board moved — see `groupReadsEnabled`.
+							 */}
+							{/* Stop 11 of the first-use tour. */}
+							<TourTarget id='notifications'>
+								<CardSurface isFlush>
+									<FormToggleRow
+										hint={t('dailyReminderHint')}
+										name='reminderEnabled'
+										title={t('dailyReminder')}
+									/>
+									<FormToggleRow
+										hint={t('groupReadsHint')}
+										name='groupReadsEnabled'
+										title={t('groupReads')}
+									/>
+								</CardSurface>
+							</TourTarget>
 						</>
 					);
 				}}

@@ -1,4 +1,5 @@
 import { SliceChip } from '@/components/SliceChip/SliceChip.component';
+import { TourTarget } from '@/components/Tour/TourTarget.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { ProgressBar } from '@/components/ui/ProgressBar/ProgressBar.component';
@@ -18,11 +19,22 @@ import type { HomeGroupRowProps } from './HomeGroupRow.types';
  * the reader either way — a finished share is a thing to look at, not a thing to undo.
  * Nothing here marks babs read; that happens where the text is.
  */
-export const HomeGroupRow = ({ group, onOpenReader, onPress }: HomeGroupRowProps) => {
+export const HomeGroupRow = ({ group, isTourTarget = false, onOpenReader, onPress }: HomeGroupRowProps) => {
 	const { theme } = useThemeContext();
 	const { t } = useTranslation();
 	const isDone = group.done >= group.total;
 	const percent = group.total === 0 ? 0 : Math.round((group.done / group.total) * 100);
+
+	const button = (
+		<AppButton
+			accessibilityLabel={`${group.name} · ${isDone ? t('commitShareDone') : t('read')}`}
+			fullWidth={false}
+			onPress={onOpenReader}
+			size='sm'
+			title={isDone ? t('commitShareDone') : t('read')}
+			variant={isDone ? 'surface' : 'primary'}
+		/>
+	);
 
 	return (
 		<CardSurface onPress={onPress} style={styles.card}>
@@ -40,14 +52,12 @@ export const HomeGroupRow = ({ group, onOpenReader, onPress }: HomeGroupRowProps
 				</View>
 				<ProgressBar percent={percent} />
 			</View>
-			<AppButton
-				accessibilityLabel={`${group.name} · ${isDone ? t('commitShareDone') : t('read')}`}
-				fullWidth={false}
-				onPress={onOpenReader}
-				size='sm'
-				title={isDone ? t('commitShareDone') : t('read')}
-				variant={isDone ? 'surface' : 'primary'}
-			/>
+			{/*
+			 * The wrapper is only mounted for the row the tour points at. `TourTarget` renders a
+			 * plain `View` around its child, and this button sizes itself to its label — so
+			 * wrapping every row would put a measured box around nine controls for the sake of one.
+			 */}
+			{isTourTarget ? <TourTarget id='read'>{button}</TourTarget> : button}
 		</CardSurface>
 	);
 };

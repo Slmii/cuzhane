@@ -14,7 +14,8 @@ export type ProfileForm = z.infer<ReturnType<typeof createProfileSchema>>;
 export const createRemindersSchema = () =>
 	z.object({
 		reminderTime: z.string().regex(/^\d{2}:\d{2}$/),
-		reminderEnabled: z.boolean()
+		reminderEnabled: z.boolean(),
+		groupReadsEnabled: z.boolean()
 	});
 
 export type RemindersForm = z.infer<ReturnType<typeof createRemindersSchema>>;

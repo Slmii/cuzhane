@@ -32,6 +32,19 @@ model PoolClaimRelease {
     @@index([groupId, roundIndex])
 }
 
+model ShareReadNotice {
+    id         String   @id @default(cuid())
+    groupId    String
+    userId     String
+    roundIndex Int
+    createdAt  DateTime @default(now())
+
+    group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+    @@unique([groupId, userId, roundIndex])
+    @@index([groupId, roundIndex])
+}
+
 model BabRead {
     id         String   @id @default(cuid())
     groupId    String

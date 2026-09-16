@@ -22,6 +22,9 @@ import { useContext, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
+import { TourDevButton } from '@/components/Tour/TourDevButton.component';
+import { TourTarget } from '@/components/Tour/TourTarget.component';
+import { useTourAutoStart } from '@/components/Tour/useTourAutoStart';
 import { HomeEmptyState } from './HomeEmptyState.component';
 import { HomeGroupRow } from './HomeGroupRow.component';
 import type { HomeGroupRowGroup } from './HomeGroupRow.types';
@@ -106,6 +109,27 @@ export const HomeScreen = () => {
 		() => [...rows].sort((a, b) => Number(a.done >= a.total) - Number(b.done >= b.total)),
 		[rows]
 	);
+
+	/*
+	 * The group the first-use tour walks through, and the bab it opens in the reader: the
+	 * topmost row, which is also the one whose Read button the tour points at. Null while the
+	 * shelf is empty or still loading, which keeps the later stops on their centred cards.
+	 */
+	const tourSubject = useMemo(() => {
+		const first = ordered[0];
+
+		if (first === undefined) {
+			return null;
+		}
+
+		const group = (groups ?? []).find(candidate => candidate.id === first.id);
+		const babNumber = group?.myNextBabNumber ?? group?.myBabNumbers[0];
+
+		return babNumber === undefined ? null : { babNumber, groupId: first.id };
+	}, [groups, ordered]);
+
+	// Opens the tour on a first launch, and tells it which group to walk through.
+	useTourAutoStart({ subject: tourSubject });
 
 	const openReader = (groupId: string) => {
 		const group = (groups ?? []).find(candidate => candidate.id === groupId);
@@ -207,11 +231,13 @@ export const HomeScreen = () => {
 								    reader's month, and the groups below are what this screen is
 								    for. */}
 								{stats ? (
-									<StreakCard
-										last30Days={stats.last30Days}
-										longestStreakDays={stats.longestStreakDays}
-										streakDays={stats.streakDays}
-									/>
+									<TourTarget id='streak'>
+										<StreakCard
+											last30Days={stats.last30Days}
+											longestStreakDays={stats.longestStreakDays}
+											streakDays={stats.streakDays}
+										/>
+									</TourTarget>
 								) : null}
 
 								{rows.length === 0 ? null : (
@@ -300,10 +326,11 @@ export const HomeScreen = () => {
 										title={t('emptyHomeTitle')}
 									/>
 								) : (
-									<>
-										{ordered.map(group => (
+									<TourTarget id='groups' style={styles.groupRows}>
+										{ordered.map((group, index) => (
 											<HomeGroupRow
 												group={group}
+												isTourTarget={index === 0}
 												key={group.id}
 												onOpenReader={() => openReader(group.id)}
 												onPress={() =>
@@ -321,13 +348,15 @@ export const HomeScreen = () => {
 												{t('homeAllDone')}
 											</Typography>
 										) : null}
-									</>
+									</TourTarget>
 								)}
 							</ScrollView>
 						</PullToRefresh>
 					</>
 				)}
 			</View>
+			{/* Dropped from release bundles — see `TourDevButton`. */}
+			{__DEV__ ? <TourDevButton /> : null}
 		</View>
 	);
 };
@@ -374,6 +403,10 @@ const styles = StyleSheet.create({
 	greetingLabel: {
 		fontSize: 12,
 		lineHeight: 15
+	},
+	// The gap the rows used to get from `list`, now that a `TourTarget` stands between them.
+	groupRows: {
+		gap: 10
 	},
 	groupsCopy: {
 		flex: 1,

@@ -1,11 +1,13 @@
 import { BAD_REQUEST, CONFLICT } from '@config/httpCodes';
 import { HttpError } from '@config/httpError';
 import prisma from '@db/prisma';
-import { BAB_COUNT } from '@utils/babs';
-import { getMemberProfiles } from '@utils/memberProfiles';
+import { BAB_COUNT, babRuns, formatRun } from '@utils/babs';
+import { FALLBACK_DISPLAY_NAME, getMemberProfiles } from '@utils/memberProfiles';
 import { normalizeUserId } from '@utils/normalizeUserId';
+import { groupReadPush, toPushLanguage } from '@utils/pushCopy';
 import type { Prisma } from '../generated/prisma/client';
 import { requireMembership } from './groupAccess.service';
+import { sendPushToUser } from './push.service';
 import { poolBabNumbers, serializeBab, shareBabNumbersToday } from './groupSerializers';
 import { ensureCurrentRound, ensureCurrentRoundFor } from './rounds.service';
 import type { GroupBab, GroupStatus } from './groupSerializers';
@@ -153,6 +155,113 @@ export const listBabsForUser = async (userId: string, groupId: string): Promise<
 	return babs.map(bab => serializeBab(bab, nameByUserId));
 };
 
+/**
+ * Records that this member's finished share has been announced this round, and says whether the
+ * caller is the one that recorded it.
+ *
+ * **Finishing a share is not a one-way door.** Geri al on the last bab and Okudum again makes it
+ * true a second time, and the group was told twice for the same range. This is the memory that
+ * stops it: one row per member per round, `skipDuplicates` so a second claim is a no-op rather
+ * than an error, and `count` as the answer — 1 means this call is the first, 0 means somebody
+ * already said it.
+ *
+ * It runs on the caller's transaction, so the row and the read that completed the share commit
+ * together, and the unique key settles the race if two requests finish the same share at once.
+ */
+const claimShareNotice = async (
+	tx: Prisma.TransactionClient,
+	roundIndex: number,
+	groupId: string,
+	userId: string
+): Promise<boolean> => {
+	const claimed = await tx.shareReadNotice.createMany({
+		data: { groupId, roundIndex, userId },
+		skipDuplicates: true
+	});
+
+	return claimed.count === 1;
+};
+
+/**
+ * Tells the rest of the group that somebody finished their share.
+ *
+ * **One notification per share, not per bab.** It fired on every read at first, which meant a
+ * member working through a thirteen-bab range sent thirteen notifications to everybody who had
+ * opted in — one tap of Okudum each, and each its own Expo request. The event worth telling
+ * people about is the range being *done*, so this is only reached when the last bab of a share
+ * lands, and it names the range rather than a number.
+ *
+ * **Opt-in, and the flag is read before anything else is looked up.** `groupReadsEnabled`
+ * defaults to `false`, so the recipient query usually comes back empty and this returns before
+ * touching Clerk or composing anything — which keeps a notification nobody asked for off the
+ * hot path.
+ *
+ * Called **after** the commit and awaited, like the pool-claim push in `groupMembership`: a
+ * dangling promise here would escape the request. It also **never throws** — see the `catch`
+ * below: the read is already committed by the time this runs, and a failed lookup must not turn
+ * a successful write into a 5xx that makes the client roll its optimistic update back.
+ *
+ * Every recipient's language comes out of the same query as their id — one row each, not a
+ * `pushLanguageFor` per person.
+ */
+const notifyGroupOfShareRead = async (input: { groupId: string; range: string; readerId: string }): Promise<void> => {
+	const { groupId, range, readerId } = input;
+
+	try {
+		const group = await prisma.group.findUnique({
+			where: { id: groupId },
+			select: { name: true, members: { select: { displayName: true, userId: true } } }
+		});
+
+		if (group === null) {
+			return;
+		}
+
+		const others = group.members.filter(member => member.userId !== readerId);
+
+		if (others.length === 0) {
+			return;
+		}
+
+		const recipients = await prisma.userSettings.findMany({
+			where: { groupReadsEnabled: true, userId: { in: others.map(member => member.userId) } },
+			select: { language: true, userId: true }
+		});
+
+		if (recipients.length === 0) {
+			return;
+		}
+
+		// Clerk is the source of truth for a name; `GroupMember.displayName` is written once at
+		// join and is the fallback when the lookup comes back empty — see `getMemberProfiles`.
+		const profiles = await getMemberProfiles([readerId]);
+		const stored = group.members.find(member => member.userId === readerId)?.displayName;
+		const readerName = profiles.get(readerId)?.displayName ?? stored ?? FALLBACK_DISPLAY_NAME;
+
+		await Promise.all(
+			recipients.map(recipient =>
+				sendPushToUser(recipient.userId, {
+					...groupReadPush(toPushLanguage(recipient.language), {
+						groupName: group.name,
+						range,
+						readerName
+					}),
+					data: { groupId, kind: 'group-read' }
+				})
+			)
+		);
+	} catch (error) {
+		console.error('Failed to notify a group of a finished share', error);
+	}
+};
+
+/**
+ * The share's range as the notification names it — "1–13", or "1–13, 27–39" once a pool block
+ * has been taken on top of it. `babRuns`/`formatRun` are the same helpers the client's share
+ * chip uses, so the range in the notification reads the way it does on the group screen.
+ */
+const shareRange = (babNumbers: number[]): string => babRuns(babNumbers).map(formatRun).join(', ');
+
 export const setBabReadForUser = async (
 	userId: string,
 	groupId: string,
@@ -173,7 +282,7 @@ export const setBabReadForUser = async (
 	// 2. Lock ORDER. The rollover takes the group row and then the babs; if this path took
 	//    babs first and only reached the group inside `syncCompletedAt`, the two would
 	//    deadlock. Taking the group first makes the order identical everywhere.
-	const bab = await prisma.$transaction(async tx => {
+	const outcome = await prisma.$transaction(async tx => {
 		await lockGroup(tx, groupId);
 		await ensureCurrentRound(tx, groupId);
 
@@ -227,7 +336,8 @@ export const setBabReadForUser = async (
 				throw new HttpError(CONFLICT, 'This bab is not assigned to you');
 			}
 
-			return current;
+			// A no-op re-mark, so nothing changed and nobody is told about it.
+			return { bab: current, isShareRead: false, share };
 		}
 
 		await recordRead(tx, {
@@ -240,10 +350,36 @@ export const setBabReadForUser = async (
 
 		await syncCompletedAt(tx, groupId);
 
-		return tx.groupBab.findUniqueOrThrow({ where: { groupId_number: { groupId, number: babNumber } } });
+		/*
+		 * **Did this read finish the share?** That is the event the group is told about — one
+		 * notification for a range, not one per bab — so the question is asked here, where the
+		 * share and the board are already in hand and inside the same transaction that wrote the
+		 * read. Only on a real new read, and only for a bab **in the share**: a pool bab read after
+		 * the share was already finished would otherwise find nothing outstanding and announce the
+		 * same range a second time.
+		 */
+		const unreadInShare =
+			read && isMine && share.length > 0
+				? await tx.groupBab.count({ where: { groupId, number: { in: share }, readAt: null } })
+				: 1;
+
+		return {
+			bab: await tx.groupBab.findUniqueOrThrow({ where: { groupId_number: { groupId, number: babNumber } } }),
+			isShareRead:
+				unreadInShare === 0 && (await claimShareNotice(tx, group.roundIndex, groupId, normalizedUserId)),
+			share
+		};
 	});
 
-	return serializeBab(bab);
+	if (outcome.isShareRead) {
+		await notifyGroupOfShareRead({
+			groupId,
+			range: shareRange(outcome.share),
+			readerId: normalizedUserId
+		});
+	}
+
+	return serializeBab(outcome.bab);
 };
 
 /**
@@ -263,7 +399,7 @@ export const setAssignedBabsReadForUser = async (
 	await requireMembership(normalizedUserId, groupId);
 
 	// One transaction, group lock first — see the single-bab path for why both matter.
-	const babs = await prisma.$transaction(async tx => {
+	const result = await prisma.$transaction(async tx => {
 		await lockGroup(tx, groupId);
 		await ensureCurrentRound(tx, groupId);
 
@@ -330,8 +466,31 @@ export const setAssignedBabsReadForUser = async (
 
 		await syncCompletedAt(tx, groupId);
 
-		return tx.groupBab.findMany({ where: { groupId }, orderBy: { number: 'asc' } });
+		// The same question the single-bab path asks, and the same answer shape. Marking a whole
+		// share finishes it by definition — unless nothing was left to mark, which is a re-tap
+		// and not news.
+		const unreadInShare =
+			read && numbers.length > 0
+				? await tx.groupBab.count({ where: { groupId, number: { in: numbers }, readAt: null } })
+				: 1;
+
+		return {
+			babs: await tx.groupBab.findMany({ where: { groupId }, orderBy: { number: 'asc' } }),
+			isShareRead:
+				unreadInShare === 0 &&
+				affected.length > 0 &&
+				(await claimShareNotice(tx, group.roundIndex, groupId, normalizedUserId)),
+			share: numbers
+		};
 	});
 
-	return babs.map(bab => serializeBab(bab));
+	if (result.isShareRead) {
+		await notifyGroupOfShareRead({
+			groupId,
+			range: shareRange(result.share),
+			readerId: normalizedUserId
+		});
+	}
+
+	return result.babs.map(bab => serializeBab(bab));
 };

@@ -1,4 +1,7 @@
 import { NotificationOrchestrator } from '@/components/NotificationOrchestrator/NotificationOrchestrator.component';
+import { TourProvider } from '@/components/Tour/Tour.context';
+import { TourBlocker } from '@/components/Tour/TourBlocker.component';
+import { TourOverlay } from '@/components/Tour/TourOverlay.component';
 import { DestructiveDialog } from '@/components/ui/DestructiveDialog/DestructiveDialog.component';
 import { ClerkProvider } from '@/lib/context/ClerkProvider.context';
 import { useAppFocusSync } from '@/lib/hooks/useAppFocusSync';
@@ -99,24 +102,31 @@ const AppContainer = () => {
 			 * each navigator find a context already in place and step aside.
 			 */}
 			<SafeAreaProvider initialMetrics={initialWindowMetrics}>
-				<KeyboardProvider>
-					<NavigationContainer linking={linking} ref={navigationRef} theme={navigationTheme}>
-						<AppStatusBar isSplashVisible={isSplashVisible} />
-						<AppNavigator />
-						{/* Renders nothing until something calls `confirmDestructive`, and nothing at
-					    all off Android — iOS takes `Alert.alert`. Mounted here because Android
-					    presents it in a window of its own, which is what lets the two callers
-					    that live inside bottom sheets reach it from the root. */}
-						<DestructiveDialog />
-						<NotificationOrchestrator />
-						{/*
-						 * Over the app rather than in front of it: the navigator mounts and starts
-						 * fetching underneath, so the splash is spending time the app needed
-						 * anyway instead of adding to it.
-						 */}
-						{isSplashVisible ? <AnimatedSplash /> : null}
-					</NavigationContainer>
-				</KeyboardProvider>
+				{/* The tour waits for the splash — see `TourProvider`. */}
+				<TourProvider isBlocked={isSplashVisible}>
+					<KeyboardProvider>
+						<NavigationContainer linking={linking} ref={navigationRef} theme={navigationTheme}>
+							<AppStatusBar isSplashVisible={isSplashVisible} />
+							{/* Inert while the tour is running — see `TourBlocker`. */}
+							<TourBlocker>
+								<AppNavigator />
+							</TourBlocker>
+							{/* Renders nothing until something calls `confirmDestructive`, and nothing at
+						    all off Android — iOS takes `Alert.alert`. Mounted here because Android
+						    presents it in a window of its own, which is what lets the two callers
+						    that live inside bottom sheets reach it from the root. */}
+							<DestructiveDialog />
+							<TourOverlay />
+							<NotificationOrchestrator />
+							{/*
+							 * Over the app rather than in front of it: the navigator mounts and starts
+							 * fetching underneath, so the splash is spending time the app needed
+							 * anyway instead of adding to it.
+							 */}
+							{isSplashVisible ? <AnimatedSplash /> : null}
+						</NavigationContainer>
+					</KeyboardProvider>
+				</TourProvider>
 			</SafeAreaProvider>
 		</GestureHandlerRootView>
 	);
@@ -145,7 +155,7 @@ export const AppRoot = () => {
 		AmiriQuran_400Regular,
 		// Local files rather than packages — see `arabicReaderFonts`.
 		Kitab_400Regular: require('@/assets/fonts/Kitab-Regular.ttf'),
-		UthmanicHafs_400Regular: require('@/assets/fonts/UthmanicHafs-Regular.otf')
+		UthmanTahaNaskh_400Regular: require('@/assets/fonts/UthmanTahaNaskh-Regular.ttf')
 	});
 
 	useEffect(() => {

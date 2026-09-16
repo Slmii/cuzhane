@@ -1,3 +1,6 @@
+import { useIsTourDemo } from '@/components/Tour/Tour.context';
+import { tourDemoRounds } from '@/components/Tour/tourDemoData';
+import { tourDemoQueryKeys } from '@/lib/hooks/queryKeys';
 import { coverBabs, type CoverBabsInput, getRoundDetail, getRounds } from '@/api/rounds.api';
 import { useCurrentUserId } from '@/lib/hooks/useCurrentUserId';
 import { groupQueryKeys, profileQueryKeys } from '@/lib/hooks/queryKeys';
@@ -5,12 +8,17 @@ import { useLiveRefetchInterval } from '@/lib/hooks/useLiveRefetchInterval';
 import type { RoundDetail } from '@/lib/types/domain';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-export const useGetRounds = (groupId: string) =>
-	useQuery({
-		queryKey: groupQueryKeys.rounds(groupId),
-		queryFn: () => getRounds(groupId),
-		enabled: !!groupId
+// See `useGetGroups` for why the tour answers its own queries.
+export const useGetRounds = (groupId: string) => {
+	const isDemo = useIsTourDemo();
+
+	return useQuery({
+		queryKey: isDemo ? tourDemoQueryKeys.rounds(groupId) : groupQueryKeys.rounds(groupId),
+		queryFn: isDemo ? async () => tourDemoRounds(groupId) : () => getRounds(groupId),
+		enabled: !!groupId,
+		...(isDemo ? { initialData: () => tourDemoRounds(groupId), staleTime: Infinity } : {})
 	});
+};
 
 export const useGetRoundDetail = (groupId: string, roundIndex: number) => {
 	const refetchInterval = useLiveRefetchInterval();

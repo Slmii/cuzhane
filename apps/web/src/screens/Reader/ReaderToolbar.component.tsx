@@ -1,3 +1,4 @@
+import { useTourBarTarget } from '@/components/Tour/useTourBarTarget';
 import { GlassCornerAction } from '@/components/ui/CornerAction/GlassCornerAction.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { TrailingCornerAction } from '@/navigation/TrailingCornerAction';
@@ -27,6 +28,9 @@ type ReaderNavigationProp = NativeStackNavigationProp<{ reader: { shouldOpenText
 export const ReaderToolbar = () => {
 	const navigation = useNavigation<ReaderNavigationProp>();
 	const { t } = useTranslation();
+
+	// Stop 10 of the first-use tour — the glyph beside the account.
+	useTourBarTarget('readerFont', 1);
 
 	return (
 		// No gap, as `GroupDetailToolbar` explains: each item is its own 44pt box.

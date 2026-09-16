@@ -15,7 +15,7 @@ import { TextSizeSheet } from '@/screens/Reader/TextSizeSheet.component';
 import { textSizeSheet } from '@/screens/Reader/textSizeSheet';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useKeepAwake } from 'expo-keep-awake';
-import { useContext, useEffect, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS, useSharedValue } from 'react-native-reanimated';
@@ -91,10 +91,27 @@ export const AllBabsScreen = ({ navigation, route }: Props) => {
 	 * bab rather than showing the old one leaving.
 	 */
 	const scrollRef = useRef<ScrollView | null>(null);
+	// Twice, for the reason `BabReaderScreen` records: the effect fires before the new bab has
+	// a height, so the scroll view re-applies its own offset a frame later on a device.
+	const isAwaitingTop = useRef(true);
+
+	const scrollToTop = useCallback(() => {
+		scrollRef.current?.scrollTo({ animated: false, y: 0 });
+	}, []);
 
 	useEffect(() => {
-		scrollRef.current?.scrollTo({ animated: false, y: 0 });
-	}, [babNumber]);
+		isAwaitingTop.current = true;
+		scrollToTop();
+	}, [babNumber, scrollToTop]);
+
+	const handleContentSizeChange = useCallback(() => {
+		if (!isAwaitingTop.current) {
+			return;
+		}
+
+		isAwaitingTop.current = false;
+		scrollToTop();
+	}, [scrollToTop]);
 
 	const commitScrub = (next: number) => {
 		setScrubBab(null);
@@ -149,7 +166,7 @@ export const AllBabsScreen = ({ navigation, route }: Props) => {
 	 * arrives late. A skeleton would be hiding a finished page to wait for a preference.
 	 */
 	const readerSettings = {
-		readerArabicFont: settingsQuery.data?.readerArabicFont ?? 'naskh',
+		readerArabicFont: settingsQuery.data?.readerArabicFont ?? 'uthman',
 		readerFontSize: settingsQuery.data?.readerFontSize ?? READER_FONT_SIZE_DEFAULT,
 		readerNumerals: settingsQuery.data?.readerNumerals ?? 'arabic'
 	} as const;
@@ -222,7 +239,12 @@ export const AllBabsScreen = ({ navigation, route }: Props) => {
 				</GestureDetector>
 			</View>
 
-			<ScrollView contentContainerStyle={styles.body} ref={scrollRef} showsVerticalScrollIndicator={false}>
+			<ScrollView
+				contentContainerStyle={styles.body}
+				onContentSizeChange={handleContentSizeChange}
+				ref={scrollRef}
+				showsVerticalScrollIndicator={false}
+			>
 				<ReaderBody
 					babNumber={babNumber}
 					font={readerSettings.readerArabicFont}

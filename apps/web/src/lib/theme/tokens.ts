@@ -163,6 +163,15 @@ export type AppTheme = {
 		 * `#8C3F3F` a destructive action needs. A rosette closing a verse is not a warning.
 		 */
 		ornament: string;
+		/**
+		 * What the first-use tour dims the app with, at an alpha the overlay picks.
+		 *
+		 * **The same ink in both themes**, like `codeInk` above and for the same kind of reason:
+		 * a spotlight's job is to darken everything outside its hole, and a scrim that followed
+		 * the theme would lighten the dark one — dimming a dark screen with a pale wash makes
+		 * the page brighter, not quieter.
+		 */
+		scrim: string;
 	};
 	spacing: Spacing;
 	radius: Radius;
@@ -257,7 +266,8 @@ export const lightTheme: AppTheme = {
 		heatHigh: '#3E6B5C',
 		readerSurface: 'rgba(247,245,240,0.94)',
 		readerRule: 'rgba(28,29,26,0.07)',
-		ornament: '#A65D5D'
+		ornament: '#A65D5D',
+		scrim: '#141513'
 	},
 	spacing,
 	radius
@@ -345,7 +355,8 @@ export const darkTheme: AppTheme = {
 		heatHigh: '#8FB8A6',
 		readerSurface: 'rgba(25,26,24,0.94)',
 		readerRule: 'rgba(242,240,234,0.09)',
-		ornament: '#C97B7B'
+		ornament: '#C97B7B',
+		scrim: '#141513'
 	},
 	spacing,
 	radius

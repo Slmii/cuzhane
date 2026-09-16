@@ -14,14 +14,18 @@ export const UpdateUserSettingsBodySchema = z
 	.object({
 		language: z.enum(['tr', 'en', 'nl']).optional(),
 		reminderEnabled: z.boolean().optional(),
+		groupReadsEnabled: z.boolean().optional(),
 		hasSeenOnboarding: z.boolean().optional(),
+		hasSeenTour: z.boolean().optional(),
 		reminderTime: TimeStringSchema.optional(),
 		readerFontSize: z.number().int().min(16).max(40).optional(),
 		// Mirrors the `ReaderNumerals` / `ReaderArabicFont` enums. Kept as literal unions
 		// rather than imported from the generated client so the request contract is readable
 		// here and a schema change has to be made deliberately on both sides.
 		readerNumerals: z.enum(['arabic', 'latin']).optional(),
-		readerArabicFont: z.enum(['naskh', 'amiri', 'madinah']).optional()
+		// `madinah` is deliberately absent: it is retired, and the request schema is what stops
+		// anything writing it again. See `toReaderArabicFont`.
+		readerArabicFont: z.enum(['naskh', 'amiri', 'uthman']).optional()
 	})
 	.refine(body => Object.values(body).some(value => value !== undefined), {
 		message: 'At least one field is required'

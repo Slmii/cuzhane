@@ -31,8 +31,8 @@ const NUMERAL_OPTIONS: { glyph: string; key: ReaderNumerals }[] = [
 	{ glyph: '123', key: 'latin' }
 ];
 
-/** Nesih leads because it is the default. */
-const FONT_OPTIONS: ReaderArabicFont[] = ['naskh', 'amiri', 'madinah'];
+/** Osman Taha leads because it is the default. */
+const FONT_OPTIONS: ReaderArabicFont[] = ['uthman', 'naskh', 'amiri'];
 
 /** The sample every typeface card sets, so both are compared on the same word. */
 const FONT_SAMPLE = 'بِسْمِ';
@@ -46,8 +46,8 @@ const FONT_SAMPLE = 'بِسْمِ';
  */
 const FONT_FAMILY_NAMES: Record<ReaderArabicFont, string> = {
 	amiri: 'Amiri Quran',
-	madinah: 'KFGQPC Uthmanic HAFS',
-	naskh: 'Kitab'
+	naskh: 'Kitab',
+	uthman: 'KFGQPC Uthman Taha Naskh'
 };
 
 /**
@@ -81,8 +81,8 @@ export const ReaderSettings = ({ onChange, settings }: ReaderSettingsProps) => {
 
 	const fontLabels: Record<ReaderArabicFont, string> = {
 		amiri: t('fontAmiri'),
-		madinah: t('fontMadinah'),
-		naskh: t('fontNaskh')
+		naskh: t('fontNaskh'),
+		uthman: t('fontUthman')
 	};
 
 	// Selected reads as a filled, accented card; the rest as plain surfaces.

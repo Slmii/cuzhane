@@ -183,7 +183,14 @@ export type UserSettings = {
 	// is the only one the app gives anybody a way to set. See `user.prisma`.
 	reminderEnabled: boolean;
 	reminderTime: string;
+	/**
+	 * "Tell me when someone in one of my groups reads a bab." A **server** push, unlike the
+	 * daily reminder, which the device schedules for itself — only the server knows when
+	 * somebody else reads. Off by default; see `user.prisma`.
+	 */
+	groupReadsEnabled: boolean;
 	hasSeenOnboarding: boolean;
+	hasSeenTour: boolean;
 	// The reader's typography, set from E2a and applied to every bab.
 	/** The Arabic's point size in the reader, 16–40. */
 	readerFontSize: number;
@@ -200,7 +207,7 @@ export type ReaderNumerals = 'arabic' | 'latin';
  * The face the reader sets the Arabic in. Named after the script rather than the font file,
  * so shipping a different family for `naskh` is a client change and not a migration.
  */
-export type ReaderArabicFont = 'naskh' | 'amiri' | 'madinah';
+export type ReaderArabicFont = 'naskh' | 'amiri' | 'uthman';
 
 export type ProfileStats = {
 	babsRead: number;

@@ -46,3 +46,17 @@ export const profileQueryKeys = {
 	root: () => ['profile'] as const,
 	stats: () => [...profileQueryKeys.root(), 'stats'] as const
 } as const;
+
+/**
+ * Keys for the first-use tour's stand-in data. **A separate namespace on purpose**: the real
+ * queries keep their own entries untouched while the tour runs, so nothing has to be refetched
+ * or invalidated when it ends — the hooks simply go back to asking for the other key.
+ */
+export const tourDemoQueryKeys = {
+	root: () => ['tourDemo'] as const,
+	groups: () => [...tourDemoQueryKeys.root(), 'list'] as const,
+	groupById: (groupId: string) => [...tourDemoQueryKeys.root(), 'detail', groupId] as const,
+	babs: (groupId: string) => [...tourDemoQueryKeys.root(), 'babs', groupId] as const,
+	rounds: (groupId: string) => [...tourDemoQueryKeys.root(), 'rounds', groupId] as const,
+	stats: () => [...tourDemoQueryKeys.root(), 'stats'] as const
+};

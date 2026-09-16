@@ -1,3 +1,6 @@
+import { useIsTourDemo } from '@/components/Tour/Tour.context';
+import { tourDemoBabs } from '@/components/Tour/tourDemoData';
+import { tourDemoQueryKeys } from '@/lib/hooks/queryKeys';
 import { useCurrentUserId } from '@/lib/hooks/useCurrentUserId';
 import { getBabs, setAllBabsRead, type SetAllBabsReadInput, setBabRead, type SetBabReadInput } from '@/api/babs.api';
 import { GroupBab, GroupSummary } from '@/lib/types/domain';
@@ -27,12 +30,14 @@ const withShareRead = (group: GroupSummary, read: boolean): GroupSummary => ({
 
 export const useGetBabs = (groupId: string) => {
 	const refetchInterval = useLiveRefetchInterval();
+	const isDemo = useIsTourDemo();
 
+	// See `useGetGroups` for why the tour answers its own queries.
 	return useQuery({
-		queryKey: groupQueryKeys.babs(groupId),
-		queryFn: () => getBabs(groupId),
+		queryKey: isDemo ? tourDemoQueryKeys.babs(groupId) : groupQueryKeys.babs(groupId),
+		queryFn: isDemo ? async () => tourDemoBabs(groupId) : () => getBabs(groupId),
 		enabled: !!groupId,
-		refetchInterval
+		...(isDemo ? { initialData: () => tourDemoBabs(groupId), staleTime: Infinity } : { refetchInterval })
 	});
 };
 

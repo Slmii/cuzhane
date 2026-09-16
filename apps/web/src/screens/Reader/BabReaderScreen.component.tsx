@@ -1,3 +1,4 @@
+import { TourTarget } from '@/components/Tour/TourTarget.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { PullToRefresh } from '@/components/ui/PullToRefresh/PullToRefresh.component';
@@ -160,10 +161,34 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 	 * a deep link alike.
 	 */
 	const scrollRef = useRef<ScrollView | null>(null);
+	/*
+	 * **Twice: once now, and again when the new bab has been measured.** The effect alone is
+	 * what shipped, and it fires while the old bab's content size is still in place — so on a
+	 * device the scroll view re-applied its own offset a frame later, against the new content,
+	 * and a long bab followed by a short one still landed mid-text. `onContentSizeChange` is
+	 * the moment the new page has a height, which is the moment the old offset would be
+	 * clamped into it. A bab that happens to set to exactly the same height fires no change and
+	 * keeps the first scroll, which is correct: there is nothing to clamp.
+	 */
+	const isAwaitingTop = useRef(true);
+
+	const scrollToTop = useCallback(() => {
+		scrollRef.current?.scrollTo({ animated: false, y: 0 });
+	}, []);
 
 	useEffect(() => {
-		scrollRef.current?.scrollTo({ animated: false, y: 0 });
-	}, [babNumber]);
+		isAwaitingTop.current = true;
+		scrollToTop();
+	}, [babNumber, scrollToTop]);
+
+	const handleContentSizeChange = useCallback(() => {
+		if (!isAwaitingTop.current) {
+			return;
+		}
+
+		isAwaitingTop.current = false;
+		scrollToTop();
+	}, [scrollToTop]);
 
 	// Both halves of landing, in one JS call so they batch into a single render — clearing
 	// the scrub separately would blink the old bab number between the two.
@@ -234,7 +259,7 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 	const readerSettings = {
 		// Must match `ReaderArabicFont`'s Prisma default — this only stands in for the frame
 		// before settings arrive, and a different guess would repaint the page underneath.
-		readerArabicFont: settingsQuery.data?.readerArabicFont ?? 'naskh',
+		readerArabicFont: settingsQuery.data?.readerArabicFont ?? 'uthman',
 		readerFontSize: settingsQuery.data?.readerFontSize ?? READER_FONT_SIZE_DEFAULT,
 		readerNumerals: settingsQuery.data?.readerNumerals ?? 'arabic'
 	} as const;
@@ -440,6 +465,7 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 			<PullToRefresh {...pullToRefresh}>
 				<ScrollView
 					contentContainerStyle={styles.page}
+					onContentSizeChange={handleContentSizeChange}
 					ref={scrollRef}
 					showsVerticalScrollIndicator={false}
 					stickyHeaderIndices={[0]}
@@ -576,74 +602,77 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 						{readHint}
 					</Typography>
 				) : null}
-				<View style={styles.footerRow}>
-					<AppButton
-						accessibilityLabel={t('previousBab')}
-						disabled={previousBabNumber === undefined}
-						fullWidth={false}
-						icon='chevronLeft'
-						onPress={() => goToBab(previousBabNumber)}
-						variant='surface'
-					/>
-					{/*
-					 * Live for your own babs and for the pool's; muted otherwise.
-					 *
-					 * `disabled` as well as muted — the reader now walks all hundred, so most
-					 * babs on most days are somebody else's, and a button that merely looked
-					 * inert but still fired would let anyone mark anyone's work. The server
-					 * refuses it too; this is so the screen never asks.
-					 */}
-					{/*
-					 * `AppButton`, so this button is the platform's own where the platform has one.
-					 * **The arrows either side are the same**, since `AppButton` learned to be a
-					 * glyph with no label — the whole row is native together or drawn together,
-					 * rather than a native button flanked by two hand-drawn ones.
-					 *
-					 * The three states map onto variants: unread is the filled `accent`, read is
-					 * `accentOutline` — accent hairline over no fill, which is what the outlined
-					 * state already was — and locked is a disabled `surface`. **That last one is
-					 * a change worth knowing about.** Locked used to be a filled `secondary`
-					 * block; `AppButton` expresses disabled as a 0.45 dim, which is closer to the
-					 * muting the design rejected than to the solid "not yours today" it had.
-					 */}
-					<AppButton
-						disabled={!canMark}
-						onPress={isPoolBab ? handleTakeAndRead : toggleCurrentRead}
-						style={styles.markButtonSlot}
-						/*
-						 * A pool bab says **"Üstlen ve oku"**, not "Okudum".
+				{/* Stop 9 of the first-use tour: Okudum and the two arrows, as one row. */}
+				<TourTarget id='readerActions'>
+					<View style={styles.footerRow}>
+						<AppButton
+							accessibilityLabel={t('previousBab')}
+							disabled={previousBabNumber === undefined}
+							fullWidth={false}
+							icon='chevronLeft'
+							onPress={() => goToBab(previousBabNumber)}
+							variant='surface'
+						/>
+						{/*
+						 * Live for your own babs and for the pool's; muted otherwise.
 						 *
-						 * The design binds pool to the plain mark-read label, but its model is
-						 * simpler than ours: here the tap takes the whole slot — eight to thirteen
-						 * babs, taken whole and held for the round — and only then marks this one.
-						 * "Okudum" would name the smaller half of what the button actually does.
-						 * Once the slot is taken the bab is yours, so the label falls back to
-						 * Okudum · Geri al on the next render.
-						 */
-						title={
-							!canMark
-								? t('readLocked')
-								: isPoolBab
-								? // The range on the button too, not only in the hint above it:
-								  // this is the label somebody reads on the way to tapping.
-								  poolRangeLabel
-									? `${t('takeAndRead')} · ${poolRangeLabel}`
-									: t('takeAndRead')
-								: isRead
-								? t('markUnread')
-								: t('markRead')
-						}
-						variant={isRead ? 'accentOutline' : 'accent'}
-					/>
-					<AppButton
-						accessibilityLabel={t('nextBab')}
-						disabled={nextBabNumber === undefined}
-						fullWidth={false}
-						icon='chevronRight'
-						onPress={() => goToBab(nextBabNumber)}
-						variant='surface'
-					/>
-				</View>
+						 * `disabled` as well as muted — the reader now walks all hundred, so most
+						 * babs on most days are somebody else's, and a button that merely looked
+						 * inert but still fired would let anyone mark anyone's work. The server
+						 * refuses it too; this is so the screen never asks.
+						 */}
+						{/*
+						 * `AppButton`, so this button is the platform's own where the platform has one.
+						 * **The arrows either side are the same**, since `AppButton` learned to be a
+						 * glyph with no label — the whole row is native together or drawn together,
+						 * rather than a native button flanked by two hand-drawn ones.
+						 *
+						 * The three states map onto variants: unread is the filled `accent`, read is
+						 * `accentOutline` — accent hairline over no fill, which is what the outlined
+						 * state already was — and locked is a disabled `surface`. **That last one is
+						 * a change worth knowing about.** Locked used to be a filled `secondary`
+						 * block; `AppButton` expresses disabled as a 0.45 dim, which is closer to the
+						 * muting the design rejected than to the solid "not yours today" it had.
+						 */}
+						<AppButton
+							disabled={!canMark}
+							onPress={isPoolBab ? handleTakeAndRead : toggleCurrentRead}
+							style={styles.markButtonSlot}
+							/*
+							 * A pool bab says **"Üstlen ve oku"**, not "Okudum".
+							 *
+							 * The design binds pool to the plain mark-read label, but its model is
+							 * simpler than ours: here the tap takes the whole slot — eight to thirteen
+							 * babs, taken whole and held for the round — and only then marks this one.
+							 * "Okudum" would name the smaller half of what the button actually does.
+							 * Once the slot is taken the bab is yours, so the label falls back to
+							 * Okudum · Geri al on the next render.
+							 */
+							title={
+								!canMark
+									? t('readLocked')
+									: isPoolBab
+									? // The range on the button too, not only in the hint above it:
+									  // this is the label somebody reads on the way to tapping.
+									  poolRangeLabel
+										? `${t('takeAndRead')} · ${poolRangeLabel}`
+										: t('takeAndRead')
+									: isRead
+									? t('markUnread')
+									: t('markRead')
+							}
+							variant={isRead ? 'accentOutline' : 'accent'}
+						/>
+						<AppButton
+							accessibilityLabel={t('nextBab')}
+							disabled={nextBabNumber === undefined}
+							fullWidth={false}
+							icon='chevronRight'
+							onPress={() => goToBab(nextBabNumber)}
+							variant='surface'
+						/>
+					</View>
+				</TourTarget>
 			</View>
 
 			{/*

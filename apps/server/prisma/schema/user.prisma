@@ -15,7 +15,8 @@ enum ReaderNumerals {
 enum ReaderArabicFont {
     naskh
     amiri
-    madinah
+    uthman
+    madinah /// @deprecated Use `uthman` instead.
 }
 
 model UserSettings {
@@ -24,11 +25,13 @@ model UserSettings {
     language          AppLanguage      @default(en)
     reminderEnabled   Boolean          @default(false)
     reminderTime      String           @default("21:30")
+    groupReadsEnabled Boolean          @default(false)
     nudgeEnabled      Boolean          @default(true)
     hasSeenOnboarding Boolean          @default(false)
+    hasSeenTour       Boolean          @default(false)
     readerFontSize    Int              @default(23)
     readerNumerals    ReaderNumerals   @default(arabic)
-    readerArabicFont  ReaderArabicFont @default(naskh)
+    readerArabicFont  ReaderArabicFont @default(uthman)
     createdAt         DateTime         @default(now())
     updatedAt         DateTime         @updatedAt
 }

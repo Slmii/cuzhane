@@ -1,3 +1,4 @@
+import { useIsTourDemo } from '@/components/Tour/Tour.context';
 import { useGetGroups } from '@/lib/hooks/useGroup';
 import { useGetUserSettings } from '@/lib/hooks/useUserSettings';
 import { useTranslation } from '@/lib/i18n/I18n.context';
@@ -46,6 +47,7 @@ export const useReminderNotificationSync = () => {
 	const { isSignedIn } = useAuth();
 	const { data: settings, isSuccess: hasSettings } = useGetUserSettings();
 	const { data: groups, isSuccess: hasGroups } = useGetGroups();
+	const isTourRunning = useIsTourDemo();
 
 	const isSyncing = useRef(false);
 	const isRerunPending = useRef(false);
@@ -59,8 +61,15 @@ export const useReminderNotificationSync = () => {
 	 * Signed in, both queries must have landed. Acting on settings alone would cancel a good
 	 * notification during the moment before groups arrive, and a force-quit in that window
 	 * would leave the reader with none at all.
+	 *
+	 * **And the tour is another unknown answer.** `useGetGroups` hands back the three stand-in
+	 * groups while the walkthrough runs (see `useIsTourDemo`), and `contentSig` carries the bab
+	 * count — so reconciling here would cancel the reader's real reminder and re-add one about
+	 * groups they are not in, then swap it back a minute later. Quitting the app mid-tour would
+	 * leave the demo one standing. Waiting is free: `isActive` is a dependency, so the run
+	 * happens the moment the tour ends, with the real shelf.
 	 */
-	const isReady = isSignedIn === false || (isSignedIn === true && hasSettings && hasGroups);
+	const isReady = isSignedIn === false || (isSignedIn === true && hasSettings && hasGroups && !isTourRunning);
 
 	const schedule = useMemo<ReminderSchedule>(
 		() => ({
