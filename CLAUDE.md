@@ -1010,6 +1010,16 @@ joined the seat it was covering, and somebody in your group reading a bab.
     com.cuzhaneapp.app (@devsc05/cuzhane)". Fix it once with `eas credentials -p ios` → _Push
     Notifications: Manage your Apple Push Notifications Key_; it needs the Apple Developer login,
     so it can't be scripted. **This is the first thing to check when a send silently does nothing.**
+-   **Android needs two separate Firebase pieces, and neither is the other.** The *client* half is
+    `google-services.json` (Firebase → Project settings → **General**), committed at
+    `apps/web/google-services.json` and named by `android.googleServicesFile` in `app.json` — it
+    holds identifiers, not credentials. The *server* half is a **service-account private key**
+    (Project settings → **Service accounts** → Generate new private key), uploaded with
+    `eas credentials -p android` → _Push Notifications: Manage your FCM V1 service account key_;
+    that one is a real secret and never enters the repo. Miss the first and the binary has no FCM;
+    miss the second and Expo answers `InvalidCredentials` exactly as it does for a missing APNs
+    key. The project is `cuzhane-af094`. **`googleServicesFile` is native config, so adding it
+    cannot go out over the air** — Android push only reaches people who take a new build.
 -   That error is also why `sendPushToUser` prunes on `DeviceNotRegistered` _specifically_ rather
     than on any error: a project-level misconfiguration must not delete every user's good token.
 -   Two ways to test without waiting on Expo: `xcrun simctl push <device> <bundle-id> file.apns`
