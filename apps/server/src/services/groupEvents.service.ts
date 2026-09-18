@@ -1,4 +1,5 @@
 import prisma from '@db/prisma';
+import type { Prisma } from '../generated/prisma/client';
 import { sendPushToUser } from '@services/push.service';
 import { recordNotification, type NotificationPayload } from '@services/notifications.service';
 import { toPushLanguage, type PushLanguage } from '@utils/pushCopy';
@@ -23,7 +24,20 @@ import { FALLBACK_DISPLAY_NAME, getMemberProfiles } from '@utils/memberProfiles'
  * succeeded, so a failed lookup here must not turn that write into a 5xx and make the client roll
  * an optimistic update back.
  */
-export type GroupEventSetting = 'poolClaimEnabled' | 'memberJoinedEnabled' | 'memberLeftEnabled';
+/**
+ * The `UserSettings` columns these events are gated on, **taken from the generated client** and
+ * not written out as strings.
+ *
+ * `Extract` is doing real work: a column the client does not have drops out of the union, so
+ * every caller naming it fails to compile. The `where: { [setting]: true }` below is a computed
+ * key, which TypeScript cannot check against Prisma's input type — this is what checks it
+ * instead, and without it a stale client type-checks clean and then throws
+ * `Unknown argument \`memberJoinedEnabled\`` at runtime, which is exactly what happened.
+ */
+export type GroupEventSetting = Extract<
+	keyof Prisma.UserSettingsWhereInput,
+	'poolClaimEnabled' | 'memberJoinedEnabled' | 'memberLeftEnabled'
+>;
 
 type GroupEventInput = {
 	groupId: string;

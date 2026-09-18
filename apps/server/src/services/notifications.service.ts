@@ -16,14 +16,24 @@ import type { NotificationKind, Prisma } from '../generated/prisma/client';
  * finished read into a 5xx.
  */
 
+/**
+ * One kind's payload, with its name **constrained to the generated enum**.
+ *
+ * `K extends NotificationKind` is the whole point: a kind the Prisma client does not know is a
+ * compile error here rather than a `PrismaClientValidationError` at runtime. That is not
+ * hypothetical — `db:migrate` left the client stale once, and an `as NotificationKind` on the
+ * write was enough to let the server type-check clean while being unable to file a single row.
+ */
+type Payload<K extends NotificationKind, Data> = { kind: K } & Data;
+
 /** What each kind carries. The client renders the sentence; this is only the data in it. */
 export type NotificationPayload =
-	| { kind: 'POOL_CLAIM_RELEASED'; startBab: number; endBab: number }
-	| { kind: 'SHARE_READ'; readerName: string; range: string }
-	| { kind: 'ROUND_COMPLETE'; roundNumber: number }
-	| { kind: 'POOL_BAB_CLAIMED'; takerName: string; range: string }
-	| { kind: 'MEMBER_JOINED'; memberName: string; memberCount: number; spots: number }
-	| { kind: 'MEMBER_LEFT'; memberName: string; memberCount: number; spots: number };
+	| Payload<'POOL_CLAIM_RELEASED', { startBab: number; endBab: number }>
+	| Payload<'SHARE_READ', { readerName: string; range: string }>
+	| Payload<'ROUND_COMPLETE', { roundNumber: number }>
+	| Payload<'POOL_BAB_CLAIMED', { takerName: string; range: string }>
+	| Payload<'MEMBER_JOINED', { memberName: string; memberCount: number; spots: number }>
+	| Payload<'MEMBER_LEFT', { memberName: string; memberCount: number; spots: number }>;
 
 type RecordInput = {
 	/** Everyone who should find this in their inbox. Already filtered by the caller. */
@@ -45,7 +55,7 @@ export const recordNotification = async ({ groupId, groupName, payload, userIds 
 			data: userIds.map(userId => ({
 				groupId,
 				groupName,
-				kind: kind as NotificationKind,
+				kind,
 				payload: rest as Prisma.InputJsonValue,
 				userId: normalizeUserId(userId)
 			}))
