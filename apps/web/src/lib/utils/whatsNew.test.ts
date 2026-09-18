@@ -3,13 +3,13 @@ import { whatsNewDecision, type WhatsNewInput } from './whatsNew';
 
 const decide = (overrides: Partial<WhatsNewInput> = {}) =>
 	whatsNewDecision({
-		currentVersion: '1.0.2',
+		currentReleaseId: 'release-2',
 		hasSeenTour: true,
 		isBlocked: false,
 		isFocused: true,
 		isNewcomer: false,
 		isTourActive: false,
-		lastSeenVersion: '1.0.1',
+		lastSeenReleaseId: 'release-1',
 		...overrides
 	});
 
@@ -33,12 +33,6 @@ describe('whatsNewDecision', () => {
 		expect(decide({ isFocused: false, isNewcomer: true })).toBe('wait');
 	});
 
-	it('announces nothing when the build reports no version', () => {
-		// Nothing is recorded either: a release keyed to a number the app invented would mark
-		// the real one as already seen.
-		expect(decide({ currentVersion: null })).toBe('wait');
-	});
-
 	describe('an existing reader who has not seen the tour', () => {
 		it('waits while the tour is still ahead of them', () => {
 			expect(decide({ hasSeenTour: false })).toBe('wait');
@@ -59,27 +53,27 @@ describe('whatsNewDecision', () => {
 		});
 
 		it('is shown nothing twice for the same release', () => {
-			expect(decide({ lastSeenVersion: '1.0.2' })).toBe('record');
+			expect(decide({ lastSeenReleaseId: 'release-2' })).toBe('record');
 		});
 
 		it('is shown the notes on an install that has never recorded a version', () => {
 			// The release that introduces the feature: the key has never been written on any
 			// device, so this is what every existing reader looks like on its first launch.
-			expect(decide({ lastSeenVersion: null })).toBe('show');
+			expect(decide({ lastSeenReleaseId: null })).toBe('show');
 		});
 	});
 
 	describe('a newcomer, in the launch they onboarded in', () => {
 		it('records the release without being shown it', () => {
-			expect(decide({ hasSeenTour: false, isNewcomer: true, lastSeenVersion: null })).toBe('record');
+			expect(decide({ hasSeenTour: false, isNewcomer: true, lastSeenReleaseId: null })).toBe('record');
 		});
 
 		it('is not shown it after their tour ends either', () => {
-			expect(decide({ hasSeenTour: true, isNewcomer: true, lastSeenVersion: null })).toBe('record');
+			expect(decide({ hasSeenTour: true, isNewcomer: true, lastSeenReleaseId: null })).toBe('record');
 		});
 
 		it('is not made to wait by their own tour being on screen', () => {
-			expect(decide({ hasSeenTour: false, isNewcomer: true, isTourActive: true, lastSeenVersion: null })).toBe(
+			expect(decide({ hasSeenTour: false, isNewcomer: true, isTourActive: true, lastSeenReleaseId: null })).toBe(
 				'record'
 			);
 		});
@@ -87,7 +81,7 @@ describe('whatsNewDecision', () => {
 		it('is an ordinary reader by the next release', () => {
 			// `isNewcomer` is a fact about a launch, so it is false by then — and the version they
 			// recorded on arrival is no longer the current one.
-			expect(decide({ currentVersion: '1.0.3', lastSeenVersion: '1.0.2' })).toBe('show');
+			expect(decide({ currentReleaseId: 'release-3', lastSeenReleaseId: 'release-2' })).toBe('show');
 		});
 	});
 });

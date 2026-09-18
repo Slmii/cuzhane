@@ -19,8 +19,21 @@ export type ReleaseNoteEntry = {
 
 export type Release = {
 	/**
-	 * `null` only for the newest, whose number is read from the build rather than written — see
-	 * `APP_VERSION`. Every release below it is history and carries its own string.
+	 * **What the sheet is gated on, and it is never displayed.**
+	 *
+	 * Not the app version, deliberately. `version` is the *store's* marketing number and changes
+	 * only when a binary ships; a release announced over the air lands on the version already
+	 * installed. Keying the gate on the version therefore forced a choice between announcing
+	 * nothing for OTA releases and bumping `version` without building — which is what made
+	 * Profil's row read 1.1.0 while the App Store said 1.0.1.
+	 *
+	 * Bump this for every release you want to announce, OTA or not. A date-and-subject string
+	 * reads better in a diff than a number that means nothing outside this file.
+	 */
+	id: string;
+	/**
+	 * The store version to show in the eyebrow. `null` on the newest, which takes the version
+	 * actually running — see `APP_VERSION`. Every release below it carries its own string.
 	 */
 	version: string | null;
 	/** "Eylül 2026" — its own key per language, because month names are not interpolated. */
@@ -46,11 +59,15 @@ export type Release = {
  * are no notes for them — writing some now would be inventing a changelog, which is the one thing
  * release notes must not do.
  *
- * To ship a release: bump `app.json`, prepend an entry here with its own keys and month, and give
- * the release that was at the top its literal `version` string in place of `null`.
+ * To ship a release: prepend an entry here with a fresh `id`, its own keys and its month, and give
+ * the release that was at the top its literal `version` string in place of `null`. **Bump
+ * `app.json`'s `version` only when you are actually building** — an update that goes out over the
+ * air lands on the version already installed, and saying otherwise puts the app and the store
+ * listing at odds.
  */
 export const RELEASES: Release[] = [
 	{
+		id: '2026-09-notifications',
 		entries: [
 			{ bodyKey: 'rn110InboxBody', icon: 'alert', isNew: true, titleKey: 'rn110InboxTitle' },
 			{ bodyKey: 'rn110SettingsBody', icon: 'settings', isNew: true, titleKey: 'rn110SettingsTitle' },

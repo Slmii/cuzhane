@@ -46,25 +46,25 @@ export type WhatsNewInput = {
 	/** This account came through onboarding during this launch — see `onboardingLaunch`. */
 	isNewcomer: boolean;
 	/** What this install last recorded, or `null` if it never has. */
-	lastSeenVersion: string | null;
+	lastSeenReleaseId: string | null;
 	/**
-	 * `null` when the build's manifest could not be read. Not a version to compare against, so
-	 * nothing is announced and nothing is recorded — better a missing notice than one keyed to
-	 * a number the app invented.
+	 * The release this build announces — `RELEASES[0].id`, **not** the app version. A release
+	 * that goes out over the air lands on the version already installed, so the version cannot
+	 * say whether there is something new to show.
 	 */
-	currentVersion: string | null;
+	currentReleaseId: string;
 };
 
 export const whatsNewDecision = ({
-	currentVersion,
+	currentReleaseId,
 	hasSeenTour,
 	isBlocked,
 	isFocused,
 	isNewcomer,
 	isTourActive,
-	lastSeenVersion
+	lastSeenReleaseId
 }: WhatsNewInput): WhatsNewDecision => {
-	if (hasSeenTour === undefined || currentVersion === null || isBlocked || !isFocused) {
+	if (hasSeenTour === undefined || isBlocked || !isFocused) {
 		return 'wait';
 	}
 
@@ -78,7 +78,7 @@ export const whatsNewDecision = ({
 		return 'wait';
 	}
 
-	if (lastSeenVersion === currentVersion) {
+	if (lastSeenReleaseId === currentReleaseId) {
 		return 'record';
 	}
 

@@ -12,7 +12,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * language — not on the account: "what's new" is about the app on *this* phone having changed,
  * and the same account on a phone still running the old build has not had that happen yet.
  */
-const STORAGE_KEY = 'whatsNew.lastSeenVersion';
+const STORAGE_KEY = 'whatsNew.lastSeenReleaseId';
 
 /**
  * Whether to open the "Neler yeni" sheet (design P1), and how to close it.
@@ -51,22 +51,21 @@ export const useWhatsNew = () => {
 	const hasChecked = useRef(false);
 
 	useEffect(() => {
-		// Read from the build, so there is no number to announce if the manifest could not be —
-		// see `APP_VERSION`. Pulled out here so the rest of the effect has a plain string.
-		const currentVersion = CURRENT_RELEASE.version;
+		// The release being announced, not the app version — see `Release.id`.
+		const currentReleaseId = CURRENT_RELEASE.id;
 
-		// `undefined` is not "no", it is *not yet known*. Acting on it would record the version
+		// `undefined` is not "no", it is *not yet known*. Acting on it would record the release
 		// and swallow the announcement, and the answer is one render away.
-		if (currentVersion === null || hasSeenTour === undefined || hasChecked.current) {
+		if (hasSeenTour === undefined || hasChecked.current) {
 			return;
 		}
 
 		const isNewcomer = didOnboardThisLaunch();
-		const shared = { currentVersion, hasSeenTour, isBlocked, isFocused, isNewcomer, isTourActive };
+		const shared = { currentReleaseId, hasSeenTour, isBlocked, isFocused, isNewcomer, isTourActive };
 
 		// The tour owns the screen until it is finished and gone. Decided before the storage is
 		// touched, so a deferred launch records nothing and leaves a later run free to act.
-		if (whatsNewDecision({ ...shared, lastSeenVersion: null }) === 'wait') {
+		if (whatsNewDecision({ ...shared, lastSeenReleaseId: null }) === 'wait') {
 			return;
 		}
 
@@ -75,11 +74,11 @@ export const useWhatsNew = () => {
 
 		const check = async () => {
 			try {
-				const lastSeenVersion = await SecureStore.getItemAsync(STORAGE_KEY);
-				const decision = whatsNewDecision({ ...shared, lastSeenVersion });
+				const lastSeenReleaseId = await SecureStore.getItemAsync(STORAGE_KEY);
+				const decision = whatsNewDecision({ ...shared, lastSeenReleaseId });
 
-				if (lastSeenVersion !== currentVersion) {
-					await SecureStore.setItemAsync(STORAGE_KEY, currentVersion);
+				if (lastSeenReleaseId !== currentReleaseId) {
+					await SecureStore.setItemAsync(STORAGE_KEY, currentReleaseId);
 				}
 
 				if (isActive && decision === 'show') {
