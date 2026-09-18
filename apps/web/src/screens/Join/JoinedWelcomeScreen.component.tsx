@@ -71,7 +71,18 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 	};
 
 	const handleSetReminder = () => {
-		navigation.replace('Tabs', { screen: 'Reminders' });
+		/*
+		 * **`initial: false`, or the bell tab loses its root.** Navigating into a nested
+		 * navigator makes the named screen that navigator's *only* route unless this is passed —
+		 * so the tab's stack became `[Reminders]`, its back control did nothing, and because
+		 * leaving a tab pops it to its *first* route, the settings screen stayed that tab's root
+		 * for the rest of the session with the inbox unreachable. Harmless until today, when
+		 * `Reminders` legitimately was the root.
+		 */
+		navigation.replace('Tabs', {
+			screen: 'Notifications',
+			params: { screen: 'Reminders', initial: false }
+		});
 	};
 
 	const handleBackToGroups = () => {

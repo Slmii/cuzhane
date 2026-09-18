@@ -42,6 +42,13 @@ export const userSettingsQueryKeys = {
 	settings: () => [...userSettingsQueryKeys.root(), 'settings'] as const
 } as const;
 
+export const notificationQueryKeys = {
+	root: () => ['notifications'] as const,
+	list: () => [...notificationQueryKeys.root(), 'list'] as const,
+	/** Its own key so Ana sayfa's bell can refetch a number without pulling the whole inbox. */
+	unreadCount: () => [...notificationQueryKeys.root(), 'unread-count'] as const
+} as const;
+
 export const profileQueryKeys = {
 	root: () => ['profile'] as const,
 	stats: () => [...profileQueryKeys.root(), 'stats'] as const
@@ -58,5 +65,7 @@ export const tourDemoQueryKeys = {
 	groupById: (groupId: string) => [...tourDemoQueryKeys.root(), 'detail', groupId] as const,
 	babs: (groupId: string) => [...tourDemoQueryKeys.root(), 'babs', groupId] as const,
 	rounds: (groupId: string) => [...tourDemoQueryKeys.root(), 'rounds', groupId] as const,
-	stats: () => [...tourDemoQueryKeys.root(), 'stats'] as const
+	stats: () => [...tourDemoQueryKeys.root(), 'stats'] as const,
+	notifications: () => [...tourDemoQueryKeys.root(), 'notifications'] as const,
+	unreadCount: () => [...tourDemoQueryKeys.root(), 'unreadCount'] as const
 };

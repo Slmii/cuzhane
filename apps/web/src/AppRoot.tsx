@@ -28,7 +28,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
 import * as Notifications from 'expo-notifications';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect, useMemo, useState } from 'react';
+import { CheckForUpdateOnLaunch } from '@/components/CheckForUpdateOnLaunch/CheckForUpdateOnLaunch.component';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context';
 // Aliased: `SplashScreen` above is Expo's native-splash controller, this is the animated
@@ -64,17 +65,38 @@ const SPLASH_MIN_DURATION_MS = 2000;
 
 const AppContainer = () => {
 	const { theme } = useThemeContext();
-	const [isSplashVisible, setIsSplashVisible] = useState(true);
+	const [hasSplashPlayed, setHasSplashPlayed] = useState(false);
+	const [isUpdateCheckComplete, setIsUpdateCheckComplete] = useState(false);
 	useAuthTokenSync();
 	useAppFocusSync();
 
 	const navigationTheme = useMemo(() => buildNavigationTheme(theme), [theme]);
 
+	/*
+	 * Started here rather than inside the check below, so the brand animation's minimum runs
+	 * *alongside* the update check instead of after it. The two share one splash: on a good
+	 * connection the check is long done before the animation is.
+	 */
 	useEffect(() => {
-		const timeout = setTimeout(() => setIsSplashVisible(false), SPLASH_MIN_DURATION_MS);
+		const timeout = setTimeout(() => setHasSplashPlayed(true), SPLASH_MIN_DURATION_MS);
 
 		return () => clearTimeout(timeout);
 	}, []);
+
+	// An effect dependency inside `CheckForUpdateOnLaunch`, so it has to hold its identity.
+	const handleUpdateCheckComplete = useCallback(() => setIsUpdateCheckComplete(true), []);
+
+	/*
+	 * **Nothing else mounts until the launch's update check is done** — the reference's own
+	 * arrangement, where `_layout.tsx` returns this in place of the app until `onComplete` fires.
+	 * It renders the same animated splash the app would be showing anyway, so there is no seam
+	 * between waiting for the check and waiting for the animation.
+	 */
+	if (!isUpdateCheckComplete) {
+		return <CheckForUpdateOnLaunch onComplete={handleUpdateCheckComplete} />;
+	}
+
+	const isSplashVisible = !hasSplashPlayed;
 
 	return (
 		<GestureHandlerRootView style={[styles.root, { backgroundColor: theme.colors.background }]}>

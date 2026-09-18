@@ -12,10 +12,14 @@ type AnyNavigationState = NavigationState | PartialState<NavigationState>;
  *
  * Two of the five places are tabs of their own rather than screens pushed onto one, so reaching
  * them is a different move: unwind whatever the tour pushed, then switch tab. The group screen,
- * the reader and Profil are all pushed *inside* whichever tab is current, and go through
- * `navigate` instead.
+ * the reader, Hatırlatma and Profil are all pushed *inside* whichever tab is current, and go
+ * through `navigate` instead.
+ *
+ * **Ana sayfa and the inbox are the two tabs.** Hatırlatma was the second until the bell tab
+ * was given to the notification inbox and its settings moved one push in — so the inbox took
+ * its place here and the settings are now reached the way Profil's stops are.
  */
-const TAB_BY_PLACE = { home: 'Home', reminders: 'Reminders' } as const;
+const TAB_BY_PLACE = { home: 'Home', inbox: 'Notifications' } as const;
 
 /**
  * The two handles on the tree that "go to Ana sayfa" needs: the deepest focused stack that has
@@ -176,13 +180,13 @@ export const useTourNavigation = () => {
 		}
 
 		// Nothing to open, so nothing is opened — see the note above.
-		if (subject === null && place !== 'home' && place !== 'reminders') {
+		if (subject === null && place !== 'home' && place !== 'inbox' && place !== 'reminders') {
 			return;
 		}
 
 		currentPlace.current = place;
 
-		const tab = place === 'home' || place === 'reminders' ? TAB_BY_PLACE[place] : undefined;
+		const tab = place === 'home' || place === 'inbox' ? TAB_BY_PLACE[place] : undefined;
 
 		if (tab !== undefined) {
 			goToTourTab(tab);
@@ -201,6 +205,11 @@ export const useTourNavigation = () => {
 
 		if (place === 'reader') {
 			navigate('BabReader', { babNumber: subject!.babNumber, groupId: subject!.groupId });
+			return;
+		}
+
+		if (place === 'reminders') {
+			navigate('Reminders', {});
 			return;
 		}
 

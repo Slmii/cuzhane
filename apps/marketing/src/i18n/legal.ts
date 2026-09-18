@@ -46,7 +46,8 @@ const privacyTr: LegalPage = {
 				'Hesabın: e-posta adresin, adın ve yüklediysen profil fotoğrafın.',
 				'Grupların: kurduğun veya katıldığın grupların adları, niyet metni, üyeliğin ve grup içindeki sıran.',
 				'Okuma ilerlemen: hangi babı hangi turda okuduğun ve havuzdan üstlendiğin bablar.',
-				'Ayarların: arayüz dili, tema, hatırlatma saati ve okuma ekranının yazı tipi ile boyutu.',
+				'Ayarların: arayüz dili, tema, hatırlatma saati, bildirim tercihlerin ve okuma ekranının yazı tipi ile boyutu.',
+				'Bildirim kutun: gruplarında olan bitenin kaydı — olayın türü, grubun adı ve ilgili üyenin görünen adı.',
 				'Bildirim için cihaz anahtarın (push token).',
 				'Uygulamadan geri bildirim gönderdiysen: mesajın, konusu, hesabının e-posta adresi ve cihazının platform, sürüm ve dil bilgisi.'
 			]
@@ -71,13 +72,13 @@ const privacyTr: LegalPage = {
 		{
 			heading: 'Bildirimler',
 			paragraphs: [
-				'Günlük hatırlatma cihazında kurulur ve sunucuya çıkmaz. Ayrıca havuzdan üstlendiğin bir bab başkasına geçtiğinde sunucudan bir bildirim gönderilir. Bildirimleri kapatmak istersen Hatırlatma ekranından kapatabilirsin.'
+				'Günlük hatırlatma cihazında kurulur ve sunucuya çıkmaz. Ayrıca sunucu altı durumda bildirim gönderir: havuzdan üstlendiğin bir bab başkasına geçtiğinde, grubundaki biri payını tamamladığında, grubun turu bitirdiğinde, biri ortak havuzdan bab üstlendiğinde, gruba biri katıldığında ve gruptan biri ayrıldığında. İlki dışındakileri Bildirimler ekranındaki ayarlardan ayrı ayrı açıp kapatabilirsin.'
 			]
 		},
 		{
 			heading: 'Verini silmek',
 			paragraphs: [
-				'Uygulama içinden Profil → Hesabı sil yolunu izlediğinde hesabın ve verin kalıcı olarak silinir: kurduğun gruplar üyeleriyle birlikte, katıldığın gruplardaki üyeliklerin, ayarların, cihaz anahtarların ve gönderdiğin geri bildirimler. Bu işlem geri alınamaz.',
+				'Uygulama içinden Profil → Hesabı sil yolunu izlediğinde hesabın ve verin kalıcı olarak silinir: kurduğun gruplar üyeleriyle birlikte, katıldığın gruplardaki üyeliklerin, ayarların, bildirim kutun, cihaz anahtarların ve gönderdiğin geri bildirimler. Bu işlem geri alınamaz.',
 				'Katıldığın (ama kurmadığın) bir grupta, hangi babın hangi turda okunduğu kaydı grubun geçmişinde kalır — kalmasaydı diğer üyelerin birlikte tamamladığı turlar eksik görünürdü. Bu kayıt yalnızca bir hesap kimliği taşır; adın, e-postan ve fotoğrafın silindiği için artık bir kişiye çözülmez.',
 				'Veritabanının şifreli yedekleri sunucuda 14 gün, sunucu dışında en fazla 90 gün tutulur; silinen bir kayıt en çok o kadar süre yedeklerde kalır. Ayrıntı: /delete-account sayfası.',
 				`Silme, düzeltme veya verine erişim taleplerin için ${CONTACT_EMAIL} adresine yazabilirsin.`
@@ -111,7 +112,8 @@ const privacyEn: LegalPage = {
 				'Your account: email address, name, and a profile photo if you upload one.',
 				'Your groups: the names of groups you create or join, their intention text, your membership and your seat within the group.',
 				'Your reading progress: which bab you read in which round, and any babs you claimed from the pool.',
-				'Your settings: interface language, theme, reminder time, and the reader’s typeface and size.',
+				'Your settings: interface language, theme, reminder time, your notification preferences, and the reader’s typeface and size.',
+				'Your notification inbox: a record of what happened in your groups — the kind of event, the group’s name, and the display name of the member it concerns.',
 				'A device key for notifications (a push token).',
 				'If you send feedback from the app: your message, its topic, your account email, and your device’s platform, version and language.'
 			]
@@ -136,13 +138,13 @@ const privacyEn: LegalPage = {
 		{
 			heading: 'Notifications',
 			paragraphs: [
-				'The daily reminder is scheduled on your device and never leaves it. Separately, the server sends a notification when a bab you claimed from the pool passes to somebody else. You can turn notifications off from the Reminders screen.'
+				'The daily reminder is scheduled on your device and never leaves it. Separately, the server sends a notification in six cases: when a bab you claimed from the pool passes to somebody else, when someone in your group finishes their share, when your group completes a round, when someone takes babs from the shared pool, when someone joins one of your groups, and when someone leaves one. All but the first can each be turned off from the notification settings.'
 			]
 		},
 		{
 			heading: 'Deleting your data',
 			paragraphs: [
-				'Profile → Delete account, inside the app, permanently deletes your account and your data: groups you own along with their members, your memberships in groups you joined, your settings, your device keys, and any feedback you sent. This cannot be undone.',
+				'Profile → Delete account, inside the app, permanently deletes your account and your data: groups you own along with their members, your memberships in groups you joined, your settings, your notification inbox, your device keys, and any feedback you sent. This cannot be undone.',
 				'In a group you joined but did not create, the record that a bab was read in a given round stays in that group’s history — without it, rounds the other members finished together would develop holes. That record carries an account identifier and nothing else, and once your account is gone it no longer resolves to a person.',
 				'Encrypted backups of the database are kept for 14 days on the server and at most 90 days off-site, so a deleted record persists in those snapshots for up to that long. The account deletion page has the detail.',
 				`For access, correction or deletion requests, write to ${CONTACT_EMAIL}.`
@@ -176,7 +178,8 @@ const privacyNl: LegalPage = {
 				'Je account: e-mailadres, naam en een profielfoto als je die uploadt.',
 				'Je groepen: de namen van groepen die je maakt of waaraan je meedoet, de intentietekst, je lidmaatschap en je plaats in de groep.',
 				'Je leesvoortgang: welke bab je in welke ronde las, en welke babs je uit de pool nam.',
-				'Je instellingen: taal, thema, herinneringstijd, en het lettertype en de lettergrootte van het leesscherm.',
+				'Je instellingen: taal, thema, herinneringstijd, je meldingsvoorkeuren, en het lettertype en de lettergrootte van het leesscherm.',
+				'Je meldingenoverzicht: een verslag van wat er in je groepen gebeurde — het soort gebeurtenis, de naam van de groep en de weergavenaam van het betrokken lid.',
 				'Een apparaatsleutel voor meldingen (push token).',
 				'Als je feedback stuurt vanuit de app: je bericht, het onderwerp, je e-mailadres en het platform, de versie en de taal van je toestel.'
 			]
@@ -201,13 +204,13 @@ const privacyNl: LegalPage = {
 		{
 			heading: 'Meldingen',
 			paragraphs: [
-				'De dagelijkse herinnering wordt op je toestel ingepland en verlaat het niet. Daarnaast stuurt de server een melding wanneer een bab die je uit de pool nam naar iemand anders gaat. Meldingen kun je uitzetten via het scherm Herinneringen.'
+				'De dagelijkse herinnering wordt op je toestel ingepland en verlaat het niet. Daarnaast stuurt de server in zes gevallen een melding: wanneer een bab die je uit de pool nam naar iemand anders gaat, wanneer iemand in je groep het eigen deel afrondt, wanneer je groep een ronde voltooit, wanneer iemand babs uit de gedeelde pool neemt, wanneer iemand lid wordt van een groep van jou en wanneer iemand er een verlaat. Alles behalve de eerste kun je afzonderlijk uitzetten bij de meldingsinstellingen.'
 			]
 		},
 		{
 			heading: 'Je gegevens verwijderen',
 			paragraphs: [
-				'Via Profiel → Account verwijderen in de app worden je account en je gegevens definitief verwijderd: groepen die je zelf maakte inclusief hun leden, je lidmaatschappen in andere groepen, je instellingen, je apparaatsleutels en de feedback die je stuurde. Dit kan niet ongedaan worden gemaakt.',
+				'Via Profiel → Account verwijderen in de app worden je account en je gegevens definitief verwijderd: groepen die je zelf maakte inclusief hun leden, je lidmaatschappen in andere groepen, je instellingen, je meldingenoverzicht, je apparaatsleutels en de feedback die je stuurde. Dit kan niet ongedaan worden gemaakt.',
 				'In een groep waaraan je deelnam maar die je niet zelf maakte, blijft de vastlegging dat een bab in een bepaalde ronde is gelezen in de geschiedenis van die groep staan — anders zouden rondes die de andere leden samen afmaakten gaten vertonen. Die vastlegging bevat alleen een account-identificatie en verwijst na verwijdering van je account niet meer naar een persoon.',
 				'Versleutelde back-ups van de database worden 14 dagen op de server bewaard en maximaal 90 dagen daarbuiten; een verwijderde vastlegging blijft zolang in die momentopnamen bestaan. De pagina over accountverwijdering geeft de details.',
 				`Voor inzage, correctie of verwijdering kun je mailen naar ${CONTACT_EMAIL}.`
@@ -354,11 +357,9 @@ const supportNl: LegalPage = {
 const deleteAccountTr: LegalPage = {
 	title: 'Hesabını silmek',
 	metaTitle: 'Hesabını silmek · Cüzhane',
-	metaDescription:
-		'Cüzhane hesabını ve verini nasıl silersin, silindiğinde ne gider, ne kalır ve ne kadar süreyle.',
+	metaDescription: 'Cüzhane hesabını ve verini nasıl silersin, silindiğinde ne gider, ne kalır ve ne kadar süreyle.',
 	updated: UPDATED,
-	intro:
-		'Cüzhane hesabını uygulamanın içinden kendin silebilirsin. Silme kalıcıdır ve geri alınamaz.',
+	intro: 'Cüzhane hesabını uygulamanın içinden kendin silebilirsin. Silme kalıcıdır ve geri alınamaz.',
 	sections: [
 		{
 			heading: 'Uygulamadan sil',
@@ -471,11 +472,9 @@ const deleteAccountEn: LegalPage = {
 const deleteAccountNl: LegalPage = {
 	title: 'Je account verwijderen',
 	metaTitle: 'Je account verwijderen · Cüzhane',
-	metaDescription:
-		'Hoe je je Cüzhane-account en je gegevens verwijdert, wat er weggaat, wat er blijft en hoelang.',
+	metaDescription: 'Hoe je je Cüzhane-account en je gegevens verwijdert, wat er weggaat, wat er blijft en hoelang.',
 	updated: UPDATED,
-	intro:
-		'Je kunt je Cüzhane-account zelf verwijderen, vanuit de app. Verwijderen is definitief en kan niet ongedaan worden gemaakt.',
+	intro: 'Je kunt je Cüzhane-account zelf verwijderen, vanuit de app. Verwijderen is definitief en kan niet ongedaan worden gemaakt.',
 	sections: [
 		{
 			heading: 'Verwijderen in de app',

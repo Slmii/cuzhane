@@ -9,6 +9,9 @@ import { requireMembership, requireOwner } from './groupAccess.service';
 import { getMemberProfiles } from '@utils/memberProfiles';
 import { toGroupDetail, toGroupMember, toInvitePreview } from './groupSerializers';
 import { poolBlockFor } from './pool.service';
+import { recordNotification } from './notifications.service';
+import { notifyGroupMembers } from './groupEvents.service';
+import { memberJoinedPush, memberLeftPush } from '@utils/pushCopy';
 import { sendPushToUser } from './push.service';
 import { poolClaimReleasedPush, pushLanguageFor } from '@utils/pushCopy';
 import type { GroupDetail, GroupInvitePreview, GroupMember } from './groupSerializers';
@@ -205,6 +208,23 @@ const attemptJoin = async (
 	if (released !== null) {
 		const { userId: volunteerId, range } = released as { userId: string; range: string };
 		const language = await pushLanguageFor(volunteerId);
+		const [startBab, endBab] = range.split('–').map(Number);
+
+		/*
+		 * The inbox row is the durable half of this notice. `PoolClaimRelease` already records
+		 * the same event for the group screen's banner; this is what puts it in the reader's
+		 * own list (design P2), and it is filed whether or not the push reaches them.
+		 */
+		const group = await prisma.group.findUnique({ where: { id: groupId }, select: { name: true } });
+
+		if (group !== null && startBab !== undefined && endBab !== undefined) {
+			await recordNotification({
+				groupId,
+				groupName: group.name,
+				payload: { endBab, kind: 'POOL_CLAIM_RELEASED', startBab },
+				userIds: [volunteerId]
+			});
+		}
 
 		await sendPushToUser(volunteerId, {
 			...poolClaimReleasedPush(language, range),
@@ -227,6 +247,30 @@ const performJoin = async (
 	for (let attempt = 0; attempt < MAX_SLOT_ATTEMPTS; attempt++) {
 		try {
 			await attemptJoin(normalizedUserId, displayName, groupId, viaInviteCode);
+
+			/*
+			 * After the seat is taken, so the count in the message is the one that now includes
+			 * them. Awaited rather than left dangling — `notifyGroupMembers` swallows its own
+			 * failures, so this cannot turn a successful join into an error.
+			 */
+			await notifyGroupMembers({
+				actorUserId: normalizedUserId,
+				/*
+				 * `actorName`, not the `displayName` this join was made with: that argument is
+				 * whatever the session claims held, which for anyone who signed up before filling
+				 * in their profile is "Member" — and the row said so.
+				 */
+				build: ({ actorName, groupName, memberCount, spots }) => ({
+					payload: { kind: 'MEMBER_JOINED', memberCount, memberName: actorName, spots },
+					push: language =>
+						memberJoinedPush(language, { groupName, memberCount, memberName: actorName, spots })
+				}),
+				excludeUserIds: [normalizedUserId],
+				groupId,
+				pushKind: 'member-joined',
+				setting: 'memberJoinedEnabled'
+			});
+
 			return loadDetail(groupId, normalizedUserId);
 		} catch (error) {
 			if (!isUniqueConstraintError(error) || attempt === MAX_SLOT_ATTEMPTS - 1) {
@@ -260,7 +304,16 @@ export const joinGroupByCodeForUser = async (
 };
 
 // Unassigns the member's babs (clearing any progress they made on them) and removes their seat.
-const removeMember = async (groupId: string, userId: string): Promise<void> => {
+/**
+ * `excludeUserIds` covers whoever already knows: the member leaving, and — when an owner removed
+ * them — that owner too. From every other member's side the two cases are the same event, a seat
+ * free again and its block back in the pool for the rest of the round.
+ */
+const removeMember = async (
+	groupId: string,
+	userId: string,
+	notice: { displayName: string; excludeUserIds: string[] }
+): Promise<void> => {
 	await prisma.$transaction(async tx => {
 		// Delete the membership FIRST. Unassigning before deleting leaves a window in
 		// which the member — still a member as far as a concurrent request is concerned —
@@ -288,6 +341,21 @@ const removeMember = async (groupId: string, userId: string): Promise<void> => {
 		// than left disagreeing with the board.
 		await syncCompletedAt(tx, groupId);
 	});
+
+	await notifyGroupMembers({
+		// The seat is already deleted, so the group cannot supply the fallback name — this is the
+		// one caller that has to hand it over.
+		actorStoredName: notice.displayName,
+		actorUserId: userId,
+		build: ({ actorName, groupName, memberCount, spots }) => ({
+			payload: { kind: 'MEMBER_LEFT', memberCount, memberName: actorName, spots },
+			push: language => memberLeftPush(language, { groupName, memberCount, memberName: actorName, spots })
+		}),
+		excludeUserIds: notice.excludeUserIds,
+		groupId,
+		pushKind: 'member-left',
+		setting: 'memberLeftEnabled'
+	});
 };
 
 export const leaveGroupForUser = async (userId: string, groupId: string): Promise<{ success: true }> => {
@@ -298,7 +366,10 @@ export const leaveGroupForUser = async (userId: string, groupId: string): Promis
 		throw new HttpError(BAD_REQUEST, 'The group owner cannot leave. Delete the group instead.');
 	}
 
-	await removeMember(groupId, normalizedUserId);
+	await removeMember(groupId, normalizedUserId, {
+		displayName: membership.displayName,
+		excludeUserIds: [normalizedUserId]
+	});
 
 	return { success: true };
 };
@@ -317,7 +388,10 @@ export const removeMemberForUser = async (
 		throw new HttpError(BAD_REQUEST, 'The group owner cannot leave. Delete the group instead.');
 	}
 
-	await removeMember(groupId, normalizedMemberUserId);
+	await removeMember(groupId, normalizedMemberUserId, {
+		displayName: membership.displayName,
+		excludeUserIds: [normalizedMemberUserId, normalizeUserId(userId)]
+	});
 
 	return { success: true };
 };

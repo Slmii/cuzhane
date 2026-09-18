@@ -45,6 +45,17 @@ model ShareReadNotice {
     @@index([groupId, roundIndex])
 }
 
+model RoundCompleteNotice {
+    id         String   @id @default(cuid())
+    groupId    String
+    roundIndex Int
+    createdAt  DateTime @default(now())
+
+    group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+    @@unique([groupId, roundIndex])
+}
+
 model BabRead {
     id         String   @id @default(cuid())
     groupId    String

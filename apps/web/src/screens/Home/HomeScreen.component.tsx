@@ -1,4 +1,6 @@
 import { ShelfEmptyState } from '@/components/ShelfEmptyState/ShelfEmptyState.component';
+import { TourTarget } from '@/components/Tour/TourTarget.component';
+import { useTourAutoStart } from '@/components/Tour/useTourAutoStart';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
@@ -15,6 +17,8 @@ import { shareSlices } from '@/lib/utils/groups';
 import { TabBarOffsetContext } from '@/navigation/TabBarOffsetContext';
 import { TabStackParamList } from '@/navigation/types';
 import { JoinByCodeSheet } from '@/screens/Join/JoinByCodeSheet.component';
+import { WhatsNewSheet } from '@/screens/WhatsNew/WhatsNewSheet.component';
+import { useWhatsNew } from '@/lib/hooks/useWhatsNew';
 import { useUser } from '@clerk/expo';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -22,9 +26,6 @@ import { useContext, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
-import { TourDevButton } from '@/components/Tour/TourDevButton.component';
-import { TourTarget } from '@/components/Tour/TourTarget.component';
-import { useTourAutoStart } from '@/components/Tour/useTourAutoStart';
 import { HomeEmptyState } from './HomeEmptyState.component';
 import { HomeGroupRow } from './HomeGroupRow.component';
 import type { HomeGroupRowGroup } from './HomeGroupRow.types';
@@ -130,6 +131,7 @@ export const HomeScreen = () => {
 
 	// Opens the tour on a first launch, and tells it which group to walk through.
 	useTourAutoStart({ subject: tourSubject });
+	const whatsNew = useWhatsNew();
 
 	const openReader = (groupId: string) => {
 		const group = (groups ?? []).find(candidate => candidate.id === groupId);
@@ -168,6 +170,20 @@ export const HomeScreen = () => {
 	return (
 		<View style={[styles.screen, { backgroundColor: theme.colors.headerSurface }]}>
 			<JoinByCodeSheet isVisible={isJoinSheetOpen} onClose={() => setIsJoinSheetOpen(false)} />
+			{/*
+			 * P1, and it opens from Ana sayfa for the same reason the tour does: this is the screen
+			 * the app lands on, so it is the only place a notice can reliably catch an update. It
+			 * never collides with the tour — `useWhatsNew` says nothing on an install that has no
+			 * stored version, which is every install the tour opens for.
+			 */}
+			<WhatsNewSheet
+				isVisible={whatsNew.isVisible}
+				onClose={whatsNew.dismiss}
+				onShowAll={() => {
+					whatsNew.dismiss();
+					navigation.navigate('ReleaseNotes');
+				}}
+			/>
 			{/* The greeting only. The account — and search on Android — is the navigator's bar
 			    item, which floats over this layer at the right of the same row. */}
 			<View style={[styles.header, { paddingTop: insets.top + theme.spacing.xs }]}>
@@ -355,8 +371,6 @@ export const HomeScreen = () => {
 					</>
 				)}
 			</View>
-			{/* Dropped from release bundles — see `TourDevButton`. */}
-			{__DEV__ ? <TourDevButton /> : null}
 		</View>
 	);
 };

@@ -27,6 +27,13 @@ apps/server/prisma/migrations
 # they are good for: diffing the next export against this one to see what actually changed.
 design_handoff_cuzhane
 
+# The custom SF Symbol catalog, written by `scripts/build-symbols.mjs` (EasySymbols) and copied
+# into the generated iOS project at prebuild. Every `Contents.json` in it is the tool's own
+# output, not hand-written, so reformatting them produces a diff on files nobody edited — which
+# has now happened twice from a broad `prettier --write src`. Regenerating is the only way they
+# are ever meant to change.
+apps/web/src/assets/symbols
+
 # Astro components. Prettier needs `prettier-plugin-astro` to parse a `.astro` file at all,
 # and without it every one of them is an error rather than a skip. The plugin is a dependency
 # for formatting alone; these files are hand-formatted to match the rest of the repo instead.

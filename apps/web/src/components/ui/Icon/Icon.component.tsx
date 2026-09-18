@@ -215,6 +215,19 @@ const GLYPHS: Record<IconName, Glyph> = {
 		paths: ['M4.5 8.5v8a1.6 1.6 0 0 0 1.6 1.6h11.8a1.6 1.6 0 0 0 1.6-1.6v-8', 'M9.2 18.1V8.5', 'M14.8 18.1V8.5']
 	},
 	alert: { paths: ['M12 4.8L3.6 19.2h16.8z', 'M12 10v3.6', 'M12 16.4v.2'] },
+	/*
+	 * The icon export's `bildirim-notification`, path for path — dome, clapper, stem.
+	 *
+	 * The export ships it as `-filled`, with a solid r2.2 circle at (17.6, 6.4): the unread dot,
+	 * baked into the glyph. It is dropped here, as frame P1 drops it, because the count belongs
+	 * on the **tab** now — the bell tab carries the platform's own badge — and because a custom
+	 * SF Symbol cannot hold a filled shape anyway, so the drawn glyph and the symbol built from
+	 * this same file stay identical.
+	 *
+	 * Not `tabReminders`, which is the same object drawn differently — two paths, slightly
+	 * smaller, no stem. That one is what the bell *tab* draws.
+	 */
+	bell: { paths: ['M6 17h12l-1.8-2.5V10.6a4.2 4.2 0 0 0-8.4 0v3.9z', 'M10 20h4', 'M12 4v2'] },
 	// Frame 2a's mark, traced: the exclamation in a ring, not the triangle above and not
 	// `info` (which is the same three shapes the other way up).
 	alertCircle: { circles: [[12, 12, 8.4]], paths: ['M12 7.6v5', 'M12 15.7v.2'] },
@@ -268,6 +281,67 @@ const GLYPHS: Record<IconName, Glyph> = {
 			'M8.4 11.6V5.9a1.6 1.6 0 0 1 3.2 0v4.9',
 			'M11.6 10.4V8.6a1.6 1.6 0 0 1 3.2 0v2.2',
 			'M14.8 10.9V9.6a1.6 1.6 0 0 1 3.2 0v5.1a5.4 5.4 0 0 1-5.4 5.4h-1.3a5.4 5.4 0 0 1-4.6-2.6l-2-3.3a1.6 1.6 0 0 1 2.6-1.9l1.5 1.9'
+		]
+	},
+
+	/*
+	 * **The inbox's own vocabulary** — the icon set's "Bildirim türleri" section, traced path for
+	 * path. Every kind used to borrow: a range for a finished share, the hatim-complete mark for
+	 * a closed round, a member tick for somebody joining. They were all legible on their own and
+	 * read as six unrelated marks in a column, because each had been drawn to mean something else
+	 * somewhere else.
+	 *
+	 * The two person glyphs are deliberately one stroke apart — a plus and a minus on the same
+	 * figure — since joining and leaving are the same event in opposite directions.
+	 */
+	memberJoined: {
+		circles: [[10, 8.6, 3.2]],
+		paths: ['M4 19.2a6 6 0 0 1 12 0', 'M18.4 6.4v5', 'M15.9 8.9h5']
+	},
+	memberLeft: {
+		circles: [[10, 8.6, 3.2]],
+		paths: ['M4 19.2a6 6 0 0 1 12 0', 'M15.9 8.9h5']
+	},
+	// A block of babs with a tick inside it — the share, finished.
+	shareRead: {
+		paths: [
+			'M4.5 8.5v8a1.6 1.6 0 0 0 1.6 1.6h11.8a1.6 1.6 0 0 0 1.6-1.6v-8',
+			'M9.2 8.5v2.4',
+			'M14.8 8.5v2.4',
+			'M8.6 14.2l2.3 2.3 4.6-4.8'
+		]
+	},
+	/*
+	 * Not `completed`, which is the hatim mark. This is the *round* closing — the ring with its
+	 * four rays, which is the one moment in the app that is purely good news.
+	 */
+	roundComplete: {
+		circles: [[12, 12, 8.6]],
+		paths: ['M8.2 12.3l2.5 2.5 5.2-5.4', 'M12 3.4v-1', 'M12 21.6v-1', 'M3.4 12h-1', 'M21.6 12h-1']
+	},
+	// Lifted *out* of the pool: the water, and an arrow leaving it.
+	poolTaken: {
+		paths: [
+			'M4 16.4c1.6 1.2 3.2 1.2 4.8 0s3.2-1.2 4.8 0 3.2 1.2 4.8 0',
+			'M4 20c1.6 1.2 3.2 1.2 4.8 0s3.2-1.2 4.8 0 3.2 1.2 4.8 0',
+			'M12 12.8V4.2',
+			'M8.6 7.6L12 4.2l3.4 3.4'
+		]
+	},
+	// Handed on: an arrow into the seat that has just been filled.
+	claimReleased: {
+		paths: ['M3.5 12.5h7', 'M8 10l2.5 2.5L8 15', 'M16.75 8v9'],
+		rects: [[13, 8, 7.5, 9, 1.6]]
+	},
+	// A block with nobody's mark on it, and a warning above — babs still unclaimed near the
+	// boundary. **Nothing raises this yet**; it is here because the set defines it (P2).
+	unclaimed: {
+		paths: [
+			'M4.5 8.5v8a1.6 1.6 0 0 0 1.6 1.6h11.8a1.6 1.6 0 0 0 1.6-1.6v-8',
+			'M9.2 18.1V8.5',
+			'M14.8 18.1V8.5',
+			'M12 2.4v3.4',
+			'M12 7.2v.2'
 		]
 	},
 

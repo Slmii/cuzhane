@@ -11,6 +11,7 @@ import groupsRouter from '@routes/groups.route';
 import healthRouter from '@routes/health.route';
 import membershipRouter from '@routes/membership.route';
 import profileRouter from '@routes/profile.route';
+import notificationsRouter from '@routes/notifications.route';
 import pushTokenRouter from '@routes/pushToken.route';
 import userSettingsRouter from '@routes/userSettings.route';
 import cors from 'cors';
@@ -49,6 +50,7 @@ export const createApp = () => {
 	app.use('/api/babs', babsRouter);
 	app.use('/api/cheers', cheersRouter);
 	app.use('/api/user-settings', userSettingsRouter);
+	app.use('/api/notifications', notificationsRouter);
 	app.use('/api/push-tokens', pushTokenRouter);
 	app.use('/api/profile', profileRouter);
 	app.use('/api/account', accountRouter);

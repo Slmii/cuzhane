@@ -45,6 +45,18 @@ export const deleteAccountForUser = async (userId: string): Promise<{ success: t
 		});
 		await tx.groupWaitlistEntry.deleteMany({ where: { userId: normalizedUserId } });
 		await tx.pushToken.deleteMany({ where: { userId: normalizedUserId } });
+		/*
+		 * The inbox goes too. `Notification` has no foreign key on `userId` — there is no user
+		 * table, the id is Clerk's — and its group relation is `SetNull` so history does not gap
+		 * when a group is deleted, which together meant nothing ever collected these. Every row
+		 * carries a group name and often another member's display name, and the delete-account
+		 * copy promises the lot is gone.
+		 *
+		 * `ShareReadNotice` is left alone deliberately: it is a claim that an announcement was
+		 * already made for a (group, user, round), it names nobody, and deleting it would let the
+		 * same round announce itself a second time for whoever is still in that group.
+		 */
+		await tx.notification.deleteMany({ where: { userId: normalizedUserId } });
 		await tx.userSettings.deleteMany({ where: { userId: normalizedUserId } });
 		// The delete-account copy promises everything goes, and a feedback row carries the
 		// sender's own words and email address — so it goes with the rest rather than

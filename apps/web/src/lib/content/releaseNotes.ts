@@ -1,0 +1,80 @@
+import type { IconName } from '@/components/ui/Icon/Icon.types';
+import type { StringKey } from '@/lib/i18n/strings';
+import { APP_VERSION } from '@/lib/utils/appVersion';
+
+/**
+ * What "Neler yeni" shows (design P1 and P3).
+ *
+ * **Content, not copy.** Every line lives in `strings.ts` like the rest of the app, so release
+ * notes are translated rather than written once in Turkish and left. This file holds only the
+ * shape: which release, which entries, and which mark each one wears.
+ */
+export type ReleaseNoteEntry = {
+	icon: IconName;
+	titleKey: StringKey;
+	bodyKey: StringKey;
+	/** Wears the "YENİ" tag, and only in the full list — the sheet shows no tags. */
+	isNew: boolean;
+};
+
+export type Release = {
+	/**
+	 * `null` only for the newest, whose number is read from the build rather than written — see
+	 * `APP_VERSION`. Every release below it is history and carries its own string.
+	 */
+	version: string | null;
+	/** "Eylül 2026" — its own key per language, because month names are not interpolated. */
+	monthKey: StringKey;
+	entries: ReleaseNoteEntry[];
+};
+
+/**
+ * Every release, **newest first**.
+ *
+ * **One list rather than a current release and a separate archive.** Shipping a release is then
+ * prepending one object: nothing is moved, nothing is reshaped, and nothing is lost by forgetting
+ * to move it. The previous arrangement had `CURRENT_RELEASE` overwritten each time and an
+ * `EARLIER_RELEASES` you were meant to hand-copy the outgoing one into first — a step whose
+ * omission looked *fine*, because the new release read correctly and only the history went
+ * quietly missing.
+ *
+ * Older releases keep their full entries here rather than being flattened to a summary line. The
+ * design draws them as one line apiece; a line reading "Sürüm 1.1 · çeşitli iyileştirmeler" says
+ * less than the three things that actually changed, and P3 scrolls.
+ *
+ * **1.0.0 and 1.0.1 are deliberately absent.** They shipped before any of this existed and there
+ * are no notes for them — writing some now would be inventing a changelog, which is the one thing
+ * release notes must not do.
+ *
+ * To ship a release: bump `app.json`, prepend an entry here with its own keys and month, and give
+ * the release that was at the top its literal `version` string in place of `null`.
+ */
+export const RELEASES: Release[] = [
+	{
+		entries: [
+			{ bodyKey: 'rn110InboxBody', icon: 'alert', isNew: true, titleKey: 'rn110InboxTitle' },
+			{ bodyKey: 'rn110SettingsBody', icon: 'settings', isNew: true, titleKey: 'rn110SettingsTitle' },
+			{ bodyKey: 'rn110EventsBody', icon: 'members', isNew: true, titleKey: 'rn110EventsTitle' }
+		],
+		monthKey: 'rnMonthSeptember',
+		version: APP_VERSION
+	}
+];
+
+/**
+ * The release this build announces — what the sheet shows, and what the version gate compares
+ * against. Always the head of the list.
+ */
+export const CURRENT_RELEASE = RELEASES[0];
+
+/**
+ * Everything before it, newest first — what "Önceki sürümler" lists.
+ *
+ * The filter is a guard as much as a narrowing: `null` means "read the number from the build",
+ * which is only ever true of the release at the top. One left behind on a release that has been
+ * pushed down is a mistake — it would print the *running* version's number beside an old
+ * release's notes — so such an entry is dropped rather than rendered wrong.
+ */
+export const EARLIER_RELEASES = RELEASES.slice(1).filter(
+	(release): release is Release & { version: string } => release.version !== null
+);

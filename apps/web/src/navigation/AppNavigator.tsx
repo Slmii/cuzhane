@@ -34,6 +34,10 @@ import { InvitePreviewScreen } from '@/screens/Join/InvitePreviewScreen.componen
 import { JoinedWelcomeScreen } from '@/screens/Join/JoinedWelcomeScreen.component';
 import { OnboardingScreen } from '@/screens/Onboarding/OnboardingScreen.component';
 import { ProfileScreen } from '@/screens/Profile/ProfileScreen.component';
+import { NotificationsScreen } from '@/screens/Notifications/NotificationsScreen.component';
+import { NotificationSettingsToolbar } from '@/navigation/NotificationSettingsToolbar';
+import { useUnreadNotificationCount } from '@/lib/hooks/useNotifications';
+import { ReleaseNotesScreen } from '@/screens/WhatsNew/ReleaseNotesScreen.component';
 import { AllBabsScreen } from '@/screens/Reader/AllBabsScreen.component';
 import { BabReaderScreen } from '@/screens/Reader/BabReaderScreen.component';
 import { ReaderToolbar } from '@/screens/Reader/ReaderToolbar.component';
@@ -170,7 +174,9 @@ const TAB_ICONS: Record<keyof RootTabParamList, { active: TabIconSource; resting
 		active: require('@/assets/tabs/discoverActive.png'),
 		resting: require('@/assets/tabs/discover.png')
 	},
-	Reminders: {
+	// The same bell artwork it always was — the tab behind it is the inbox now, which is what
+	// a bell in a tab bar reads as anyway. See `RootTabParamList.Notifications`.
+	Notifications: {
 		active: require('@/assets/tabs/remindersActive.png'),
 		resting: require('@/assets/tabs/reminders.png')
 	},
@@ -199,7 +205,7 @@ const TAB_LABEL_KEYS: Record<keyof RootTabParamList, StringKey> = {
 	Home: 'home',
 	Groups: 'groups',
 	Discover: 'discover',
-	Reminders: 'reminders',
+	Notifications: 'notifTabLabel',
 	Search: 'search',
 	Profile: 'profile'
 };
@@ -435,6 +441,13 @@ const sharedTabScreens = ({ isProfileRoot = false }: { isProfileRoot?: boolean }
 		 * screen is registered in every stack. It heads itself and closes with its ×, hence no
 		 * header; `TAB_BAR_HIDDEN_ROUTES` still steps the bar aside for it by route name.
 		 */}
+		{/*
+		 * P4. It was this app's fourth *tab* until the inbox took that place; it is reached from
+		 * the gear on the inbox and from Profil's own row, and is registered in every stack so
+		 * both of those push it inside whichever tab the reader is in.
+		 */}
+		<TabStack.Screen name='Reminders' component={RemindersScreen} options={pushedScreenOptions} />
+		<TabStack.Screen name='ReleaseNotes' component={ReleaseNotesScreen} options={nativeBackScreenOptions} />
 		{Platform.OS === 'android' ? <TabStack.Screen name='Search' component={SearchScreen} /> : null}
 	</>
 );
@@ -489,7 +502,8 @@ const HomeTabStack = () => (
 			component={HomeScreen}
 			options={{
 				...rootToolbarScreenOptions,
-				// The one bar that is not over the page: the glyph follows H1's layer, not the theme.
+				// The one bar that is not over the page: the glyphs follow H1's layer, not the theme.
+				// The bell rides along inside `TrailingCornerAction`, as it does on every bar.
 				headerRight: () => <TrailingCornerAction isOnHeaderSurface />
 			}}
 		/>
@@ -542,14 +556,19 @@ const DiscoverTabStack = () => (
 	</GroupBrowseProvider>
 );
 
-// A stack for a screen that pushes nothing of its own: the bar with the account in it is the
-// navigator's, and Profil is pushed inside this tab like everywhere else.
-const RemindersTabStack = () => (
+/*
+ * The bell tab: P2's inbox at the root, its settings one push in.
+ *
+ * The gear is the only thing in this bar that is not on every other one — it opens P4, the
+ * screen this tab used to *be*. Registered here in `options` rather than from the screen, like
+ * every other bar in this file.
+ */
+const NotificationsTabStack = () => (
 	<TabStack.Navigator screenListeners={tabStackScreenListeners} screenOptions={tabStackScreenOptions}>
 		<TabStack.Screen
-			name='Reminders'
-			component={RemindersScreen}
-			options={{ ...rootToolbarScreenOptions, headerRight: () => <TrailingCornerAction /> }}
+			name='Notifications'
+			component={NotificationsScreen}
+			options={{ ...rootToolbarScreenOptions, headerRight: () => <NotificationSettingsToolbar /> }}
 		/>
 		{sharedTabScreens()}
 	</TabStack.Navigator>
@@ -575,7 +594,7 @@ const SearchTabStack = () => (
 const HomeTab = withTabBarOffset(HomeTabStack);
 const GroupsTab = withTabBarOffset(GroupsTabStack);
 const DiscoverTab = withTabBarOffset(DiscoverTabStack);
-const RemindersTab = withTabBarOffset(RemindersTabStack);
+const NotificationsTab = withTabBarOffset(NotificationsTabStack);
 const SearchTab = withTabBarOffset(SearchTabStack);
 
 // Android only: Profil as a tab root, with the bar's magnifier like every other root.
@@ -618,10 +637,26 @@ const TabsNavigator = () => {
 		return () => setLinkGateReady(false);
 	}, []);
 
+	const { data: unreadCount = 0 } = useUnreadNotificationCount();
+
 	const tabOptions = (name: keyof RootTabParamList) => ({
 		tabBarIcon: tabIcon(name),
 		tabBarLabel: t(TAB_LABEL_KEYS[name])
 	});
+
+	/*
+	 * **The unread count is the platform's own tab badge**, not a mark of ours. It replaced a
+	 * hand-drawn dot on the bar glyph, which is the thing a tab bar already does natively and
+	 * better — and a number says how much is waiting where a dot only says "something".
+	 *
+	 * Capped at 99, because the pill grows with its text and a four-digit badge would push the
+	 * label out from under its icon. An inbox that far behind is "lots" either way.
+	 */
+	const unreadBadge = unreadCount > 99 ? '99+' : unreadCount > 0 ? String(unreadCount) : undefined;
+	const notificationsTabOptions = {
+		...tabOptions('Notifications'),
+		...(unreadBadge === undefined ? {} : { tabBarBadge: unreadBadge })
+	};
 
 	const shouldHideBar = useNavigationState(state => {
 		const name = focusedRouteName(state);
@@ -689,10 +724,10 @@ const TabsNavigator = () => {
 					options={tabOptions('Discover')}
 				/>
 				<Tab.Screen
-					name='Reminders'
-					component={RemindersTab}
+					name='Notifications'
+					component={NotificationsTab}
 					listeners={resetTabStack}
-					options={tabOptions('Reminders')}
+					options={notificationsTabOptions}
 				/>
 				{/*
 				 * **The search tab is iOS 26's own detached search button** — `role: 'search'` is

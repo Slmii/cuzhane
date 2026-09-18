@@ -2,6 +2,7 @@ import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.co
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { BodyText, Header1, Typography } from '@/components/ui/Typography/Typography.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
+import { markOnboardedThisLaunch } from '@/lib/utils/onboardingLaunch';
 import type { StringKey } from '@/lib/i18n/strings';
 import { useUpdateUserSettings } from '@/lib/hooks/useUserSettings';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
@@ -59,6 +60,9 @@ export const OnboardingScreen = ({ navigation }: Props) => {
 		 * behind it, so it replaces itself with the tabs.
 		 */
 		updateUserSettings.mutate({ hasSeenOnboarding: true });
+		// Passing through here is the only thing that separates a brand-new account from an
+		// existing reader who has not finished the tour — see `onboardingLaunch`.
+		markOnboardedThisLaunch();
 
 		if (navigation.canGoBack()) {
 			navigation.goBack();

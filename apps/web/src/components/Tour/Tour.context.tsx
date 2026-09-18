@@ -1,6 +1,6 @@
 import { useGetUserSettings, useUpdateUserSettings } from '@/lib/hooks/useUserSettings';
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { TourTargetId } from './tourSteps';
+import { TOUR_STEPS, type TourTargetId } from './tourSteps';
 
 /**
  * A measured element, in window coordinates — what the spotlight cuts out of the scrim.
@@ -31,7 +31,16 @@ type TourContextValue = {
 	rects: Partial<Record<TourTargetId, TourRect>>;
 	subject: TourSubject | null;
 	setSubject: (subject: TourSubject | null) => void;
-	start: () => void;
+	/**
+	 * Opens the tour. `isReplay` drops **both bookend cards** — for the row on Profil, where
+	 * neither is doing anything for the reader who tapped it.
+	 *
+	 * The welcome card asks whether they want the tour, which is the decision they just made,
+	 * and would present over Profil — a screen it does not describe. The closing card offers
+	 * "Grup kur" and then says the tour lives in Profil › Uygulama turu, which is the row they
+	 * came from. A replay runs stop 1 to stop 15 and ends.
+	 */
+	start: (options?: { isReplay?: boolean }) => void;
 	next: () => void;
 	/** Ends the tour and records that it has been seen — used by both Skip and Finish. */
 	finish: () => void;
@@ -81,13 +90,20 @@ export const TourProvider = ({ children, isBlocked = false }: { children: ReactN
 	 */
 	const hasRecorded = useRef(false);
 
-	const start = useCallback(() => {
+	/** Whether this run is a replay from Profil — see `start`. Held for `next`'s last step. */
+	const isReplay = useRef(false);
+
+	const start = useCallback<TourContextValue['start']>(options => {
 		hasRecorded.current = false;
-		setStepIndex(WELCOME_STEP);
+		isReplay.current = options?.isReplay === true;
+		/*
+		 * Stop 1 is on Ana sayfa either way, so `useTourNavigation` unwinds there on this same
+		 * commit — skipping the card changes which screen the reader is looking at when it does,
+		 * not whether it happens.
+		 */
+		setStepIndex(options?.isReplay ? 0 : WELCOME_STEP);
 		setIsActive(true);
 	}, []);
-
-	const next = useCallback(() => setStepIndex(current => current + 1), []);
 
 	const finish = useCallback(() => {
 		setIsActive(false);
@@ -99,6 +115,21 @@ export const TourProvider = ({ children, isBlocked = false }: { children: ReactN
 		hasRecorded.current = true;
 		updateUserSettings({ hasSeenTour: true });
 	}, [updateUserSettings]);
+
+	/*
+	 * Devam on the last stop ends a replay outright rather than landing on the closing card.
+	 * `finish` also unwinds to Ana sayfa through `useTourNavigation`'s inactive branch, so a
+	 * replay that ended on Profil's own stops leaves the reader where the tour began.
+	 */
+	const next = useCallback(() => {
+		if (isReplay.current && stepIndex + 1 >= TOUR_STEPS.length) {
+			finish();
+
+			return;
+		}
+
+		setStepIndex(current => current + 1);
+	}, [finish, stepIndex]);
 
 	/*
 	 * Ana sayfa re-nominates on every render it has groups on, so this short-circuits on an

@@ -106,3 +106,143 @@ export const groupReadPush = (
 		body: `${readerName} finished babs ${range}.`
 	};
 };
+
+/**
+ * "The group closed the hundred."
+ *
+ * The one notification in the app that is purely good news — every other one is a task, a
+ * reminder, or something that was taken away. It names the round, because a group that has run
+ * for months is on its fortieth and that number is the record of what they have done together.
+ *
+ * Sent once per round per group — see `claimRoundCompleteNotice` — and never to whoever read the
+ * last bab: their phone is already in their hand and the group screen is about to tell them.
+ */
+export const roundCompletePush = (language: PushLanguage, input: { groupName: string; roundNumber: number }) => {
+	const { groupName, roundNumber } = input;
+
+	if (language === 'tr') {
+		return {
+			title: groupName,
+			body: `${roundNumber}. tur tamamlandı — 100 babın hepsi okundu.`
+		};
+	}
+
+	if (language === 'nl') {
+		return {
+			title: groupName,
+			body: `Ronde ${roundNumber} is voltooid — alle 100 babs gelezen.`
+		};
+	}
+
+	return {
+		title: groupName,
+		body: `Round ${roundNumber} is complete — all 100 babs read.`
+	};
+};
+
+/**
+ * "Somebody took a block out of the shared pool."
+ *
+ * The pool is the babs nobody's seat is covering this round, and a group only finishes the
+ * hundred if they are covered — so somebody taking one is the group closing a gap, which is
+ * worth knowing and is *not* the same event as a share being finished. It names the range for
+ * the same reason `groupReadPush` does: what was taken on is the information.
+ *
+ * Off by default, like the bab-by-bab switch and unlike the round: a busy pool in a large group
+ * can fire several times a day, so this is opt-in rather than something to be rescued from.
+ */
+export const poolClaimPush = (
+	language: PushLanguage,
+	input: { groupName: string; range: string; takerName: string }
+) => {
+	const { groupName, range, takerName } = input;
+
+	if (language === 'tr') {
+		return {
+			title: groupName,
+			body: `${takerName} havuzdan ${range} bablarını üstlendi.`
+		};
+	}
+
+	if (language === 'nl') {
+		return {
+			title: groupName,
+			body: `${takerName} heeft babs ${range} uit de pool genomen.`
+		};
+	}
+
+	return {
+		title: groupName,
+		body: `${takerName} took babs ${range} from the pool.`
+	};
+};
+
+/**
+ * "Somebody joined a group of yours."
+ *
+ * It says how full the group is now, because that is the thing the members are actually waiting
+ * on — a gathering group starts when it fills, and a running one has a smaller pool with every
+ * seat taken. The count is the news; the name is who to welcome.
+ */
+export const memberJoinedPush = (
+	language: PushLanguage,
+	input: { groupName: string; memberCount: number; memberName: string; spots: number }
+) => {
+	const { groupName, memberCount, memberName, spots } = input;
+
+	if (language === 'tr') {
+		return {
+			title: groupName,
+			body: `${memberName} gruba katıldı — ${memberCount}/${spots} kişi.`
+		};
+	}
+
+	if (language === 'nl') {
+		return {
+			title: groupName,
+			body: `${memberName} is lid geworden — ${memberCount}/${spots} leden.`
+		};
+	}
+
+	return {
+		title: groupName,
+		body: `${memberName} joined — ${memberCount}/${spots} members.`
+	};
+};
+
+/**
+ * "Somebody left a group of yours."
+ *
+ * The counterpart, and the one that actually costs the group something: a seat emptying puts its
+ * block back in the pool for the rest of the round, so the remaining members have more to cover.
+ * The count is stated for the same reason as above — it is what changed.
+ *
+ * Sent for a removal as well as a departure. From the other members' side the two are the same
+ * event: a seat is free again. Whoever left is not told, and neither is the owner who removed
+ * them — both already know.
+ */
+export const memberLeftPush = (
+	language: PushLanguage,
+	input: { groupName: string; memberCount: number; memberName: string; spots: number }
+) => {
+	const { groupName, memberCount, memberName, spots } = input;
+
+	if (language === 'tr') {
+		return {
+			title: groupName,
+			body: `${memberName} gruptan ayrıldı — ${memberCount}/${spots} kişi.`
+		};
+	}
+
+	if (language === 'nl') {
+		return {
+			title: groupName,
+			body: `${memberName} heeft de groep verlaten — ${memberCount}/${spots} leden.`
+		};
+	}
+
+	return {
+		title: groupName,
+		body: `${memberName} left — ${memberCount}/${spots} members.`
+	};
+};

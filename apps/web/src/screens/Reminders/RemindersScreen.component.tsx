@@ -1,10 +1,8 @@
-import { isNextReminderTomorrow, reminderTotals } from '@/lib/utils/reminder';
-import { RemindersSkeleton } from './RemindersSkeleton.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
+import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
 import { TourTarget } from '@/components/Tour/TourTarget.component';
-import { ScreenTitle } from '@/components/ScreenTitle/ScreenTitle.component';
-import { BrandMark } from '@/components/ui/BrandMark/BrandMark.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
+import { Collapsible } from '@/components/ui/Collapsible/Collapsible.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { Form } from '@/components/ui/Form/Form.component';
 import { FormToggleRow } from '@/components/ui/Form/ToggleRow/ToggleRow.component';
@@ -14,19 +12,19 @@ import {
 	FieldLabelText,
 	Typography
 } from '@/components/ui/Typography/Typography.component';
-import { useGetGroups } from '@/lib/hooks/useGroup';
 import { useGetUserSettings, useUpdateUserSettings } from '@/lib/hooks/useUserSettings';
 import { useTranslation } from '@/lib/i18n/I18n.context';
-import { registerDeviceForPush } from '@/lib/utils/notifications/pushRegistration';
 import { createRemindersSchema, RemindersForm } from '@/lib/schemas/profile.schema';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import { toAlphaColor } from '@/lib/theme/tokens';
+import { registerDeviceForPush } from '@/lib/utils/notifications/pushRegistration';
+import { isNextReminderTomorrow } from '@/lib/utils/reminder';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useIsFocused } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { UseFormWatch } from 'react-hook-form';
 import { AppState, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { RemindersSkeleton } from './RemindersSkeleton.component';
 
 const REMINDER_TIME_WRITE_DELAY_MS = 600;
 
@@ -63,6 +61,19 @@ type ReminderPersistenceProps = {
  * Non-visual: mirrors form changes to the server as they happen. The time write is
  * debounced so holding a stepper doesn't fire a request per tap; toggles persist right away.
  */
+/**
+ * The switches on this screen, in the order they are drawn. Adding one here is what makes it
+ * persist — see the callback below.
+ */
+const SWITCH_FIELDS = [
+	'reminderEnabled',
+	'roundCompleteEnabled',
+	'groupReadsEnabled',
+	'poolClaimEnabled',
+	'memberJoinedEnabled',
+	'memberLeftEnabled'
+] as const satisfies readonly (keyof RemindersForm)[];
+
 const ReminderPersistence = ({ onNotificationsEnabled, updateSettings, watch }: ReminderPersistenceProps) => {
 	const writeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	/** The value a pending debounce is holding, so it can be forced out early. */
@@ -118,24 +129,28 @@ const ReminderPersistence = ({ onNotificationsEnabled, updateSettings, watch }: 
 				return;
 			}
 
-			if (name === 'reminderEnabled' && values.reminderEnabled !== undefined) {
-				updateSettings.mutate({ reminderEnabled: values.reminderEnabled });
+			/*
+			 * **Every switch, from one list.** Each used to have a branch of its own, identical
+			 * but for the field name — so the three added with the pool and membership events
+			 * simply had none, flipped on screen, wrote nothing, and reverted on the next mount.
+			 * A screen whose switches are a list cannot grow one that persists by accident.
+			 */
+			const toggle = SWITCH_FIELDS.find(field => field === name);
 
-				if (values.reminderEnabled) {
-					onNotificationsEnabled();
+			if (toggle !== undefined) {
+				const isOn = values[toggle];
+
+				if (isOn === undefined) {
+					return;
 				}
 
-				return;
-			}
+				updateSettings.mutate({ [toggle]: isOn });
 
-			if (name === 'groupReadsEnabled' && values.groupReadsEnabled !== undefined) {
-				updateSettings.mutate({ groupReadsEnabled: values.groupReadsEnabled });
-
-				if (values.groupReadsEnabled) {
+				// Every one of them needs the OS permission, and a registered token with it: the
+				// daily reminder is scheduled on the device, the other five arrive from the server.
+				if (isOn) {
 					onNotificationsEnabled();
 				}
-
-				return;
 			}
 		});
 
@@ -156,7 +171,6 @@ export const RemindersScreen = () => {
 	const settingsQuery = useGetUserSettings();
 	const { data: settings, isError, isPending } = settingsQuery;
 	const updateSettings = useUpdateUserSettings();
-	const { data: groups } = useGetGroups();
 
 	const [hasNotifPermission, setHasNotifPermission] = useState(true);
 	const [isTimePickerVisible, setIsTimePickerVisible] = useState(false);
@@ -236,7 +250,7 @@ export const RemindersScreen = () => {
 	if (isPending) {
 		return (
 			<ScreenContainer shouldIncludeTabBarOffset>
-				<ScreenTitle isUnderNavigationBar label={t('reminders')} />
+				<ScreenHeader hasBackButton title={t('reminders')} />
 				<RemindersSkeleton />
 			</ScreenContainer>
 		);
@@ -246,19 +260,19 @@ export const RemindersScreen = () => {
 		return <ErrorState queries={[settingsQuery]} />;
 	}
 
-	// The scheduler's own sum, through the same helper, so this preview is the notification
-	// that will actually arrive rather than an illustration of one.
-	const { participatingGroups, pendingGroups, unread: unreadCount } = reminderTotals(groups);
-
 	return (
 		<ScreenContainer shouldIncludeTabBarOffset>
-			<ScreenTitle isUnderNavigationBar label={t('reminders')} />
+			<ScreenHeader hasBackButton title={t('reminders')} />
 			<Form<RemindersForm>
 				isFullHeight={false}
 				defaultValues={{
 					reminderTime: settings.reminderTime,
 					reminderEnabled: settings.reminderEnabled,
-					groupReadsEnabled: settings.groupReadsEnabled
+					groupReadsEnabled: settings.groupReadsEnabled,
+					roundCompleteEnabled: settings.roundCompleteEnabled,
+					poolClaimEnabled: settings.poolClaimEnabled,
+					memberJoinedEnabled: settings.memberJoinedEnabled,
+					memberLeftEnabled: settings.memberLeftEnabled
 				}}
 				render={({ setValue, watch }) => {
 					const time = parseTime(watch('reminderTime'));
@@ -295,66 +309,138 @@ export const RemindersScreen = () => {
 								updateSettings={updateSettings}
 								watch={watch}
 							/>
-							<CardSurface style={styles.timeCard}>
-								<FieldLabelText color={theme.colors.faintText} textAlign='center'>
-									{t('dailyAt')}
-								</FieldLabelText>
-								<Pressable
-									accessibilityRole='button'
-									onPress={() => setIsTimePickerVisible(current => !current)}
-									style={({ pressed }) => [styles.timeRow, { opacity: pressed ? 0.7 : 1 }]}
-								>
-									<Typography style={styles.timeValue} variant='display'>
-										{pad(time.hour)}:{pad(time.minute)}
-									</Typography>
-								</Pressable>
-								{hasNextReminder ? (
-									<CaptionText color={theme.colors.faintText} style={styles.nextReminder}>
-										{nextReminderHint}
-									</CaptionText>
-								) : null}
-								{isTimePickerVisible ? (
-									<View style={styles.pickerWrap}>
-										<DateTimePicker
-											display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-											mode='time'
-											onChange={handleTimeChange}
-											value={toDate(time)}
+							{/*
+							 * **One section per notification, and the tour frames all six.** It
+							 * cut around the daily reminder alone, which made a card reading
+							 * "altı anahtar, altı bildirim" point at one of them — the stop is
+							 * about the whole list, so the spotlight is the whole list.
+							 */}
+							<TourTarget id='notifications'>
+								<View style={styles.sections}>
+									{/*
+									 * **The clock collapses with the switch.** A time is meaningless
+									 * while nothing is scheduled, so it leaves rather than sitting
+									 * there inert. `Collapsible` animates the block's own height and
+									 * the card follows, because the block is what takes up the room —
+									 * a layout transition on the card instead left the clock popping
+									 * in and out inside a surface that was still resizing.
+									 */}
+									<CardSurface isFlush>
+										<FormToggleRow
+											hint={t('dailyReminderHint')}
+											name='reminderEnabled'
+											title={t('dailyReminder')}
 										/>
 										{/*
-										 * Closes the picker; it does not save. The value is written
-										 * on every turn of the spinner and debounced, so leaving
-										 * without tapping this keeps the time either way.
+										 * **The clock belongs to this notification, not to the screen.** It was a card
+										 * of its own above everything, which read as a screen-level setting — but the
+										 * time is meaningless to the other two. Inside the section the whole of the
+										 * daily reminder is in one place: whether it is on, when it arrives, and what
+										 * it will say.
+										 *
+										 * It stays visible with the switch off: the time is a choice the reader made,
+										 * and hiding it would lose it from view rather than turn it off.
 										 */}
-										<Pressable
-											onPress={() => setIsTimePickerVisible(false)}
-											style={styles.pickerDone}
-										>
-											<BodyStrongText color={theme.colors.accent}>{t('confirm')}</BodyStrongText>
-										</Pressable>
-									</View>
-								) : null}
-							</CardSurface>
-							{/*
-							 * Both switches in one section, because they answer the same question
-							 * from two directions: what the app should interrupt you for. The
-							 * first is the device's own repeating alarm, the second is the server
-							 * telling you the board moved — see `groupReadsEnabled`.
-							 */}
-							{/* Stop 11 of the first-use tour. */}
-							<TourTarget id='notifications'>
-								<CardSurface isFlush>
-									<FormToggleRow
-										hint={t('dailyReminderHint')}
-										name='reminderEnabled'
-										title={t('dailyReminder')}
-									/>
-									<FormToggleRow
-										hint={t('groupReadsHint')}
-										name='groupReadsEnabled'
-										title={t('groupReads')}
-									/>
-								</CardSurface>
+										<Collapsible isOpen={watch('reminderEnabled')}>
+											<View style={[styles.timeBlock, { borderTopColor: theme.colors.divider }]}>
+												<FieldLabelText color={theme.colors.faintText} textAlign='center'>
+													{t('dailyAt')}
+												</FieldLabelText>
+												<Pressable
+													accessibilityRole='button'
+													onPress={() => setIsTimePickerVisible(current => !current)}
+													style={({ pressed }) => [
+														styles.timeRow,
+														{ opacity: pressed ? 0.7 : 1 }
+													]}
+												>
+													<Typography style={styles.timeValue} variant='display'>
+														{pad(time.hour)}:{pad(time.minute)}
+													</Typography>
+												</Pressable>
+												{hasNextReminder ? (
+													<CaptionText
+														color={theme.colors.faintText}
+														style={styles.nextReminder}
+													>
+														{nextReminderHint}
+													</CaptionText>
+												) : null}
+												{isTimePickerVisible ? (
+													<View style={styles.pickerWrap}>
+														<DateTimePicker
+															display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+															mode='time'
+															onChange={handleTimeChange}
+															value={toDate(time)}
+														/>
+														{/*
+														 * Closes the picker; it does not save. The value is written
+														 * on every turn of the spinner and debounced, so leaving
+														 * without tapping this keeps the time either way.
+														 */}
+														<Pressable
+															onPress={() => setIsTimePickerVisible(false)}
+															style={styles.pickerDone}
+														>
+															<BodyStrongText color={theme.colors.accent}>
+																{t('confirm')}
+															</BodyStrongText>
+														</Pressable>
+													</View>
+												) : null}
+											</View>
+										</Collapsible>
+									</CardSurface>
+
+									{/*
+									 * **The five group notifications, one card each, no previews.** Each
+									 * section used to carry a sample of the notification underneath its
+									 * switch. That was worth it at three; at six it is six stacked cards
+									 * of illustration between the reader and the switch they came for —
+									 * and the inbox one tap away now shows the real thing rather than a
+									 * mock-up of it.
+									 */}
+									<CardSurface isFlush>
+										<FormToggleRow
+											hint={t('roundCompleteAlertHint')}
+											name='roundCompleteEnabled'
+											title={t('roundCompleteAlert')}
+										/>
+									</CardSurface>
+
+									<CardSurface isFlush>
+										<FormToggleRow
+											hint={t('groupReadsHint')}
+											name='groupReadsEnabled'
+											title={t('groupReads')}
+										/>
+									</CardSurface>
+
+									<CardSurface isFlush>
+										<FormToggleRow
+											hint={t('poolClaimAlertHint')}
+											name='poolClaimEnabled'
+											title={t('poolClaimAlert')}
+										/>
+									</CardSurface>
+
+									<CardSurface isFlush>
+										<FormToggleRow
+											hint={t('memberJoinedAlertHint')}
+											name='memberJoinedEnabled'
+											title={t('memberJoinedAlert')}
+										/>
+									</CardSurface>
+
+									<CardSurface isFlush>
+										<FormToggleRow
+											hint={t('memberLeftAlertHint')}
+											name='memberLeftEnabled'
+											title={t('memberLeftAlert')}
+										/>
+									</CardSurface>
+								</View>
 							</TourTarget>
 						</>
 					);
@@ -364,35 +450,15 @@ export const RemindersScreen = () => {
 			{hasNotifPermission ? null : (
 				<CaptionText color={theme.colors.subtext}>{t('notifPermissionHint')}</CaptionText>
 			)}
-			{participatingGroups > 0 ? (
-				<>
-					<FieldLabelText color={theme.colors.faintText}>{t('preview')}</FieldLabelText>
-					<CardSurface style={styles.previewCard}>
-						<View style={[styles.previewIcon, { backgroundColor: theme.colors.accent }]}>
-							<BrandMark
-								color={theme.colors.onAccent}
-								fadedColor={toAlphaColor(theme.colors.onAccent, 0.34)}
-								size={18}
-							/>
-						</View>
-						<View style={styles.previewTextColumn}>
-							<BodyStrongText>{t('notifTitle')}</BodyStrongText>
-							<CaptionText color={theme.colors.subtext} style={styles.previewBody}>
-								{unreadCount === 0
-									? t('notifBodyIdle')
-									: pendingGroups > 1
-									? t('notifBodyGroups', { groups: pendingGroups, unread: unreadCount })
-									: t('notifBody', { unread: unreadCount })}
-							</CaptionText>
-						</View>
-					</CardSurface>
-				</>
-			) : null}
 		</ScreenContainer>
 	);
 };
 
 const styles = StyleSheet.create({
+	// The gap the cards had from `ScreenContainer` before they were wrapped for the tour.
+	sections: {
+		gap: 12
+	},
 	centerFill: {
 		alignItems: 'center',
 		flex: 1,
@@ -426,8 +492,10 @@ const styles = StyleSheet.create({
 	pickerWrap: {
 		marginTop: 4
 	},
-	timeCard: {
-		alignItems: 'center'
+	timeBlock: {
+		alignItems: 'center',
+		borderTopWidth: StyleSheet.hairlineWidth,
+		padding: 15
 	},
 	timeRow: {
 		alignItems: 'center',

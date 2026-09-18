@@ -258,6 +258,7 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 	// an em dash rather than a removed string.
 	const daysLeftLabel = detail.daysLeft === null ? '—' : `${detail.daysLeft} ${t('days')}`;
 	const isDaily = detail.cycle === 'DAILY';
+	const isRoundComplete = detail.completedAt !== null;
 	// Newest closed round — the list arrives newest-first with the open one at the head.
 	const lastClosedRound = (roundsQuery.data ?? []).find(round => !round.isOpen);
 	const leftValue = isDaily
@@ -345,12 +346,37 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 									{t('members')}
 								</StatText>
 							</View>
+							{/*
+							 * **The round closing is shown here rather than in a banner of its own.**
+							 * This is the card whose whole job is "where is this round", so the
+							 * answer "it is finished" belongs in it — and it needs no new furniture
+							 * to design, space and then take away again when the round rolls.
+							 *
+							 * The countdown is what it replaces, deliberately: once the hundred is
+							 * closed, how long is left has stopped being the interesting number.
+							 * `RoundResetRow` below still says when it starts again, so nothing is
+							 * lost. The state clears itself — `ensureCurrentRound` wipes
+							 * `completedAt` at the boundary along with the board.
+							 */}
 							<View style={styles.statCell}>
-								<NumericText>{leftValue}</NumericText>
-								<StatText color={theme.colors.faintText} style={styles.statLabel}>
-									{/* A DAILY round counts down in hours — "1 gün" would say nothing. */}
-									{isDaily ? t('untilMidnight') : t('left')}
-								</StatText>
+								{isRoundComplete ? (
+									<>
+										<NumericText color={theme.colors.accent}>
+											{`${BAB_COUNT} / ${BAB_COUNT}`}
+										</NumericText>
+										<StatText color={theme.colors.accent} style={styles.statLabel}>
+											{t('roundCompleted')}
+										</StatText>
+									</>
+								) : (
+									<>
+										<NumericText>{leftValue}</NumericText>
+										<StatText color={theme.colors.faintText} style={styles.statLabel}>
+											{/* A DAILY round counts down in hours — "1 gün" would say nothing. */}
+											{isDaily ? t('untilMidnight') : t('left')}
+										</StatText>
+									</>
+								)}
 							</View>
 						</View>
 						{reset ? (

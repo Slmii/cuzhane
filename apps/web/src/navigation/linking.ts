@@ -80,7 +80,7 @@ export const linking: LinkingOptions<RootStackParamList> = {
 					Home: tabLink('home', 'Home', detailPaths),
 					Groups: tabLink('groups', 'Groups', detailPaths, ['join/:inviteCode']),
 					Discover: tabLink('discover', 'Discover', detailPaths),
-					Reminders: tabLink('reminders', 'Reminders', detailPaths),
+					Notifications: tabLink('notifications', 'Notifications', detailPaths),
 					// The fifth tab differs by platform — see `TrailingCornerAction`.
 					...(Platform.OS === 'ios'
 						? { Search: tabLink('search', 'Search', detailPaths) }

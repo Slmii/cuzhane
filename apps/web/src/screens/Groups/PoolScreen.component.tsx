@@ -340,7 +340,12 @@ export const PoolScreen = ({ route }: Props) => {
 						size='sm'
 						title={canUndo ? t('poolUndo') : t('poolTake')}
 						variant='accent'
-						{...(canUndo ? { icon: 'undo' as const } : {})}
+						/*
+						 * **Both states carry their glyph.** Undo had one and taking did not, which
+						 * left the pair reading as two different controls; the icon set names
+						 * `claim` for this exact button ("Üstlen · Claim — E4 havuzdan bab alma").
+						 */
+						icon={canUndo ? 'undo' : 'claim'}
 					/>
 				) : null}
 			</CardSurface>

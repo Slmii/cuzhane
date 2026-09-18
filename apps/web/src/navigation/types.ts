@@ -61,6 +61,13 @@ export type TabDetailParamList = {
 	 * The account screen lost its tab to search (K2) and is pushed from the avatar at the right
 	 * end of every tab root's bar — inside that tab, so back returns to where it was opened.
 	 */
+	/**
+	 * P4 — the notification settings, reached by the gear on the inbox and by Profil's own row.
+	 * It was the bell tab's root screen until the inbox took that place.
+	 */
+	Reminders: undefined;
+	/** P3 — the release notes, pushed from Profil's version row and from P1's sheet. */
+	ReleaseNotes: undefined;
 	Profile: undefined;
 	/** Android only: search is pushed from the bar's magnifier rather than being a tab. */
 	Search: undefined;
@@ -87,7 +94,14 @@ export type RootTabParamList = {
 	 */
 	Groups: NavigatorScreenParams<TabDetailParamList & { Groups: GroupsScreenParams }> | undefined;
 	Discover: NavigatorScreenParams<TabDetailParamList & { Discover: undefined }> | undefined;
-	Reminders: NavigatorScreenParams<TabDetailParamList & { Reminders: undefined }> | undefined;
+	/**
+	 * **The bell tab is the inbox, and it used to be the reminder settings.** The glyph has
+	 * always been a bell; what sat behind it was a screen of switches, which is what a bell
+	 * least resembles. Section P then put a second bell in the top bar for the inbox proper and
+	 * the two collided. The tab now holds P2 and the settings moved one level in, behind the
+	 * gear in its bar — which is where the design's own map puts them ("P2 dişli → P4").
+	 */
+	Notifications: NavigatorScreenParams<TabDetailParamList & { Notifications: undefined }> | undefined;
 	/**
 	 * The search tab (K2): iOS 26's detached search button, opening one live screen. A stack
 	 * too, so a result pushes over the search and back returns to it with the query still in.

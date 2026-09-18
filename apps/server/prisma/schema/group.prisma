@@ -47,13 +47,15 @@ model Group {
     createdAt         DateTime        @default(now())
     updatedAt         DateTime        @updatedAt
 
-    members      GroupMember[]
-    babs         GroupBab[]
-    reads        BabRead[]
-    cheers       Cheer[]
-    waitlist     GroupWaitlistEntry[]
-    poolReleases PoolClaimRelease[]
-    shareNotices ShareReadNotice[]
+    members       GroupMember[]
+    babs          GroupBab[]
+    reads         BabRead[]
+    cheers        Cheer[]
+    waitlist      GroupWaitlistEntry[]
+    poolReleases  PoolClaimRelease[]
+    shareNotices  ShareReadNotice[]
+    roundNotices  RoundCompleteNotice[]
+    notifications Notification[]
 
     @@index([ownerUserId])
     @@index([visibility, openToJoin, createdAt])

@@ -4,6 +4,9 @@ import prisma from '@db/prisma';
 import { normalizeUserId } from '@utils/normalizeUserId';
 import { lockGroup, syncCompletedAt } from './babs.service';
 import { getMemberProfiles } from '@utils/memberProfiles';
+import { notifyGroupMembers } from './groupEvents.service';
+import { poolClaimPush } from '@utils/pushCopy';
+import { babRuns, formatRun } from '@utils/babs';
 import { requireMembership } from './groupAccess.service';
 import { poolBlocks } from './groupSerializers';
 import { ensureCurrentRound, ensureCurrentRoundFor } from './rounds.service';
@@ -115,6 +118,10 @@ export const takePoolSlotForUser = async (
 	const normalizedUserId = normalizeUserId(userId);
 	await requireMembership(normalizedUserId, groupId);
 
+	// Carried out of the transaction for the notification below, which must not run inside it.
+	let takenBabNumbers: number[] = [];
+	let groupName: string | null = null;
+
 	await prisma.$transaction(async tx => {
 		// Group lock first, then babs — the order every mutating path uses, so this can't
 		// deadlock against a rollover running at the same moment.
@@ -141,7 +148,33 @@ export const takePoolSlotForUser = async (
 		if (claimed.count === 0) {
 			throw new HttpError(CONFLICT, 'Someone already took that slot');
 		}
+
+		takenBabNumbers = babNumbers;
+		groupName = group.name;
 	});
+
+	/*
+	 * After the commit, and awaited — an unawaited rejection would escape the request as an
+	 * unhandled one. The claim is already recorded by the time this runs, so `notifyGroupMembers`
+	 * swallowing its own failures is what keeps a courtesy from failing the write.
+	 */
+	if (takenBabNumbers.length > 0 && groupName !== null) {
+		const range = babRuns(takenBabNumbers).map(formatRun).join(', ');
+
+		await notifyGroupMembers({
+			actorUserId: normalizedUserId,
+			// The lookup used to be here; it lives in the helper now, so all three events resolve
+			// a name the same way rather than one of them doing it properly and two not.
+			build: ({ actorName, groupName: name }) => ({
+				payload: { kind: 'POOL_BAB_CLAIMED', range, takerName: actorName },
+				push: language => poolClaimPush(language, { groupName: name, range, takerName: actorName })
+			}),
+			excludeUserIds: [normalizedUserId],
+			groupId,
+			pushKind: 'pool-claim',
+			setting: 'poolClaimEnabled'
+		});
+	}
 
 	return { success: true };
 };

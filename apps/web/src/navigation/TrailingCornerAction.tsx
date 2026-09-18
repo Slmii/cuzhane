@@ -9,6 +9,10 @@ import { Platform } from 'react-native';
  * Material keeps the navigation bar for destinations, so Profil takes the fifth tab there and
  * search becomes the top bar's action. One component at the call sites, so a toolbar never has
  * to know which platform's arrangement it is drawing.
+ *
+ * **It carried a notification bell beside the account for a while and does not any more.** The
+ * inbox is the bell *tab* now, which is where a bell belongs; a second one on all eleven bars
+ * was one permanent item too many beside the account.
  */
 interface TrailingCornerActionProps {
 	/**

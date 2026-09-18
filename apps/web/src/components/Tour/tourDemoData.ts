@@ -1,4 +1,5 @@
 import type {
+	AppNotification,
 	GroupBab,
 	GroupCycle,
 	GroupDetail,
@@ -318,3 +319,64 @@ export const TOUR_DEMO_PROFILE_STATS: ProfileStats = {
 	roundsCompleted: 3,
 	streakDays: 6
 };
+
+/**
+ * The inbox the tour walks through (design P2).
+ *
+ * **Built from the same three groups as everything else**, so a row cannot name a group the
+ * shelf behind it does not have — the reason every fixture in this file comes off one set of
+ * specs. The ranges are the blocks those groups actually divide, and the names are the members
+ * the demo group screen lists.
+ *
+ * Four rows rather than one of each kind: the stop is about the inbox being a *record*, and a
+ * single row reads as a one-off. They cover the three shapes a reader meets most — somebody
+ * finishing, a round closing, somebody joining — plus an unread one at the top, which is what
+ * the bell's badge is counting.
+ *
+ * The first two are unread so the screen shows both weights of row, and the timestamps are
+ * minutes and hours rather than fixed dates so the relative ages read correctly whenever the
+ * tour is opened.
+ */
+const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
+
+export const TOUR_DEMO_NOTIFICATIONS: AppNotification[] = [
+	{
+		createdAt: minutesAgo(12),
+		groupId: 'tour-demo-group-2',
+		groupName: 'Silsile Hatmi',
+		id: 'tour-demo-notification-1',
+		isRead: false,
+		kind: 'SHARE_READ',
+		payload: { range: '14–26', readerName: 'Zeynep' }
+	},
+	{
+		createdAt: minutesAgo(95),
+		groupId: 'tour-demo-group-1',
+		groupName: 'Aile Hatmi',
+		id: 'tour-demo-notification-2',
+		isRead: false,
+		kind: 'MEMBER_JOINED',
+		payload: { memberCount: 5, memberName: 'Yusuf', spots: SPOTS }
+	},
+	{
+		createdAt: minutesAgo(60 * 20),
+		groupId: 'tour-demo-group-3',
+		groupName: 'Şükür Hatmi',
+		id: 'tour-demo-notification-3',
+		isRead: true,
+		kind: 'ROUND_COMPLETE',
+		payload: { roundNumber: 3 }
+	},
+	{
+		createdAt: minutesAgo(60 * 30),
+		groupId: 'tour-demo-group-1',
+		groupName: 'Aile Hatmi',
+		id: 'tour-demo-notification-4',
+		isRead: true,
+		kind: 'POOL_BAB_CLAIMED',
+		payload: { range: '66–78', takerName: 'Elif' }
+	}
+];
+
+/** What the bell tab's badge counts during the tour — the unread rows above, and nothing else. */
+export const TOUR_DEMO_UNREAD_COUNT = TOUR_DEMO_NOTIFICATIONS.filter(row => !row.isRead).length;

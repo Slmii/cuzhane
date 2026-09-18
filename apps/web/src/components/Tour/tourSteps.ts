@@ -16,6 +16,7 @@ export type TourTargetId =
 	| 'share'
 	| 'readerActions'
 	| 'readerFont'
+	| 'inbox'
 	| 'notifications'
 	| 'stats'
 	| 'heatmap'
@@ -23,9 +24,13 @@ export type TourTargetId =
 
 /**
  * Which screen a stop lives on. The tour navigates there itself before showing the card — see
- * `useTourNavigation` — because six of the ten stops describe things that are not on Ana sayfa.
+ * `useTourNavigation` — because most of the stops describe things that are not on Ana sayfa.
+ *
+ * `inbox` is the bell tab, `reminders` the settings one push inside it. Two places rather than
+ * one because they are two screens: the inbox is a record of what happened, the settings decide
+ * what reaches the phone, and a single card in front of both would have to describe neither.
  */
-export type TourPlace = 'home' | 'group' | 'reader' | 'reminders' | 'profile';
+export type TourPlace = 'home' | 'group' | 'reader' | 'inbox' | 'reminders' | 'profile';
 
 export type TourStep = {
 	/** Which registered element to cut out of the scrim. Omitted → the card sits centred. */
@@ -36,9 +41,9 @@ export type TourStep = {
 };
 
 /**
- * Fourteen stops. The welcome card and the closing card are not steps — they carry their own actions
- * and the overlay handles them directly, which is why `TOUR_STEPS.length` is 14 and the counter
- * reads "1 / 14" rather than "2 / 15".
+ * Fifteen stops. The welcome card and the closing card are not steps — they carry their own
+ * actions and the overlay handles them directly, which is why `TOUR_STEPS.length` is 15 and the
+ * counter reads "1 / 15" rather than "2 / 17".
  *
  * **One of section O's stops is gone and seven are new.** The design's own list is
  * `streak · groups · tabs · mine · pool · rd · settings`; the bottom bar went because it names
@@ -62,10 +67,11 @@ export const TOUR_STEPS: readonly TourStep[] = [
 	{ place: 'group', target: 'share', titleKey: 'tour8Title', bodyKey: 'tour8Sub' },
 	{ place: 'reader', target: 'readerActions', titleKey: 'tour9Title', bodyKey: 'tour9Sub' },
 	{ place: 'reader', target: 'readerFont', titleKey: 'tour10Title', bodyKey: 'tour10Sub' },
-	{ place: 'reminders', target: 'notifications', titleKey: 'tour11Title', bodyKey: 'tour11Sub' },
-	{ place: 'profile', target: 'stats', titleKey: 'tour12Title', bodyKey: 'tour12Sub' },
-	{ place: 'profile', target: 'heatmap', titleKey: 'tour13Title', bodyKey: 'tour13Sub' },
-	{ place: 'profile', target: 'settings', titleKey: 'tour14Title', bodyKey: 'tour14Sub' }
+	{ place: 'inbox', target: 'inbox', titleKey: 'tour11Title', bodyKey: 'tour11Sub' },
+	{ place: 'reminders', target: 'notifications', titleKey: 'tour12Title', bodyKey: 'tour12Sub' },
+	{ place: 'profile', target: 'stats', titleKey: 'tour13Title', bodyKey: 'tour13Sub' },
+	{ place: 'profile', target: 'heatmap', titleKey: 'tour14Title', bodyKey: 'tour14Sub' },
+	{ place: 'profile', target: 'settings', titleKey: 'tour15Title', bodyKey: 'tour15Sub' }
 ] as const;
 
 /** The three lines the welcome card previews, in the order the tour visits them. */

@@ -5,11 +5,6 @@ import type { StyleProp, ViewStyle } from 'react-native';
  * design (arrows, ×, +, −) is an icon here too — no typographic stand-ins.
  */
 export type IconName =
-	/*
-	 * Tab bar. Each of the five has a resting and an active glyph — "pasif çizgili, aktif
-	 * dolgulu", outlined at rest and filled when selected, which is the Icon Set page's own
-	 * rule for this row and the one place it overrides the set's general "no filled variant".
-	 */
 	| 'tabHome'
 	| 'tabHomeActive'
 	| 'tabGroups'
@@ -20,7 +15,6 @@ export type IconName =
 	| 'tabRemindersActive'
 	| 'tabProfile'
 	| 'tabProfileActive'
-	// Actions
 	| 'back'
 	| 'chevronRight'
 	| 'chevronLeft'
@@ -48,7 +42,6 @@ export type IconName =
 	| 'more'
 	| 'refresh'
 	| 'textSize'
-	// Status
 	| 'clock'
 	| 'play'
 	| 'memberCheck'
@@ -63,13 +56,24 @@ export type IconName =
 	| 'range'
 	| 'alert'
 	| 'alertCircle'
+	| 'bell'
 	| 'offline'
-	// Reader and pool
 	| 'ayahMark'
 	| 'translation'
 	| 'pool'
 	| 'claim'
-	// Theme
+	/*
+	 * The inbox's own glyphs, from the icon set's "Bildirim türleri" section (design P2). Each
+	 * kind had been borrowing an icon meant for something else — a range, a completed hatim, a
+	 * member tick — which read as a list of unrelated marks rather than a vocabulary.
+	 */
+	| 'memberJoined'
+	| 'memberLeft'
+	| 'shareRead'
+	| 'roundComplete'
+	| 'poolTaken'
+	| 'claimReleased'
+	| 'unclaimed'
 	| 'sun'
 	| 'moon';
 

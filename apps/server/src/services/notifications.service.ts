@@ -1,0 +1,134 @@
+import prisma from '@db/prisma';
+import { normalizeUserId } from '@utils/normalizeUserId';
+import type { NotificationKind, Prisma } from '../generated/prisma/client';
+
+/**
+ * The inbox behind design P2.
+ *
+ * **Recording is not sending.** Every one of these rows is written whether or not a push went
+ * out — a reader who denied permission, turned a preference off, or had the phone in a drawer
+ * still finds the event here. That is the design's own rule ("in-app notifications are always
+ * on; the preferences only affect phone notifications") and it is why `PoolClaimRelease` was
+ * built the same way long before this existed.
+ *
+ * **Recording never throws.** These calls sit in the same place the pushes do: after the commit
+ * of a write that has already succeeded. A failure to file a notification must not turn a
+ * finished read into a 5xx.
+ */
+
+/** What each kind carries. The client renders the sentence; this is only the data in it. */
+export type NotificationPayload =
+	| { kind: 'POOL_CLAIM_RELEASED'; startBab: number; endBab: number }
+	| { kind: 'SHARE_READ'; readerName: string; range: string }
+	| { kind: 'ROUND_COMPLETE'; roundNumber: number }
+	| { kind: 'POOL_BAB_CLAIMED'; takerName: string; range: string }
+	| { kind: 'MEMBER_JOINED'; memberName: string; memberCount: number; spots: number }
+	| { kind: 'MEMBER_LEFT'; memberName: string; memberCount: number; spots: number };
+
+type RecordInput = {
+	/** Everyone who should find this in their inbox. Already filtered by the caller. */
+	userIds: string[];
+	groupId: string;
+	groupName: string;
+	payload: NotificationPayload;
+};
+
+export const recordNotification = async ({ groupId, groupName, payload, userIds }: RecordInput): Promise<void> => {
+	if (userIds.length === 0) {
+		return;
+	}
+
+	try {
+		const { kind, ...rest } = payload;
+
+		await prisma.notification.createMany({
+			data: userIds.map(userId => ({
+				groupId,
+				groupName,
+				kind: kind as NotificationKind,
+				payload: rest as Prisma.InputJsonValue,
+				userId: normalizeUserId(userId)
+			}))
+		});
+	} catch (error) {
+		console.error('Failed to record a notification', error);
+	}
+};
+
+/**
+ * How many rows the reader has not opened — what the bell's badge counts (design P1).
+ *
+ * Its own endpoint rather than a field on the list: the bell is on Ana sayfa and polls, while
+ * the list is only fetched when the inbox is opened.
+ */
+export const getUnreadCountForUser = async (userId: string): Promise<number> =>
+	prisma.notification.count({ where: { readAt: null, userId: normalizeUserId(userId) } });
+
+/**
+ * The shape the client renders from — `payload` flattened is deliberately *not* done here: the
+ * app reads `payload` as an object, so a new kind adds fields without changing this type. Mirrors
+ * `Notification` in the web app's `domain.ts`, which has to change with it — the two workspaces
+ * share no package.
+ */
+export type NotificationRow = {
+	id: string;
+	kind: NotificationKind;
+	groupId: string | null;
+	groupName: string;
+	payload: Record<string, unknown>;
+	isRead: boolean;
+	createdAt: string;
+};
+
+const serializeNotification = (row: {
+	id: string;
+	kind: NotificationKind;
+	groupId: string | null;
+	groupName: string;
+	payload: Prisma.JsonValue;
+	readAt: Date | null;
+	createdAt: Date;
+}): NotificationRow => ({
+	createdAt: row.createdAt.toISOString(),
+	groupId: row.groupId,
+	groupName: row.groupName,
+	id: row.id,
+	isRead: row.readAt !== null,
+	kind: row.kind,
+	payload: (row.payload ?? {}) as Record<string, unknown>
+});
+
+/**
+ * The newest page of the reader's inbox.
+ *
+ * Capped rather than paged: the design groups by "Bugün" and "Bu hafta" and offers no way to
+ * reach further back, so anything older than this window has no screen to appear on. A cursor
+ * can be added the day the design grows one.
+ */
+const INBOX_LIMIT = 100;
+
+export const listNotificationsForUser = async (userId: string): Promise<NotificationRow[]> => {
+	const rows = await prisma.notification.findMany({
+		where: { userId: normalizeUserId(userId) },
+		orderBy: { createdAt: 'desc' },
+		take: INBOX_LIMIT
+	});
+
+	return rows.map(serializeNotification);
+};
+
+/** Opening a row marks it. Scoped to the caller so one reader cannot clear another's. */
+export const markNotificationReadForUser = async (userId: string, notificationId: string): Promise<void> => {
+	await prisma.notification.updateMany({
+		where: { id: notificationId, readAt: null, userId: normalizeUserId(userId) },
+		data: { readAt: new Date() }
+	});
+};
+
+/** "Tümünü okundu say" — one conditional write, so a second tap costs nothing. */
+export const markAllNotificationsReadForUser = async (userId: string): Promise<void> => {
+	await prisma.notification.updateMany({
+		where: { readAt: null, userId: normalizeUserId(userId) },
+		data: { readAt: new Date() }
+	});
+};

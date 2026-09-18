@@ -214,12 +214,17 @@ tidy up any rows left from before. Re-adding the feature means rebuilding that s
     `initialMetrics={initialWindowMetrics}` so it has nothing to measure and costs no first frame, and
     the compat providers inside each navigator find the context already there and step aside.
 -   Navigation: `src/navigation/AppNavigator.tsx` — a 5-tab native bottom navigator (Home, Groups,
-    Discover, Reminders, Search) inside a native stack. The stack's initial route is `Onboarding` until
+    Discover, Notifications, Search) inside a native stack. **The bell tab is the notification
+    inbox (P2), and it used to be the reminder settings** — the glyph was always a bell and what
+    sat behind it was a screen of switches, which is what a bell least resembles; section P then
+    put a second bell in the top bar and the two collided. The settings are `Reminders`, one push
+    in, reached by the gear in that tab's bar (`NotificationSettingsToolbar`) and by Profil's own
+    row — which is the design's own map, "P2 dişli → P4". The stack's initial route is `Onboarding` until
     `userSettings.hasSeenOnboarding` is true, so the navigator waits for settings before mounting.
     **The fifth tab and the bar's trailing item swap by platform** (`TrailingCornerAction`). On
     iOS the fifth slot is search (K2) and the account is `ProfileCornerAction` — the reader's own
     photo (Clerk `hasImage`, fetched at 84px) or the `person` glyph — at the **right end of every
-    bar**: alone on Ana sayfa, Hatırlatma and the plain pushed screens (`pushedScreenOptions`), last
+    bar**: alone on Ana sayfa, the inbox and the plain pushed screens (`pushedScreenOptions`), last
     in the rows `GroupsToolbar`, `DiscoverToolbar`, `GroupDetailToolbar` and `ReaderToolbar` build.
     On Android, Material keeps the navigation bar for destinations and puts search in the top bar,
     so Profil is the fifth tab (`ProfileTabStack`) and `SearchCornerAction` takes the bar slot,
@@ -547,6 +552,13 @@ isCollapsed`), never unmount it: returning `null` from `tabBar` removed it the m
     box the converted ones leave room in, so at one point size `trash` came out heavier than `check` and
     needed a fudge factor to match. Apple's stay right where nothing of ours sits next to them (`close`,
     the chevrons).
+    **The inbox has its own row glyphs** — the set's "Bildirim türleri" section, whose rule is
+    `biri = kişi silueti, bab = blok, tur = daire`: `memberJoined`/`memberLeft` (one figure, a
+    plus and a minus), `shareRead` (a block with a tick), `roundComplete` (a ring with rays,
+    **not** `completed`, which is the hatim mark), `poolTaken`, `claimReleased` and `unclaimed`.
+    Each kind borrowed a glyph meant for something else before; they were legible one at a time
+    and read as unrelated marks in a column. `unclaimed` is drawn and unreferenced — the set
+    defines a "sahipsiz bab" warning before a round closes, which nothing raises yet.
 -   Avatars are DiceBear `thumbs` (`@dicebear/core` + `@dicebear/styles`), seeded on the person's name so
     they are stable, and re-tinted into the app palette — never DiceBear's default colours.
 -   **Screen titles**: every screen heads with `components/ScreenTitle` → `<ScreenTitle label secondaryLabel
@@ -804,6 +816,28 @@ defaultValues render={({ handleSubmit, watch, setValue }) => …} />`, which wir
     channel"*; the fix is `eas channel:edit <name> --branch <name>`. **Check the mapping, not the
     names** — production was mapped from the start, which is why only preview and development
     were ever silent.
+-   **A freshly installed build never runs the newest update on its first launch**, and that is
+    `expo-updates`' default rather than a fault: `fallbackToCacheTimeout` is `0`, so the app
+    launches its **embedded** bundle at once, downloads in the background, and applies on the
+    *next* launch. Relaunch once after installing before judging whether an update landed.
+    **Do not "fix" this with `fallbackToCacheTimeout`** — Expo advise against it, because it holds
+    the splash for the *full* timeout on a bad connection and so punishes the worst networks
+    hardest; their recommendation is a programmatic check, and `components/CheckForUpdateOnLaunch` +
+    `useInitialUpdateState` are it — **ported from the reference they point at**,
+    `brentvatne/microfoam-app`, patterns and all: a component that stands in front of the app
+    until `onComplete` fires, and `AppRoot` returning it instead of the tree exactly as that
+    repo's `_layout.tsx` does.
+    **The thing an obvious implementation gets wrong: it must start no check of its own.**
+    `checkAutomatically` defaults to `ON_LOAD`, so the native module is already checking before
+    any React code runs — `useUpdates` observes that state machine, where calling
+    `checkForUpdateAsync()` yourself puts a second check and a second download beside it.
+    The reference leaves its loading UI as a spinner; here it renders `AnimatedSplash`, so the
+    check happens behind the brand animation that was going to play anyway and there is no seam
+    when the app takes over. `SPLASH_MIN_DURATION_MS` is timed in `AppContainer` rather than in
+    the check, so the animation's minimum runs *alongside* it instead of after it.
+    `UPDATE_CHECK_TIMEOUT_MS` is a ceiling, not a typical wait, and an update that is ready
+    reloads rather than calling `onComplete` — releasing the splash first would show the old
+    bundle for the moment before it went.
 -   **iPhone only — `supportsTablet` is `false`, deliberately.** Every layout here is designed to a
     phone's width: H1's two layers, the hundred-cell board, the reader's measure, the bottom bar and
     the platform sheets. On a 13" iPad they stretch rather than adapt. Declaring iPad support also
@@ -937,8 +971,15 @@ without it a reminder arriving while the app is open is delivered silently.
 ## Push notifications
 
 The daily reminder above is **local**. Separately there is now a **server push** path, for
-things only the server can know about. There are two: a pool claim released because somebody
-joined the seat it was covering, and somebody in your group reading a bab.
+things only the server can know about. There are six: a pool claim released because somebody
+joined the seat it was covering, somebody in your group finishing their share, a group closing
+the hundred, somebody taking a block out of the shared pool, somebody joining, and somebody
+leaving. **Only the first is unconditional** — it is about something taken away from you rather
+than group news — and the other five each have a switch on P4.
+
+The last three go through one helper, `groupEvents.service.ts` → `notifyGroupMembers`: file a row
+for every other member, push to those who asked. The two above them are written out longhand in
+`babs.service.ts` because each carries a once-per-round claim the helper cannot express.
 
 -   **"Someone in your group finished their share" is `UserSettings.groupReadsEnabled`, off by
     default, and it fires once per *range* — never per bab.** It fired on every read first, which
@@ -950,8 +991,10 @@ joined the seat it was covering, and somebody in your group reading a bab.
     whole share at once therefore sends the same single notification the bab-by-bab route does.
     It is the one notification in the app that fires on another person's action, so it is opt-in,
     from the second switch on Hatırlatma. That flag is read **before** anything else: on an
-    account that never turned it on the recipient query comes back empty and nothing else is
-    looked up, which keeps a Clerk name lookup off the hot path. Every recipient's language comes
+    account that never turned it on the recipient query comes back empty and the *push* half
+    stops there. It no longer keeps the Clerk name lookup off the hot path, though, and that
+    sentence used to say it did: the inbox row needs the reader's name whatever the preferences
+    say, so `getMemberProfiles` now runs on every finished share. Every recipient's language comes
     out of that same query — `toPushLanguage`, not a `pushLanguageFor` each. The whole body is
     wrapped in a `catch`: it runs **after** the commit, so a failed lookup there must not turn a
     successful write into a 5xx and make the client roll its optimistic update back. **It is said
@@ -965,6 +1008,21 @@ joined the seat it was covering, and somebody in your group reading a bab.
     event, and it would need its own copy. Switching it on also registers a push token there and
     then — the reconciler only ever registers a device that already had permission, so a device
     granting it that second would otherwise have no row until the next launch.
+-   **"The round is complete" is `UserSettings.roundCompleteEnabled`, and it is the one push that
+    is opt-OUT.** `@default(true)`, unlike the two beside it: it fires once per round per group
+    and it is the moment the app is built around, so behind an off-by-default switch almost
+    nobody would ever see it. `syncCompletedAt` now **returns** whether this call performed the
+    `completedAt: null → set` transition — free, because its stamp is already a conditional
+    `updateMany` guarded on `completedAt: null`, so the count distinguishes "I closed it" from
+    "it was closed when I arrived", and the group lock means only one concurrent finisher sees
+    it. That alone is not once per round, though: **closing the hundred is not a one-way door**
+    — Geri al and Okudum again re-closes it, and so does a member leaving or releasing a pool
+    slot (both clear reads) followed by someone re-reading those babs. `RoundCompleteNotice`
+    (unique on group + round, claimed in the read's own transaction) is what makes the
+    announcement happen once; without it a member could toggle the last bab and buzz the whole
+    group at will. Everyone in the group is told **except the finisher**, whose phone is already
+    in their hand. The two other `syncCompletedAt` callers ignore the boolean deliberately: they
+    clear reads first, so they can only *un*-complete.
 -   **The reminder reconciler stands down while the tour runs.** `useReminderNotificationSync`
     reads `useGetGroups`, which answers with the stand-in shelf during the walkthrough, and
     `contentSig` carries the bab count — so without the guard it cancelled the reader's real
@@ -1031,7 +1089,7 @@ joined the seat it was covering, and somebody in your group reading a bab.
 
 ## The first-use tour (section O)
 
-`components/Tour` — a walkthrough over the live app: a welcome card, fourteen stops, and a
+`components/Tour` — a walkthrough over the live app: a welcome card, fifteen stops, and a
 closing card. `hasSeenTour` on `UserSettings` decides whether it opens by itself.
 
 -   **The flag defaults to `false`, and that is the whole migration.** Everyone already using the
@@ -1071,7 +1129,7 @@ closing card. `hasSeenTour` on `UserSettings` decides whether it opens by itself
     sibling in `AppRoot`, which dims the bar perfectly well. A modal brings a separate UIWindow
     and its own touch routing for no gain here. The rectangles still live in a context either way:
     the things being measured are inside the navigator and the thing drawing the hole is outside it.
--   **Fourteen stops across five screens, and the tour drives the navigation itself.** Section O's
+-   **Fifteen stops across six screens, and the tour drives the navigation itself.** Section O's
     own list is `streak · groups · tabs · mine · pool · rd · settings`; the bottom bar went
     because it names itself under every icon. Added: the Read button, the group's summary card,
     the closed round, sharing, the reader's type controls split from its action bar, and Profil's
@@ -1079,13 +1137,24 @@ closing card. `hasSeenTour` on `UserSettings` decides whether it opens by itself
     closed round and the pool register their rects **inside the guards that render those rows**,
     so a group with neither simply centres those two cards. A step carries the screen it belongs to
     (`TourStep.place`) and `useTourNavigation` pushes there when that screen changes — never per
-    step, since four pairs of stops share one. **Two of the five places are tabs rather than
-    pushed screens** — Ana sayfa and Hatırlatma — so `TAB_BY_PLACE` and `goToTourTab` reach
-    those by unwinding the pushes and switching tab, while the group screen, the reader and
-    Profil go through `navigate` inside whichever tab is current. `goToTourTab` runs at the
-    **welcome** card too, so the tour starts on Ana sayfa wherever it was opened from: replaying
-    it from the row on Profil used to leave the reader there while the first three cards
-    described Ana sayfa. Everything is pushed inside the tab the tour
+    step, since four pairs of stops share one. **Two of the six places are tabs** — Ana sayfa and
+    the inbox — so `TAB_BY_PLACE` and `goToTourTab` reach those by unwinding the pushes and
+    switching tab, while the group screen, the reader, Hatırlatma and Profil go through
+    `navigate` inside whichever tab is current. Hatırlatma was a tab until the bell was given to
+    the inbox; the inbox took its place here and its settings are now a push like Profil's.
+    The inbox stop is the one that needed **new fixtures**: `TOUR_DEMO_NOTIFICATIONS` is built
+    from the same three group specs as everything else, so a row cannot name a group the shelf
+    behind it does not have, and `TOUR_DEMO_UNREAD_COUNT` is derived from it so the bell's badge
+    and the list it opens agree. **The welcome card navigates nobody** — it is a sheet over
+    whatever screen the reader was on, and "Daha sonra" has to leave them there; stop 1 does the
+    unwinding a tap later, with no `popToTop` racing an OS sheet's presentation. **Replaying from
+    Profil drops both bookend cards** (`start({ isReplay: true })`): it opens at stop 1 and
+    `next` on the last stop calls `finish` rather than landing on the closing card. Neither is
+    doing anything for the reader who tapped that row — the welcome card asks whether they want
+    the tour, which is the decision they just made, and would present over Profil, a screen it
+    does not describe; the closing card offers "Grup kur" and then tells them the tour lives in
+    Profil › Uygulama turu, which is where they came from. "Bitir" already labels the last stop's
+    button, so nothing else changes. Everything is pushed inside the tab the tour
     is running in, so one `popToTop` **whenever the tour ends anywhere else** puts the reader back
     on Ana sayfa — not only at the closing card: "Atla" is on every card, six of the fourteen
     stops stand on a *stand-in* group's screen, and skipping from one of those left someone on
@@ -1203,10 +1272,10 @@ closing card. `hasSeenTour` on `UserSettings` decides whether it opens by itself
     the dome and minarets come out solid), and the glow drawn in its **own** `Svg`, since it is
     larger than the mark's box and React Native clips to it rather than honouring
     `overflow: visible`. Reduce Motion gets the finished drawing.
--   Copy is `tour1…tour14` in `strings.ts`, three languages, numbered in the order the stops are
+-   Copy is `tour1…tour15` in `strings.ts`, three languages, numbered in the order the stops are
     visited — so inserting a stop renumbers the keys after it rather than appending, the same way
     stop 3's text was rewritten rather than a key added. `tourStep` interpolates `{a}` and `{b}`;
-    the counter reads "1 / 14" because the welcome and closing cards are not steps.
+    the counter reads "1 / 15" because the welcome and closing cards are not steps.
 
 There is **no account-wide notifications switch.** `UserSettings.notificationsEnabled` was
 a column with an update endpoint and no control in any screen, so nothing ever wrote

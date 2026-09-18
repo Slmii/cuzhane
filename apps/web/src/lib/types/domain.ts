@@ -175,6 +175,34 @@ export type PoolSlot = {
 	readBabNumbers: number[];
 };
 
+/** What an inbox row is about. Mirrors the server's `NotificationKind` enum. */
+export type NotificationKind =
+	| 'POOL_CLAIM_RELEASED'
+	| 'SHARE_READ'
+	| 'ROUND_COMPLETE'
+	| 'POOL_BAB_CLAIMED'
+	| 'MEMBER_JOINED'
+	| 'MEMBER_LEFT';
+
+/**
+ * One row of the notification inbox (design P2).
+ *
+ * **`payload` carries data, not a sentence.** The app composes the wording from its own strings
+ * table, so a row reads in whatever language the reader is in now and picks up copy changes —
+ * storing rendered text would freeze both. `groupName` is denormalised on the server so a row
+ * still reads correctly after a rename or a deletion.
+ */
+export type AppNotification = {
+	id: string;
+	kind: NotificationKind;
+	/** Null once the group is gone; the row survives so the history has no gap. */
+	groupId: string | null;
+	groupName: string;
+	payload: Record<string, unknown>;
+	isRead: boolean;
+	createdAt: string;
+};
+
 export type UserSettings = {
 	id: string;
 	userId: string;
@@ -189,6 +217,18 @@ export type UserSettings = {
 	 * somebody else reads. Off by default; see `user.prisma`.
 	 */
 	groupReadsEnabled: boolean;
+	/**
+	 * "Tell me when my group closes the hundred." **On by default**, unlike `groupReadsEnabled`
+	 * above: it fires at most once per round per group and it is the moment the app is built
+	 * around. See `user.prisma`.
+	 */
+	roundCompleteEnabled: boolean;
+	/** Somebody took a block out of the shared pool. Off by default, like group reads. */
+	poolClaimEnabled: boolean;
+	/** Somebody joined a group of mine. */
+	memberJoinedEnabled: boolean;
+	/** Somebody left a group of mine, or was removed from it. */
+	memberLeftEnabled: boolean;
 	hasSeenOnboarding: boolean;
 	hasSeenTour: boolean;
 	// The reader's typography, set from E2a and applied to every bab.

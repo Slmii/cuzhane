@@ -21,15 +21,19 @@ import { LanguageSheet } from '@/screens/Profile/LanguageSheet.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { LANGUAGE_NATIVE_NAMES } from '@/lib/i18n/strings';
 import { createProfileSchema, ProfileForm } from '@/lib/schemas/profile.schema';
+import { appVersionLabel } from '@/lib/utils/appVersion';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { ThemeMode } from '@/lib/theme/tokens';
 import { FeedbackSheet } from '@/screens/Profile/FeedbackSheet.component';
 import { useTour } from '@/components/Tour/Tour.context';
 import { InlineFieldRow } from '@/screens/Profile/InlineFieldRow.component';
 import { PhotoSheet } from '@/screens/Profile/PhotoSheet.component';
+import { WhatsNewSheet } from '@/screens/WhatsNew/WhatsNewSheet.component';
+import type { TabStackParamList } from '@/navigation/types';
 import { useAuth, useUser } from '@clerk/expo';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useQueryClient } from '@tanstack/react-query';
-import Constants from 'expo-constants';
 import { File } from 'expo-file-system';
 import { useCallback, useMemo, useState } from 'react';
 import { Controller } from 'react-hook-form';
@@ -38,6 +42,7 @@ import { Image, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { ProfileSkeleton } from './ProfileSkeleton.component';
 
 export const ProfileScreen = () => {
+	const navigation = useNavigation<NativeStackNavigationProp<TabStackParamList>>();
 	const { mode, setMode, theme } = useThemeContext();
 	const { language, t } = useTranslation();
 	const { start: startTour } = useTour();
@@ -51,6 +56,7 @@ export const ProfileScreen = () => {
 	const [isPhotoSheetOpen, setIsPhotoSheetOpen] = useState(false);
 	const [isFeedbackSheetOpen, setIsFeedbackSheetOpen] = useState(false);
 	const [isLanguageSheetOpen, setIsLanguageSheetOpen] = useState(false);
+	const [isWhatsNewOpen, setIsWhatsNewOpen] = useState(false);
 	const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
 	const profileSchema = useMemo(() => createProfileSchema(t), [t]);
@@ -180,14 +186,9 @@ export const ProfileScreen = () => {
 		new Date(stats.memberSince)
 	);
 	const hasPhoto = !!user?.hasImage;
-	const version = Constants.expoConfig?.version;
-	const buildNumber =
-		Platform.OS === 'ios'
-			? Constants.expoConfig?.ios?.buildNumber
-			: Platform.OS === 'android'
-			? Constants.expoConfig?.android?.versionCode
-			: undefined;
-	const appVersion = version ? (buildNumber ? `${version} (${buildNumber})` : version) : '—';
+	// One reading, shared with the release notes — see `appVersion`. Read separately here once,
+	// which is how this row came to say 1.0.1 while the notes a row above said 1.0.2.
+	const appVersion = appVersionLabel();
 
 	return (
 		<ScreenContainer shouldIncludeTabBarOffset>
@@ -401,12 +402,32 @@ export const ProfileScreen = () => {
 					 */}
 					<Pressable
 						accessibilityRole='button'
-						onPress={startTour}
+						onPress={() => startTour({ isReplay: true })}
 						style={({ pressed }) => [styles.settingsRow, { opacity: pressed ? 0.6 : 1 }]}
 					>
 						<View style={styles.settingsCopy}>
 							<BodyStrongText>{t('tourReplay')}</BodyStrongText>
 							<CaptionText color={theme.colors.subtext}>{t('tourReplaySub')}</CaptionText>
+						</View>
+						<View style={styles.settingsNav}>
+							<Icon color={theme.colors.subtext} name='chevronRight' size={14} strokeWidth={1.8} />
+						</View>
+					</Pressable>
+					<Divider />
+					{/*
+					 * **The second way to the reminder settings**, and the reason giving the bell
+					 * tab to the inbox is affordable: P4 is otherwise only behind the gear on that
+					 * tab, and the daily reminder is too load-bearing to sit behind one glyph.
+					 * The design lists this row as an entry point of its own.
+					 */}
+					<Pressable
+						accessibilityRole='button'
+						onPress={() => navigation.navigate('Reminders')}
+						style={({ pressed }) => [styles.settingsRow, { opacity: pressed ? 0.6 : 1 }]}
+					>
+						<View style={styles.settingsCopy}>
+							<BodyStrongText>{t('notifSettingsRow')}</BodyStrongText>
+							<CaptionText color={theme.colors.subtext}>{t('notifSettingsRowSub')}</CaptionText>
 						</View>
 						<View style={styles.settingsNav}>
 							<Icon color={theme.colors.subtext} name='chevronRight' size={14} strokeWidth={1.8} />
@@ -424,10 +445,42 @@ export const ProfileScreen = () => {
 						</View>
 					</Pressable>
 					<Divider />
-					<View style={styles.settingsRow}>
+					{/*
+					 * **P1 on demand.** The sheet otherwise opens once per release and is gone; this
+					 * is the way back to it. Above the version row rather than anywhere else,
+					 * because the two are the same subject at two depths — what changed in *this*
+					 * release, and the record of every release.
+					 */}
+					<Pressable
+						accessibilityRole='button'
+						onPress={() => setIsWhatsNewOpen(true)}
+						style={({ pressed }) => [styles.settingsRow, { opacity: pressed ? 0.6 : 1 }]}
+					>
+						<View style={styles.settingsCopy}>
+							<BodyStrongText>{t('whatsNewTitle')}</BodyStrongText>
+							<CaptionText color={theme.colors.subtext}>{t('whatsNewSub')}</CaptionText>
+						</View>
+						<View style={styles.settingsNav}>
+							<Icon color={theme.colors.subtext} name='chevronRight' size={14} strokeWidth={1.8} />
+						</View>
+					</Pressable>
+					<Divider />
+					{/*
+					 * P3's way in, and the version row is it — the notes are *about* this number, so
+					 * a second row naming them would say the same thing twice. It keeps the version
+					 * on the right and gains a chevron, which is the same shape as the rows above.
+					 */}
+					<Pressable
+						accessibilityRole='button'
+						onPress={() => navigation.navigate('ReleaseNotes')}
+						style={({ pressed }) => [styles.settingsRow, { opacity: pressed ? 0.6 : 1 }]}
+					>
 						<BodyStrongText>{t('appVersion')}</BodyStrongText>
-						<MonoText color={theme.colors.subtext}>{appVersion}</MonoText>
-					</View>
+						<View style={styles.settingsNav}>
+							<MonoText color={theme.colors.subtext}>{appVersion}</MonoText>
+							<Icon color={theme.colors.faintText} name='chevronRight' size={14} strokeWidth={1.8} />
+						</View>
+					</Pressable>
 				</CardSurface>
 			</TourTarget>
 			<View style={styles.footer}>
@@ -462,6 +515,14 @@ export const ProfileScreen = () => {
 				platform={Platform.OS}
 			/>
 			<LanguageSheet isVisible={isLanguageSheetOpen} onClose={() => setIsLanguageSheetOpen(false)} />
+			<WhatsNewSheet
+				isVisible={isWhatsNewOpen}
+				onClose={() => setIsWhatsNewOpen(false)}
+				onShowAll={() => {
+					setIsWhatsNewOpen(false);
+					navigation.navigate('ReleaseNotes');
+				}}
+			/>
 		</ScreenContainer>
 	);
 };

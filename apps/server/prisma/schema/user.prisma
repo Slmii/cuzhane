@@ -20,20 +20,56 @@ enum ReaderArabicFont {
 }
 
 model UserSettings {
-    id                String           @id @default(cuid())
-    userId            String           @unique
-    language          AppLanguage      @default(en)
-    reminderEnabled   Boolean          @default(false)
-    reminderTime      String           @default("21:30")
-    groupReadsEnabled Boolean          @default(false)
-    nudgeEnabled      Boolean          @default(true)
-    hasSeenOnboarding Boolean          @default(false)
-    hasSeenTour       Boolean          @default(false)
-    readerFontSize    Int              @default(23)
-    readerNumerals    ReaderNumerals   @default(arabic)
-    readerArabicFont  ReaderArabicFont @default(uthman)
-    createdAt         DateTime         @default(now())
-    updatedAt         DateTime         @updatedAt
+    id                   String           @id @default(cuid())
+    userId               String           @unique
+    language             AppLanguage      @default(en)
+    reminderEnabled      Boolean          @default(false)
+    reminderTime         String           @default("21:30")
+    groupReadsEnabled    Boolean          @default(false)
+    roundCompleteEnabled Boolean          @default(true)
+    poolClaimEnabled     Boolean          @default(false)
+    memberJoinedEnabled  Boolean          @default(false)
+    memberLeftEnabled    Boolean          @default(false)
+    nudgeEnabled         Boolean          @default(true)
+    hasSeenOnboarding    Boolean          @default(false)
+    hasSeenTour          Boolean          @default(false)
+    readerFontSize       Int              @default(23)
+    readerNumerals       ReaderNumerals   @default(arabic)
+    readerArabicFont     ReaderArabicFont @default(uthman)
+    createdAt            DateTime         @default(now())
+    updatedAt            DateTime         @updatedAt
+}
+
+/// What an inbox row is about. The client renders each from its own strings table.
+enum NotificationKind {
+    /// A block you volunteered for passed to somebody who joined that seat.
+    POOL_CLAIM_RELEASED
+    /// Somebody in the group finished their share.
+    SHARE_READ
+    /// The group closed the hundred.
+    ROUND_COMPLETE
+    /// Somebody took a block out of the shared pool.
+    POOL_BAB_CLAIMED
+    /// Somebody joined the group.
+    MEMBER_JOINED
+    /// Somebody left the group, or was removed from it.
+    MEMBER_LEFT
+}
+
+model Notification {
+    id        String           @id @default(cuid())
+    userId    String
+    kind      NotificationKind
+    groupId   String?
+    groupName String
+    payload   Json
+    readAt    DateTime?
+    createdAt DateTime         @default(now())
+
+    group Group? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+
+    @@index([userId, createdAt])
+    @@index([userId, readAt])
 }
 
 model PushToken {

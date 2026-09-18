@@ -23,7 +23,7 @@ type TourStepCardProps = {
  *
  * The dots are the step indicator rather than decoration — the active one is a 14pt pill and
  * the others are 5pt circles, so the row reads as position even for someone who does not read
- * the "Adım 3 / 14" beside it.
+ * the "Adım 3 / 15" beside it.
  */
 export const TourStepCard = ({ onNext, onSkip, stepIndex }: TourStepCardProps) => {
 	const { t } = useTranslation();
