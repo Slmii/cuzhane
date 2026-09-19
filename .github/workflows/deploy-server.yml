@@ -245,7 +245,17 @@ jobs:
                   # fails the job if the API cannot come up against whatever it finds.
                   docker compose up -d --wait --wait-timeout 180 --no-deps "$SERVICE"
 
-                  docker image prune -f
+                  # **`-a`, because `prune` alone never removes a tagged image.** Every deploy
+                  # leaves one behind for good: nineteen had accumulated in thirteen days, at
+                  # roughly 200 MB of new layers apiece, while both runs that "pruned" reported
+                  # `0B` reclaimed. A full disk stops Postgres accepting writes, so this is a
+                  # slow way to take production down.
+                  #
+                  # `until` keeps a fortnight, which is the rollback window: pinning an older
+                  # sha in `.env` only works while that image is still on the box. Anything a
+                  # running container uses is protected whatever its age, so this cannot pull
+                  # production or preview out from under themselves.
+                  docker image prune -af --filter until=336h
                   REMOTE
 
             # **The proof is its own SSH command, outside the script it is checking.**
@@ -258,8 +268,20 @@ jobs:
             # `compose run` without `-T` did the same and took this very check down with it.
             #
             # A verification that a failing deploy can skip is not a verification. Run over its
-            # own connection it executes whatever the script did or did not do, and compares the
-            # container that is actually running against the commit this job set out to deploy.
+            # own connection it executes whatever the script did or did not do.
+            #
+            # **It compares image IDs, not the tag the container was created from**, and the
+            # difference is not academic. `Config.Image` is the reference string recorded at
+            # creation, so it says only that the container came from *a* build of this commit.
+            # A commit built twice — a re-run, or a dispatch after the push already deployed —
+            # produces two digests, because a docker build is not reproducible, and the second
+            # push *moves* the tag. Compose then does not recreate: it decides from a config
+            # hash holding the reference string, which did not change, so a moved tag is
+            # invisible to it and `up -d` reports `Running` having swapped nothing. That is
+            # exactly what happened to `api-preview` on f714afb8 — the container was left on the
+            # first build's image while the tag named the second, and the old check passed.
+            # Resolving both sides to an ID catches the wrong commit *and* a stale build of the
+            # right one.
             - name: Prove the deploy actually took
               env:
                   HOST: ${{ secrets.DROPLET_HOST }}
@@ -267,13 +289,24 @@ jobs:
                   CONTAINER: ${{ steps.target.outputs.container }}
                   SHA: ${{ github.sha }}
               run: |
-                  RUNNING=$(ssh -i ~/.ssh/id_deploy "$USER_NAME@$HOST" \
-                    "docker inspect --format '{{.Config.Image}}' '$CONTAINER'" < /dev/null)
-                  echo "running image: $RUNNING"
-                  case "$RUNNING" in
-                    *"$SHA") echo "image matches the commit" ;;
-                    *) echo "DEPLOY DID NOT TAKE: expected $SHA, found $RUNNING"; exit 1 ;;
-                  esac
+                  OUT=$(ssh -i ~/.ssh/id_deploy "$USER_NAME@$HOST" "set -e
+                    docker inspect --format '{{.Config.Image}}' '$CONTAINER'
+                    docker inspect --format '{{.Image}}' '$CONTAINER'
+                    docker image inspect --format '{{.Id}}' '$IMAGE:$SHA'" < /dev/null)
+
+                  REF=$(printf '%s\n' "$OUT" | sed -n 1p)
+                  RUNNING=$(printf '%s\n' "$OUT" | sed -n 2p)
+                  WANTED=$(printf '%s\n' "$OUT" | sed -n 3p)
+
+                  echo "created from: $REF"
+                  echo "running id:   $RUNNING"
+                  echo "wanted id:    $WANTED"
+
+                  if [ "$RUNNING" != "$WANTED" ]; then
+                    echo "DEPLOY DID NOT TAKE: $CONTAINER is not running the image built for $SHA"
+                    exit 1
+                  fi
+                  echo "the running container is this commit's image"
 
             # Both secrets come in and the shell picks, rather than indexing `secrets` with an
             # expression — that form is not reliably supported and fails as an empty string,
