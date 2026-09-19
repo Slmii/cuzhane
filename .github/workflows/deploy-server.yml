@@ -215,21 +215,27 @@ jobs:
                   # than telling you why. `run --rm` gets the same bind mount and the same
                   # environment, so it sees exactly what the real one would.
                   # **`-T`, and the whole deploy depends on it.** This script is fed to
-                  # `bash -s` from a heredoc, so **stdin is the script**. `compose run` without
-                  # `-T` allocates a TTY and consumes stdin — swallowing every remaining line.
-                  # It happened: a run validated the Caddyfile, ate the rest, and reported
-                  # success having swapped nothing. That is the failure the "prove the deploy
-                  # actually happened" check below exists for, and it caught it.
+                  # `bash -s` from a heredoc, so **stdin is the script**, and `compose run`
+                  # attaches stdin — swallowing every remaining line.
+                  #
+                  # **`-T` alone does not stop it, and that cost a second run.** `-T` disables
+                  # the *pseudo-TTY*; it says nothing about whether stdin is attached, and
+                  # `compose run` attaches it either way. The first failure had no `-T` and was
+                  # "fixed" by adding one; the very next deploy died at exactly the same line,
+                  # having validated the Caddyfile and eaten the rest of this script. **`<
+                  # /dev/null` is the part that actually works** — it is what `backup.sh` has
+                  # carried, with its own comment saying so, the whole time.
                   docker compose run --rm -T --no-deps --entrypoint caddy caddy \
-                    validate --config /etc/caddy/Caddyfile
+                    validate --config /etc/caddy/Caddyfile < /dev/null
 
                   docker compose up -d --no-deps caddy
 
                   # **And reload.** The Caddyfile is a bind mount, so replacing it does not change
                   # caddy's *service definition* — compose reports it up to date and keeps the old
                   # configuration loaded, leaving a routing change dormant until something else
-                  # restarts the container.
-                  docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile
+                  # restarts the container. `< /dev/null` for the same reason as the validate
+                  # above — `exec` attaches stdin too, and this script *is* stdin.
+                  docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile < /dev/null
 
                   # **`--no-deps` here too.** With dependencies, a compose file shipped from
                   # `development` would recreate the *shared* Postgres — production's database —
