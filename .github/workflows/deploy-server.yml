@@ -214,7 +214,13 @@ jobs:
                   # already crash-looping by then, and the `exec` fails for that reason rather
                   # than telling you why. `run --rm` gets the same bind mount and the same
                   # environment, so it sees exactly what the real one would.
-                  docker compose run --rm --no-deps --entrypoint caddy caddy \
+                  # **`-T`, and the whole deploy depends on it.** This script is fed to
+                  # `bash -s` from a heredoc, so **stdin is the script**. `compose run` without
+                  # `-T` allocates a TTY and consumes stdin — swallowing every remaining line.
+                  # It happened: a run validated the Caddyfile, ate the rest, and reported
+                  # success having swapped nothing. That is the failure the "prove the deploy
+                  # actually happened" check below exists for, and it caught it.
+                  docker compose run --rm -T --no-deps --entrypoint caddy caddy \
                     validate --config /etc/caddy/Caddyfile
 
                   docker compose up -d --no-deps caddy
@@ -233,20 +239,35 @@ jobs:
                   # fails the job if the API cannot come up against whatever it finds.
                   docker compose up -d --wait --wait-timeout 180 --no-deps "$SERVICE"
 
-                  # **Prove the deploy actually happened.** A green job used to mean only that
-                  # the script exited 0 — and it did exit 0 while doing nothing at all, when a
-                  # command inside it ate the rest of this script from stdin. Comparing the
-                  # running container's image against the commit being deployed is the one check
-                  # that cannot be fooled by a step that silently never ran.
-                  RUNNING=$(docker inspect --format '{{.Config.Image}}' "$CONTAINER")
+                  docker image prune -f
+                  REMOTE
+
+            # **The proof is its own SSH command, outside the script it is checking.**
+            #
+            # It used to be the last lines of the heredoc above, and that is precisely where it
+            # could not do its job: the script is piped to `bash -s`, so any command inside that
+            # reads stdin swallows the rest of it — the script ends early, `bash` exits 0, and
+            # the job goes green having swapped nothing. That happened twice: once when a
+            # command ate the script (the reason this check was written), and again when a
+            # `compose run` without `-T` did the same and took this very check down with it.
+            #
+            # A verification that a failing deploy can skip is not a verification. Run over its
+            # own connection it executes whatever the script did or did not do, and compares the
+            # container that is actually running against the commit this job set out to deploy.
+            - name: Prove the deploy actually took
+              env:
+                  HOST: ${{ secrets.DROPLET_HOST }}
+                  USER_NAME: ${{ secrets.DROPLET_USER }}
+                  CONTAINER: ${{ steps.target.outputs.container }}
+                  SHA: ${{ github.sha }}
+              run: |
+                  RUNNING=$(ssh -i ~/.ssh/id_deploy "$USER_NAME@$HOST" \
+                    "docker inspect --format '{{.Config.Image}}' '$CONTAINER'" < /dev/null)
                   echo "running image: $RUNNING"
                   case "$RUNNING" in
                     *"$SHA") echo "image matches the commit" ;;
-                    *) echo "DEPLOY DID NOT TAKE: expected $SHA"; exit 1 ;;
+                    *) echo "DEPLOY DID NOT TAKE: expected $SHA, found $RUNNING"; exit 1 ;;
                   esac
-
-                  docker image prune -f
-                  REMOTE
 
             # Both secrets come in and the shell picks, rather than indexing `secrets` with an
             # expression — that form is not reliably supported and fails as an empty string,
