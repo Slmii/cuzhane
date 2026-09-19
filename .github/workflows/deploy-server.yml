@@ -17,8 +17,12 @@ on:
 # Two pushes in quick succession must not race for the droplet: the second `up -d` could
 # otherwise start while the first is still swapping containers, and the image that ends up
 # running would be whichever finished last rather than whichever was newer.
+# **One group for both branches, not one per branch.** They deploy into the same directory on
+# the same box: a per-branch group let a production and a preview job overwrite each other's
+# `compose.yml` between validation and `up`, and race each other's `sed -i` on `.env`. Separate
+# tag *names* are no protection when the file holding them is shared.
 concurrency:
-    group: deploy-server-${{ github.ref_name }}
+    group: deploy-server
     cancel-in-progress: false
 
 # The image name is lowercase on purpose: GHCR rejects a path with a capital in it, and the
@@ -52,9 +56,15 @@ jobs:
                   context: .
                   file: apps/server/Dockerfile
                   push: true
+                  # **`latest` follows `main` and nothing else.** It was tagged on every
+                  # branch, so a push to `development` moved it — and because production's
+                  # `IMAGE_TAG` fell back to `latest` when unset, the next `up -d` put the
+                  # development build into production. Caught because both containers restarted
+                  # together and `cuzhane-api-1` was running `:latest`. The commit tag is pushed
+                  # from every branch; only this pointer is branch-specific.
                   tags: |
-                      ${{ env.IMAGE }}:latest
                       ${{ env.IMAGE }}:${{ github.sha }}
+                      ${{ github.ref == 'refs/heads/main' && format('{0}:latest', env.IMAGE) || '' }}
                   cache-from: type=gha
                   cache-to: type=gha,mode=max
 
@@ -67,7 +77,22 @@ jobs:
         permissions:
             contents: read
         steps:
+            # **The deployment files always come from `main`, whichever branch is deploying.**
+            # `compose.yml`, `Caddyfile` and `backup.sh` describe the *whole box* — both APIs,
+            # the shared Postgres and the edge in front of them — and this job scp's them over
+            # the running copies. Taken from the triggering branch, a merge to `development`
+            # could repoint `{$DOMAIN}` at the preview container, change production's image, or
+            # rewrite the `backup.sh` that root's nightly cron runs with the object-store key.
+            # That would make `development` a path to production with only `main` protected, and
+            # README's claim that protecting `main` is the control that matters would be false.
+            #
+            # The consequence to know: **infrastructure changes reach the box only through
+            # `main`.** A preview deploy cannot test a compose change before it is merged —
+            # which is the correct trade for a file that owns production, and why this very
+            # change has to land on `main` before `development` can deploy against it.
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+              with:
+                  ref: main
 
             # **The branch picks the target, and nothing else does.** `main` swaps the
             # production API, `development` swaps the preview one beside it. They share the
@@ -130,6 +155,27 @@ jobs:
                   set -euo pipefail
                   cd /opt/cuzhane
 
+                  # **Before any compose command at all.** Every one of them interpolates the
+                  # file, and the tags carry `:?` — so an unset tag makes even `compose ps`
+                  # fail. That mattered most in the backup guard below, where the failure read
+                  # as "postgres is not running" and skipped the pre-migration dump in silence.
+                  touch .env
+
+                  # **A file with no trailing newline would take the append onto its last
+                  # line.** `printf >>` does not start one, so `POSTGRES_PASSWORD=secret`
+                  # becomes `POSTGRES_PASSWORD=secretIMAGE_TAG=abc` — the password corrupted and
+                  # the tag never defined. `.env` is hand-edited on the box, so this is a real
+                  # shape for it to be in.
+                  if [ -s .env ] && [ -n "$(tail -c1 .env)" ]; then
+                    printf '\n' >> .env
+                  fi
+
+                  if grep -q "^${TAG_VAR}=" .env; then
+                    sed -i "s|^${TAG_VAR}=.*|${TAG_VAR}=${SHA}|" .env
+                  else
+                    printf '%s=%s\n' "$TAG_VAR" "$SHA" >> .env
+                  fi
+
                   # The only copy of the data from before this release's migrations. A
                   # destructive migration is not recoverable without it.
                   #
@@ -156,30 +202,36 @@ jobs:
                   # The exact commit, not `latest`. Two deploys in flight cannot then disagree
                   # about which image `latest` means, and a rollback is this same line with an
                   # older sha.
-                  # **The tag goes in `.env`, not just this shell.** Compose reads
-                  # `IMAGE_TAG`/`PREVIEW_IMAGE_TAG` from there, and `up -d` re-reads the file for
-                  # *every* service — so exporting only the one being deployed would leave the
-                  # other resolving to its `.env` value and, on the very first preview deploy,
-                  # silently roll production back to `latest`. Writing the value in keeps each
-                  # side pinned to the commit it was last deployed with.
-                  touch .env
-                  if grep -q "^${TAG_VAR}=" .env; then
-                    sed -i "s|^${TAG_VAR}=.*|${TAG_VAR}=${SHA}|" .env
-                  else
-                    printf '%s=%s\n' "$TAG_VAR" "$SHA" >> .env
-                  fi
-
                   docker compose pull "$SERVICE"
 
-                  # `--wait` is what makes this able to fail: it blocks on the api container's
-                  # healthcheck and exits non-zero if it never becomes healthy, so a failed
-                  # migration or a crash-looping build turns the job red instead of reporting a
-                  # green deploy over a 502.
-                  # Named services only. A bare `up -d` would also reconcile the *other* API
-                  # against whatever the compose file now says, which is not this deploy's
-                  # business — and caddy comes along because the Caddyfile ships with each
-                  # release and may have changed.
-                  docker compose up -d --wait --wait-timeout 180 "$SERVICE" caddy
+                  # **Caddy alone, with `--no-deps`.** The Caddyfile ships with every release so
+                  # caddy has to be reconciled — but it `depends_on` both APIs, and naming it
+                  # here without this dragged production's container into a preview deploy and
+                  # recreated it. `--no-deps` updates the edge and touches nothing behind it.
+                  # **Validate in a throwaway container, before the running edge is touched.**
+                  # Caddy refuses a file *whole*: one bad site block and production's stops
+                  # loading too. Checking with `exec` after `up` is too late — the container is
+                  # already crash-looping by then, and the `exec` fails for that reason rather
+                  # than telling you why. `run --rm` gets the same bind mount and the same
+                  # environment, so it sees exactly what the real one would.
+                  docker compose run --rm --no-deps --entrypoint caddy caddy \
+                    validate --config /etc/caddy/Caddyfile
+
+                  docker compose up -d --no-deps caddy
+
+                  # **And reload.** The Caddyfile is a bind mount, so replacing it does not change
+                  # caddy's *service definition* — compose reports it up to date and keeps the old
+                  # configuration loaded, leaving a routing change dormant until something else
+                  # restarts the container.
+                  docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile
+
+                  # **`--no-deps` here too.** With dependencies, a compose file shipped from
+                  # `development` would recreate the *shared* Postgres — production's database —
+                  # during a preview deploy. That is the same class of accident as the `caddy`
+                  # one above, and worse. The cost is losing `depends_on`'s "wait for a healthy
+                  # Postgres" gate, which only ever mattered on a cold boot; `--wait` below still
+                  # fails the job if the API cannot come up against whatever it finds.
+                  docker compose up -d --wait --wait-timeout 180 --no-deps "$SERVICE"
 
                   # **Prove the deploy actually happened.** A green job used to mean only that
                   # the script exited 0 — and it did exit 0 while doing nothing at all, when a

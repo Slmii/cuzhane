@@ -74,11 +74,44 @@ docker compose exec postgres psql -U cuzhane -d cuzhane \
   -c 'CREATE DATABASE cuzhane_preview OWNER cuzhane;'
 ```
 
-The API runs its own migrations at boot, so an empty database is all it needs. Add
-`PREVIEW_DOMAIN` to `/opt/cuzhane/.env` **before** the first deploy carrying the new compose
-file, or `docker compose config` fails the job.
+The API runs its own migrations at boot, so an empty database is all it needs.
+
+`/opt/cuzhane/.env` must carry **`PREVIEW_DOMAIN` and both image tags** before the first deploy
+of the new compose file:
+
+```sh
+PREVIEW_DOMAIN=...          # blank takes the whole edge down — see below
+IMAGE_TAG=<sha of main>
+PREVIEW_IMAGE_TAG=<sha of development>
+```
+
+The tags are `:?`, and each deploy writes only its own — so whichever branch deploys first fails
+validating the other's, once, until both exist. Seed them by hand rather than spending a red run
+on it.
+
+`PREVIEW_DOMAIN` is the dangerous one. A blank value **passes** `docker compose config` (it only
+warns) and then produces a site block with no address, which Caddy rejects as _"server block
+without any key"_ — refusing the **entire** file, production's site included. One unset variable
+is a full outage, not a broken preview. Hence `:?` on all three domains in `compose.yml`, and the
+`compose run --rm caddy validate` before the running edge is swapped.
+
+**Infrastructure reaches the box only through `main`.** The deploy job checks out `main` for
+`compose.yml`, `Caddyfile` and `backup.sh` whatever branch triggered it — otherwise a merge to
+`development` could repoint production's hostname or rewrite the backup script that root's cron
+runs. A compose change therefore cannot be tested from `development`; merge it to `main` first.
 
 Resetting preview is dropping and recreating that database — never do it to `cuzhane`.
+
+**Preview's database credential is production's.** `POSTGRES_USER: cuzhane` is the instance's
+bootstrap **superuser**, and `api-preview` is handed the same password — only the database name
+in the URL differs. So `cuzhane_preview` isolates _migrations_, not access: anything holding
+preview's `DATABASE_URL` can connect to `cuzhane` and read or drop it. Closing that means a
+`NOSUPERUSER` role owning only the preview database, and a second password in `.env`.
+
+**Preview signs in against production's Clerk**, deliberately — it is for developers, so you use
+your own account. The edge to know: Profil's "Hesabı sil" calls `user.delete()` on Clerk, so
+running it from a preview build deletes the **real** identity. Preview's rows go; production's
+are orphaned and the login is gone.
 
 ## Deploying
 

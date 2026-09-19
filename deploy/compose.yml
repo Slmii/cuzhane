@@ -20,9 +20,14 @@ services:
             - '80:80'
             - '443:443'
         environment:
-            DOMAIN: ${DOMAIN}
-            PREVIEW_DOMAIN: ${PREVIEW_DOMAIN}
-            SITE_DOMAIN: ${SITE_DOMAIN}
+            # **All three are `:?`, and the reason is that Caddy fails whole.** A blank here
+            # passes `compose config` — it only warns — and then produces a site block with no
+            # address, which Caddy rejects as "server block without any key", refusing the
+            # *entire* file. One unset variable therefore takes production's edge down with it,
+            # not just its own site. Verified against caddy:2.11-alpine.
+            DOMAIN: ${DOMAIN:?required — Caddy refuses the whole file if any site address is blank}
+            PREVIEW_DOMAIN: ${PREVIEW_DOMAIN:?required — see DOMAIN}
+            SITE_DOMAIN: ${SITE_DOMAIN:?required — see DOMAIN}
             ACME_EMAIL: ${ACME_EMAIL}
         volumes:
             - ./Caddyfile:/etc/caddy/Caddyfile:ro
@@ -49,7 +54,11 @@ services:
             - api-preview
 
     api:
-        image: ghcr.io/slmii/cuzhane-api:${IMAGE_TAG:-latest}
+        # **No `:-latest` fallback.** It used to have one, and that is how a development
+        # build reached production: `latest` moved, `IMAGE_TAG` was never written to `.env`, and
+        # the next `up -d` resolved the fallback. Compose now fails on an unset variable, which
+        # is the correct outcome — a deploy that does not know its commit should not run.
+        image: ghcr.io/slmii/cuzhane-api:${IMAGE_TAG:?set by CI, or pin it in .env}
         restart: unless-stopped
         environment:
             NODE_ENV: production
@@ -124,7 +133,7 @@ services:
     # directory means signing in with your own account — and because identity is Clerk's, the
     # preview database keys its own rows off the same user ids. No preview-only secret exists.
     api-preview:
-        image: ghcr.io/slmii/cuzhane-api:${PREVIEW_IMAGE_TAG:-latest}
+        image: ghcr.io/slmii/cuzhane-api:${PREVIEW_IMAGE_TAG:?set by CI, or pin it in .env}
         restart: unless-stopped
         environment:
             NODE_ENV: production
