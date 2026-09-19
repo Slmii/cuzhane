@@ -3,7 +3,7 @@ name: Deploy server
 # Only the API. The Expo app ships through EAS and has nothing to do with this.
 on:
     push:
-        branches: [main]
+        branches: [main, development]
         paths:
             - 'apps/server/**'
             - 'deploy/**'
@@ -18,7 +18,7 @@ on:
 # otherwise start while the first is still swapping containers, and the image that ends up
 # running would be whichever finished last rather than whichever was newer.
 concurrency:
-    group: deploy-server
+    group: deploy-server-${{ github.ref_name }}
     cancel-in-progress: false
 
 # The image name is lowercase on purpose: GHCR rejects a path with a capital in it, and the
@@ -61,12 +61,31 @@ jobs:
     deploy:
         needs: build
         runs-on: ubuntu-latest
-        # `workflow_dispatch` can be aimed at any branch, and this job deploys to production.
-        if: github.ref == 'refs/heads/main'
+        # `workflow_dispatch` can be aimed at any branch, and this job deploys to a live box.
+        # Only these two have a target; anything else is a feature branch and must not deploy.
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/development'
         permissions:
             contents: read
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+            # **The branch picks the target, and nothing else does.** `main` swaps the
+            # production API, `development` swaps the preview one beside it. They share the
+            # droplet, the Caddy in front and the Postgres behind — but a different container,
+            # a different database and a *different tag variable*, so deploying one never moves
+            # the other's image.
+            - name: Choose the target
+              id: target
+              run: |
+                  if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+                    echo "service=api"                       >> "$GITHUB_OUTPUT"
+                    echo "container=cuzhane-api-1"           >> "$GITHUB_OUTPUT"
+                    echo "tag_var=IMAGE_TAG"                 >> "$GITHUB_OUTPUT"
+                  else
+                    echo "service=api-preview"               >> "$GITHUB_OUTPUT"
+                    echo "container=cuzhane-api-preview-1"   >> "$GITHUB_OUTPUT"
+                    echo "tag_var=PREVIEW_IMAGE_TAG"         >> "$GITHUB_OUTPUT"
+                  fi
 
             # **No third-party action holds the droplet's key.** A marketplace action given an
             # SSH secret is a supply-chain foothold with root on the box (the tj-actions
@@ -103,7 +122,11 @@ jobs:
                   USER_NAME: ${{ secrets.DROPLET_USER }}
               run: |
                   ssh -i ~/.ssh/id_deploy "$USER_NAME@$HOST" \
-                    "IMAGE_TAG='${{ github.sha }}' bash -s" <<'REMOTE'
+                    "TAG_VAR='${{ steps.target.outputs.tag_var }}' \
+                     SERVICE='${{ steps.target.outputs.service }}' \
+                     CONTAINER='${{ steps.target.outputs.container }}' \
+                     IS_PRODUCTION='${{ github.ref == 'refs/heads/main' }}' \
+                     SHA='${{ github.sha }}' bash -s" <<'REMOTE'
                   set -euo pipefail
                   cd /opt/cuzhane
 
@@ -116,10 +139,14 @@ jobs:
                   # had nothing to lose in the first place. The guard is here rather than in
                   # the script so that the nightly cron still fails loudly when the database
                   # it is meant to be dumping is down.
-                  if [ -x ./backup.sh ] && docker compose ps --services --filter status=running | grep -qx postgres; then
+                  # **Production only.** The dump is of `cuzhane`, and a preview deploy cannot
+                  # reach it — taking one anyway would add a copy of the production database to
+                  # the disk every time somebody merges to `development`.
+                  if [ "$IS_PRODUCTION" = "true" ] && [ -x ./backup.sh ] \
+                     && docker compose ps --services --filter status=running | grep -qx postgres; then
                     ./backup.sh
                   else
-                    echo "postgres not running — skipping the pre-deploy dump"
+                    echo "not a production deploy, or postgres is down — skipping the dump"
                   fi
 
                   # Validate before anything is torn down: a compose file that does not parse
@@ -129,35 +156,60 @@ jobs:
                   # The exact commit, not `latest`. Two deploys in flight cannot then disagree
                   # about which image `latest` means, and a rollback is this same line with an
                   # older sha.
-                  docker compose pull api
+                  # **The tag goes in `.env`, not just this shell.** Compose reads
+                  # `IMAGE_TAG`/`PREVIEW_IMAGE_TAG` from there, and `up -d` re-reads the file for
+                  # *every* service — so exporting only the one being deployed would leave the
+                  # other resolving to its `.env` value and, on the very first preview deploy,
+                  # silently roll production back to `latest`. Writing the value in keeps each
+                  # side pinned to the commit it was last deployed with.
+                  touch .env
+                  if grep -q "^${TAG_VAR}=" .env; then
+                    sed -i "s|^${TAG_VAR}=.*|${TAG_VAR}=${SHA}|" .env
+                  else
+                    printf '%s=%s\n' "$TAG_VAR" "$SHA" >> .env
+                  fi
+
+                  docker compose pull "$SERVICE"
 
                   # `--wait` is what makes this able to fail: it blocks on the api container's
                   # healthcheck and exits non-zero if it never becomes healthy, so a failed
                   # migration or a crash-looping build turns the job red instead of reporting a
                   # green deploy over a 502.
-                  docker compose up -d --wait --wait-timeout 180
+                  # Named services only. A bare `up -d` would also reconcile the *other* API
+                  # against whatever the compose file now says, which is not this deploy's
+                  # business — and caddy comes along because the Caddyfile ships with each
+                  # release and may have changed.
+                  docker compose up -d --wait --wait-timeout 180 "$SERVICE" caddy
 
                   # **Prove the deploy actually happened.** A green job used to mean only that
                   # the script exited 0 — and it did exit 0 while doing nothing at all, when a
                   # command inside it ate the rest of this script from stdin. Comparing the
                   # running container's image against the commit being deployed is the one check
                   # that cannot be fooled by a step that silently never ran.
-                  RUNNING=$(docker inspect --format '{{.Config.Image}}' cuzhane-api-1)
+                  RUNNING=$(docker inspect --format '{{.Config.Image}}' "$CONTAINER")
                   echo "running image: $RUNNING"
                   case "$RUNNING" in
-                    *"$IMAGE_TAG") echo "image matches the commit" ;;
-                    *) echo "DEPLOY DID NOT TAKE: expected $IMAGE_TAG"; exit 1 ;;
+                    *"$SHA") echo "image matches the commit" ;;
+                    *) echo "DEPLOY DID NOT TAKE: expected $SHA"; exit 1 ;;
                   esac
 
                   docker image prune -f
                   REMOTE
 
+            # Both secrets come in and the shell picks, rather than indexing `secrets` with an
+            # expression — that form is not reliably supported and fails as an empty string,
+            # which would curl `https:///health` and pass by accident.
             - name: Smoke test over HTTPS
               env:
-                  DOMAIN: ${{ secrets.DROPLET_DOMAIN }}
+                  PROD_DOMAIN: ${{ secrets.DROPLET_DOMAIN }}
+                  PREVIEW_DOMAIN: ${{ secrets.DROPLET_PREVIEW_DOMAIN }}
+                  IS_PRODUCTION: ${{ github.ref == 'refs/heads/main' }}
               # The healthcheck runs inside the container; this is the same question asked from
               # outside, so a broken certificate or proxy also fails the deploy.
-              run: curl -fsS --max-time 15 "https://$DOMAIN/health"
+              run: |
+                  if [ "$IS_PRODUCTION" = "true" ]; then DOMAIN="$PROD_DOMAIN"; else DOMAIN="$PREVIEW_DOMAIN"; fi
+                  test -n "$DOMAIN" || { echo "no domain secret for this branch"; exit 1; }
+                  curl -fsS --max-time 15 "https://$DOMAIN/health"
 
             - name: Remove the key
               if: always()

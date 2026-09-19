@@ -43,6 +43,30 @@
 	}
 }
 
+# The preview API, for the `development` branch and the Expo `preview` channel. Same shape as
+# production below, one container and one database over — see `compose.yml`. Its A record has to
+# point here before Caddy can answer the ACME challenge on 80.
+{$PREVIEW_DOMAIN} {
+	encode zstd gzip
+
+	request_body {
+		max_size 300KB
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		-Server
+	}
+
+	log {
+		output stdout
+	}
+
+	reverse_proxy api-preview:3001
+}
+
 {$DOMAIN} {
 	encode zstd gzip
 
