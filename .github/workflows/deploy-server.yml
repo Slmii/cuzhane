@@ -251,10 +251,19 @@ jobs:
                   # `0B` reclaimed. A full disk stops Postgres accepting writes, so this is a
                   # slow way to take production down.
                   #
-                  # `until` keeps a fortnight, which is the rollback window: pinning an older
-                  # sha in `.env` only works while that image is still on the box. Anything a
-                  # running container uses is protected whatever its age, so this cannot pull
-                  # production or preview out from under themselves.
+                  # **Two passes, because the age filter means two different things.**
+                  #
+                  # A *dangling* image has no tag, so it cannot be named in `.env` and is not a
+                  # rollback target — age buys nothing and it goes immediately. That is where
+                  # the 661 MB sat: a tag that moved when a commit was built twice left its
+                  # first build untagged, and a single `-a --filter until` shielded it for a
+                  # fortnight for no reason.
+                  #
+                  # A *tagged* image is a rollback target — pinning an older sha only works
+                  # while that image is still on the box — so those keep a fortnight. Anything
+                  # a running container uses is protected whatever its age either way, so
+                  # neither pass can pull production or preview out from under themselves.
+                  docker image prune -f
                   docker image prune -af --filter until=336h
                   REMOTE
 
