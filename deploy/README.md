@@ -9,13 +9,14 @@ never in this repository. Build it from `.env.example` and `chmod 600` it.
 
 ## GitHub secrets the workflow needs
 
-| Secret             | What it is                                                      |
-| ------------------ | --------------------------------------------------------------- |
-| `DROPLET_HOST`     | The droplet's IP or hostname                                    |
-| `DROPLET_USER`     | The SSH user the deploy connects as                             |
-| `DROPLET_SSH_KEY`  | That user's **private** key                                     |
-| `DROPLET_HOST_KEY` | The droplet's public host key — `ssh-keyscan -t ed25519 <host>` |
-| `DROPLET_DOMAIN`   | The API's hostname, for the post-deploy smoke test              |
+| Secret                   | What it is                                                      |
+| ------------------------ | --------------------------------------------------------------- |
+| `DROPLET_HOST`           | The droplet's IP or hostname                                    |
+| `DROPLET_USER`           | The SSH user the deploy connects as                             |
+| `DROPLET_SSH_KEY`        | That user's **private** key                                     |
+| `DROPLET_HOST_KEY`       | The droplet's public host key — `ssh-keyscan -t ed25519 <host>` |
+| `DROPLET_DOMAIN`         | The API's hostname, for the post-deploy smoke test              |
+| `DROPLET_PREVIEW_DOMAIN` | The preview API's hostname, for the same test on `development`  |
 
 `DROPLET_HOST_KEY` is what stops the deploy trusting whatever answers on that IP. Without it
 the connection is trust-on-first-use, which is no check at all in a fresh runner.
@@ -46,6 +47,38 @@ pushed, and the API holds the database credentials and the Clerk secret. Branch 
 required review on `main` — and on `.github/workflows/**`, `deploy/**` and the Dockerfile in
 particular — is the control that matters here; nothing further down the pipeline can substitute
 for it.
+
+## Two environments on one droplet
+
+`main` deploys the **production** API; `development` deploys the **preview** one beside it. They
+share the box, the Caddy in front and the Postgres behind — but run as different containers
+against different databases (`cuzhane` and `cuzhane_preview`), and each is pinned by its own tag
+variable (`IMAGE_TAG`, `PREVIEW_IMAGE_TAG`) so deploying one never moves the other's image.
+
+Preview exists so the `development` branch and the Expo `preview` channel have something that is
+not production to run against. Before it, `preview` builds resolved `EXPO_PUBLIC_API_URL` to the
+production host and read and wrote live rows.
+
+**One Postgres, two databases.** A second instance does not fit beside the first on 2 GB. A
+second database still isolates the data — a preview migration cannot touch a production row —
+but not the process: a preview query storm or a Postgres crash takes production with it. That
+holds while preview is a couple of developers; the answer when it stops is a second droplet.
+
+### The one manual step, once
+
+`POSTGRES_DB` only runs against an empty data directory, so the preview database is created by
+hand:
+
+```sh
+docker compose exec postgres psql -U cuzhane -d cuzhane \
+  -c 'CREATE DATABASE cuzhane_preview OWNER cuzhane;'
+```
+
+The API runs its own migrations at boot, so an empty database is all it needs. Add
+`PREVIEW_DOMAIN` to `/opt/cuzhane/.env` **before** the first deploy carrying the new compose
+file, or `docker compose config` fails the job.
+
+Resetting preview is dropping and recreating that database — never do it to `cuzhane`.
 
 ## Deploying
 
