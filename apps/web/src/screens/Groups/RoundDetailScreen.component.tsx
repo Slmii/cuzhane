@@ -1,5 +1,4 @@
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
-import { RoundDetailSkeleton } from './RoundDetailSkeleton.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
 import { Avatar } from '@/components/ui/Avatar/Avatar.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
@@ -19,11 +18,12 @@ import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { AppTheme } from '@/lib/theme/tokens';
 import { formatBabRange } from '@/lib/utils/babs';
 import { staggerWithinRuns } from '@/lib/utils/groups';
-import { roundRows, type RoundCellState, roundCellStates, type RoundRow } from '@/lib/utils/rounds';
+import { roundCellStates, roundRows, type RoundCellState, type RoundRow } from '@/lib/utils/rounds';
 import type { TabStackParamList } from '@/navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { RoundDetailSkeleton } from './RoundDetailSkeleton.component';
 
 type Props = NativeStackScreenProps<TabStackParamList, 'RoundDetail'>;
 
@@ -36,13 +36,54 @@ const NO_ITEMS: CellGridItem[] = [];
  *
  * At module scope, taking the theme, so the memoised cells can call it without listing a
  * per-render copy of it as a dependency that always changed.
+ *
+ * **It used to be the outline alone, over a fill that was only read-or-missed** — and that
+ * put four of the five states in the same clay, so the legend read as red, red, red, red.
+ * The two that were never misses are the ones that had to move: a bab somebody else covered
+ * *was* read, and a pool block was never anyone's to miss. Both now borrow the group board's
+ * own tokens (`babReadByOthers`, `poolFree`), so the two screens say the same thing with the
+ * same colour and the clay is left to mean one thing.
  */
-const outlineFor = (state: RoundCellState, theme: AppTheme) =>
-	state === 'missedMine'
-		? theme.colors.text
-		: state === 'takenByOther'
-		? theme.colors.borderStrong
-		: theme.colors.transparent;
+const appearanceFor = (state: RoundCellState, theme: AppTheme) => {
+	switch (state) {
+		case 'read':
+			return {
+				backgroundColor: theme.colors.babReadByMe,
+				borderColor: theme.colors.babReadByMe,
+				labelColor: theme.colors.onAccent
+			};
+		// Yours, and nobody read it. The one cell on this board that is about the reader, and
+		// the only one the clay is spent on — see the note above.
+		case 'missedMine':
+			return {
+				backgroundColor: theme.colors.missed,
+				borderColor: theme.colors.text,
+				labelColor: theme.colors.onAccent
+			};
+		// Yours, but somebody stepped in. It **was** read, so it takes the same soft green the
+		// group board gives a bab read by someone else.
+		case 'takenByOther':
+			return {
+				backgroundColor: theme.colors.babReadByOthers,
+				borderColor: theme.colors.babReadByOthers,
+				labelColor: theme.colors.babOthersText
+			};
+		// An empty seat's block: never anyone's to miss, so it wears the pool's tan and its
+		// hatch rather than the clay.
+		case 'pool':
+			return {
+				backgroundColor: theme.colors.poolFree,
+				borderColor: theme.colors.poolFree,
+				labelColor: theme.colors.sandText
+			};
+		default:
+			return {
+				backgroundColor: theme.colors.missed,
+				borderColor: theme.colors.missed,
+				labelColor: theme.colors.onAccent
+			};
+	}
+};
 
 /**
  * 10a. One closed round, bab by bab, and who still owes what.
@@ -88,12 +129,8 @@ export const RoundDetailScreen = ({ route }: Props) => {
 			return {
 				key: String(bab.number),
 				label: String(bab.number),
-				backgroundColor: state === 'read' ? theme.colors.accent : theme.colors.missed,
+				...appearanceFor(state, theme),
 				fillDelay: delays[index] ?? 0,
-				labelColor: theme.colors.onAccent,
-				// Ownership rides on the outline, not the fill — the fill already carries
-				// read-or-missed and can't say both at once.
-				borderColor: outlineFor(state, theme),
 				isHatched: state === 'pool'
 			};
 		});
@@ -121,8 +158,6 @@ export const RoundDetailScreen = ({ route }: Props) => {
 	const round = roundQuery.data;
 	const members = membersQuery.data ?? [];
 	const rows = roundRows(round, members, viewerUserId);
-
-	const cellColor = (state: RoundCellState) => (state === 'read' ? theme.colors.accent : theme.colors.missed);
 
 	/**
 	 * Who did the covering, from the reader's point of view: "devraldığın" on your own row,
@@ -217,12 +252,13 @@ export const RoundDetailScreen = ({ route }: Props) => {
 			<View style={styles.legend}>
 				{legend.map(entry => (
 					<View key={entry.state} style={styles.legendItem}>
+						{/* The same table the cells use, so a swatch cannot drift from what it keys. */}
 						<View
 							style={[
 								styles.legendSwatch,
 								{
-									backgroundColor: cellColor(entry.state),
-									borderColor: outlineFor(entry.state, theme)
+									backgroundColor: appearanceFor(entry.state, theme).backgroundColor,
+									borderColor: appearanceFor(entry.state, theme).borderColor
 								}
 							]}
 						>
@@ -285,10 +321,19 @@ export const RoundDetailScreen = ({ route }: Props) => {
 										})
 									}
 									size='sm'
+									/*
+									 * **Both variants carry a glyph**, for the reason the pool's
+									 * button records: one with an icon beside one without reads as
+									 * two different controls, and here the two sit in the same
+									 * list — your own row and somebody else's, one above the
+									 * other. `claim` is the icon set's own name for this act
+									 * ("Üstlen · Claim"); the tick is what Okudum wears elsewhere.
+									 */
+									icon={row.isViewer ? 'check' : 'claim'}
 									// Your own miss is "Okudum"; someone else's, or the pool's,
 									// is "Üstlen" — the same write, a different claim about it.
 									title={row.isViewer ? t('markRead') : t('takeOver')}
-									variant={row.isViewer ? 'accent' : 'accentOutline'}
+									variant='accent'
 								/>
 							</>
 						) : null}

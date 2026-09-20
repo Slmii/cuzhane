@@ -300,3 +300,51 @@ export type RoundDetail = {
 	missedPeopleCount: number;
 	babs: RoundBab[];
 };
+
+/**
+ * One period of "Senin ilerlemen" — a single cell of F7's strip. Mirrors the server's
+ * MyProgressPeriod.
+ *
+ * A cell is always **one round**, so it means a day in a DAILY group and a week in a
+ * WEEKLY one. The design's frame carries a Günlük/Haftalık toggle that is deliberately
+ * not built: a group has one cycle, so the other tab would have nothing real behind it.
+ */
+export type MyProgressPeriod = {
+	roundIndex: number;
+	/** How many of `missedBabs` there are — the same quantity the list shows. */
+	missedCount: number;
+	/**
+	 * When the round opened. The strip's label is formatted from this on the client —
+	 * a weekday for DAILY, the round number for WEEKLY — using the group's own `timezone`,
+	 * because naming a weekday is localisation and the server has no locale.
+	 */
+	startedAt: string;
+	endsAt: string;
+	isOpen: boolean;
+	/**
+	 * How many babs this seat owed. **Not a constant**: `100 / spots`, the first
+	 * `100 % spots` seats get one more, and the rotation moves the seat each round.
+	 */
+	owedCount: number;
+	/** Of those, read by this member — whenever they read them, catching up included. */
+	readCount: number;
+	/**
+	 * Owed and read by nobody — what the missed list offers. Always empty while open.
+	 *
+	 * Each carries its round explicitly: the pill hands it to the reader, which covers that
+	 * round rather than today's board — where the rotation has already moved the bab on.
+	 */
+	missedBabs: { babNumber: number; roundIndex: number }[];
+};
+
+/** Mirrors the server's MyProgress. */
+export type MyProgress = {
+	cycle: GroupCycle;
+	/** Oldest first, ending on the open round — the order the strip draws. */
+	periods: MyProgressPeriod[];
+	readCount: number;
+	owedCount: number;
+	/** Closed rounds only; the open one cannot have been missed yet. */
+	missedCount: number;
+	ratePercent: number;
+};

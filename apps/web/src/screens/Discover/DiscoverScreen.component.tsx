@@ -78,8 +78,14 @@ export const DiscoverScreen = () => {
 	// included, is the Ara tab's job; filter and sort are the navigator's pull-down.
 	const header = (
 		<View key='header' style={[styles.header, { backgroundColor: theme.colors.background }]}>
-			{/* Under the navigator's bar, which carries this screen's browse menu. */}
-			<ScreenTitle isUnderNavigationBar label={t('discover')} />
+			{/*
+			 * Under the navigator's bar, which carries this screen's browse menu.
+			 *
+			 * `hasReservedSecondaryLabel={false}` for the same reason as the inbox: D4 heads
+			 * with `padding: 8px 0 16px` and no eyebrow, the way G1 and G3 do. Gruplarım (D2)
+			 * is the one tab root with that row, because it has a greeting to put in it.
+			 */}
+			<ScreenTitle hasReservedSecondaryLabel={false} isUnderNavigationBar label={t('discover')} />
 		</View>
 	);
 

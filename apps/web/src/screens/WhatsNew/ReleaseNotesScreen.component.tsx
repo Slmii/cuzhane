@@ -3,7 +3,7 @@ import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.co
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { CaptionText, EyebrowText, FieldLabelText } from '@/components/ui/Typography/Typography.component';
-import { CURRENT_RELEASE, EARLIER_RELEASES } from '@/lib/content/releaseNotes';
+import { CURRENT_RELEASE, EARLIER_RELEASES, releaseDateLabel } from '@/lib/content/releaseNotes';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { StyleSheet, View } from 'react-native';
@@ -17,7 +17,7 @@ import { StyleSheet, View } from 'react-native';
  * others are a record.
  */
 export const ReleaseNotesScreen = () => {
-	const { t } = useTranslation();
+	const { language, t } = useTranslation();
 	const { theme } = useThemeContext();
 
 	return (
@@ -27,7 +27,7 @@ export const ReleaseNotesScreen = () => {
 					? {}
 					: {
 							eyebrow: t('whatsNewEyebrow', {
-								month: t(CURRENT_RELEASE.monthKey),
+								month: releaseDateLabel(CURRENT_RELEASE.releasedOn, language),
 								version: CURRENT_RELEASE.version
 							})
 					  })}
@@ -60,7 +60,10 @@ export const ReleaseNotesScreen = () => {
 							{/* The eyebrow variant, not a body line: the string is written lowercase
 							    like every other, and this is what maps the dotted i when it caps. */}
 							<EyebrowText color={theme.colors.subtext}>
-								{t('whatsNewEyebrow', { month: t(release.monthKey), version: release.version })}
+								{t('whatsNewEyebrow', {
+									month: releaseDateLabel(release.releasedOn, language),
+									version: release.version
+								})}
 							</EyebrowText>
 							{release.entries.map(entry => (
 								<ReleaseNoteItem entry={entry} key={entry.titleKey} />

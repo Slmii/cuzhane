@@ -567,9 +567,15 @@ description leading action size />`; pushed screens get it via `ScreenHeader`, w
     padding around one — screens that did drifted apart and the title visibly jumped when switching tabs.
     `secondaryLabel` is the eyebrow above the label, `description` the caption below; `size` picks the three
     scales the design uses (`page` 27px, `name` 22px beside an avatar, `compact` 17px for Home's group name).
-    The eyebrow row is **always laid out**, empty and at a fixed height, on screens without a
-    `secondaryLabel` — that is what keeps every title on one baseline, so don't make it conditional.
-    (`ScreenHeader` opts out via `hasReservedSecondaryLabel={false}`: its back row already fills that slot.)
+    The eyebrow row is laid out at a **fixed height** wherever it appears, so a diacritic like the
+    "Â" in "Selâm" cannot grow the line box and push one screen's title below the rest. What it is
+    **not** is reserved on every screen: `hasReservedSecondaryLabel={false}` drops it, and that is
+    the right call wherever the design heads straight into the title. Measured against the export —
+    D2 Gruplarım is the one tab root with an eyebrow, because it has a greeting to put there, while
+    D4 Keşfet, P2 the inbox, G1 Hatırlatma and G3 Profil all go `padding: 8px …` straight to the
+    heading. Reserving it on the inbox and Keşfet put those two titles 19pt (14 + 5 margin) below
+    the screen the gear opens, and 19pt below their own skeletons, so the heading dropped as the
+    list landed. `ScreenHeader` opts out for the same reason on every pushed screen.
 -   **Forms**: any screen that collects values goes through `components/ui/Form` → `<Form<T> schema
 defaultValues render={({ handleSubmit, watch, setValue }) => …} />`, which wires `react-hook-form` to the
     zod resolver and puts the methods on context. Inside it use the bound controls — `Field` (text),
@@ -1005,7 +1011,13 @@ for every other member, push to those who asked. The two above them are written 
     requests finishing the same share at once, and `roundIndex` being part of it means the next
     round announces itself again with nothing to clean up. Covering a
     bab from a *closed* round (`roundHistory.service.ts`) deliberately sends nothing: a different
-    event, and it would need its own copy. Switching it on also registers a push token there and
+    event, and it would need its own copy. **That silence is now held by tests**, because it was
+    held only by an absence — `coverMissedBabsForUser` simply never calls the notify helpers, and
+    adding them "for symmetry" with the read paths would look like a fix. It is not one: covering
+    is catching up days later, and announcing that somebody finished a share last Tuesday is noise
+    about a round nobody is reading. The two paths cannot reach each other's rounds either —
+    `recordRead`'s only two callers pass `group.roundIndex`, and the cover endpoint 403s on
+    anything that is not strictly older. Switching it on also registers a push token there and
     then — the reconciler only ever registers a device that already had permission, so a device
     granting it that second would otherwise have no row until the next launch.
 -   **"The round is complete" is `UserSettings.roundCompleteEnabled`, and it is the one push that
@@ -1089,7 +1101,7 @@ for every other member, push to those who asked. The two above them are written 
 
 ## The first-use tour (section O)
 
-`components/Tour` — a walkthrough over the live app: a welcome card, fifteen stops, and a
+`components/Tour` — a walkthrough over the live app: a welcome card, sixteen stops, and a
 closing card. `hasSeenTour` on `UserSettings` decides whether it opens by itself.
 
 -   **The flag defaults to `false`, and that is the whole migration.** Everyone already using the
@@ -1129,7 +1141,7 @@ closing card. `hasSeenTour` on `UserSettings` decides whether it opens by itself
     sibling in `AppRoot`, which dims the bar perfectly well. A modal brings a separate UIWindow
     and its own touch routing for no gain here. The rectangles still live in a context either way:
     the things being measured are inside the navigator and the thing drawing the hole is outside it.
--   **Fifteen stops across six screens, and the tour drives the navigation itself.** Section O's
+-   **Sixteen stops across six screens, and the tour drives the navigation itself.** Section O's
     own list is `streak · groups · tabs · mine · pool · rd · settings`; the bottom bar went
     because it names itself under every icon. Added: the Read button, the group's summary card,
     the closed round, sharing, the reader's type controls split from its action bar, and Profil's
@@ -1272,10 +1284,10 @@ closing card. `hasSeenTour` on `UserSettings` decides whether it opens by itself
     the dome and minarets come out solid), and the glow drawn in its **own** `Svg`, since it is
     larger than the mark's box and React Native clips to it rather than honouring
     `overflow: visible`. Reduce Motion gets the finished drawing.
--   Copy is `tour1…tour15` in `strings.ts`, three languages, numbered in the order the stops are
+-   Copy is `tour1…tour16` in `strings.ts`, three languages, numbered in the order the stops are
     visited — so inserting a stop renumbers the keys after it rather than appending, the same way
     stop 3's text was rewritten rather than a key added. `tourStep` interpolates `{a}` and `{b}`;
-    the counter reads "1 / 15" because the welcome and closing cards are not steps.
+    the counter reads "1 / 16" because the welcome and closing cards are not steps.
 
 There is **no account-wide notifications switch.** `UserSettings.notificationsEnabled` was
 a column with an update endpoint and no control in any screen, so nothing ever wrote

@@ -196,7 +196,17 @@ const roundIndexFor = (group: Group): number | null =>
 /** Only the two fields the split actually depends on, so callers with a partial row can use it. */
 type PlanShape = Pick<Group, 'spots' | 'splitMode'>;
 
-const babNumbersInRound = (group: PlanShape, slotIndex: number, roundIndex: number | null): number[] => {
+/**
+ * The block a seat reads in a given round.
+ *
+ * **Exported for the same reason `shareBabNumbersToday` below is**: a caller asking what a
+ * seat owed in a *past* round has to get the same answer the serializers give for the
+ * present one, and the rule is not obvious enough to restate — ROTATION advances by a
+ * whole seat per round, FIXED never moves, and a group still GATHERING has no round at
+ * all. `my-progress` walks the window with this; a second copy of the three-line branch
+ * would be a second thing to remember to change when the split rules move.
+ */
+export const babNumbersInRound = (group: PlanShape, slotIndex: number, roundIndex: number | null): number[] => {
 	if (roundIndex === null) {
 		// Still gathering: the seat's own block is what has been reserved for them.
 		return babNumbersForSlot(slotIndex, group.spots);

@@ -27,6 +27,7 @@ import { GroupsToolbar } from '@/screens/Groups/GroupsToolbar.component';
 import { LobbyScreen } from '@/screens/Groups/LobbyScreen.component';
 import { PoolScreen } from '@/screens/Groups/PoolScreen.component';
 import { RoundDetailScreen } from '@/screens/Groups/RoundDetailScreen.component';
+import { MyProgressScreen } from '@/screens/Groups/MyProgressScreen.component';
 import { RoundsScreen } from '@/screens/Groups/RoundsScreen.component';
 import { HomeScreen } from '@/screens/Home/HomeScreen.component';
 import { HomeSkeleton } from '@/screens/Home/HomeSkeleton.component';
@@ -411,6 +412,7 @@ const sharedTabScreens = ({ isProfileRoot = false }: { isProfileRoot?: boolean }
 		<TabStack.Screen name='Lobby' component={LobbyScreen} options={pushedScreenOptions} />
 		<TabStack.Screen name='Pool' component={PoolScreen} options={pushedScreenOptions} />
 		<TabStack.Screen name='Rounds' component={RoundsScreen} options={pushedScreenOptions} />
+		<TabStack.Screen name='MyProgress' component={MyProgressScreen} options={pushedScreenOptions} />
 		<TabStack.Screen name='RoundDetail' component={RoundDetailScreen} options={pushedScreenOptions} />
 		{/*
 		 * The native back button like every other pushed screen. It was the exception while its

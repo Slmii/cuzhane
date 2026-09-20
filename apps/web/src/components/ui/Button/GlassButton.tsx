@@ -83,6 +83,14 @@ const GLYPH_BY_ICON: Partial<Record<IconName, GlyphSource>> = {
 	delete: { assetName: 'sil-delete' },
 	leave: { assetName: 'ayril-leave' },
 	search: { assetName: 'ara-search' },
+	/*
+	 * **Converted because its own other half already was.** The pool's one button says
+	 * "Üstlen" or "Geri al" depending on state, and `undo` had an entry while `claim` did
+	 * not — so the same control rendered glass one way and drawn the other, which is the
+	 * `delete`-beside-`check` mismatch in Yönet all over again. An icon with no entry sends
+	 * the whole button back to the drawn path, silently.
+	 */
+	claim: { assetName: 'ustlen-claim' },
 	undo: { assetName: 'geri-al-undo' }
 };
 

@@ -102,6 +102,15 @@ export type AppTheme = {
 		 */
 		headerSurface: string;
 		onHeaderSurface: string;
+		/**
+		 * The one number written in clay on that deep green — "Senin ilerlemen"'s missed count.
+		 *
+		 * **Fixed in both modes, like `onHeaderSurface` beside it and `codeAccent` above.** The
+		 * layer is deep green either way, so what sits on it cannot follow the page: `missed`
+		 * is `#A65D5D` in light mode, which on `#3E6B5C` is two dark colours arguing rather
+		 * than a number standing out.
+		 */
+		onHeaderSurfaceMissed: string;
 		switchTrackOff: string;
 		switchThumbOff: string;
 		transparent: string;
@@ -244,6 +253,7 @@ export const lightTheme: AppTheme = {
 		codeAccent: '#3E6B5C',
 		headerSurface: '#3E6B5C',
 		onHeaderSurface: '#FFFFFF',
+		onHeaderSurfaceMissed: '#D48A8A',
 		switchTrackOff: '#DEDCD5',
 		switchThumbOff: '#FFFFFF',
 		transparent: 'transparent',
@@ -331,6 +341,7 @@ export const darkTheme: AppTheme = {
 		codeAccent: '#3E6B5C',
 		headerSurface: '#20372F',
 		onHeaderSurface: '#F2F0EA',
+		onHeaderSurfaceMissed: '#D48A8A',
 		switchTrackOff: '#3A3C36',
 		switchThumbOff: '#191A18',
 		transparent: 'transparent',

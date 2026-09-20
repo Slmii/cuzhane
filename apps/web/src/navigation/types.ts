@@ -38,8 +38,14 @@ export type TabDetailParamList = {
 	 * `GroupDetail.sheet` exists: the control lives in the navigator's bar, outside the screen
 	 * that owns the sheet. Cleared on dismissal, or it would reopen on the next render.
 	 */
-	BabReader: { groupId: string; babNumber: number; shouldOpenTextSize?: boolean };
+	/**
+	 * `roundIndex` puts the reader in **cover** mode: the bab belongs to a round that has
+	 * already closed, and the action bar fills that gap rather than marking today's board.
+	 * Absent on every ordinary push, which is the live round.
+	 */
+	BabReader: { groupId: string; babNumber: number; roundIndex?: number; shouldOpenTextSize?: boolean };
 	Rounds: { groupId: string };
+	MyProgress: { groupId: string };
 	RoundDetail: { groupId: string; roundIndex: number };
 	/** Where a GATHERING group lives — the creator's start screen, or the member's wait. */
 	Lobby: { groupId: string };

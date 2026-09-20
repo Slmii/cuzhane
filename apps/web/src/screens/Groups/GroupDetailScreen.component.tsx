@@ -2,6 +2,8 @@ import { BabGrid } from '@/components/BabGrid/BabGrid.component';
 import { BabLegend } from '@/components/BabLegend/BabLegend.component';
 import { BabRow } from '@/components/BabRow/BabRow.component';
 import { GridSkeleton } from '@/components/GridSkeleton/GridSkeleton.component';
+import { MyProgressCard } from '@/components/MyProgressCard/MyProgressCard.component';
+import { MyProgressCardSkeleton } from '@/components/MyProgressCard/MyProgressCardSkeleton.component';
 import { RoundResetRow } from '@/components/RoundResetRow/RoundResetRow.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
@@ -25,7 +27,7 @@ import { useCurrentUserId } from '@/lib/hooks/useCurrentUserId';
 import { useGetGroupById, useMarkPoolReleasesSeen } from '@/lib/hooks/useGroup';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useRoundReset, useTimeUntilReset } from '@/lib/hooks/useRoundReset';
-import { useGetRounds } from '@/lib/hooks/useRounds';
+import { useGetMyProgress, useGetRounds } from '@/lib/hooks/useRounds';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { GroupBab } from '@/lib/types/domain';
@@ -167,9 +169,11 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 	});
 	const untilReset = useTimeUntilReset(groupQuery.data?.roundEndsAt ?? null);
 	const roundsQuery = useGetRounds(groupId);
+	// Gated on the group having started: see the hook.
+	const myProgressQuery = useGetMyProgress(groupId, groupQuery.data?.status === 'RUNNING');
 	const setBabRead = useSetBabRead();
 	const markPoolReleasesSeen = useMarkPoolReleasesSeen();
-	const pullToRefresh = usePullToRefresh(groupQuery, babsQuery, roundsQuery);
+	const pullToRefresh = usePullToRefresh(groupQuery, babsQuery, roundsQuery, myProgressQuery);
 
 	/*
 	 * The two boards' cells, and the tap that opens one, memoised up here with the other
@@ -261,6 +265,9 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 	const isRoundComplete = detail.completedAt !== null;
 	// Newest closed round — the list arrives newest-first with the open one at the head.
 	const lastClosedRound = (roundsQuery.data ?? []).find(round => !round.isOpen);
+	// Undefined while the group is still gathering — the server has no rounds to report
+	// and answers 403 — so the card simply does not appear until the hatim starts.
+	const myProgress = myProgressQuery.data;
 	const leftValue = isDaily
 		? t('hoursLeft', { hours: untilReset.hours, minutes: untilReset.minutes })
 		: daysLeftLabel;
@@ -391,6 +398,30 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 				</TourTarget>
 
 				{/*
+				 * Its own stand-in while it loads, like the board and the pool card below —
+				 * this screen gates only on the group query, and my-progress is a separate
+				 * request that almost always answers second.
+				 *
+				 * **`isLoading`, not `isPending` or `isFetching`.** `isPending` stays true for
+				 * a *disabled* query, so a gathering group would hold the bones forever; and
+				 * `isFetching` is true on every background refetch, which would swap the card
+				 * back to bones each time a read invalidated it. `isLoading` is the pair —
+				 * first load, in flight — and only that.
+				 */}
+				{myProgressQuery.isLoading ? <MyProgressCardSkeleton /> : null}
+				{myProgress ? (
+					// Stop 5 of the first-use tour. Inside the guard, as the closed-round and pool
+					// stops are, so a group with nothing to report registers no rect and that
+					// stop simply centres its card.
+					<TourTarget id='myProgress'>
+						<MyProgressCard
+							onPress={() => navigation.navigate('MyProgress', { groupId })}
+							progress={myProgress}
+						/>
+					</TourTarget>
+				) : null}
+
+				{/*
 				 * The sage "Sana atanan" strip *is* the collapsible's header now. It used to be
 				 * a separate banner sitting above a "Babların 1–5" row, which said the same
 				 * range twice and put the thing you tap below the thing that explains it.
@@ -406,7 +437,7 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 					isFlush
 					style={isMyBabsOpen ? null : { backgroundColor: theme.colors.accentSoft }}
 				>
-					{/* Stop 5 of the first-use tour frames this row, closed or open. */}
+					{/* Stop 6 of the first-use tour frames this row, closed or open. */}
 					<TourTarget id='assigned'>
 						<Pressable
 							// The eyebrow and the sentence are gone from the row, so the label they carried
@@ -554,12 +585,20 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 				</CardSurface>
 
 				{/*
+				 * "Senin ilerlemen" — the reader's own record, and the way in to F7.
+				 *
+				 * Directly under the babs card and above "Geçen tur", which is where the design
+				 * puts it and the order the two read in: your own share first, then the group's
+				 * last pass. Guarded on the query rather than rendered empty, because a group
+				 * still GATHERING has no rounds to report and the server answers 403 for one.
+				 */}
+				{/*
 				 * "Geçen tur" — the way into Turlar. Shown only once a round has actually closed:
 				 * before that there is no history to look at, and a nav row to an empty screen is
 				 * worse than no row.
 				 */}
 				{lastClosedRound ? (
-					// Stop 6 of the first-use tour. Inside the guard, so a group with no closed
+					// Stop 7 of the first-use tour. Inside the guard, so a group with no closed
 					// round registers nothing and that stop centres its card.
 					<TourTarget id='lastRound'>
 						<CardSurface
@@ -640,7 +679,7 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 				 * it. The count comes from the group, so nothing here waits on the board.
 				 */}
 				{detail.poolAllBabNumbers.length > 0 ? (
-					// Stop 7 of the first-use tour, guarded the same way as the row above.
+					// Stop 8 of the first-use tour, guarded the same way as the row above.
 					<TourTarget id='pool'>
 						<CardSurface
 							onPress={() => navigation.navigate('Pool', { groupId })}
