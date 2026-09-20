@@ -2,11 +2,11 @@ import { CONFLICT, FORBIDDEN, NOT_FOUND } from '@config/httpCodes';
 import { HttpError } from '@config/httpError';
 import prisma from '@db/prisma';
 import { BAB_COUNT, slotIndexForBab } from '@utils/babs';
-import { ROUND_DAYS, roundEndsAt, roundStartedAtFor } from '@utils/rounds';
+import { ROUND_DAYS, roundEndsAt, roundIndexSince, roundStartedAtFor, type CycleName } from '@utils/rounds';
 import { normalizeUserId } from '@utils/normalizeUserId';
 import { ensureCurrentRoundFor } from './rounds.service';
 import { requireMembership } from './groupAccess.service';
-import { toSplitMode } from './groupSerializers';
+import { babNumbersInRound, toSplitMode } from './groupSerializers';
 import type { Group, GroupMember } from '../generated/prisma/client';
 
 export type RoundSummary = {
@@ -80,7 +80,10 @@ const boundsFor = (group: Group, roundIndex: number) => {
 
 const loadRunningGroup = async (userId: string, groupId: string) => {
 	const normalizedUserId = normalizeUserId(userId);
-	await requireMembership(normalizedUserId, groupId);
+	// The membership is returned as well as checked: `requireMembership` has already loaded
+	// the row, and `slotIndex` is what any per-viewer answer is derived from. Fetching it a
+	// second time would be a second query for a row already in hand.
+	const member = await requireMembership(normalizedUserId, groupId);
 	// Read the round the calendar is actually on before deciding what counts as history —
 	// otherwise the round that just closed would still look open.
 	await ensureCurrentRoundFor(groupId);
@@ -95,7 +98,7 @@ const loadRunningGroup = async (userId: string, groupId: string) => {
 		throw new HttpError(FORBIDDEN, 'This hatim has not started yet');
 	}
 
-	return { group, normalizedUserId };
+	return { group, member, normalizedUserId };
 };
 
 /**
@@ -257,4 +260,176 @@ export const coverMissedBabsForUser = async (
 	}
 
 	return getRoundDetailForUser(userId, groupId, roundIndex);
+};
+
+/**
+ * **Every round this member has been in, not a window.**
+ *
+ * It returned the last seven or eight, which is what the strip draws — and that made the
+ * banner's "62 kaçırılan" mean "in the last seven days", while the list under it was the
+ * same seven days. Both were then a partial answer to a question nobody asked partially:
+ * what is outstanding is what is outstanding, whenever it fell behind.
+ *
+ * The strip still shows seven cells or eight; it takes them from the end of this list. The
+ * cost is a walk from the member's first round rather than from seven days ago — the same
+ * shape `listRoundsForUser` has always had, and bounded by how long they have been in the
+ * group rather than by how long the group has run.
+ */
+
+export type MyProgressPeriod = {
+	roundIndex: number;
+	/**
+	 * When the round opened, in the **group's** zone. The client formats the strip's
+	 * weekday label from this rather than being sent one: round arithmetic is server-only
+	 * (`utils/rounds.ts` says so in its header), but naming a weekday is localisation, and
+	 * the client is the side that knows whether to say "Pt", "Mo" or "Ma".
+	 */
+	startedAt: string;
+	endsAt: string;
+	isOpen: boolean;
+	/**
+	 * How many babs this seat owed that round.
+	 *
+	 * A count, not the numbers: the missed list draws only the gaps, so nothing on the client
+	 * needs the whole set. It briefly sent the numbers, to colour read and missed squares
+	 * differently — that design was built and dropped, and the field went back with it rather
+	 * than staying as a payload nobody reads.
+	 *
+	 * **Never a constant** — `100 / spots`, with the first `100 % spots` seats getting one
+	 * extra, and under ROTATION the seat moves each round, so the same member can owe 9 one
+	 * round and 8 the next.
+	 */
+	owedCount: number;
+	/**
+	 * Of those, the ones this member has read — **whenever they read them**.
+	 *
+	 * It counted only reads that landed before the round closed, so that the strip could be
+	 * the record as it stood at the boundary. That was read off a footnote the design later
+	 * dropped, and it does not survive contact with the rest of the screen: covering every
+	 * outstanding bab left the card saying "0 kaçırılan · 0% tamamlama", which is two true
+	 * halves of a sentence that cannot both be true. Completion has to move when you catch
+	 * up, or it is not completion.
+	 */
+	readCount: number;
+	/**
+	 * How many of `missedBabs` there are — owed, and read by nobody.
+	 *
+	 * **The same quantity the list shows, deliberately.** It used to be "owed minus read in
+	 * time", which counted a bab you had since covered: the card said 74 over a list of 62,
+	 * two numbers under one word with nothing on screen to tell them apart.
+	 */
+	missedCount: number;
+	/**
+	 * Owed, and read by nobody — the babs the missed list offers with a "Bab N →" pill.
+	 *
+	 * Each carries its round explicitly rather than leaning on the period's. Today they are
+	 * always equal — a period is one round — and the reader still wants it stated: it covers
+	 * *that* round rather than today's board, where the rotation has already moved the bab on.
+	 *
+	 * Read by *nobody*, not "not read by me": once another member covers a bab there is
+	 * nothing left for this reader to do and `coverMissedBabsForUser` would answer 409, so
+	 * offering it would be offering a dead end. Such a bab leaves this list without ever
+	 * joining `readCount` — the "separately" half of the same promise.
+	 *
+	 * Always empty for the open round: nothing is missed while there is still time.
+	 */
+	missedBabs: { babNumber: number; roundIndex: number }[];
+};
+
+export type MyProgress = {
+	cycle: CycleName;
+	/** Oldest first — the strip reads left to right and ends on the open round. */
+	periods: MyProgressPeriod[];
+	/** Summed across the whole window, the open round included. */
+	readCount: number;
+	owedCount: number;
+	/** Summed across the **closed** rounds only. See `missedBabNumbers`. */
+	missedCount: number;
+	ratePercent: number;
+};
+
+/**
+ * One member's own record over the last few rounds — what F7 draws and what the card on
+ * the group screen summarises.
+ *
+ * It is deliberately not built on `listRoundsForUser`, whose `myReadCount` counts **every**
+ * row the viewer wrote in a round — pool claims and covers of other people's blocks
+ * included — so it can exceed what they were owed and would colour a cell "full" for work
+ * that was never theirs. This asks the narrower question: of the babs your seat owed, how
+ * many did you read, and which are still outstanding.
+ */
+export const getMyProgressForUser = async (userId: string, groupId: string): Promise<MyProgress> => {
+	const { group, member } = await loadRunningGroup(userId, groupId);
+
+	/*
+	 * **Where the member's own history starts.** Without this floor, someone joining a
+	 * ten-day-old group is told on arrival that they missed sixty babs — rounds that closed
+	 * before they had a seat, attributed to them because the seat they now hold was unfilled
+	 * at the time. `listRoundsForUser` has the same blind spot, but it reports the *group's*
+	 * misses; this screen puts a number against one person, so being wrong reads as an
+	 * accusation.
+	 */
+	const joinedRoundIndex = roundIndexSince(
+		group.startedAt as Date,
+		ROUND_DAYS[group.cycle],
+		member.joinedAt,
+		group.timezone
+	);
+	const oldestRoundIndex = Math.max(0, joinedRoundIndex);
+
+	// `@@index([groupId, roundIndex])` covers this: the scan starts at the round this member
+	// joined in rather than at the group's first.
+	const reads = await prisma.babRead.findMany({
+		where: { groupId, roundIndex: { gte: oldestRoundIndex } },
+		select: { babNumber: true, readAt: true, roundIndex: true, userId: true }
+	});
+
+	// Indexed by round so the filter below is a lookup rather than a scan of every read for
+	// every round.
+	const readsByRound = new Map<number, typeof reads>();
+
+	for (const read of reads) {
+		const bucket = readsByRound.get(read.roundIndex) ?? [];
+
+		bucket.push(read);
+		readsByRound.set(read.roundIndex, bucket);
+	}
+
+	const periods: MyProgressPeriod[] = [];
+
+	for (let roundIndex = oldestRoundIndex; roundIndex <= group.roundIndex; roundIndex++) {
+		const { endsAt, startedAt } = boundsFor(group, roundIndex);
+		const owed = babNumbersInRound(group, member.slotIndex, roundIndex);
+		const owedSet = new Set(owed);
+		const inRound = (readsByRound.get(roundIndex) ?? []).filter(read => owedSet.has(read.babNumber));
+		const readByAnyone = new Set(inRound.map(read => read.babNumber));
+		const readCount = inRound.filter(read => read.userId === member.userId).length;
+		const isOpen = roundIndex === group.roundIndex;
+		const missedBabs = isOpen
+			? []
+			: owed.filter(babNumber => !readByAnyone.has(babNumber)).map(babNumber => ({ babNumber, roundIndex }));
+
+		periods.push({
+			endsAt: endsAt.toISOString(),
+			isOpen,
+			missedBabs,
+			missedCount: missedBabs.length,
+			owedCount: owed.length,
+			readCount,
+			roundIndex,
+			startedAt: startedAt.toISOString()
+		});
+	}
+
+	const owedCount = periods.reduce((total, period) => total + period.owedCount, 0);
+	const readCount = periods.reduce((total, period) => total + period.readCount, 0);
+
+	return {
+		cycle: group.cycle,
+		missedCount: periods.reduce((total, period) => total + period.missedCount, 0),
+		owedCount,
+		periods,
+		ratePercent: owedCount === 0 ? 0 : Math.round((readCount / owedCount) * 100),
+		readCount
+	};
 };

@@ -329,7 +329,7 @@ export const ProfileScreen = () => {
 					<ActivityHeatmap columns={15} days={stats.last30Days} />
 				</CardSurface>
 			</TourTarget>
-			{/* Stop 14 of the first-use tour. */}
+			{/* Stop 16 of the first-use tour — the last one. */}
 			<TourTarget id='settings'>
 				<CardSurface isFlush>
 					{/*

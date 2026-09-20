@@ -80,7 +80,7 @@ const cardEntrance = {
  * bottom edge with a grabber, so it is one. See `TourWelcomeSheet`.
  */
 export const TourOverlay = () => {
-	const { finish, isActive, isBlocked, next, rects, stepIndex } = useTour();
+	const { back, finish, isActive, isBlocked, next, rects, stepIndex } = useTour();
 	const { theme } = useThemeContext();
 	const { height: windowHeight } = useWindowDimensions();
 	const insets = useSafeAreaInsets();
@@ -293,7 +293,12 @@ export const TourOverlay = () => {
 				{isDone ? (
 					<TourDoneCard onClose={finish} onCreateGroup={leaveToCreateGroup} />
 				) : (
-					<TourStepCard onNext={next} onSkip={finish} stepIndex={stepIndex} />
+					<TourStepCard
+						{...(stepIndex > 0 ? { onBack: back } : {})}
+						onNext={next}
+						onSkip={finish}
+						stepIndex={stepIndex}
+					/>
 				)}
 			</Animated.View>
 		</View>

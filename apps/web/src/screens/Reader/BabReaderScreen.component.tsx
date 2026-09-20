@@ -8,10 +8,12 @@ import { READER_FONT_SIZE_DEFAULT } from '@/lib/content/cevsen';
 import { useGetBabs, useSetBabRead } from '@/lib/hooks/useBab';
 import { useGetGroupById, useGetPoolSlots, useTakePoolSlot } from '@/lib/hooks/useGroup';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
+import { WrapperApiError } from '@/api/wrapper.api';
+import { useCoverBabs, useGetRoundDetail } from '@/lib/hooks/useRounds';
 import { useGetUserSettings, useUpdateUserSettings } from '@/lib/hooks/useUserSettings';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import { BAB_COUNT } from '@/lib/utils/babs';
+import { BAB_COUNT, babNumbersForRound, babNumbersForSlot } from '@/lib/utils/babs';
 import { TabBarOffsetContext } from '@/navigation/TabBarOffsetContext';
 import type { TabStackParamList } from '@/navigation/types';
 import { MealSheet } from '@/screens/Reader/MealSheet.component';
@@ -64,9 +66,12 @@ const SWIPE_COMMIT_VELOCITY = 450;
  */
 const NO_BAB_NUMBERS: number[] = [];
 
+/** What the server answers when somebody else filled the gap first. */
+const COVER_TAKEN_STATUS = 409;
+
 /** The design's "bölüm başı" size — the largest of its three, for the mark opening a bab. */
 export const BabReaderScreen = ({ navigation, route }: Props) => {
-	const { babNumber, groupId } = route.params;
+	const { babNumber, groupId, roundIndex } = route.params;
 
 	/*
 	 * Hold the screen on while this one is up. Reading a bab takes minutes of looking without
@@ -78,7 +83,7 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 	 */
 	useKeepAwake();
 	const { theme } = useThemeContext();
-	const { t } = useTranslation();
+	const { language, t } = useTranslation();
 	const tabBarOffset = useContext(TabBarOffsetContext);
 
 	const babsQuery = useGetBabs(groupId);
@@ -92,6 +97,7 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 	const settingsQuery = useGetUserSettings();
 	const updateSettings = useUpdateUserSettings();
 	const setBabRead = useSetBabRead();
+	const coverBabs = useCoverBabs();
 	// Opened from the navigator's bar, which is outside this screen — see `textSizeSheet`.
 	const textSize = textSizeSheet(navigation, route.params);
 	/** The invocation whose meaning is open, or null. Held here so the sheet outlives the press. */
@@ -117,6 +123,41 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 	 * Width is **measured, not assumed** — the strip is full-width now, which varies by
 	 * device, and a hardcoded width would land the finger several babs off.
 	 */
+	/*
+	 * **Cover mode.** Arriving with a `roundIndex` older than the one in progress means this
+	 * bab is a gap in a round that has already closed — the pills on "Senin ilerlemen" push
+	 * here. The ordinary guard does not apply: the question is not whose bab it is *today*
+	 * (under ROTATION it is somebody else's, which would leave the button dead), but whether
+	 * that round still has a hole in it. `coverMissedBabsForUser` answers the rest — it
+	 * refuses the open round outright, and a bab somebody already read comes back 409.
+	 */
+	const openRoundIndex = groupQuery.data?.roundIndex ?? null;
+	/*
+	 * The round being covered, or null. **A number rather than a boolean**, so the places
+	 * that need the index get it narrowed — a `boolean` here forced `roundIndex as number`
+	 * at every use, and a cast is exactly what let a stale Prisma client type-check clean in
+	 * this repo once before.
+	 */
+	const coveredRoundIndex =
+		roundIndex !== undefined && openRoundIndex !== null && roundIndex < openRoundIndex ? roundIndex : null;
+	const isCovering = coveredRoundIndex !== null;
+
+	/*
+	 * **Everything below describes the round being read, which is not always today's.**
+	 *
+	 * Arriving to cover a gap means the whole frame — whose bab this was, what had been read,
+	 * which blocks sat in the pool — belongs to a round that closed days ago. Left on today's
+	 * answers the screen contradicted itself: the chip said "başka üyede" over a button
+	 * offering to cover it, because the rotation has since handed that bab to someone else.
+	 *
+	 * The share is **derived, not fetched** — `mySlotIndex`, `spots` and `splitMode` are all
+	 * on the group, and `babNumbersForRound` is the same arithmetic the server runs. The read
+	 * and pool states are not derivable from anything the client holds, so those do cost a
+	 * request, and only while covering.
+	 */
+	const coveredRoundQuery = useGetRoundDetail(groupId, coveredRoundIndex ?? -1);
+	const coveredRound = coveredRoundIndex === null ? undefined : coveredRoundQuery.data;
+
 	/**
 	 * Every bab read this round, whoever read it — the strip's tallest-but-one state.
 	 *
@@ -125,8 +166,45 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 	 * hundred ticks on every frame of a drag and undo the split entirely.
 	 */
 	const readBabNumbers = useMemo(
-		() => babsQuery.data?.filter(bab => bab.readAt).map(bab => bab.number) ?? NO_BAB_NUMBERS,
-		[babsQuery.data]
+		() =>
+			coveredRound
+				? coveredRound.babs.filter(bab => bab.readByUserId !== null).map(bab => bab.number)
+				: babsQuery.data?.filter(bab => bab.readAt).map(bab => bab.number) ?? NO_BAB_NUMBERS,
+		[babsQuery.data, coveredRound]
+	);
+
+	const myBabNumbers = useMemo(() => {
+		const group = groupQuery.data;
+
+		if (coveredRoundIndex === null || !group || group.mySlotIndex === null) {
+			return group?.myBabNumbers ?? NO_BAB_NUMBERS;
+		}
+
+		return group.splitMode === 'ROTATION'
+			? babNumbersForRound(group.mySlotIndex, group.spots, coveredRoundIndex)
+			: babNumbersForSlot(group.mySlotIndex, group.spots);
+	}, [coveredRoundIndex, groupQuery.data]);
+
+	/** "12 Eylül Cuma" in the reader's language, in the group's zone. */
+	const coveredRoundDate = useMemo(() => {
+		if (!coveredRound || !groupQuery.data) {
+			return null;
+		}
+
+		return new Intl.DateTimeFormat(language, {
+			day: 'numeric',
+			month: 'long',
+			timeZone: groupQuery.data.timezone,
+			weekday: 'long'
+		}).format(new Date(coveredRound.startedAt));
+	}, [coveredRound, groupQuery.data, language]);
+
+	const poolBabNumbers = useMemo(
+		() =>
+			coveredRound
+				? coveredRound.babs.filter(bab => bab.isPool).map(bab => bab.number)
+				: groupQuery.data?.poolBabNumbers ?? NO_BAB_NUMBERS,
+		[coveredRound, groupQuery.data]
 	);
 
 	const [railWidth, setRailWidth] = useState(0);
@@ -269,7 +347,19 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 	 */
 	const faces = readerFaces(readerSettings.readerArabicFont, readerSettings.readerFontSize);
 
-	if (babsQuery.isPending || settingsQuery.isPending) {
+	/*
+	 * **Covering waits for the round it is covering.** The share is derived and arrives at
+	 * once, but what was read and what sat in the pool can only be fetched — so without this
+	 * the first frame mixed two rounds: the chip already said "senin" while `isRead` still
+	 * came off today's board, which under ROTATION belongs to somebody else. On that frame a
+	 * bab they had read showed a disabled "Okundu", then flipped to "Okudum" a round trip
+	 * later. Nothing is cached on the way in from "Senin ilerlemen", so that window was every
+	 * time.
+	 *
+	 * Only while covering: the query is disabled otherwise, and a disabled query reports
+	 * `isPending` forever, which would hold the skeleton over every ordinary read.
+	 */
+	if (babsQuery.isPending || settingsQuery.isPending || (isCovering && coveredRoundQuery.isPending)) {
 		return (
 			<SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
 				<ReaderSkeleton />
@@ -277,16 +367,13 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 		);
 	}
 
-	if (babsQuery.isError || settingsQuery.isError) {
-		return <ErrorState queries={[babsQuery, settingsQuery]} />;
+	if (babsQuery.isError || settingsQuery.isError || (isCovering && coveredRoundQuery.isError)) {
+		return <ErrorState queries={[babsQuery, settingsQuery, coveredRoundQuery]} />;
 	}
 
 	const babs = babsQuery.data ?? [];
-	// Today's share, per the server — under ROTATION it is a different seat's block each
-	// day, so it can't be read off `assignedUserId`.
-	const myBabNumbers = groupQuery.data?.myBabNumbers ?? NO_BAB_NUMBERS;
 	// A bab from a seat nobody took. It can be read, but only after taking it.
-	const isPoolBab = groupQuery.data?.poolBabNumbers.includes(babNumber) ?? false;
+	const isPoolBab = poolBabNumbers.includes(babNumber);
 	/**
 	 * Which pool slot offers this bab **this round** — read off the pool itself, never derived.
 	 *
@@ -312,7 +399,12 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 	 */
 	const poolRangeLabel = poolSlot ? `${poolSlot.start}–${poolSlot.end}` : '';
 	const currentBab = babs.find(bab => bab.number === babNumber);
-	const isRead = Boolean(currentBab?.readAt);
+	/*
+	 * Read **in the round being shown**. While covering that is the closed round's record,
+	 * not today's board — the two disagree by definition, since a covered bab is precisely
+	 * one the current round never had.
+	 */
+	const isRead = coveredRound ? readBabNumbers.includes(babNumber) : Boolean(currentBab?.readAt);
 
 	/**
 	 * **The reader walks the whole cevşen.** All hundred babs are readable; only your own and
@@ -335,11 +427,22 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 	 * pool and nobody's yet, or it is another member's.
 	 */
 	const isMine = myBabNumbers.includes(babNumber);
+	/*
+	 * **The same gate as the open round**: your own bab or an unclaimed one, never another
+	 * member's. Covering changes *which* round the question is asked about, not who may
+	 * answer it — `isMine` and `isPoolBab` both describe the covered round above, so this
+	 * one line serves both cases.
+	 *
+	 * It briefly read `isCovering || …`, which let the reader cover anybody's gap. That is a
+	 * real thing the server allows, but it belongs on Turlar, where you can see whose it was
+	 * and that it is being taken off them. Here it only showed "başka üyede" over a live
+	 * button.
+	 */
 	const canMark = isMine || isPoolBab;
 	const ownership = (n: number) =>
 		myBabNumbers.includes(n)
 			? { background: theme.colors.accentSoft, foreground: theme.colors.accent, label: t('ownMine') }
-			: groupQuery.data?.poolBabNumbers.includes(n) ?? false
+			: poolBabNumbers.includes(n)
 			? { background: theme.colors.sand, foreground: theme.colors.sandText, label: t('ownPool') }
 			: { background: theme.colors.secondary, foreground: theme.colors.subtext, label: t('ownOther') };
 
@@ -356,8 +459,39 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 	 * what "it" actually is. The second is the one that stops a surprise — the tap takes the
 	 * whole block the empty seat was offering, and only the range makes that concrete.
 	 */
-	const readHint = isMine
+	/*
+	 * **A failed cover takes the hint's slot.** The button moves to the next bab without
+	 * waiting for the server, which is what makes covering a run of twelve bearable — but it
+	 * also means a refusal would otherwise pass in silence, and you would find out only when
+	 * the list refetched and the bab was still there. A bad connection could swallow the
+	 * whole run that way.
+	 *
+	 * 409 is its own message because it is not a failure of yours: somebody else filled that
+	 * gap first, and the right response is to carry on rather than retry.
+	 */
+	const coverError = coverBabs.error;
+	const coverErrorHint =
+		coverError === null
+			? null
+			: coverError instanceof WrapperApiError && coverError.status === COVER_TAKEN_STATUS
+			? t('babTakenError')
+			: t('coverFailed');
+
+	const readHint = coverErrorHint
+		? coverErrorHint
+		: isMine
 		? t('longPressHint')
+		: isCovering && isPoolBab && !isRead
+		? /*
+		   * An unclaimed bab from a closed round that is **still open**: nobody's to mark, so
+		   * `lockedHint`'s promise that "the owner will" would be false.
+		   *
+		   * `!isRead` matters because `RoundBab.isPool` means "the seat was empty", regardless
+		   * of whether anybody covered it later — unlike `GroupSummary.poolBabNumbers`, which
+		   * is only the unclaimed part. Without it a covered pool bab offered to close a gap
+		   * that is already closed, under a disabled "Okundu".
+		   */
+		  t('coverHint')
 		: isPoolBab && poolSlot
 		? `${t('poolReadHint')} ${t('poolClaimRange', { count: poolSlot.babNumbers.length, range: poolRangeLabel })}`
 		: isPoolBab
@@ -415,6 +549,27 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 
 	// Taking the slot is what makes the bab readable — marking it read is only allowed
 	// once it belongs to someone, so the two run in order rather than in parallel.
+	/**
+	 * Fill a gap in a round that has already closed.
+	 *
+	 * It **stays on the screen and steps to the next bab**, exactly as an ordinary read does.
+	 * A day's gaps come in runs — twelve babs in the case that prompted this — and a share is
+	 * a contiguous block, so the next number *is* the next gap for the whole run. Bouncing
+	 * back to the list after each one would have made covering a run a dozen round trips.
+	 *
+	 * Landing on one somebody else already covered is not a dead end either: `isRead` follows
+	 * the covered round, so that bab reads as done and the arrow carries on.
+	 */
+	const handleCover = () => {
+		if (coveredRoundIndex === null) {
+			return;
+		}
+
+		coverBabs.mutate({ babNumbers: [babNumber], groupId, roundIndex: coveredRoundIndex });
+		tapBack();
+		goToBab(nextBabNumber);
+	};
+
 	const handleTakeAndRead = () => {
 		if (poolSlotIndex === null) {
 			return;
@@ -502,7 +657,28 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 							<View style={styles.headerCenter}>
 								{/* Position in the cevşen, not in your share — "Bab 87 / 100". Which of
 						    those hundred are yours is the chip's job, one line below. */}
-								<EyebrowText>{`${t('bab')} ${displayBab} / ${readableTotal}`}</EyebrowText>
+								{/*
+								 * Covering says **which round**, because nothing else on the screen
+								 * does. "Bab 55 / 100" reads the same whether the bab is today's or
+								 * a gap six days old, which is what made the ownership chip beside
+								 * it look like a contradiction rather than a fact about that day.
+								 */}
+								<EyebrowText>
+									{coveredRoundIndex === null
+										? `${t('bab')} ${displayBab} / ${readableTotal}`
+										: `${t('roundN')} ${coveredRoundIndex + 1} · ${t('bab')} ${displayBab}`}
+								</EyebrowText>
+								{/*
+								 * The day itself, under the round number. "Tur 12" is exact but
+								 * means nothing to anybody — a date is what a reader actually
+								 * remembers about the day they missed. Formatted in the **group's**
+								 * zone, since which day a round belongs to is the group's question.
+								 */}
+								{coveredRoundDate ? (
+									<Typography color={theme.colors.faintText} style={styles.roundDate} variant='mono'>
+										{coveredRoundDate}
+									</Typography>
+								) : null}
 							</View>
 							<View style={[styles.headerSide, styles.headerSideEnd]}>
 								{/*
@@ -548,7 +724,7 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 									currentBab={displayBab}
 									scrubRatio={scrubRatio}
 									myBabNumbers={myBabNumbers}
-									poolBabNumbers={groupQuery.data?.poolBabNumbers ?? NO_BAB_NUMBERS}
+									poolBabNumbers={poolBabNumbers}
 									readBabNumbers={readBabNumbers}
 									// What chunks the pool ticks into the blocks a seat actually offers.
 									{...(groupQuery.data ? { spots: groupQuery.data.spots } : {})}
@@ -602,7 +778,7 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 						{readHint}
 					</Typography>
 				) : null}
-				{/* Stop 9 of the first-use tour: Okudum and the two arrows, as one row. */}
+				{/* Stop 10 of the first-use tour: Okudum and the two arrows, as one row. */}
 				<TourTarget id='readerActions'>
 					<View style={styles.footerRow}>
 						<AppButton
@@ -635,8 +811,8 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 						 * muting the design rejected than to the solid "not yours today" it had.
 						 */}
 						<AppButton
-							disabled={!canMark}
-							onPress={isPoolBab ? handleTakeAndRead : toggleCurrentRead}
+							disabled={!canMark || (isCovering && isRead)}
+							onPress={isCovering ? handleCover : isPoolBab ? handleTakeAndRead : toggleCurrentRead}
 							style={styles.markButtonSlot}
 							/*
 							 * A pool bab says **"Üstlen ve oku"**, not "Okudum".
@@ -651,12 +827,32 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 							title={
 								!canMark
 									? t('readLocked')
+									: isCovering && isRead
+									? /*
+									   * Settled. A cover is append-only — it can only ever fill a
+									   * gap, and a second attempt on the same bab comes back 409 —
+									   * so there is no "Geri al" to offer here the way the open
+									   * round has one.
+									   */
+									  t('coverDone')
+									: isCovering
+									? /*
+									   * **"Okudum" when it was yours, "Üstlen" when it wasn't** — the
+									   * same split `RoundDetailScreen` makes (`row.isViewer ? markRead
+									   * : takeOver`), and `myBabNumbers` is the covered round's share
+									   * here, so `isMine` answers for that day rather than today.
+									   *
+									   * Every pill on "Senin ilerlemen" is a bab your own seat owed,
+									   * so that route always reads "Okudum": üstlenmek is taking on
+									   * somebody else's work, and reading your own bab late is not
+									   * that. Scrubbing the rail onto another member's gap is what
+									   * "Üstlen" is left for.
+									   */
+									  isMine
+										? t('markRead')
+										: t('takeOver')
 									: isPoolBab
-									? // The range on the button too, not only in the hint above it:
-									  // this is the label somebody reads on the way to tapping.
-									  poolRangeLabel
-										? `${t('takeAndRead')} · ${poolRangeLabel}`
-										: t('takeAndRead')
+									? t('takeAndRead')
 									: isRead
 									? t('markUnread')
 									: t('markRead')
@@ -702,6 +898,11 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 };
 
 const styles = StyleSheet.create({
+	roundDate: {
+		fontSize: 9.5,
+		lineHeight: 13,
+		marginTop: 3
+	},
 	// Its own full-width row under the title, at the design's 11pt gap.
 	babMapRow: {
 		marginTop: 11

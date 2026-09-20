@@ -7,6 +7,8 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { TOUR_STEPS } from './tourSteps';
 
 type TourStepCardProps = {
+	/** Absent on the first stop, where there is nothing behind to go back to. */
+	onBack?: () => void;
 	onNext: () => void;
 	onSkip: () => void;
 	stepIndex: number;
@@ -25,7 +27,7 @@ type TourStepCardProps = {
  * the others are 5pt circles, so the row reads as position even for someone who does not read
  * the "Adım 3 / 15" beside it.
  */
-export const TourStepCard = ({ onNext, onSkip, stepIndex }: TourStepCardProps) => {
+export const TourStepCard = ({ onBack, onNext, onSkip, stepIndex }: TourStepCardProps) => {
 	const { t } = useTranslation();
 	const { theme } = useThemeContext();
 	const step = TOUR_STEPS[stepIndex];
@@ -79,8 +81,31 @@ export const TourStepCard = ({ onNext, onSkip, stepIndex }: TourStepCardProps) =
 				 * 120 rather than something tighter because the label is a translation:
 				 * "Volgende" is half again as long as "Next".
 				 */}
-				<View style={styles.nextSlot}>
-					<AppButton onPress={onNext} size='md' title={isLast ? t('tourDone') : t('tourNext')} />
+				{/*
+				 * **Geri and Devam are one group on the right**, not two children of a
+				 * `space-between` row — three of those would strand Geri in the middle of the
+				 * card, equidistant from the thing it belongs beside.
+				 *
+				 * **Nothing on stop 1**, rather than a dimmed control: the card behind it is
+				 * the welcome sheet, which asks whether they want the tour at all, and they
+				 * have answered. A replay does not run that card, so there it is doubly gone.
+				 * Atla keeps the left of the row either way, so this pair does not shift.
+				 */}
+				<View style={styles.advance}>
+					{onBack ? (
+						<Pressable accessibilityRole='button' onPress={onBack} style={styles.back}>
+							<Typography
+								color={toAlphaColor(theme.colors.text, 0.5)}
+								variant='caption'
+								weight='semibold'
+							>
+								{t('tourBack')}
+							</Typography>
+						</Pressable>
+					) : null}
+					<View style={styles.nextSlot}>
+						<AppButton onPress={onNext} size='md' title={isLast ? t('tourDone') : t('tourNext')} />
+					</View>
 				</View>
 			</View>
 		</View>
@@ -94,6 +119,17 @@ const styles = StyleSheet.create({
 		gap: 10,
 		justifyContent: 'space-between',
 		marginTop: 14
+	},
+	/** Geri sitting with Devam, opposite Atla. */
+	advance: {
+		alignItems: 'center',
+		flexDirection: 'row',
+		gap: 4
+	},
+	/** The same shape as `skip`, so the two quiet controls read as one family. */
+	back: {
+		paddingHorizontal: 10,
+		paddingVertical: 8
 	},
 	card: {
 		borderRadius: 18,

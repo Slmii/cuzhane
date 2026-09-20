@@ -1,7 +1,7 @@
 import { useIsTourDemo } from '@/components/Tour/Tour.context';
-import { tourDemoRounds } from '@/components/Tour/tourDemoData';
+import { tourDemoMyProgress, tourDemoRounds } from '@/components/Tour/tourDemoData';
 import { tourDemoQueryKeys } from '@/lib/hooks/queryKeys';
-import { coverBabs, type CoverBabsInput, getRoundDetail, getRounds } from '@/api/rounds.api';
+import { coverBabs, type CoverBabsInput, getMyProgress, getRoundDetail, getRounds } from '@/api/rounds.api';
 import { useCurrentUserId } from '@/lib/hooks/useCurrentUserId';
 import { groupQueryKeys, profileQueryKeys } from '@/lib/hooks/queryKeys';
 import { useLiveRefetchInterval } from '@/lib/hooks/useLiveRefetchInterval';
@@ -112,8 +112,37 @@ export const useCoverBabs = () => {
 				 */
 				queryClient.invalidateQueries({ queryKey: groupQueryKeys.rounds(groupId), exact: true }),
 				// A cover is a read like any other, so the profile totals and streak move too.
-				queryClient.invalidateQueries({ queryKey: profileQueryKeys.stats() })
+				queryClient.invalidateQueries({ queryKey: profileQueryKeys.stats() }),
+				// And it is exactly the act "Senin ilerlemen" offers, so the bab it just
+				// filled has to leave that screen's missed list.
+				queryClient.invalidateQueries({ queryKey: groupQueryKeys.myProgress(groupId) })
 			]);
 		}
+	});
+};
+
+/**
+ * "Senin ilerlemen" — this member's own last few rounds, for the group-screen card and the
+ * screen it opens.
+ *
+ * Demo-aware like its neighbours: the card sits between two tour stops on the group screen,
+ * so without a fixture the walkthrough would show it spinning against a group id the server
+ * has never heard of.
+ */
+export const useGetMyProgress = (groupId: string, isRunning = true) => {
+	const isDemo = useIsTourDemo();
+
+	return useQuery({
+		queryKey: isDemo ? tourDemoQueryKeys.myProgress(groupId) : groupQueryKeys.myProgress(groupId),
+		queryFn: isDemo ? async () => tourDemoMyProgress(groupId) : () => getMyProgress(groupId),
+		/*
+		 * **`isRunning`, because a gathering group can only answer 403.** The endpoint refuses
+		 * anything that has not started — there are no rounds to report — and the group screen
+		 * calls this hook before it knows the status, then returns the lobby. Left ungated
+		 * that is four refused requests a visit, the client's `retry: 3` included: the same
+		 * waste `groupOwnedQueryKeys` documents for keys dropped on leave.
+		 */
+		enabled: !!groupId && isRunning,
+		...(isDemo ? { initialData: () => tourDemoMyProgress(groupId), staleTime: Infinity } : {})
 	});
 };

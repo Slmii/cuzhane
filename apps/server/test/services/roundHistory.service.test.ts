@@ -1,5 +1,11 @@
 import prisma from '@db/prisma';
-import { coverMissedBabsForUser, getRoundDetailForUser, listRoundsForUser } from '@services/roundHistory.service';
+import { babNumbersForRound } from '@utils/babs';
+import {
+	coverMissedBabsForUser,
+	getMyProgressForUser,
+	getRoundDetailForUser,
+	listRoundsForUser
+} from '@services/roundHistory.service';
 import { civilDayNumber, DEFAULT_TIME_ZONE, startOfCivilDay } from '@utils/rounds';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { assertIsTestDatabase, testDatabaseUrl } from '../support/testDatabase';
@@ -51,10 +57,15 @@ const createGroup = async ({
 	});
 
 	await prisma.groupMember.createMany({
+		// `joinedAt` matters: the seats here were in place from the start, as a real owner's
+		// row is (written in the group's own transaction). Left at its `now()` default these
+		// members would look like they joined today, and anything that floors a window at the
+		// round somebody joined in would see no history at all.
 		data: seats.map(slotIndex => ({
 			groupId: group.id,
 			userId: slotIndex === 0 ? OWNER : `${OTHER}_${slotIndex}`,
 			displayName: `Seat ${slotIndex}`,
+			joinedAt: startedAt,
 			role: slotIndex === 0 ? ('OWNER' as const) : ('MEMBER' as const),
 			slotIndex
 		}))
@@ -250,5 +261,247 @@ describe('coverMissedBabsForUser', () => {
 		const detail = await getRoundDetailForUser(OWNER, group.id, 1);
 
 		expect(detail.babs.find(bab => bab.number === 7)?.readByUserId).toBe(OWNER);
+	});
+});
+
+/**
+ * A read placed *inside* the round it belongs to.
+ *
+ * `recordHistory` above lets `readAt` default to `now()`, which for a closed round is
+ * always after that round ended — fine where only the row's existence matters, useless
+ * here, because "read it in time" is precisely what `getMyProgressForUser` measures.
+ * Round `r` of a group started `startedDaysAgo` ago runs over the civil day
+ * `startedDaysAgo - r`, so noon on that day is inside it.
+ */
+const recordOnTime = (
+	groupId: string,
+	roundIndex: number,
+	babNumbers: number[],
+	startedDaysAgo: number,
+	userId = OWNER
+) =>
+	prisma.babRead.createMany({
+		data: babNumbers.map(babNumber => ({
+			babNumber,
+			groupId,
+			readAt: daysAgo(startedDaysAgo - roundIndex),
+			roundIndex,
+			userId
+		}))
+	});
+
+describe('covering a closed round is silent', () => {
+	/*
+	 * **Nothing about a closed round may notify anybody**, and the guarantee currently rests
+	 * on an absence — `coverMissedBabsForUser` simply never calls the notify helpers. An
+	 * absence is easy to undo: the open round's read paths all announce a finished share and
+	 * a completed hundred, and adding the same two calls here "for symmetry" would look like
+	 * a fix. It is not one. Covering is a private act of catching up, days after the fact;
+	 * telling the group that somebody finished a share last Tuesday is noise about a round
+	 * nobody is reading any more.
+	 *
+	 * So these assert on the rows the notify paths would leave behind, not on a mock.
+	 */
+	const readsOf = (slotIndex: number, roundIndex: number) => babNumbersForRound(slotIndex, SPOTS, roundIndex);
+
+	it('files no inbox rows and claims no notice when a whole share is covered', async () => {
+		const group = await createGroup({ startedDaysAgo: 3 });
+		// Seat 0's entire block for round 1 — a finished share, in the open round's terms.
+		const share = readsOf(0, 1);
+
+		await coverMissedBabsForUser(OWNER, group.id, 1, share);
+
+		expect(await prisma.notification.count({ where: { groupId: group.id } })).toBe(0);
+		expect(await prisma.shareReadNotice.count({ where: { groupId: group.id } })).toBe(0);
+		expect(await prisma.roundCompleteNotice.count({ where: { groupId: group.id } })).toBe(0);
+	});
+
+	it('files nothing even when the cover closes the whole hundred', async () => {
+		const group = await createGroup({ startedDaysAgo: 3 });
+		const everyBab = Array.from({ length: 100 }, (_, index) => index + 1);
+
+		await coverMissedBabsForUser(OWNER, group.id, 0, everyBab);
+
+		expect(await prisma.notification.count({ where: { groupId: group.id } })).toBe(0);
+		expect(await prisma.roundCompleteNotice.count({ where: { groupId: group.id } })).toBe(0);
+	});
+
+	it("leaves the open round's completion stamp alone", async () => {
+		const group = await createGroup({ startedDaysAgo: 3 });
+
+		await coverMissedBabsForUser(OWNER, group.id, 1, readsOf(0, 1));
+
+		// `completedAt` describes the round in progress. A closed round's gaps have no
+		// bearing on it, and `syncCompletedAt` is deliberately not called here.
+		const after = await prisma.group.findUniqueOrThrow({ where: { id: group.id } });
+
+		expect(after.completedAt).toBeNull();
+		expect(after.roundIndex).toBe(3);
+	});
+});
+
+describe('getMyProgressForUser', () => {
+	it('covers every round the member has been in, oldest first, ending on the open one', async () => {
+		const group = await createGroup({ startedDaysAgo: 9 });
+
+		const progress = await getMyProgressForUser(OWNER, group.id);
+
+		/*
+		 * Ten rounds, not the seven the strip draws. The banner's counts and the missed list
+		 * are about the whole record — they read "62 kaçırılan · son 7 gün" when this was a
+		 * window, which answered a narrower question than anybody asked. The strip takes its
+		 * seven cells off the end of this client-side.
+		 */
+		expect(progress.cycle).toBe('DAILY');
+		expect(progress.periods).toHaveLength(10);
+		expect(progress.periods.map(period => period.roundIndex)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+		expect(progress.periods.at(-1)?.isOpen).toBe(true);
+		expect(progress.periods.filter(period => period.isOpen)).toHaveLength(1);
+	});
+
+	it('stops at round 0 rather than padding a young group to a full window', async () => {
+		const group = await createGroup({ startedDaysAgo: 2 });
+
+		const progress = await getMyProgressForUser(OWNER, group.id);
+
+		// Three rounds exist, so three cells. A blank cell is not the same claim as a
+		// missed one, and a group two days old has no seventh day to report.
+		expect(progress.periods.map(period => period.roundIndex)).toEqual([0, 1, 2]);
+	});
+
+	it('follows the rotation: the seat owes a different block each round', async () => {
+		const group = await createGroup({ startedDaysAgo: 2 });
+
+		const progress = await getMyProgressForUser(OWNER, group.id);
+
+		// Seat 0 of a ten-seat group reads block `(0 + roundIndex) % 10`.
+		expect(progress.periods.map(period => period.owedCount)).toEqual([BLOCK, BLOCK, BLOCK]);
+		expect(progress.periods[0]?.missedBabs.map(missed => missed.babNumber)).toEqual([
+			1, 2, 3, 4, 5, 6, 7, 8, 9, 10
+		]);
+		expect(progress.periods[1]?.missedBabs.map(missed => missed.babNumber)).toEqual([
+			11, 12, 13, 14, 15, 16, 17, 18, 19, 20
+		]);
+	});
+
+	it('counts only my own on-time reads of babs I owed', async () => {
+		const group = await createGroup({ startedDaysAgo: 2 });
+		// Mine, in time.
+		await recordOnTime(group.id, 0, [1, 2, 3], 2);
+		// Someone else's block that round — not mine to be credited for.
+		await recordOnTime(group.id, 0, [55, 56], 2, SEAT_ONE);
+
+		const progress = await getMyProgressForUser(OWNER, group.id);
+
+		expect(progress.periods[0]?.readCount).toBe(3);
+		expect(progress.periods[0]?.owedCount).toBe(BLOCK);
+	});
+
+	it('credits a read that landed after the round closed', async () => {
+		const group = await createGroup({ startedDaysAgo: 2 });
+		// `recordHistory` leaves `readAt` at now(), which is after round 0 ended.
+		await recordHistory(group.id, 0, [1, 2, 3]);
+
+		const progress = await getMyProgressForUser(OWNER, group.id);
+
+		/*
+		 * Catching up counts. `readCount` was once on-time reads only, so that the strip
+		 * could be the record as it stood at the boundary — and covering every outstanding
+		 * bab then left the card reading "0 kaçırılan · 0% tamamlama", which cannot be true
+		 * both halves at once.
+		 */
+		expect(progress.periods[0]?.readCount).toBe(3);
+		expect(progress.periods[0]?.missedBabs.map(missed => missed.babNumber)).not.toContain(1);
+	});
+
+	it('reports the same number of misses as it lists', async () => {
+		const group = await createGroup({ startedDaysAgo: 2 });
+		// Three of round 0's ten covered late, so the two rules would disagree by three.
+		await recordHistory(group.id, 0, [1, 2, 3]);
+
+		const progress = await getMyProgressForUser(OWNER, group.id);
+
+		// The card's number and the list's are one quantity — they were 74 and 62 on a real
+		// group before this, under the same word.
+		const listed = progress.periods.reduce((total, period) => total + period.missedBabs.length, 0);
+
+		expect(progress.missedCount).toBe(listed);
+		expect(progress.periods[0]?.missedCount).toBe(BLOCK - 3);
+	});
+
+	it('drops a bab somebody else covered from the missed list without crediting it', async () => {
+		const group = await createGroup({ startedDaysAgo: 2 });
+		await recordHistory(group.id, 0, [4], SEAT_ONE);
+
+		const progress = await getMyProgressForUser(OWNER, group.id);
+
+		expect(progress.periods[0]?.missedBabs.map(missed => missed.babNumber)).not.toContain(4);
+		expect(progress.periods[0]?.readCount).toBe(0);
+	});
+
+	it('never reports the open round as missing anything', async () => {
+		const group = await createGroup({ startedDaysAgo: 2 });
+
+		const progress = await getMyProgressForUser(OWNER, group.id);
+
+		const open = progress.periods.at(-1);
+
+		expect(open?.isOpen).toBe(true);
+		expect(open?.missedBabs).toEqual([]);
+	});
+
+	it('excludes the open round from the missed total but includes it in the rate', async () => {
+		const group = await createGroup({ startedDaysAgo: 2 });
+		await recordOnTime(group.id, 0, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 2);
+		await recordOnTime(group.id, 1, [11, 12, 13, 14, 15], 2);
+		await recordOnTime(group.id, 2, [21, 22], 2);
+
+		const progress = await getMyProgressForUser(OWNER, group.id);
+
+		// Closed rounds owed 20 and delivered 15 — the open round's 8 outstanding babs are
+		// not "missed", they are still in play.
+		expect(progress.missedCount).toBe(5);
+		// The rate spans the whole window, open round included: 17 of 30.
+		expect(progress.owedCount).toBe(30);
+		expect(progress.readCount).toBe(17);
+		expect(progress.ratePercent).toBe(57);
+	});
+
+	it('never charges a member for rounds that closed before they joined', async () => {
+		const group = await createGroup({ seats: [0], startedDaysAgo: 6 });
+		// Seat 1 arrives on the fifth day, so rounds 0-3 were never theirs to read.
+		await prisma.groupMember.create({
+			data: {
+				displayName: 'Latecomer',
+				groupId: group.id,
+				joinedAt: daysAgo(2),
+				role: 'MEMBER',
+				slotIndex: 1,
+				userId: SEAT_ONE
+			}
+		});
+
+		const progress = await getMyProgressForUser(SEAT_ONE, group.id);
+
+		// Without the join floor this said 7 periods and 30 missed babs on their first day.
+		expect(progress.periods.map(period => period.roundIndex)).toEqual([4, 5, 6]);
+		expect(progress.missedCount).toBe(2 * BLOCK);
+	});
+
+	it('reports the cycle, which is what decides the strip width on the client', async () => {
+		const group = await createGroup({ startedDaysAgo: 20 });
+		await prisma.group.update({ data: { cycle: 'WEEKLY' }, where: { id: group.id } });
+
+		const progress = await getMyProgressForUser(OWNER, group.id);
+
+		expect(progress.cycle).toBe('WEEKLY');
+		// Still every round, as for DAILY — `PeriodStrip` slices the last eight off the end.
+		expect(progress.periods).toHaveLength(21);
+	});
+
+	it('refuses a group the caller is not in', async () => {
+		const group = await createGroup({ startedDaysAgo: 2, seats: [0] });
+
+		await expect(getMyProgressForUser('test_stranger', group.id)).rejects.toThrow();
 	});
 });

@@ -30,7 +30,12 @@ import {
 	releasePoolSlotForUser,
 	takePoolSlotForUser
 } from '@services/pool.service';
-import { coverMissedBabsForUser, getRoundDetailForUser, listRoundsForUser } from '@services/roundHistory.service';
+import {
+	coverMissedBabsForUser,
+	getMyProgressForUser,
+	getRoundDetailForUser,
+	listRoundsForUser
+} from '@services/roundHistory.service';
 import { resolveDisplayName } from '@utils/displayName';
 import { NextFunction, Request, Response, Router } from 'express';
 
@@ -232,6 +237,31 @@ groupsRouter.patch(
 
 			const result = await markPoolReleasesSeenForUser(userId, groupId);
 			res.status(OK).json(result);
+		} catch (error) {
+			next(error);
+		}
+	}
+);
+
+/**
+ * "Senin ilerlemen" — this member's own record over the last few rounds (F7, and the card
+ * on the group screen that opens it).
+ *
+ * Nothing in the query: the window is the group's own cycle — seven rounds for DAILY, eight
+ * for WEEKLY — and that pairing is the design's rather than the caller's, so a client able
+ * to ask for a different span could disagree with the "Son 7 gün" heading it is drawing.
+ */
+groupsRouter.get(
+	'/:groupId/my-progress',
+	async (req: Request, res: Response<object, ResponseLocals>, next: NextFunction) => {
+		try {
+			const { groupId } = GroupIdParamsSchema.parse(req.params);
+			const {
+				auth: { userId }
+			} = res.locals;
+
+			const progress = await getMyProgressForUser(userId, groupId);
+			res.status(OK).json(progress);
 		} catch (error) {
 			next(error);
 		}

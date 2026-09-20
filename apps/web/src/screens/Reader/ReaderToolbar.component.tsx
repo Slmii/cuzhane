@@ -29,7 +29,7 @@ export const ReaderToolbar = () => {
 	const navigation = useNavigation<ReaderNavigationProp>();
 	const { t } = useTranslation();
 
-	// Stop 10 of the first-use tour — the glyph beside the account.
+	// Stop 11 of the first-use tour — the glyph beside the account.
 	useTourBarTarget('readerFont', 1);
 
 	return (

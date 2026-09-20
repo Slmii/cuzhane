@@ -1,5 +1,5 @@
 import { wrapperApi } from '@/api/wrapper.api';
-import type { RoundDetail, RoundSummary } from '@/lib/types/domain';
+import type { MyProgress, RoundDetail, RoundSummary } from '@/lib/types/domain';
 
 export const getRounds = async (groupId: string) =>
 	wrapperApi<RoundSummary[]>(`/groups/${groupId}/rounds`, { method: 'GET' });
@@ -24,3 +24,13 @@ export const coverBabs = async ({ babNumbers, groupId, roundIndex }: CoverBabsIn
 		method: 'POST',
 		body: JSON.stringify({ babNumbers })
 	});
+
+/**
+ * This member's own record over the last few rounds — the card on the group screen and the
+ * F7 screen it opens.
+ *
+ * No parameters: the server sizes the window from the group's cycle, so a client cannot ask
+ * for a span that disagrees with the heading it is about to draw.
+ */
+export const getMyProgress = async (groupId: string) =>
+	wrapperApi<MyProgress>(`/groups/${groupId}/my-progress`, { method: 'GET' });

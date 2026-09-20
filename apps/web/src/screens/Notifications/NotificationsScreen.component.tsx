@@ -88,6 +88,17 @@ export const NotificationsScreen = () => {
 			 * hold.
 			 */}
 			<ScreenTitle
+				/*
+				 * **No reserved eyebrow row**, which is a deliberate exception to the default.
+				 *
+				 * That empty row exists so tab roots share a baseline, and it earns its place on
+				 * Gruplarım, which puts a greeting in it. Here it is 19pt of blank space above
+				 * the title, and the design does not have it: P2 sets `padding: 8px 20px 12px`
+				 * and goes straight to the heading, exactly as P4 — the settings screen this
+				 * gear opens — does. Reserving it put this title 19pt below that one, and 19pt
+				 * below its own skeleton, so the heading dropped as the list arrived.
+				 */
+				hasReservedSecondaryLabel={false}
 				isUnderNavigationBar
 				label={t('notifInboxTitle')}
 				{...(hasUnread
@@ -116,7 +127,7 @@ export const NotificationsScreen = () => {
 						<View key={group.bucket} style={styles.group}>
 							<FieldLabelText color={theme.colors.faintText}>{labelFor[group.bucket]}</FieldLabelText>
 							{/*
-							 * Stop 11 of the first-use tour frames the **first bucket's rows**, and
+							 * Stop 12 of the first-use tour frames the **first bucket's rows**, and
 							 * not its heading: "Bugün" is a date, and a spotlight around it reads as
 							 * the stop being about the grouping rather than about the notifications.
 							 * Nor the whole list — a target the height of the screen leaves the card

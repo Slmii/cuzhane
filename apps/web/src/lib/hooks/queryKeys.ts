@@ -11,6 +11,7 @@ export const groupQueryKeys = {
 	pool: (groupId: string) => [...groupQueryKeys.root(), 'pool', groupId] as const,
 	rounds: (groupId: string) => [...groupQueryKeys.root(), 'rounds', groupId] as const,
 	round: (groupId: string, roundIndex: number) => [...groupQueryKeys.root(), 'rounds', groupId, roundIndex] as const,
+	myProgress: (groupId: string) => [...groupQueryKeys.root(), 'my-progress', groupId] as const,
 	// No `previewByCode`: looking a code up is a mutation, not a cached query — nothing
 	// should re-run it on its own, and there is nothing to invalidate.
 	previewByGroup: (groupId: string) => [...groupQueryKeys.root(), 'preview-group', groupId] as const
@@ -34,6 +35,7 @@ export const groupOwnedQueryKeys = (groupId: string) => [
 	groupQueryKeys.pool(groupId),
 	groupQueryKeys.members(groupId),
 	groupQueryKeys.rounds(groupId),
+	groupQueryKeys.myProgress(groupId),
 	groupQueryKeys.previewByGroup(groupId)
 ];
 
@@ -65,6 +67,7 @@ export const tourDemoQueryKeys = {
 	groupById: (groupId: string) => [...tourDemoQueryKeys.root(), 'detail', groupId] as const,
 	babs: (groupId: string) => [...tourDemoQueryKeys.root(), 'babs', groupId] as const,
 	rounds: (groupId: string) => [...tourDemoQueryKeys.root(), 'rounds', groupId] as const,
+	myProgress: (groupId: string) => [...tourDemoQueryKeys.root(), 'my-progress', groupId] as const,
 	stats: () => [...tourDemoQueryKeys.root(), 'stats'] as const,
 	notifications: () => [...tourDemoQueryKeys.root(), 'notifications'] as const,
 	unreadCount: () => [...tourDemoQueryKeys.root(), 'unreadCount'] as const

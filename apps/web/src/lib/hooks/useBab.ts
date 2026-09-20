@@ -125,7 +125,10 @@ export const useSetAllBabsRead = () => {
 				queryClient.invalidateQueries({ queryKey: groupQueryKeys.babs(groupId) }),
 				queryClient.invalidateQueries({ queryKey: groupQueryKeys.groupById(groupId) }),
 				queryClient.invalidateQueries({ queryKey: groupQueryKeys.groups() }),
-				queryClient.invalidateQueries({ queryKey: profileQueryKeys.stats() })
+				queryClient.invalidateQueries({ queryKey: profileQueryKeys.stats() }),
+				// The open period's cell and the completion rate both move on a read, and the
+				// card sits on this very screen — without this it keeps yesterday's count.
+				queryClient.invalidateQueries({ queryKey: groupQueryKeys.myProgress(groupId) })
 			]);
 		}
 	});
@@ -170,7 +173,10 @@ export const useSetBabRead = () => {
 				queryClient.invalidateQueries({ queryKey: groupQueryKeys.babs(groupId) }),
 				queryClient.invalidateQueries({ queryKey: groupQueryKeys.groupById(groupId) }),
 				queryClient.invalidateQueries({ queryKey: groupQueryKeys.groups() }),
-				queryClient.invalidateQueries({ queryKey: profileQueryKeys.stats() })
+				queryClient.invalidateQueries({ queryKey: profileQueryKeys.stats() }),
+				// The open period's cell and the completion rate both move on a read, and the
+				// card sits on this very screen — without this it keeps yesterday's count.
+				queryClient.invalidateQueries({ queryKey: groupQueryKeys.myProgress(groupId) })
 			]);
 		}
 	});

@@ -36,8 +36,15 @@ export type Release = {
 	 * actually running — see `APP_VERSION`. Every release below it carries its own string.
 	 */
 	version: string | null;
-	/** "Eylül 2026" — its own key per language, because month names are not interpolated. */
-	monthKey: StringKey;
+	/**
+	 * The day it shipped, `YYYY-MM-DD`.
+	 *
+	 * **A date rather than a per-language month string.** It was `monthKey`, pointing at
+	 * "Eylül 2026" / "September 2026" in the strings table — three keys per release, hand-
+	 * written, and no day on any of them. `Intl` gets the day *and* the order right in each
+	 * language on its own: "20 Eylül 2026", "September 20, 2026", "20 september 2026".
+	 */
+	releasedOn: string;
 	entries: ReleaseNoteEntry[];
 };
 
@@ -67,14 +74,24 @@ export type Release = {
  */
 export const RELEASES: Release[] = [
 	{
+		id: '2026-09-my-progress',
+		entries: [
+			{ bodyKey: 'rn120ProgressBody', icon: 'calendar', isNew: true, titleKey: 'rn120ProgressTitle' },
+			{ bodyKey: 'rn120CatchUpBody', icon: 'claim', isNew: true, titleKey: 'rn120CatchUpTitle' },
+			{ bodyKey: 'rn120NotificationBody', icon: 'bell', isNew: false, titleKey: 'rn120NotificationTitle' }
+		],
+		releasedOn: '2026-09-20',
+		version: APP_VERSION
+	},
+	{
 		id: '2026-09-notifications',
 		entries: [
 			{ bodyKey: 'rn110InboxBody', icon: 'alert', isNew: true, titleKey: 'rn110InboxTitle' },
 			{ bodyKey: 'rn110SettingsBody', icon: 'settings', isNew: true, titleKey: 'rn110SettingsTitle' },
 			{ bodyKey: 'rn110EventsBody', icon: 'members', isNew: true, titleKey: 'rn110EventsTitle' }
 		],
-		monthKey: 'rnMonthSeptember',
-		version: APP_VERSION
+		releasedOn: '2026-09-18',
+		version: '1.1.0'
 	}
 ];
 
@@ -95,3 +112,18 @@ export const CURRENT_RELEASE = RELEASES[0];
 export const EARLIER_RELEASES = RELEASES.slice(1).filter(
 	(release): release is Release & { version: string } => release.version !== null
 );
+
+/**
+ * "20 Eylül 2026" — the release's day, in the reader's language.
+ *
+ * **Parsed field by field, not handed to `new Date('2026-09-20')`.** That form is treated as
+ * UTC, so for anybody west of Greenwich it formats as the day before — the same trap
+ * `StreakCard` records for its own `YYYY-MM-DD` keys.
+ */
+export const releaseDateLabel = (releasedOn: string, language: string): string => {
+	const [year, month, day] = releasedOn.split('-').map(Number);
+
+	return new Intl.DateTimeFormat(language, { day: 'numeric', month: 'long', year: 'numeric' }).format(
+		new Date(year ?? 0, (month ?? 1) - 1, day ?? 1)
+	);
+};
