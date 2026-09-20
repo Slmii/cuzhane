@@ -377,14 +377,57 @@ export const getMyProgressForUser = async (userId: string, groupId: string): Pro
 	);
 	const oldestRoundIndex = Math.max(0, joinedRoundIndex);
 
-	// `@@index([groupId, roundIndex])` covers this: the scan starts at the round this member
-	// joined in rather than at the group's first.
-	const reads = await prisma.babRead.findMany({
-		where: { groupId, roundIndex: { gte: oldestRoundIndex } },
-		select: { babNumber: true, readAt: true, roundIndex: true, userId: true }
-	});
+	/*
+	 * What this seat owed, round by round — computed first, because it is also what the query
+	 * below is narrowed by.
+	 *
+	 * **Rounds are grouped by the block they owe.** Under ROTATION a seat advances one whole
+	 * seat per round, so the block repeats every `spots` rounds: a year of daily rounds owes
+	 * only `spots` distinct blocks between them. Fetching per block rather than per round
+	 * turns hundreds of clauses into at most `spots` of them.
+	 */
+	const owedByRound = new Map<number, number[]>();
+	const roundsByBlock = new Map<string, { babNumbers: number[]; roundIndexes: number[] }>();
 
-	// Indexed by round so the filter below is a lookup rather than a scan of every read for
+	for (let roundIndex = oldestRoundIndex; roundIndex <= group.roundIndex; roundIndex++) {
+		const owed = babNumbersInRound(group, member.slotIndex, roundIndex);
+
+		owedByRound.set(roundIndex, owed);
+
+		const key = owed.join(',');
+		const block = roundsByBlock.get(key) ?? { babNumbers: owed, roundIndexes: [] };
+
+		block.roundIndexes.push(roundIndex);
+		roundsByBlock.set(key, block);
+	}
+
+	/*
+	 * **Only the babs this member owed**, not the whole board.
+	 *
+	 * It fetched every `BabRead` row in the group since they joined — everyone's reads, all
+	 * hundred babs a round — and then consulted the dozen-odd that were theirs. For a member
+	 * a year into a busy DAILY group that is ~36k rows to answer a question about ~4.7k, and
+	 * this endpoint sits behind the group screen and every "Okudum". Narrowing to the owed
+	 * blocks divides the rows by `spots`.
+	 *
+	 * `readAt` is gone from the `select` with it: it was read by the on-time rule, and that
+	 * rule was dropped when "kaçırılan" and the missed list were made one number.
+	 */
+	const reads =
+		roundsByBlock.size === 0
+			? []
+			: await prisma.babRead.findMany({
+					where: {
+						groupId,
+						OR: [...roundsByBlock.values()].map(block => ({
+							babNumber: { in: block.babNumbers },
+							roundIndex: { in: block.roundIndexes }
+						}))
+					},
+					select: { babNumber: true, roundIndex: true, userId: true }
+			  });
+
+	// Indexed by round so the loop below is a lookup rather than a scan of every read for
 	// every round.
 	const readsByRound = new Map<number, typeof reads>();
 
@@ -399,9 +442,10 @@ export const getMyProgressForUser = async (userId: string, groupId: string): Pro
 
 	for (let roundIndex = oldestRoundIndex; roundIndex <= group.roundIndex; roundIndex++) {
 		const { endsAt, startedAt } = boundsFor(group, roundIndex);
-		const owed = babNumbersInRound(group, member.slotIndex, roundIndex);
-		const owedSet = new Set(owed);
-		const inRound = (readsByRound.get(roundIndex) ?? []).filter(read => owedSet.has(read.babNumber));
+		const owed = owedByRound.get(roundIndex) ?? [];
+		// Every row the query returned for this round is already one of `owed` — that is what
+		// the `OR` above asks for — so there is nothing left to filter out.
+		const inRound = readsByRound.get(roundIndex) ?? [];
 		const readByAnyone = new Set(inRound.map(read => read.babNumber));
 		const readCount = inRound.filter(read => read.userId === member.userId).length;
 		const isOpen = roundIndex === group.roundIndex;

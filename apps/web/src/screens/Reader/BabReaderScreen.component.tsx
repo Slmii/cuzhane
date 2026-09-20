@@ -207,6 +207,9 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 		[coveredRound, groupQuery.data]
 	);
 
+	/** Covers this session that the server refused, oldest first. See `coverErrorHint`. */
+	const [coverFailures, setCoverFailures] = useState<{ babNumber: number; wasTaken: boolean }[]>([]);
+
 	const [railWidth, setRailWidth] = useState(0);
 
 	/*
@@ -368,7 +371,17 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 	}
 
 	if (babsQuery.isError || settingsQuery.isError || (isCovering && coveredRoundQuery.isError)) {
-		return <ErrorState queries={[babsQuery, settingsQuery, coveredRoundQuery]} />;
+		/*
+		 * The covered round joins the list **only while covering**. "Tekrar dene" calls
+		 * `refetch()` on every query it is given, and `refetch` ignores `enabled` — so handing
+		 * it the disabled query fired `GET /groups/:id/rounds/-1` on every retry of an ordinary
+		 * reader error, which the server refuses.
+		 */
+		return (
+			<ErrorState
+				queries={isCovering ? [babsQuery, settingsQuery, coveredRoundQuery] : [babsQuery, settingsQuery]}
+			/>
+		);
 	}
 
 	const babs = babsQuery.data ?? [];
@@ -460,22 +473,30 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 	 * whole block the empty seat was offering, and only the range makes that concrete.
 	 */
 	/*
-	 * **A failed cover takes the hint's slot.** The button moves to the next bab without
-	 * waiting for the server, which is what makes covering a run of twelve bearable — but it
-	 * also means a refusal would otherwise pass in silence, and you would find out only when
-	 * the list refetched and the bab was still there. A bad connection could swallow the
-	 * whole run that way.
+	 * **A failed cover takes the hint's slot, and it names the bab it is about.**
+	 *
+	 * The button moves to the next bab without waiting for the server, which is what makes
+	 * covering a run of twelve bearable — and it is why neither the mutation's own error nor
+	 * an unnamed message will do. `coverBabs.error` reflects only the **latest** `mutate`:
+	 * cover 5 on a slow connection, then cover 6 successfully, and the observer switches to
+	 * 6's mutation, so 5's rejection never appears at all — the silent-run case this is meant
+	 * to catch. And by the time any answer arrives the screen is already on the next bab, so
+	 * an unnamed "kaydedilemedi" would sit under a bab that is perfectly fine.
+	 *
+	 * So failures are kept here, keyed by bab, filed from `mutate`'s own per-call `onError`,
+	 * and cleared when that bab is covered successfully. The newest one is shown wherever the
+	 * reader has got to.
 	 *
 	 * 409 is its own message because it is not a failure of yours: somebody else filled that
 	 * gap first, and the right response is to carry on rather than retry.
 	 */
-	const coverError = coverBabs.error;
+	const lastFailure = coverFailures.at(-1);
 	const coverErrorHint =
-		coverError === null
+		lastFailure === undefined
 			? null
-			: coverError instanceof WrapperApiError && coverError.status === COVER_TAKEN_STATUS
-			? t('babTakenError')
-			: t('coverFailed');
+			: t(lastFailure.wasTaken ? 'coverTakenAt' : 'coverFailedAt', {
+					bab: `${lastFailure.babNumber}. ${t('bab')}`
+			  });
 
 	const readHint = coverErrorHint
 		? coverErrorHint
@@ -565,7 +586,21 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 			return;
 		}
 
-		coverBabs.mutate({ babNumbers: [babNumber], groupId, roundIndex: coveredRoundIndex });
+		coverBabs.mutate(
+			{ babNumbers: [babNumber], groupId, roundIndex: coveredRoundIndex },
+			{
+				// Per call, so a slower failure is not lost when a later cover succeeds.
+				onError: error =>
+					setCoverFailures(current => [
+						...current.filter(failure => failure.babNumber !== babNumber),
+						{
+							babNumber,
+							wasTaken: error instanceof WrapperApiError && error.status === COVER_TAKEN_STATUS
+						}
+					]),
+				onSuccess: () => setCoverFailures(current => current.filter(failure => failure.babNumber !== babNumber))
+			}
+		);
 		tapBack();
 		goToBab(nextBabNumber);
 	};

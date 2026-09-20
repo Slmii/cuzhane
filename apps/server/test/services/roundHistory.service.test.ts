@@ -6,7 +6,7 @@ import {
 	getRoundDetailForUser,
 	listRoundsForUser
 } from '@services/roundHistory.service';
-import { civilDayNumber, DEFAULT_TIME_ZONE, startOfCivilDay } from '@utils/rounds';
+import { civilDayNumber, DEFAULT_TIME_ZONE, ROUND_DAYS, startOfCivilDay } from '@utils/rounds';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { assertIsTestDatabase, testDatabaseUrl } from '../support/testDatabase';
 
@@ -26,16 +26,24 @@ const daysAgo = (days: number): Date => {
 };
 
 /**
- * A DAILY group started `startedDaysAgo` days ago, so it sits on that round with every
+ * A group started `startedDaysAgo` days ago, sitting on the round that implies with every
  * earlier one closed. `seats` decides which slots have a member — a slot left out is an
  * empty seat, and its block is pool.
+ *
+ * **`cycle` has to be set here, not patched afterwards.** `roundIndex` is derived from it,
+ * and `ensureCurrentRound` only ever rolls *forward* (`target <= roundIndex` is a no-op) — so
+ * creating a DAILY group 20 days old and then flipping the column to WEEKLY left it on round
+ * 20 with weekly bounds, dating rounds 3–20 up to 140 days into the future. A real 20-day-old
+ * WEEKLY group is on round 2, which is the case the strip's eight-column slice has to handle.
  */
 const createGroup = async ({
+	cycle = 'DAILY' as 'DAILY' | 'WEEKLY',
 	startedDaysAgo = 3,
 	seats = [0, 1],
 	splitMode = 'ROTATION' as 'ROTATION' | 'FIXED'
 } = {}) => {
 	const startedAt = daysAgo(startedDaysAgo);
+	const roundIndex = Math.floor(startedDaysAgo / ROUND_DAYS[cycle]);
 
 	const group = await prisma.group.create({
 		data: {
@@ -46,11 +54,11 @@ const createGroup = async ({
 				.toUpperCase()
 				.slice(-7)}`,
 			spots: SPOTS,
-			cycle: 'DAILY',
+			cycle,
 			splitMode,
 			status: 'RUNNING',
 			startedAt,
-			roundIndex: startedDaysAgo,
+			roundIndex,
 			roundStartedAt: startedAt,
 			timezone: DEFAULT_TIME_ZONE
 		}
@@ -384,7 +392,7 @@ describe('getMyProgressForUser', () => {
 		]);
 	});
 
-	it('counts only my own on-time reads of babs I owed', async () => {
+	it('counts only my own reads, and only of babs I owed', async () => {
 		const group = await createGroup({ startedDaysAgo: 2 });
 		// Mine, in time.
 		await recordOnTime(group.id, 0, [1, 2, 3], 2);
@@ -488,15 +496,39 @@ describe('getMyProgressForUser', () => {
 		expect(progress.missedCount).toBe(2 * BLOCK);
 	});
 
-	it('reports the cycle, which is what decides the strip width on the client', async () => {
-		const group = await createGroup({ startedDaysAgo: 20 });
-		await prisma.group.update({ data: { cycle: 'WEEKLY' }, where: { id: group.id } });
+	it('keeps rounds that share a block attached to it across a rotation wrap', async () => {
+		// Ten seats, so seat 0 owes 1–10 in round 0 and again in round 10 — the query groups
+		// those rounds under one clause, and a mistake there would silently drop one of them.
+		const group = await createGroup({ startedDaysAgo: 12 });
+		await recordOnTime(group.id, 0, [1, 2], 12);
+		await recordOnTime(group.id, 10, [3, 4, 5], 12);
+
+		const progress = await getMyProgressForUser(OWNER, group.id);
+		const byRound = new Map(progress.periods.map(period => [period.roundIndex, period]));
+
+		expect(byRound.get(0)?.readCount).toBe(2);
+		expect(byRound.get(10)?.readCount).toBe(3);
+		expect(byRound.get(0)?.owedCount).toBe(BLOCK);
+	});
+
+	it('counts a WEEKLY group in weeks, and rotates its share by round not by day', async () => {
+		// Twenty days at seven days a round is round 2, with rounds 0 and 1 closed.
+		const group = await createGroup({ cycle: 'WEEKLY', startedDaysAgo: 20 });
 
 		const progress = await getMyProgressForUser(OWNER, group.id);
 
 		expect(progress.cycle).toBe('WEEKLY');
-		// Still every round, as for DAILY — `PeriodStrip` slices the last eight off the end.
-		expect(progress.periods).toHaveLength(21);
+		expect(progress.periods.map(period => period.roundIndex)).toEqual([0, 1, 2]);
+		// Every round, as for DAILY — `PeriodStrip` slices the last eight off the end, and
+		// three is what a twenty-day-old weekly group actually has to show.
+		expect(progress.periods.map(period => period.owedCount)).toEqual([BLOCK, BLOCK, BLOCK]);
+		// The rotation advances one seat per *round*: seat 0 owes 1–10, then 11–20.
+		expect(progress.periods[0]?.missedBabs.map(missed => missed.babNumber)).toEqual([
+			1, 2, 3, 4, 5, 6, 7, 8, 9, 10
+		]);
+		expect(progress.periods[1]?.missedBabs.map(missed => missed.babNumber)).toEqual([
+			11, 12, 13, 14, 15, 16, 17, 18, 19, 20
+		]);
 	});
 
 	it('refuses a group the caller is not in', async () => {

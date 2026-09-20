@@ -244,12 +244,12 @@ groupsRouter.patch(
 );
 
 /**
- * "Senin ilerlemen" — this member's own record over the last few rounds (F7, and the card
- * on the group screen that opens it).
+ * "Senin ilerlemen" — this member's own record, every round they have been in (F7, and the
+ * banner on the group screen that opens it).
  *
- * Nothing in the query: the window is the group's own cycle — seven rounds for DAILY, eight
- * for WEEKLY — and that pairing is the design's rather than the caller's, so a client able
- * to ask for a different span could disagree with the "Son 7 gün" heading it is drawing.
+ * Nothing in the query, and no window: the banner's counts and the missed list are about the
+ * whole record, so a caller able to ask for a span could only disagree with them. The strip
+ * is the one narrower view and it slices its own seven or eight cells off the end.
  */
 groupsRouter.get(
 	'/:groupId/my-progress',

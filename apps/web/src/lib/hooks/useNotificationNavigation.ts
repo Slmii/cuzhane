@@ -61,9 +61,17 @@ export const useNotificationNavigation = () => {
 			}
 
 			if (groupId) {
+				/*
+				 * **`initial: false`, or the group becomes the Groups stack's only route.** A
+				 * nested `navigate` that reaches a navigator before it has registered its own
+				 * state builds the stack with just the named screen — back does nothing, and
+				 * `popToTopOnBlur` then keeps it as that tab's root for the session.
+				 * `JoinedWelcomeScreen` documents the same trap. The cold-start path is exactly
+				 * where the Groups stack may not have mounted yet when the poll below fires.
+				 */
 				navigationRef.navigate('Tabs', {
 					screen: 'Groups',
-					params: { screen: 'GroupDetail', params: { groupId } }
+					params: { screen: 'GroupDetail', params: { groupId }, initial: false }
 				});
 
 				return;

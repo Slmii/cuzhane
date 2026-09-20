@@ -29,8 +29,9 @@ export const coverBabs = async ({ babNumbers, groupId, roundIndex }: CoverBabsIn
  * This member's own record over the last few rounds — the card on the group screen and the
  * F7 screen it opens.
  *
- * No parameters: the server sizes the window from the group's cycle, so a client cannot ask
- * for a span that disagrees with the heading it is about to draw.
+ * No parameters, and no window: it answers with every round this member has been in. The
+ * strip takes its last seven or eight cells from the end of that; the counts and the missed
+ * list are about all of it.
  */
 export const getMyProgress = async (groupId: string) =>
 	wrapperApi<MyProgress>(`/groups/${groupId}/my-progress`, { method: 'GET' });

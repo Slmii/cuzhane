@@ -122,7 +122,7 @@ export const useCoverBabs = () => {
 };
 
 /**
- * "Senin ilerlemen" — this member's own last few rounds, for the group-screen card and the
+ * "Senin ilerlemen" — every round this member has been in, for the group-screen banner and the
  * screen it opens.
  *
  * Demo-aware like its neighbours: the card sits between two tour stops on the group screen,
