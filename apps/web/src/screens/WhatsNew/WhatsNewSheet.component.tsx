@@ -2,7 +2,7 @@ import { ReleaseNoteItem } from '@/components/ReleaseNoteItem/ReleaseNoteItem.co
 import { AppBottomSheet } from '@/components/ui/BottomSheet/BottomSheet.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CaptionText, EyebrowText, Header2 } from '@/components/ui/Typography/Typography.component';
-import { CURRENT_RELEASE } from '@/lib/content/releaseNotes';
+import { CURRENT_RELEASE, releaseDateLabel } from '@/lib/content/releaseNotes';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -21,7 +21,7 @@ type Props = {
  * back button. `useWhatsNew` decides *whether* — this only draws it.
  */
 export const WhatsNewSheet = ({ isVisible, onClose, onShowAll }: Props) => {
-	const { t } = useTranslation();
+	const { language, t } = useTranslation();
 	const { theme } = useThemeContext();
 
 	return (
@@ -31,7 +31,7 @@ export const WhatsNewSheet = ({ isVisible, onClose, onShowAll }: Props) => {
 					{CURRENT_RELEASE.version === null ? null : (
 						<EyebrowText color={theme.colors.accent}>
 							{t('whatsNewEyebrow', {
-								month: t(CURRENT_RELEASE.monthKey),
+								month: releaseDateLabel(CURRENT_RELEASE.releasedOn, language),
 								version: CURRENT_RELEASE.version
 							})}
 						</EyebrowText>

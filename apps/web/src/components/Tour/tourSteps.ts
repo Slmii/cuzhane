@@ -10,6 +10,7 @@ export type TourTargetId =
 	| 'groups'
 	| 'read'
 	| 'groupSummary'
+	| 'myProgress'
 	| 'assigned'
 	| 'lastRound'
 	| 'pool'
@@ -61,17 +62,18 @@ export const TOUR_STEPS: readonly TourStep[] = [
 	{ place: 'home', target: 'groups', titleKey: 'tour2Title', bodyKey: 'tour2Sub' },
 	{ place: 'home', target: 'read', titleKey: 'tour3Title', bodyKey: 'tour3Sub' },
 	{ place: 'group', target: 'groupSummary', titleKey: 'tour4Title', bodyKey: 'tour4Sub' },
-	{ place: 'group', target: 'assigned', titleKey: 'tour5Title', bodyKey: 'tour5Sub' },
-	{ place: 'group', target: 'lastRound', titleKey: 'tour6Title', bodyKey: 'tour6Sub' },
-	{ place: 'group', target: 'pool', titleKey: 'tour7Title', bodyKey: 'tour7Sub' },
-	{ place: 'group', target: 'share', titleKey: 'tour8Title', bodyKey: 'tour8Sub' },
-	{ place: 'reader', target: 'readerActions', titleKey: 'tour9Title', bodyKey: 'tour9Sub' },
-	{ place: 'reader', target: 'readerFont', titleKey: 'tour10Title', bodyKey: 'tour10Sub' },
-	{ place: 'inbox', target: 'inbox', titleKey: 'tour11Title', bodyKey: 'tour11Sub' },
-	{ place: 'reminders', target: 'notifications', titleKey: 'tour12Title', bodyKey: 'tour12Sub' },
-	{ place: 'profile', target: 'stats', titleKey: 'tour13Title', bodyKey: 'tour13Sub' },
-	{ place: 'profile', target: 'heatmap', titleKey: 'tour14Title', bodyKey: 'tour14Sub' },
-	{ place: 'profile', target: 'settings', titleKey: 'tour15Title', bodyKey: 'tour15Sub' }
+	{ place: 'group', target: 'myProgress', titleKey: 'tour5Title', bodyKey: 'tour5Sub' },
+	{ place: 'group', target: 'assigned', titleKey: 'tour6Title', bodyKey: 'tour6Sub' },
+	{ place: 'group', target: 'lastRound', titleKey: 'tour7Title', bodyKey: 'tour7Sub' },
+	{ place: 'group', target: 'pool', titleKey: 'tour8Title', bodyKey: 'tour8Sub' },
+	{ place: 'group', target: 'share', titleKey: 'tour9Title', bodyKey: 'tour9Sub' },
+	{ place: 'reader', target: 'readerActions', titleKey: 'tour10Title', bodyKey: 'tour10Sub' },
+	{ place: 'reader', target: 'readerFont', titleKey: 'tour11Title', bodyKey: 'tour11Sub' },
+	{ place: 'inbox', target: 'inbox', titleKey: 'tour12Title', bodyKey: 'tour12Sub' },
+	{ place: 'reminders', target: 'notifications', titleKey: 'tour13Title', bodyKey: 'tour13Sub' },
+	{ place: 'profile', target: 'stats', titleKey: 'tour14Title', bodyKey: 'tour14Sub' },
+	{ place: 'profile', target: 'heatmap', titleKey: 'tour15Title', bodyKey: 'tour15Sub' },
+	{ place: 'profile', target: 'settings', titleKey: 'tour16Title', bodyKey: 'tour16Sub' }
 ] as const;
 
 /** The three lines the welcome card previews, in the order the tour visits them. */

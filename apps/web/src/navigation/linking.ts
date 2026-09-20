@@ -19,11 +19,12 @@ const detailPaths: PathConfigMap<TabDetailParamList> = {
 		// Same reason as `roundIndex` below, and it bites harder here: the reader looks the
 		// bab up in the member's share by identity, so a string `"85"` is not found among
 		// numbers and the rail counts it as a bab beyond the share.
-		parse: { babNumber: Number }
+		parse: { babNumber: Number, roundIndex: Number }
 	},
 	// No path. B7 keeps its bab in screen state rather than params — there is nothing to
 	// address, and a bare `babs` route would only ever land on bab 1.
 	Rounds: 'groups/:groupId/rounds',
+	MyProgress: 'groups/:groupId/progress',
 	RoundDetail: {
 		path: 'groups/:groupId/rounds/:roundIndex',
 		// Path segments arrive as strings; the screen and its query key both key off a

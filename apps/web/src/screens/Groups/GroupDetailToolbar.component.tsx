@@ -46,7 +46,7 @@ export const GroupDetailToolbar = () => {
 	 * fetch the whole shelf on a screen reached by deep link, to decide one glyph. It is only a
 	 * seed — once the detail resolves it is the answer.
 	 */
-	// Stop 8 of the first-use tour — the share glyph, beside the account.
+	// Stop 9 of the first-use tour — the share glyph, beside the account.
 	useTourBarTarget('share', 1);
 
 	const shelf = useQueryClient().getQueryData<GroupSummary[]>(groupQueryKeys.groups());

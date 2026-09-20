@@ -1,6 +1,7 @@
+import { MyProgressCardSkeleton } from '@/components/MyProgressCard/MyProgressCardSkeleton.component';
+import { SCREEN_TITLE_PADDING_UNDER_BAR } from '@/components/ScreenTitle/ScreenTitle.component';
 import { Bone } from '@/components/Skeleton/Skeleton.component';
 import { SkeletonStatusRow } from '@/components/Skeleton/SkeletonStatusRow.component';
-import { SCREEN_TITLE_PADDING_UNDER_BAR } from '@/components/ScreenTitle/ScreenTitle.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
@@ -59,6 +60,8 @@ export const GroupDetailSkeleton = () => {
 					<Bone height={8} radius={4} style={styles.resetTrailing} tone='soft' width={78} />
 				</View>
 			</CardSurface>
+
+			<MyProgressCardSkeleton />
 
 			{/* Matches the real panel's closed state, which keeps its sage fill rather than glass. */}
 			<CardSurface
@@ -164,6 +167,7 @@ const styles = StyleSheet.create({
 		borderColor: 'transparent',
 		flexDirection: 'row',
 		gap: 13,
+		marginTop: 12,
 		marginBottom: 12,
 		paddingHorizontal: 16,
 		paddingVertical: 14

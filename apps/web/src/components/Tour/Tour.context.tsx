@@ -42,6 +42,11 @@ type TourContextValue = {
 	 */
 	start: (options?: { isReplay?: boolean }) => void;
 	next: () => void;
+	/**
+	 * One stop back. **Never past stop 1** — the welcome card is a decision already made, and
+	 * returning to it would ask again; on a replay it is not in the run at all.
+	 */
+	back: () => void;
 	/** Ends the tour and records that it has been seen — used by both Skip and Finish. */
 	finish: () => void;
 	registerTarget: (id: TourTargetId, rect: TourRect | null) => void;
@@ -132,6 +137,15 @@ export const TourProvider = ({ children, isBlocked = false }: { children: ReactN
 	}, [finish, stepIndex]);
 
 	/*
+	 * The floor is stop 0, not `WELCOME_STEP`: the card behind that one asks whether they want
+	 * the tour, and they have answered. `TourStepCard` hides the control there rather than
+	 * drawing a dead one.
+	 */
+	const back = useCallback(() => {
+		setStepIndex(current => Math.max(0, current - 1));
+	}, []);
+
+	/*
 	 * Ana sayfa re-nominates on every render it has groups on, so this short-circuits on an
 	 * unchanged pair — otherwise it would set state every frame the shelf re-renders.
 	 */
@@ -180,6 +194,7 @@ export const TourProvider = ({ children, isBlocked = false }: { children: ReactN
 
 	const value = useMemo<TourContextValue>(
 		() => ({
+			back,
 			finish,
 			isActive,
 			isBlocked,
@@ -191,7 +206,7 @@ export const TourProvider = ({ children, isBlocked = false }: { children: ReactN
 			stepIndex,
 			subject
 		}),
-		[finish, isActive, isBlocked, next, rects, registerTarget, setSubject, start, stepIndex, subject]
+		[back, finish, isActive, isBlocked, next, rects, registerTarget, setSubject, start, stepIndex, subject]
 	);
 
 	return <TourContext.Provider value={value}>{children}</TourContext.Provider>;

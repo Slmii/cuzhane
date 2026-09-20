@@ -1,4 +1,5 @@
 import Constants from 'expo-constants';
+import * as Updates from 'expo-updates';
 import { Platform } from 'react-native';
 
 /**
@@ -27,11 +28,34 @@ const APP_BUILD =
 		? Constants.expoConfig?.android?.versionCode
 		: undefined;
 
-/** "1.0.2 (4)", or "1.0.2" where there is no build number, or "—" where there is nothing. */
+/**
+ * Which build this is, when it is **not** the one people install from the store.
+ *
+ * `Updates.channel` is the build's own channel — not the branch an update came from, which is
+ * a different thing entirely and joined to it only by a mapping. Production is deliberately
+ * silent: naming it would put a word on the one row where the absence of a word is the point.
+ *
+ * **`null` means development**, and that is the API's own definition rather than a guess:
+ * Expo Go and development builds are not pinned to a channel, because they may run any update
+ * their runtime accepts, so `channel` is null there however `eas.json` labels the profile.
+ */
+const BUILD_CHANNEL: string | null =
+	Updates.channel === null || Updates.channel === ''
+		? 'development'
+		: Updates.channel === 'production'
+		? null
+		: Updates.channel;
+
+/**
+ * "1.0.2 (4)", or "1.0.2" where there is no build number, or "—" where there is nothing —
+ * with the channel appended on anything but production: "1.2.0 (4) · preview".
+ */
 export const appVersionLabel = (): string => {
 	if (APP_VERSION === null) {
 		return '—';
 	}
 
-	return APP_BUILD === undefined || APP_BUILD === null ? APP_VERSION : `${APP_VERSION} (${APP_BUILD})`;
+	const version = APP_BUILD === undefined || APP_BUILD === null ? APP_VERSION : `${APP_VERSION} (${APP_BUILD})`;
+
+	return BUILD_CHANNEL === null ? version : `${version} · ${BUILD_CHANNEL}`;
 };

@@ -1,5 +1,5 @@
 import { wrapperApi } from '@/api/wrapper.api';
-import type { RoundDetail, RoundSummary } from '@/lib/types/domain';
+import type { MyProgress, RoundDetail, RoundSummary } from '@/lib/types/domain';
 
 export const getRounds = async (groupId: string) =>
 	wrapperApi<RoundSummary[]>(`/groups/${groupId}/rounds`, { method: 'GET' });
@@ -24,3 +24,14 @@ export const coverBabs = async ({ babNumbers, groupId, roundIndex }: CoverBabsIn
 		method: 'POST',
 		body: JSON.stringify({ babNumbers })
 	});
+
+/**
+ * This member's own record over the last few rounds — the card on the group screen and the
+ * F7 screen it opens.
+ *
+ * No parameters, and no window: it answers with every round this member has been in. The
+ * strip takes its last seven or eight cells from the end of that; the counts and the missed
+ * list are about all of it.
+ */
+export const getMyProgress = async (groupId: string) =>
+	wrapperApi<MyProgress>(`/groups/${groupId}/my-progress`, { method: 'GET' });

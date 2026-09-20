@@ -5,6 +5,8 @@ import type {
 	GroupDetail,
 	GroupSummary,
 	GroupVisibility,
+	MyProgress,
+	MyProgressPeriod,
 	ProfileStats,
 	RoundSummary
 } from '@/lib/types/domain';
@@ -263,6 +265,58 @@ const specFor = (groupId: string) => SPECS.find(spec => spec.id === groupId) ?? 
 export const tourDemoGroup = (groupId: string): GroupDetail => detailOf(specFor(groupId));
 export const tourDemoBabs = (groupId: string): GroupBab[] => babsOf(specFor(groupId));
 export const tourDemoRounds = (groupId: string): RoundSummary[] => roundsOf(specFor(groupId));
+
+/**
+ * Seven periods for the "Senin ilerlemen" card — the walkthrough passes over it between
+ * the assigned-babs stop and the closed-round one, and without a fixture it would sit
+ * there loading (or erroring) against a group id that does not exist.
+ *
+ * Built from the same spec as everything else, so the card cannot contradict the shelf
+ * behind it: the open period carries the spec's own `readInShare`, and the six closed ones
+ * are a plausible run rather than a perfect record — a strip of seven full cells would
+ * show none of the three colours the legend explains.
+ */
+const CLOSED_READS = [13, 13, 9, 13, 0, 13];
+
+export const tourDemoMyProgress = (groupId: string): MyProgress => {
+	const spec = specFor(groupId);
+	const periods: MyProgressPeriod[] = CLOSED_READS.map((readCount, index) => ({
+		endsAt: hoursFromNow(spec.hoursLeft - 24 * (CLOSED_READS.length - index)),
+		isOpen: false,
+		missedBabs: Array.from({ length: SHARE_LENGTH - readCount }, (_, offset) => ({
+			babNumber: spec.shareStart + readCount + offset,
+			roundIndex: 9 - (CLOSED_READS.length - index)
+		})),
+		missedCount: SHARE_LENGTH - readCount,
+		owedCount: SHARE_LENGTH,
+		readCount,
+		roundIndex: 9 - (CLOSED_READS.length - index),
+		startedAt: hoursFromNow(spec.hoursLeft - 24 * (CLOSED_READS.length - index + 1))
+	}));
+
+	periods.push({
+		endsAt: hoursFromNow(spec.hoursLeft),
+		isOpen: true,
+		missedBabs: [],
+		missedCount: 0,
+		owedCount: SHARE_LENGTH,
+		readCount: spec.readInShare,
+		roundIndex: 9,
+		startedAt: hoursFromNow(spec.hoursLeft - 24)
+	});
+
+	const owedCount = periods.length * SHARE_LENGTH;
+	const readCount = periods.reduce((total, period) => total + period.readCount, 0);
+
+	return {
+		cycle: 'DAILY',
+		missedCount: CLOSED_READS.reduce((total, read) => total + (SHARE_LENGTH - read), 0),
+		owedCount,
+		periods,
+		ratePercent: Math.round((readCount / owedCount) * 100),
+		readCount
+	};
+};
 
 /**
  * `YYYY-MM-DD` in the reader's own calendar, as `weekStrip` writes it. `toISOString` would roll
