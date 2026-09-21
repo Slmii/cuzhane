@@ -60,7 +60,7 @@ const DIVINE_NAME = new RegExp(`^ا${ARABIC_MARKS}*ل${ARABIC_MARKS}*ل${ARABIC_
  * its own variant's `fontSize` and drops the Arabic back to body size — the same reason
  * the verse ornaments below set theirs explicitly.
  */
-const withDivineName = (text: string, style: { color: string; fontFamily: string; fontSize: number }) => {
+export const withDivineName = (text: string, style: { color: string; fontFamily: string; fontSize: number }) => {
 	const runs: ReactNode[] = [];
 	let plain = '';
 

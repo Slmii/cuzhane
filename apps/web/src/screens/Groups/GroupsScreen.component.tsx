@@ -114,6 +114,7 @@ export const GroupsScreen = () => {
 				label={t('myGroups')}
 				secondaryLabel={t('greet', { name: user?.firstName ?? '' })}
 			/>
+			<AppButton title={t('hrGroups')} variant='surface' onPress={() => navigation.navigate('HizbGroups')} />
 			{/* No search box: searching is the Ara tab's job. Filter and sort are the navigator's pull-down. */}
 		</View>
 	);

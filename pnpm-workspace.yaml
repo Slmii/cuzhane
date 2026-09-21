@@ -1,30 +1,20 @@
 packages:
-    - 'apps/*'
+  - apps/*
 
-# pnpm 10 blocks dependency postinstall scripts unless they're listed here. Only the
-# ones that genuinely need to build are approved: Prisma fetches its query engine, and
-# esbuild fetches its platform binary. The rest of what pnpm flags (core-js funding
-# notices, optional ws speedups) is deliberately left blocked.
 onlyBuiltDependencies:
-    - '@prisma/engines'
-    - prisma
-    - esbuild
+  - '@prisma/engines'
+  - prisma
+  - esbuild
 
-# React Navigation ships its packages as a tightly-coupled set. Left to float, the
-# navigators resolve ahead of `core` and the app dies at runtime with
-# "createScreenFactory is not a function", so the whole set is pinned together and moves
-# together — never one line of this block on its own.
-#
-# Raised as a set for Expo SDK 57: `native-stack` is bound to `react-native-screens`, which
-# the SDK carries ten minors forward (4.16 → 4.26), and the 7.14 stack was built against the
-# old one. `core` and `elements` are the floors those two ask for.
-#
-# react/react-dom track what the SDK pins rather than a number of our own.
 overrides:
-    react: 19.2.3
-    react-dom: 19.2.3
-    '@react-navigation/native': 7.3.18
-    '@react-navigation/core': 7.21.13
-    '@react-navigation/bottom-tabs': 7.18.18
-    '@react-navigation/native-stack': 7.18.10
-    '@react-navigation/elements': 2.9.40
+  '@react-navigation/bottom-tabs': 7.18.18
+  '@react-navigation/core': 7.21.13
+  '@react-navigation/elements': 2.9.40
+  '@react-navigation/native': 7.3.18
+  '@react-navigation/native-stack': 7.18.10
+  react: 19.2.3
+  react-dom: 19.2.3
+
+patchedDependencies:
+  expo-constants@57.0.16: patches/expo-constants@57.0.16.patch
+  expo-updates@57.0.19: patches/expo-updates@57.0.19.patch

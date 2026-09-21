@@ -414,6 +414,21 @@ export const ProfileScreen = () => {
 						</View>
 					</Pressable>
 					<Divider />
+					{/* The Hizb-ül Hakaik, read for its own sake — its table of contents is a screen of its own. */}
+					<Pressable
+						accessibilityRole='button'
+						onPress={() => navigation.navigate('HizbSections')}
+						style={({ pressed }) => [styles.settingsRow, { opacity: pressed ? 0.6 : 1 }]}
+					>
+						<View style={styles.settingsCopy}>
+							<BodyStrongText>{t('hizbRow')}</BodyStrongText>
+							<CaptionText color={theme.colors.subtext}>{t('hizbRowSub')}</CaptionText>
+						</View>
+						<View style={styles.settingsNav}>
+							<Icon color={theme.colors.subtext} name='chevronRight' size={14} strokeWidth={1.8} />
+						</View>
+					</Pressable>
+					<Divider />
 					{/*
 					 * **The second way to the reminder settings**, and the reason giving the bell
 					 * tab to the inbox is affordable: P4 is otherwise only behind the gear on that

@@ -35,4 +35,9 @@ export type ReaderBabMapProps = {
 	 * nothing to key — every tick there means the same thing.
 	 */
 	hasLegend?: boolean;
+	/**
+	 * How many ticks the strip has. The Cevşen's hundred by default; the Hizb reader hands it
+	 * the current section's block count, so one strip serves both texts.
+	 */
+	count?: number;
 };

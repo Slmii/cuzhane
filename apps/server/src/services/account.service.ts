@@ -5,6 +5,11 @@ export const deleteAccountForUser = async (userId: string): Promise<{ success: t
 	const normalizedUserId = normalizeUserId(userId);
 
 	await prisma.$transaction(async tx => {
+		// Explicit account deletion follows the existing erasure policy. Ordinary reading
+		// group departure is different: it only deactivates membership and retains history.
+		await tx.readingGroup.deleteMany({ where: { ownerUserId: normalizedUserId } });
+		await tx.readingMembership.deleteMany({ where: { userId: normalizedUserId } });
+
 		// Groups this user owns — cascades to their members, babs, cheers and waitlist.
 		await tx.group.deleteMany({ where: { ownerUserId: normalizedUserId } });
 

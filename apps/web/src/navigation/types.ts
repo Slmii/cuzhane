@@ -74,6 +74,16 @@ export type TabDetailParamList = {
 	Reminders: undefined;
 	/** P3 — the release notes, pushed from Profil's version row and from P1's sheet. */
 	ReleaseNotes: undefined;
+	/** The Hizb-ül Hakaik's table of contents, from a row on Profil; a row opens `HizbReader`. */
+	HizbSections: undefined;
+	HizbGroups: undefined;
+	HizbGroup: { groupId: string };
+	/** One section of the Hizb-ül Hakaik, by its index in `HIZB_SECTIONS`. */
+	HizbReader: {
+		sectionIndex: number;
+		shouldOpenTextSize?: boolean;
+		assignment?: { groupId: string; assignmentId: string };
+	};
 	Profile: undefined;
 	/** Android only: search is pushed from the bar's magnifier rather than being a tab. */
 	Search: undefined;

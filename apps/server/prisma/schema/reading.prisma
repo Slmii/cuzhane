@@ -1,0 +1,71 @@
+// Independent personal readings. Cevşen retains its existing shared board and history.
+enum ReadingCadence {
+  WEEKLY
+  MONTHLY
+}
+
+model ReadingGroup {
+  id               String              @id @default(cuid())
+  name             String
+  ownerUserId      String
+  inviteCode       String              @unique
+  planKey          String
+  numberOfParts    Int
+  cadence          ReadingCadence
+  timezone         String
+  startedAt        DateTime            @default(now())
+  nextJoinSequence Int                 @default(1)
+  memberships      ReadingMembership[]
+
+  @@index([ownerUserId])
+}
+
+model ReadingMembership {
+  id             String         @id @default(cuid())
+  groupId        String
+  userId         String
+  displayName    String
+  joinSequence   Int
+  rotationOffset Int
+  joinedStep     Int
+  joinedAt       DateTime       @default(now())
+  leftAt         DateTime?
+  active         Boolean        @default(true)
+  group          ReadingGroup   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  cycles         ReadingCycle[]
+
+  @@unique([groupId, joinSequence])
+  // A partial unique (groupId,userId) WHERE active is added by the migration.
+  @@index([groupId, active])
+  @@index([userId, groupId])
+}
+
+model ReadingCycle {
+  id             String              @id @default(cuid())
+  membershipId   String
+  index          Int
+  startedAt      DateTime
+  endsAt         DateTime
+  scheduleAnchor DateTime
+  scheduleIndex  Int
+  completedAt    DateTime?
+  membership     ReadingMembership   @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  assignments    ReadingAssignment[]
+
+  @@unique([membershipId, index])
+}
+
+model ReadingAssignment {
+  id           String       @id @default(cuid())
+  cycleId      String
+  ordinal      Int
+  partIndex    Int
+  rotationStep Int
+  assignedAt   DateTime
+  completedAt  DateTime?
+  cycle        ReadingCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+
+  @@unique([cycleId, ordinal])
+  @@unique([cycleId, partIndex])
+  @@index([cycleId, completedAt])
+}

@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { Client } from 'pg';
 import { assertIsTestDatabase, databaseNameOf, maintenanceUrl, testDatabaseUrl } from './testDatabase';
 
@@ -39,7 +40,7 @@ export default async function setup(): Promise<void> {
 	// `migrate deploy` rather than `migrate dev`: it applies the committed migrations and
 	// never prompts or invents a new one, which is what a test database wants.
 	execFileSync('pnpm', ['exec', 'prisma', 'migrate', 'deploy'], {
-		cwd: new URL('../..', import.meta.url).pathname,
+		cwd: fileURLToPath(new URL('../..', import.meta.url)),
 		env: { ...process.env, DATABASE_URL: url },
 		stdio: 'pipe'
 	});

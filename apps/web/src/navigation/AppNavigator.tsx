@@ -1,3 +1,5 @@
+import { HizbGroupsScreen } from '@/screens/Hizb/HizbGroupsScreen.component';
+import { HizbGroupScreen } from '@/screens/Hizb/HizbGroupScreen.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { SplashScreen as AnimatedSplash } from '@/screens/Splash/SplashScreen.component';
 import { userSettingsQueryKeys } from '@/lib/hooks/queryKeys';
@@ -39,6 +41,8 @@ import { NotificationsScreen } from '@/screens/Notifications/NotificationsScreen
 import { NotificationSettingsToolbar } from '@/navigation/NotificationSettingsToolbar';
 import { useUnreadNotificationCount } from '@/lib/hooks/useNotifications';
 import { ReleaseNotesScreen } from '@/screens/WhatsNew/ReleaseNotesScreen.component';
+import { HizbReaderScreen } from '@/screens/Hizb/HizbReaderScreen.component';
+import { HizbSectionsScreen } from '@/screens/Hizb/HizbSectionsScreen.component';
 import { AllBabsScreen } from '@/screens/Reader/AllBabsScreen.component';
 import { BabReaderScreen } from '@/screens/Reader/BabReaderScreen.component';
 import { ReaderToolbar } from '@/screens/Reader/ReaderToolbar.component';
@@ -450,6 +454,14 @@ const sharedTabScreens = ({ isProfileRoot = false }: { isProfileRoot?: boolean }
 		 */}
 		<TabStack.Screen name='Reminders' component={RemindersScreen} options={pushedScreenOptions} />
 		<TabStack.Screen name='ReleaseNotes' component={ReleaseNotesScreen} options={nativeBackScreenOptions} />
+		<TabStack.Screen name='HizbGroups' component={HizbGroupsScreen} options={nativeBackScreenOptions} />
+		<TabStack.Screen name='HizbGroup' component={HizbGroupScreen} options={nativeBackScreenOptions} />
+		<TabStack.Screen name='HizbSections' component={HizbSectionsScreen} options={nativeBackScreenOptions} />
+		<TabStack.Screen
+			name='HizbReader'
+			component={HizbReaderScreen}
+			options={{ ...nativeBackScreenOptions, headerRight: () => <ReaderToolbar /> }}
+		/>
 		{Platform.OS === 'android' ? <TabStack.Screen name='Search' component={SearchScreen} /> : null}
 	</>
 );

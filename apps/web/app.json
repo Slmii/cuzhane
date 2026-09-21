@@ -58,7 +58,8 @@
 			],
 			"expo-status-bar",
 			"expo-web-browser",
-			"./plugins/withCustomSymbols"
+			"./plugins/withCustomSymbols",
+			"./plugins/withQuotedBundleScript"
 		],
 		"extra": {
 			"eas": {

@@ -898,6 +898,25 @@ verse mark.
 Nesih is the default. Medine Mushaf was briefly made the default and reverted, back when the
 `U+06EA` stripping made it the wrong face to hand someone first.
 
+### The Hizb-ül Hakaik text
+
+`hizbulhakaik.data.json` is the same publisher's text for the **Hizb-ü Envâr-ıl Hakâik-ın Nuriye**, in the
+same markup, and the same rules apply: nothing generated or approximated, `U+06EA` written as `U+0656` at
+ingestion. Unlike the Cevşen it is **generated in the repo**: `scripts/hizbulhakaik.txt` is the source and
+`node scripts/build-hizbulhakaik.mts` writes the JSON through prettier, with the parse rules in
+`src/lib/content/hizbulhakaik.parse.ts` (tested on markup fragments) and the output checked against the
+source's own census in `hizbulhakaik.test.ts` — 17 sections, 723 lines, 236 of 242 pages, the Cevşen's
+closings ﴿١﴾–﴿١٠٠﴾. Edit the text, re-run the script; never hand-edit the JSON.
+
+**It is not a hundred babs, so it does not take the Cevşen's shape.** Sections hold blocks, blocks hold
+lines, and each line carries the printed page it is on. Pages are not a level of their own because a du'a
+runs across them — the print closes one with `* * *` at the foot of a page only 15 times in 242, so a page
+break says nothing about where a unit ends — and three sections (Haşir, Tebareke, Nebe) begin partway down
+a page. A block is what the print closes with `* * *`: a bab of the Cevşen, a du'a, a prayer. `❁` lines
+carry `invocations` beside their `text`; one line (Evrâd-ı Kudsiyye, page 106) ends in a `❁` and yields no
+empty invocation for it. How a group would split this text is an open product question the file
+deliberately does not answer.
+
 ## Notifications
 
 The daily reminder is a **local** notification, scheduled on the device — one repeating

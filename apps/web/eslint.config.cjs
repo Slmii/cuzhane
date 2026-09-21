@@ -8,7 +8,7 @@ module.exports = [
 		ignores: ['node_modules/**', 'dist/**', 'build/**', '.svelte-kit/**', 'package/**', 'src/declarations/**']
 	},
 	{
-		files: ['**/*.{js,jsx,mjs,cjs,ts,tsx}'],
+		files: ['**/*.{js,jsx,mjs,cjs,ts,mts,tsx}'],
 		languageOptions: {
 			parser: tsParser,
 			parserOptions: {

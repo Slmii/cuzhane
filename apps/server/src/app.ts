@@ -9,6 +9,7 @@ import cheersRouter from '@routes/cheers.route';
 import feedbackRouter from '@routes/feedback.route';
 import groupsRouter from '@routes/groups.route';
 import healthRouter from '@routes/health.route';
+import readingRouter from '@routes/reading.route';
 import membershipRouter from '@routes/membership.route';
 import profileRouter from '@routes/profile.route';
 import notificationsRouter from '@routes/notifications.route';
@@ -46,6 +47,7 @@ export const createApp = () => {
 	// Protected routes — require a valid Clerk session
 	app.use('/api', requireAuthApi, populateAuthLocals);
 	app.use('/api/groups', groupsRouter);
+	app.use('/api/reading-groups', readingRouter);
 	app.use('/api/memberships', membershipRouter);
 	app.use('/api/babs', babsRouter);
 	app.use('/api/cheers', cheersRouter);
