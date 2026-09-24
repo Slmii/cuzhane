@@ -59,7 +59,7 @@ const HUSREV_SAMPLE_WIDTH = Math.round((HUSREV_SAMPLE_HEIGHT * 90) / 81);
  */
 const FONT_FAMILY_NAMES: Record<ReaderArabicFont, string> = {
 	amiri: 'Amiri Quran',
-	husrev: 'Hayrât Neşriyat',
+	husrev: 'Ahmed Hüsrev',
 	naskh: 'Kitab',
 	uthman: 'KFGQPC Uthman Taha Naskh'
 };

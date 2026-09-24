@@ -7,5 +7,5 @@
 # Prisma
 src/generated/
 
-# Hayrat mushaf pages — 91 MB, from scripts/import-hayrat-mushaf.ts; served by Caddy in production
+# Mushaf pages
 mushaf/

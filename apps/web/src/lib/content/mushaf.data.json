@@ -1,8 +1,7 @@
 {
 	"meta": {
-		"edition": "Ahmed Hüsrev hattı Tevâfuklu Kur'ân-ı Kerîm — Hayrât Neşriyat",
-		"permission": "Used with the written permission of Hayrat Vakfı.",
-		"source": "HayratKuran.db from the \"Kur'an-ı Kerim - iPad için\" app, via scripts/import-hayrat-mushaf.ts",
+		"edition": "Ahmed Hüsrev hattı",
+		"source": "",
 		"pages": "Numbered from 0 (Fâtiha). Each entry is [firstSura, firstAyah, lastSura, lastAyah].",
 		"cuz": "Each entry is [firstPage, lastPage], inclusive — the edition's own cüz, whole pages.",
 		"secde": "The sajdah verses, each [page, sura, ayah, x, y]: x and y are where its green highlight begins — the top-right corner of its first line — as fractions of the page, read from the pixels."

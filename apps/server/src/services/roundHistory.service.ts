@@ -70,6 +70,31 @@ const owedSlotForBab = (group: Pick<Group, 'spots' | 'splitMode'>, babNumber: nu
 	return (blockIndex - offset + group.spots) % group.spots;
 };
 
+/**
+ * **A hatim owes what was held, not what a seat derives.** A member holds specific cüz, round
+ * by round, in `CuzHolding` — chosen, carried, re-picked or taken as a loan — so the seat
+ * arithmetic above means nothing for one: at ten seats it hands cüz 1–10 to seat 0 whoever
+ * actually held them. The same rule `getMyProgressForUser` follows below.
+ *
+ * Every round's holdings for the group, in one query, as cüz → holder per round.
+ */
+const holdersByRound = async (groupId: string, roundIndexes?: { gte?: number; equals?: number }) => {
+	const holdings = await prisma.cuzHolding.findMany({
+		select: { cuzNumber: true, roundIndex: true, userId: true },
+		where: { groupId, ...(roundIndexes ? { roundIndex: roundIndexes } : {}) }
+	});
+	const byRound = new Map<number, Map<number, string>>();
+
+	for (const holding of holdings) {
+		const round = byRound.get(holding.roundIndex) ?? new Map<number, string>();
+
+		round.set(holding.cuzNumber, holding.userId);
+		byRound.set(holding.roundIndex, round);
+	}
+
+	return byRound;
+};
+
 const boundsFor = (group: Group, roundIndex: number) => {
 	// A group cannot have history before it started, so `startedAt` is non-null on every
 	// path that reaches here — the callers all guard on RUNNING first.
@@ -112,12 +137,13 @@ export const listRoundsForUser = async (userId: string, groupId: string): Promis
 	const { group, normalizedUserId } = await loadRunningGroup(userId, groupId);
 	const unitCount = unitCountFor(group);
 
-	const [members, reads] = await Promise.all([
+	const [members, reads, holders] = await Promise.all([
 		prisma.groupMember.findMany({ where: { groupId }, orderBy: { slotIndex: 'asc' } }),
 		prisma.babRead.findMany({
 			where: { groupId },
 			select: { roundIndex: true, babNumber: true, userId: true }
-		})
+		}),
+		group.kind === 'HATIM' ? holdersByRound(groupId) : Promise.resolve(null)
 	]);
 
 	const viewer = members.find(member => member.userId === normalizedUserId);
@@ -143,6 +169,8 @@ export const listRoundsForUser = async (userId: string, groupId: string): Promis
 		const owedCount =
 			viewer === undefined
 				? 0
+				: holders
+				? [...(holders.get(roundIndex)?.values() ?? [])].filter(holder => holder === normalizedUserId).length
 				: Array.from({ length: unitCount }, (_, index) => index + 1).filter(
 						babNumber => owedSlotForBab(group, babNumber, roundIndex) === viewer.slotIndex
 				  ).length;
@@ -175,20 +203,42 @@ export const getRoundDetailForUser = async (
 		throw new HttpError(NOT_FOUND, 'Round not found');
 	}
 
-	const [members, reads] = await Promise.all([
+	const [members, reads, holders] = await Promise.all([
 		prisma.groupMember.findMany({ where: { groupId }, orderBy: { slotIndex: 'asc' } }),
 		prisma.babRead.findMany({
 			where: { groupId, roundIndex },
 			select: { babNumber: true, userId: true, readAt: true }
-		})
+		}),
+		group.kind === 'HATIM'
+			? holdersByRound(groupId, { equals: roundIndex }).then(byRound => byRound.get(roundIndex) ?? new Map())
+			: Promise.resolve(null)
 	]);
 
 	const memberBySlot = new Map<number, GroupMember>(members.map(member => [member.slotIndex, member]));
+	const memberByUserId = new Map<string, GroupMember>(members.map(member => [member.userId, member]));
 	const readByNumber = new Map(reads.map(read => [read.babNumber, read]));
 
 	const babs: RoundBab[] = Array.from({ length: unitCountFor(group) }, (_, index) => {
 		const number = index + 1;
 		const read = readByNumber.get(number);
+
+		// A hatim: whoever held the cüz that round. Held by nobody, it was never anyone's to
+		// miss. Leaving (and deleting an account) removes a member's holdings for every round,
+		// so a cüz a departed member held reads as unheld here — as a Cevşen seat vacated
+		// mid-history does.
+		if (holders) {
+			const holderId = holders.get(number) ?? null;
+
+			return {
+				number,
+				readByUserId: read?.userId ?? null,
+				readAt: read?.readAt.toISOString() ?? null,
+				owedByUserId: holderId,
+				owedBySlotIndex: holderId === null ? null : memberByUserId.get(holderId)?.slotIndex ?? null,
+				isPool: holderId === null
+			};
+		}
+
 		const slotIndex = owedSlotForBab(group, number, roundIndex);
 		const owner = slotIndex === null ? undefined : memberBySlot.get(slotIndex);
 

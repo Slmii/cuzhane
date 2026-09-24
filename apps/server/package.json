@@ -22,8 +22,7 @@
 		"lint": "eslint .",
 		"check-types": "tsc --noEmit --project tsconfig.json",
 		"cuz:fetch": "tsx scripts/fetch-cuz-metadata.ts",
-		"quran:fetch": "tsx scripts/fetch-quran-text.ts",
-		"mushaf:import": "tsx scripts/import-hayrat-mushaf.ts"
+		"quran:fetch": "tsx scripts/fetch-quran-text.ts"
 	},
 	"dependencies": {
 		"@clerk/express": "^1.7.69",

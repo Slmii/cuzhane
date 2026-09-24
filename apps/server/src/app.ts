@@ -10,8 +10,8 @@ import feedbackRouter from '@routes/feedback.route';
 import groupsRouter from '@routes/groups.route';
 import healthRouter from '@routes/health.route';
 import membershipRouter from '@routes/membership.route';
-import profileRouter from '@routes/profile.route';
 import notificationsRouter from '@routes/notifications.route';
+import profileRouter from '@routes/profile.route';
 import pushTokenRouter from '@routes/pushToken.route';
 import quranRouter from '@routes/quran.route';
 import userSettingsRouter from '@routes/userSettings.route';
@@ -45,23 +45,19 @@ export const createApp = () => {
 	// Public routes
 	app.use(healthRouter);
 
-	/*
-	 * The Hüsrev mushaf's page images, from `scripts/import-hayrat-mushaf.ts` — public, like the
-	 * printed page they are. For development: the folder is gitignored and not in the image, so
-	 * in production this finds nothing and Caddy answers `/mushaf/*` before it gets here. A page
-	 * never changes, hence the year-long cache; `cross-origin` so the web build can draw one.
-	 */
+	// Protected routes — require a valid Clerk session
+	app.use('/api', requireAuthApi, populateAuthLocals);
 	app.use(
-		'/mushaf',
+		'/api/mushaf',
 		express.static(resolve(import.meta.dirname, '../mushaf'), {
 			immutable: true,
 			maxAge: '365d',
-			setHeaders: res => res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
+			setHeaders: res => {
+				res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
+				res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+			}
 		})
 	);
-
-	// Protected routes — require a valid Clerk session
-	app.use('/api', requireAuthApi, populateAuthLocals);
 	app.use('/api/groups', groupsRouter);
 	app.use('/api/memberships', membershipRouter);
 	app.use('/api/babs', babsRouter);

@@ -341,6 +341,47 @@ describe('a hatim counts to thirty, not a hundred', () => {
 	});
 });
 
+describe('a hatim owes what was held, not what a seat derives', () => {
+	/*
+	 * A hatim member holds specific cüz, round by round, in `CuzHolding`. The seat maths the
+	 * Cevşen uses would hand them a block of the thirty that has nothing to do with them: at
+	 * ten seats, cüz 1–10 all fall to seat 0. The cases below are chosen where the two answers
+	 * differ — cüz 3 held by seat 1, cüz 20 held by nobody.
+	 */
+	const hold = (groupId: string, roundIndex: number, cuzNumber: number, userId: string) =>
+		prisma.cuzHolding.create({ data: { cuzNumber, groupId, roundIndex, userId } });
+
+	it('names the holder of each cüz in a closed round, and nobody for an unheld one', async () => {
+		const group = await createGroup({ kind: 'HATIM', startedDaysAgo: 2 });
+
+		await hold(group.id, 0, 3, SEAT_ONE);
+		await hold(group.id, 0, 7, OWNER);
+
+		const round = await getRoundDetailForUser(OWNER, group.id, 0);
+		const cuz = (number: number) => round.babs.find(bab => bab.number === number);
+
+		expect(cuz(3)).toMatchObject({ owedByUserId: SEAT_ONE, owedBySlotIndex: 1, isPool: false });
+		expect(cuz(7)).toMatchObject({ owedByUserId: OWNER, owedBySlotIndex: 0, isPool: false });
+		expect(cuz(20)).toMatchObject({ owedByUserId: null, owedBySlotIndex: null, isPool: true });
+		// Two holders, both missed everything they held.
+		expect(round.missedPeopleCount).toBe(2);
+	});
+
+	it("counts a member's owed cüz from their holdings", async () => {
+		const group = await createGroup({ kind: 'HATIM', startedDaysAgo: 2 });
+
+		await hold(group.id, 0, 7, OWNER);
+		await hold(group.id, 0, 12, OWNER);
+		await hold(group.id, 1, 30, OWNER);
+
+		const rounds = await listRoundsForUser(OWNER, group.id);
+
+		expect(rounds.find(round => round.roundIndex === 0)?.myOwedCount).toBe(2);
+		expect(rounds.find(round => round.roundIndex === 1)?.myOwedCount).toBe(1);
+		expect(rounds.find(round => round.roundIndex === 2)?.myOwedCount).toBe(0);
+	});
+});
+
 describe('covering a closed round is silent', () => {
 	/*
 	 * **Nothing about a closed round may notify anybody**, and the guarantee currently rests

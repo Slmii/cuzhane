@@ -122,22 +122,26 @@ changed and failed; either way, look before pushing again.
 
 ## The Hüsrev mushaf pages
 
-The Kuran reader's Hüsrev mode draws 605 page images (91 MB) that are **not in the repo** and
-**not built by CI**. Caddy serves them from `/opt/cuzhane/mushaf` at `/mushaf/page-NNN.png` on
-both API domains (the `mushaf` snippet in the Caddyfile). They are generated locally by
-`pnpm --filter @cuzhane/server mushaf:import` into `apps/server/mushaf/`.
+The Kuran reader's Hüsrev mode draws 605 page images plus the four pages of the Hatim duası
+(91 MB) that are **not in the repo**. They live locally in`apps/server/mushaf/`,
+and nothing in the repo regenerates them — keep a copy.
+
+**The API serves them, behind its auth gate**, at `/api/mushaf/page-NNN.png` and
+`/api/mushaf/dua-N.png` — signed-in readers only. Both API containers mount `/opt/cuzhane/mushaf` read-only at the path the server
+reads (`compose.yml`); Caddy only proxies. They used to be served publicly by Caddy at
+`/mushaf/*`, and that route is gone.
 
 Upload them **before** the first deploy that mounts the folder — if it does not exist, Docker
 creates it owned by root and the upload then fails for want of permission:
 
 ```
-ssh <droplet> 'mkdir -p /opt/cuzhane/mushaf'
-rsync -az --checksum apps/server/mushaf/ <droplet>:/opt/cuzhane/mushaf/
+ssh cuzhane 'mkdir -p /opt/cuzhane/mushaf'
+rsync -az --checksum apps/server/mushaf/ cuzhane:/opt/cuzhane/mushaf/
 ```
 
-Pass condition: `curl -sI https://$DOMAIN/mushaf/page-000.png` answers `200` with
-`Cache-Control: public, max-age=31536000, immutable`. Re-run the `rsync` only if the import is
-re-run; a page never changes, which is why it is cached for a year.
+Pass condition: `curl -sI https://$DOMAIN/api/mushaf/page-000.png` answers `401` (no session),
+and the app draws a Hüsrev page. Re-run the `rsync` only if the import is re-run; a page never
+changes, which is why a signed-in device keeps it for a year.
 
 ## Rolling back
 

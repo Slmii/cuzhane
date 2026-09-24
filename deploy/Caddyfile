@@ -19,20 +19,6 @@
 	}
 }
 
-# The Hüsrev mushaf's page images, `/mushaf/page-NNN.png`, answered from disk on both API domains
-# before anything reaches Express — the same path the dev API serves, so the app does not change.
-# Uploaded by hand into /opt/cuzhane/mushaf (see deploy/README.md), mounted at /srv/mushaf; the
-# root is /srv so the URL's own `/mushaf/` is the folder. A page never changes, so a year's cache;
-# `cross-origin` so the web build may draw one, as the dev route allows.
-(mushaf) {
-	handle /mushaf/* {
-		root * /srv
-		header Cache-Control "public, max-age=31536000, immutable"
-		header Cross-Origin-Resource-Policy cross-origin
-		file_server
-	}
-}
-
 # The marketing site: static files, built by CI and rsynced into /opt/cuzhane/www. Its own
 # certificate, issued the same way — the A record for this name must point here too.
 {$SITE_DOMAIN} {
@@ -78,8 +64,6 @@
 		output stdout
 	}
 
-	import mushaf
-
 	handle {
 		reverse_proxy api-preview:3001
 	}
@@ -108,8 +92,6 @@
 	log {
 		output stdout
 	}
-
-	import mushaf
 
 	handle {
 		reverse_proxy api:3001

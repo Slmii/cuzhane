@@ -73,7 +73,7 @@ describe('the bundled Hüsrev mushaf data', () => {
 	});
 
 	it('names each page file by its three-digit number', () => {
-		expect(mushafPagePath(0)).toBe('/mushaf/page-000.png');
-		expect(mushafPagePath(525)).toBe('/mushaf/page-525.png');
+		expect(mushafPagePath(0)).toBe('/api/mushaf/page-000.png');
+		expect(mushafPagePath(525)).toBe('/api/mushaf/page-525.png');
 	});
 });

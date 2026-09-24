@@ -449,12 +449,24 @@ export const toGroupMember = (
 	viewerUserId: string,
 	/** Live names and photos by user id — see `getMemberProfiles`. Absent where a caller has
 	 *  not looked them up, in which case the stored name stands on its own. */
-	profiles?: Map<string, MemberProfile>
+	profiles?: Map<string, MemberProfile>,
+	/** This round's cüz holdings; empty for a Cevşen group. */
+	holdings: PlanHolding[] = []
 ): GroupMember => {
-	// The member list shows what each person is reading *today*, so it goes through the same
-	// rotation the viewer's own share does. Filtering by `assignedUserId` would show every
-	// member their day-1 block forever.
-	const babNumbers = babNumbersInRound(group, member.slotIndex, roundIndexFor(group));
+	/*
+	 * The member list shows what each person is reading *today*. A Cevşen member's share goes
+	 * through the same rotation the viewer's own does — filtering by `assignedUserId` would
+	 * show every member their day-1 block forever. **A hatim member's is what they hold this
+	 * round**: the seat maths would hand them a slice of the hundred that names no cüz anyone
+	 * holds, and it would always read 0%.
+	 */
+	const babNumbers =
+		group.kind === 'HATIM'
+			? holdings
+					.filter(holding => holding.userId === member.userId)
+					.map(holding => holding.cuzNumber)
+					.sort((a, b) => a - b)
+			: babNumbersInRound(group, member.slotIndex, roundIndexFor(group));
 	const babNumberSet = new Set(babNumbers);
 	const memberBabs = babs.filter(bab => babNumberSet.has(bab.number));
 	const readCount = memberBabs.filter(bab => bab.readAt !== null).length;
@@ -546,7 +558,7 @@ export const toGroupDetail = (
 		members: members
 			.slice()
 			.sort((a, b) => a.slotIndex - b.slotIndex)
-			.map(member => toGroupMember(group, member, babs, cheers, viewerUserId, profiles))
+			.map(member => toGroupMember(group, member, babs, cheers, viewerUserId, profiles, holdings))
 	};
 };
 

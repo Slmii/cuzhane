@@ -56,7 +56,7 @@ const RING_POP = {
  * **Always the green page, light mode or dark**, as the design draws it — so its colours are the
  * fixed `hatimCompletePalette`, not the theme's `headerSurface`, which darkens in dark mode.
  *
- * **"Hatim duası"** opens `HatimDuaScreen` — Hayrat's own pages of the du'a, never typeset here.
+ * **"Hatim duası"** opens `HatimDuaScreen` — the edition's own pages of the du'a, never typeset here.
  *
  * The foot line is the way on: "Yeni tur N gün sonra başlar" back to the group, "Devam" when a
  * completed round is only being seen after its boundary (QR1 comes next), and "Gruba dön" for a
@@ -257,7 +257,7 @@ export const HatimCompleteScreen = ({ navigation, route }: Props) => {
 				<View style={styles.actions}>
 					{/*
 					 * The design's "Hatim duası": a white button in the page's own green,
-					 * `padding: 17px; border-radius: 16px; font: 600 14px`. It opens Hayrat's pages of
+					 * `padding: 17px; border-radius: 16px; font: 600 14px`. It opens the edition's pages of
 					 * the du'a in Hüsrev hattı — the one sourced text of it the app carries.
 					 */}
 					<Pressable

@@ -11,13 +11,14 @@ import { requireMembership, requireOwner } from './groupAccess.service';
 import { getMemberProfiles } from '@utils/memberProfiles';
 import { toGroupDetail, toGroupMember, toInvitePreview } from './groupSerializers';
 import { poolBlockFor } from './pool.service';
-import { holdingsFor } from './unitPlan';
+import { holdingsFor, roundIndexFor } from './unitPlan';
 import { recordNotification } from './notifications.service';
 import { notifyGroupMembers } from './groupEvents.service';
 import { memberJoinedPush, memberLeftPush } from '@utils/pushCopy';
 import { sendPushToUser } from './push.service';
 import { poolClaimReleasedPush, pushLanguageFor } from '@utils/pushCopy';
 import type { GroupDetail, GroupInvitePreview, GroupMember } from './groupSerializers';
+import { ensureCurrentRoundFor } from './rounds.service';
 
 const loadDetail = async (groupId: string, viewerUserId: string): Promise<GroupDetail> => {
 	const group = await prisma.group.findUniqueOrThrow({
@@ -527,6 +528,9 @@ export const removeMemberForUser = async (
 export const listMembersForUser = async (userId: string, groupId: string): Promise<GroupMember[]> => {
 	const normalizedUserId = normalizeUserId(userId);
 	await requireMembership(normalizedUserId, groupId);
+	// Roll the round first, as every other read path does — otherwise the first request after
+	// a boundary lists the round that just closed, its reads and (for a hatim) its holdings.
+	await ensureCurrentRoundFor(groupId);
 
 	// The group itself is needed now: which block a member is reading depends on the plan
 	// and the day, not just on the bab rows.
@@ -539,7 +543,11 @@ export const listMembersForUser = async (userId: string, groupId: string): Promi
 
 	// Photos come from Clerk, not the database — the app never copies them. Cached briefly,
 	// because this list polls every 30 seconds while anyone has it open.
-	const profiles = await getMemberProfiles(members.map(member => member.userId));
+	const [profiles, holdings] = await Promise.all([
+		getMemberProfiles(members.map(member => member.userId)),
+		// A hatim member's numbers are the cüz they hold this round — see `toGroupMember`.
+		holdingsFor(prisma, group, roundIndexFor(group) ?? 0)
+	]);
 
-	return members.map(member => toGroupMember(group, member, babs, cheers, normalizedUserId, profiles));
+	return members.map(member => toGroupMember(group, member, babs, cheers, normalizedUserId, profiles, holdings));
 };

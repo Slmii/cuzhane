@@ -786,7 +786,7 @@ const tr = {
 	qHatimDoneSub: 'Otuz cüzün hepsi okundu. Emeği geçen herkesten Allah razı olsun.',
 	qReaders: 'okuyan',
 	qNextRoundIn: 'Yeni tur {n} gün sonra başlar',
-	// The Hatim duası — Hayrat's own four pages in Hüsrev hattı, opened from Q7 and the group screen.
+	// The Hatim duası — the edition's own four pages in Hüsrev hattı, opened from Q7 and the group screen.
 	qHatimDua: 'Hatim duası',
 	qHatimDuaSub: 'Hüsrev hattı',
 	qHatimDuaPages: '{n} sayfa · Hüsrev hattı',

@@ -36,10 +36,7 @@ export const mushafPaperGeometry = (paperWidth: number) => {
 };
 
 /**
- * One page of the Hüsrev mushaf, as its publisher printed it — **used with Hayrat Vakfı's
- * written permission**; the privacy page carries the credit.
- *
- * **The paper is always light** (`mushafPaper`): the image is black ink on a transparent
+ * The paper is always light** (`mushafPaper`): the image is black ink on a transparent
  * ground. It is laid out at the page's own shape before the image arrives, so the reader never
  * jumps when it lands.
  *

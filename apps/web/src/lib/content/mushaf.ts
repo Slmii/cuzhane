@@ -1,20 +1,5 @@
 import data from './mushaf.data.json';
 
-/**
- * Hayrât Neşriyat's Ahmed Hüsrev hattı Tevâfuklu Kur'ân-ı Kerîm, **used with Hayrat Vakfı's
- * written permission** — what the cüz reader shows when "Hüsrev hattı" is chosen.
- *
- * The pages themselves are images, served at `/mushaf/page-NNN.png` and kept on the device once
- * read (`useMushafPage`). This is the small part that is bundled: which ayahs each page holds
- * and which pages each cüz spans, generated from the publisher's own database by
- * `apps/server/scripts/import-hayrat-mushaf.ts` — never edited by hand.
- *
- * **Pages count from 0**, as that database does: 0 is Fâtiha on its own framed page. **Its cüz
- * are its own**, twenty whole pages each, so eight of them start or end a few ayahs away from
- * the Madinah cüz in `cuz.data.json` — the page in front of the reader is the edition's, and so
- * is its division.
- */
-
 export type MushafVerse = { chapter: number; ayah: number };
 
 /** The first and last ayah a page holds. */
@@ -64,11 +49,11 @@ export const mushafPageSecde = (page: number): MushafSecde | undefined => {
 	return entry ? { ayah: entry[2], sura: entry[1], x: entry[3], y: entry[4] } : undefined;
 };
 
-/** The file a page is served as, relative to the API's origin. */
-export const mushafPagePath = (page: number) => `/mushaf/page-${String(page).padStart(3, '0')}.png`;
+/** The file a page is served as, relative to the API's origin — behind the auth gate. */
+export const mushafPagePath = (page: number) => `/api/mushaf/page-${String(page).padStart(3, '0')}.png`;
 
 /**
  * The Hatim duası in this edition's own hand: the four pages its app sets after the mushaf, in
- * order, served beside the pages (`scripts/import-hayrat-mushaf.ts`).
+ * order, served beside the pages.
  */
-export const MUSHAF_DUA_PATHS = [1, 2, 3, 4].map(index => `/mushaf/dua-${index}.png`);
+export const MUSHAF_DUA_PATHS = [1, 2, 3, 4].map(index => `/api/mushaf/dua-${index}.png`);

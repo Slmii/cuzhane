@@ -346,7 +346,7 @@ export type ReaderNumerals = 'arabic' | 'latin';
 export type ReaderArabicFont = 'naskh' | 'amiri' | 'uthman' | 'husrev';
 
 /**
- * The faces that set text. `husrev` is not one: it is Hayrât Neşriyat's Hüsrev hattı mushaf,
+ * The faces that set text. `husrev` is not one: it is the Hüsrev hattı mushaf,
  * which the Kuran reader shows as its **page images** — so only that reader offers it, and
  * everything that sets Arabic in a font takes this type instead.
  */

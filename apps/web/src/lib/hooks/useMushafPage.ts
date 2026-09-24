@@ -1,3 +1,4 @@
+import { authorizationHeader } from '@/api/wrapper.api';
 import { API_BASE_URL } from '@/lib/constants';
 import { mushafQueryKeys } from '@/lib/hooks/queryKeys';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -5,26 +6,49 @@ import { Directory, File, Paths } from 'expo-file-system';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 
-/**
- * A Hüsrev mushaf page as a file on this device, fetched the first time it is opened.
- *
- * **Downloaded once, then kept**, in the cache directory: a page never changes, so after a cüz
- * has been read it opens offline and instantly. The OS may clear the cache under pressure,
- * which costs a re-download and nothing else. 91 MB for the whole mushaf is too much to bundle,
- * and about 3 MB for a cüz is a fair wait on first opening.
- *
- * **Written under a `.part` name and moved into place.** On Android a download streams straight
- * into its destination, so one that fails halfway leaves half a PNG behind — and a later open
- * would find the file, trust it, and draw a torn page forever. Only a finished file is ever
- * named `page-NNN.png`.
- */
 const pagesDirectory = () => new Directory(Paths.cache, 'mushaf');
 
+/*
+ * **A page download waits for the session only briefly.** Offline, Clerk's `getToken` keeps
+ * retrying for minutes before it gives up, and an uncached page sat spinning all that time
+ * instead of offering Tekrar dene. Past this, the download fails like any other.
+ */
+const TOKEN_TIMEOUT_MS = 8000;
+
+const pageAuthorization = () =>
+	Promise.race([
+		authorizationHeader(),
+		new Promise<never>((_, reject) =>
+			setTimeout(() => reject(new Error('No session for the page download')), TOKEN_TIMEOUT_MS)
+		)
+	]);
+
+/**
+ * Web only: the object URL each page was drawn from, kept so a page opened again reuses it
+ * rather than minting another blob that nothing ever frees. Released when the page is
+ * redownloaded.
+ */
+const webPageUrls = new Map<string, string>();
+
 const ensurePage = async (path: string): Promise<string> => {
-	// The web build has no file system to keep a page in — Expo's is a stub there — and the
-	// browser caches the image by its own headers, which the server sets to a year.
 	if (Platform.OS === 'web') {
-		return `${API_BASE_URL}${path}`;
+		const kept = webPageUrls.get(path);
+
+		if (kept) {
+			return kept;
+		}
+
+		const response = await fetch(`${API_BASE_URL}${path}`, { headers: await pageAuthorization() });
+
+		if (!response.ok) {
+			throw new Error(`Page ${path} answered ${response.status}`);
+		}
+
+		const url = URL.createObjectURL(await response.blob());
+
+		webPageUrls.set(path, url);
+
+		return url;
 	}
 
 	const name = path.slice(path.lastIndexOf('/') + 1);
@@ -37,7 +61,10 @@ const ensurePage = async (path: string): Promise<string> => {
 
 	directory.create({ idempotent: true, intermediates: true });
 
+	const headers = await pageAuthorization();
+
 	const partial = await File.downloadFileAsync(`${API_BASE_URL}${path}`, new File(directory, `${name}.part`), {
+		headers,
 		idempotent: true
 	});
 
@@ -74,6 +101,13 @@ export const useMushafPage = (path: string, nextPath: string | undefined) => {
 	}, [nextPath, queryClient]);
 
 	const redownload = () => {
+		const kept = webPageUrls.get(path);
+
+		if (kept) {
+			URL.revokeObjectURL(kept);
+			webPageUrls.delete(path);
+		}
+
 		if (query.data && Platform.OS !== 'web') {
 			try {
 				new File(query.data).delete();
