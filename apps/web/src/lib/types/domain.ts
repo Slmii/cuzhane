@@ -213,8 +213,6 @@ export type GroupInvitePreview = {
 	roundDayIndex: number | null;
 	timezone: string;
 	createdByName: string;
-	/** The first couple of members by seat; the rest are counted off `memberCount`. */
-	memberNames: string[];
 };
 
 /**

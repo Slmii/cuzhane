@@ -204,7 +204,8 @@ export type GroupInvitePreview = {
 	 * every taken cell on QJ3, and it was built that way and taken out again: this payload
 	 * answers a *non-member*, and who is reading what is the group's business rather than a
 	 * prospective joiner's. The map still says which cüz are gone, which is the whole of
-	 * what someone picking needs. `memberNames` names two members and no more.
+	 * what someone picking needs. Nor are the members' names: a non-member sees how many are
+	 * there, never who — `memberNames` (the first two by seat) was removed for that reason.
 	 */
 	/** When the current round rolls, so the preview can say what a joiner is joining into. */
 	roundEndsAt: string | null;
@@ -218,12 +219,6 @@ export type GroupInvitePreview = {
 	timezone: string;
 	/** The creator's display name, for the preview's "Kuran" row. */
 	createdByName: string;
-	/**
-	 * The first couple of members by seat, for the preview's "who is already here" line.
-	 * Capped rather than complete: the line names two and counts the rest off `memberCount`,
-	 * so sending a hundred names to render two would be waste.
-	 */
-	memberNames: string[];
 };
 
 /*
@@ -555,9 +550,6 @@ export const toGroupDetail = (
 	};
 };
 
-/** How many members the preview names before falling back to "+N". */
-const PREVIEW_MEMBER_NAMES = 2;
-
 export const toInvitePreview = (
 	group: Group,
 	babs: GroupBabModel[],
@@ -650,11 +642,6 @@ export const toInvitePreview = (
 			: null,
 		timezone: group.timezone,
 		createdByName: members.find(member => member.userId === group.ownerUserId)?.displayName ?? '',
-		memberNames: members
-			.slice()
-			.sort((a, b) => a.slotIndex - b.slotIndex)
-			.slice(0, PREVIEW_MEMBER_NAMES)
-			.map(member => member.displayName),
 		nextRange
 	};
 };

@@ -396,13 +396,6 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 		</CardSurface>
 	);
 
-	// "Zeynep K., Emre T. +12" — two names and a count, since the preview is only handed
-	// the first couple.
-	const unnamedCount = Math.max(0, data.memberCount - data.memberNames.length);
-	const waitingLabel = [data.memberNames.join(', '), unnamedCount > 0 ? t('andMore', { count: unnamedCount }) : '']
-		.filter(Boolean)
-		.join(' ');
-
 	return (
 		<ScreenContainer contentContainerStyle={styles.content} isScrollable pullToRefresh={pullToRefresh}>
 			<View>
@@ -601,9 +594,12 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 					</CardSurface>
 				)}
 
-				{/* Who is already here. A running group states it as one line; a gathering one
-				    gives it an eyebrow, because "who is waiting with me" is the question that
-				    screen is actually about. */}
+				{/*
+				 * How many are already here — a count, never who. A running group states it as
+				 * one line. A gathering one used to name its first two members under "Bekleyen
+				 * üyeler"; that was removed on request, because whoever reads this has not joined
+				 * and a group's members are its own business. The server no longer sends names.
+				 */}
 				{isRunning ? (
 					<View style={styles.membersRow}>
 						<SeatStack />
@@ -611,17 +607,7 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 							{t('whoIsInCount', { count: data.memberCount })}
 						</CaptionText>
 					</View>
-				) : (
-					<View style={styles.waitingBlock}>
-						<EyebrowText color={theme.colors.faintText} style={styles.waitingEyebrow}>
-							{t('waitingMembers')}
-						</EyebrowText>
-						<View style={styles.membersRow}>
-							<SeatStack />
-							<CaptionText color={theme.colors.subtext}>{waitingLabel}</CaptionText>
-						</View>
-					</View>
-				)}
+				) : null}
 			</View>
 			<View style={styles.footer}>
 				{/* The label states the outcome: a running group hands you babs now, a
@@ -741,12 +727,6 @@ const styles = StyleSheet.create({
 	},
 	startsNote: {
 		marginTop: 13
-	},
-	waitingBlock: {
-		marginTop: 18
-	},
-	waitingEyebrow: {
-		marginBottom: 9
 	},
 	metaRow: {
 		alignItems: 'center',

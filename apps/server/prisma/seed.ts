@@ -939,11 +939,12 @@ type HatimSeed = {
 };
 
 /**
- * Six fixtures, covering the states the Kur'an screens can render.
+ * The fixtures covering the states the Kur'an screens can render.
  *
  * Between them: a lobby still filling, a round in progress with cüz nobody has taken, a
- * capped group, a custom length that no cadence name describes, a finished hatim, and one
- * the signed-in user belongs to without owning.
+ * capped group, a custom length that no cadence name describes, a finished hatim, one the
+ * signed-in user belongs to without owning, and a lobby they have joined but do not own
+ * ("Bekleyen Hatim") — the waiting side, with no Başlat.
  */
 const HATIM_GROUPS: HatimSeed[] = [
 	{
@@ -1417,6 +1418,28 @@ const HATIM_GROUPS: HatimSeed[] = [
 		members: [
 			{ name: 'Sen', cuz: [22] },
 			{ name: 'Talha Ünal', cuz: [1, 2] }
+		]
+	},
+	{
+		name: 'Bekleyen Hatim',
+		dedication: 'Başlatılmasını bekliyoruz',
+		inviteCode: codeFor('QURNJ3E5'),
+		ownerUserId: 'dev_hatim_w_0',
+		memberIdPrefix: 'dev_hatim_w',
+		// The signed-in user joined somebody else's lobby: a member, not the owner, before the
+		// start — the lobby's waiting side, where there is no Başlat to press.
+		slotUserIds: { 1: OWNER_USER_ID },
+		roundDays: 7,
+		repeats: true,
+		maxPerMember: 3,
+		boundaryPolicy: 'KEEP',
+		visibility: 'PRIVATE',
+		status: 'GATHERING',
+		autoStartWhenFull: false,
+		members: [
+			{ name: 'Hüseyin Arslan', cuz: [3, 4] },
+			{ name: 'Sen', cuz: [9, 10] },
+			{ name: 'Merve Çelik', cuz: [17] }
 		]
 	}
 ];

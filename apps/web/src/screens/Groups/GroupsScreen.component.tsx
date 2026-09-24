@@ -147,6 +147,9 @@ export const GroupsScreen = () => {
 							actionLabel={item.isOwner ? t('startNow') : t('viewLobby')}
 							badgeLabel={t('lobbyState')}
 							badgeTone='sand'
+							// The same ghost "Kurucu" tag the running card carries, so a group
+							// doesn't stop saying it is yours while it gathers.
+							{...(item.isOwner ? { extraBadges: [{ label: t('creator') }] } : {})}
 							footerCaption={
 								item.isOwner ? `${openSpots} ${t('openSpots')}` : formatBabRange(item.myBabNumbers)
 							}
