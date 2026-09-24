@@ -17,6 +17,16 @@ const DEDICATION_MAX = 120;
 export const SPOTS_VALUES = [5, 10, 20];
 
 /**
+ * The thirty cüz of a hatim. Mirrors `CUZ_COUNT` on the server — a member may hold every one
+ * of them, so it doubles as the ceiling on QC2's per-person cap.
+ */
+export const CUZ_COUNT = 30;
+
+/** QC3's three presets, ascending, and the bound on what its stepper may be walked to. */
+export const ROUND_DAYS_PRESETS = [1, 7, 30];
+export const ROUND_DAYS_MAX = 90;
+
+/**
  * The three things a group can still be told after it exists — Yönet's "Grup bilgileri".
  * Everything else about a group is either immutable (`spots`, `splitMode`, `cycle`, which the
  * hundred is divided by) or a switch that saves on the spot rather than through a form.
@@ -46,7 +56,34 @@ export const createGroupSchema = (t: Translate) =>
 			.int()
 			.refine(value => SPOTS_VALUES.includes(value), { message: t('fieldRequired') })
 			.default(20),
-		cycle: z.enum(['DAILY', 'WEEKLY']).default('DAILY')
+		cycle: z.enum(['DAILY', 'WEEKLY']).default('DAILY'),
+		/*
+		 * **One flat form for both kinds, even though the payload is a union.** The server takes
+		 * a discriminated body — a hatim carries no `spots`, a Cevşen group no `maxPerMember` —
+		 * but a *form* is a set of controls, and half of them are simply never rendered. Making
+		 * the resolver a union instead would mean the fields on the unrendered branch fail
+		 * validation while their step is unreachable, and `trigger` is what moves this form
+		 * forward. `CreateGroupScreen` reads only the half its `kind` asked for when it submits.
+		 */
+		kind: z.enum(['CEVSEN', 'HATIM']).default('CEVSEN'),
+		/*
+		 * **One distribution, not three.** QC2 draws a single card — everyone takes what they
+		 * want from the map — so this is a literal rather than a choice. The other two values
+		 * survive in the database enum (dropping one is destructive) and nothing can pick them.
+		 */
+		distribution: z.literal('FREE_PICK').default('FREE_PICK'),
+		/**
+		 * Whether QC2's cap applies at all — the switch above the stepper, **off by default**.
+		 * A separate field from the number rather than a nullable one: the stepper binds a
+		 * value and has to keep holding it while the switch is off, or turning the cap back on
+		 * would reset it to three and lose what was chosen a second earlier.
+		 */
+		hasMaxPerMember: z.boolean().default(false),
+		/** The cap itself, read only while `hasMaxPerMember` is on. */
+		maxPerMember: z.number().int().min(1).max(CUZ_COUNT).default(3),
+		boundaryPolicy: z.enum(['KEEP', 'REPICK']).default('KEEP'),
+		/** QC3's round length in days — 7, 30, or whatever the stepper was walked to. */
+		roundDays: z.number().int().min(1).max(ROUND_DAYS_MAX).default(30)
 		/*
 		 * No `reminderEnabled` / `reminderTime`. The server's body schema still has them and
 		 * still requires the time, but they stopped being *form* fields when the reminder came

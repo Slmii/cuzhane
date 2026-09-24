@@ -1,6 +1,7 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/generated/prisma/client';
 import { BAB_COUNT, babNumbersForRound, babNumbersForSlot } from '../src/utils/babs';
+import { CUZ_COUNT } from '../src/utils/units';
 import { INVITE_CODE_ALPHABET } from '../src/utils/inviteCode';
 import { DEFAULT_TIME_ZONE, ROUND_DAYS, roundEndsAt, roundIndexSince, roundStartedAtFor } from '../src/utils/rounds';
 
@@ -104,17 +105,20 @@ const assertNamespaceIsUsable = () => {
 
 	if (SEED_NAMESPACE.length !== 1 || !INVITE_CODE_ALPHABET.includes(SEED_NAMESPACE)) {
 		throw new Error(
-			`SEED_NAMESPACE must be exactly one character from ${INVITE_CODE_ALPHABET} — got ${JSON.stringify(SEED_NAMESPACE)}.`
+			`SEED_NAMESPACE must be exactly one character from ${INVITE_CODE_ALPHABET} — got ${JSON.stringify(
+				SEED_NAMESPACE
+			)}.`
 		);
 	}
 
 	/*
-	 * The fifteen base codes have distinct first seven characters, so swapping the eighth keeps
-	 * them unique among themselves. Asserted rather than assumed: a future fixture whose code
-	 * differs from another's only in its last character would silently seed fourteen groups,
-	 * the second quietly deleting the first.
+	 * The base codes have distinct first seven characters, so swapping the eighth keeps them
+	 * unique among themselves. Asserted rather than assumed: a fixture whose code differs from
+	 * another's only in its last character would silently seed one group fewer, the second
+	 * quietly deleting the first. **Both sets are checked** — the hatim codes were added later
+	 * and left out of this at first, which is exactly how that goes unnoticed.
 	 */
-	const codes = GROUPS.map(spec => codeFor(spec.inviteCode));
+	const codes = [...GROUPS.map(spec => codeFor(spec.inviteCode)), ...HATIM_GROUPS.map(spec => spec.inviteCode)];
 	const collisions = [...new Set(codes.filter((code, index) => codes.indexOf(code) !== index))];
 
 	if (collisions.length > 0) {
@@ -700,7 +704,9 @@ const seedGroup = async (spec: GroupSeed) => {
 	const roundDays = ROUND_DAYS[spec.cycle];
 	const roundIndex = startedAt ? roundIndexSince(startedAt, roundDays, now, DEFAULT_TIME_ZONE) : 0;
 	const roundStartedAt = startedAt ? roundStartedAtFor(startedAt, roundDays, roundIndex, DEFAULT_TIME_ZONE) : null;
-	const endsAt = roundStartedAt ? roundEndsAt(roundStartedAt, spec.cycle, DEFAULT_TIME_ZONE) : undefined;
+	// `roundDays`, not `spec.cycle`: the boundary is a number of days now, and a cadence name
+	// reaching `Math.floor` is NaN — which the zone formatter then throws on.
+	const endsAt = roundStartedAt ? roundEndsAt(roundStartedAt, roundDays, DEFAULT_TIME_ZONE) : undefined;
 
 	const group = await prisma.group.create({
 		data: {
@@ -716,6 +722,10 @@ const seedGroup = async (spec: GroupSeed) => {
 			...(endsAt ? { endsAt } : {}),
 			autoStartWhenFull: spec.autoStartWhenFull,
 			cycle: spec.cycle,
+			// Stored, never inferred from the cadence: the column defaults to 7, so a DAILY
+			// fixture that omits it seeds a group whose rounds are a week long. The backfill
+			// migration only reached rows that already existed.
+			roundDays,
 			spots: spec.spots,
 			inviteCode,
 			openToJoin: true,
@@ -873,11 +883,804 @@ const seedGroup = async (spec: GroupSeed) => {
 	);
 };
 
+/*
+ * ── Kur'an (hatim) fixtures ──────────────────────────────────────────────────────────────
+ *
+ * **A separate builder, not a `kind` flag through `seedGroup`.** That function derives every
+ * bab from a seat and a rotation — which block a seat reads, which blocks an empty seat
+ * leaves in the pool, who owed what in a closed round. None of it applies here: a hatim's
+ * thirty cüz are *chosen*, stored one `CuzHolding` row at a time, and a member may hold six
+ * or one. Threading a branch through all of that would have left two rules tangled in one
+ * function; the two divide differently, so the fixtures do too.
+ */
+
+/**
+ * A member and the cüz they hold, with how many of those they have read. `loanCuz` marks the
+ * ones taken out of the havuz — loans, which the rollover never carries forward.
+ */
+type HatimMemberSeed = { name: string; cuz: number[]; readCuz?: number[]; loanCuz?: number[] } | null;
+
+type HatimSeed = {
+	name: string;
+	dedication: string;
+	inviteCode: string;
+	ownerUserId: string;
+	memberIdPrefix: string;
+	/** Seat -> user override, for fixtures where the signed-in user is not the owner. */
+	slotUserIds?: Record<number, string>;
+	/** How many days a round runs. */
+	roundDays: number;
+	/**
+	 * Whether the hatim comes round again — QC3's three cadences do, "Tek seferlik" does not.
+	 *
+	 * **Stated, not inferred from `roundDays`.** The cycle used to be derived from the number
+	 * alone: 1, 7 and 30 were cadences and everything else was CUSTOM. That reads fine until
+	 * a fixture wants a repeating fifteen-day round and silently gets a one-off — the seed
+	 * would have been describing a group the create flow cannot produce, and nothing would
+	 * have said so.
+	 */
+	repeats: boolean;
+	/** Null means QC2's cap is off, which is the default a group is created with. */
+	maxPerMember: number | null;
+	boundaryPolicy: 'KEEP' | 'REPICK';
+	visibility: 'OPEN' | 'PRIVATE';
+	status: 'GATHERING' | 'RUNNING';
+	startedDaysAgo?: number;
+	autoStartWhenFull: boolean;
+	members: HatimMemberSeed[];
+	/**
+	 * What each seat held and read in the round **before** the one in progress, seat for seat
+	 * with `members` (only `cuz`, `readCuz` and `loanCuz` are read from it). For the round-start
+	 * screens: QR1 lists last round's cüz and offers them again, and Q7 celebrates a round that
+	 * closed complete. A fixture with one also dates its members' joining to that round's start,
+	 * so they count as having been there — a member who joined this round has no last round.
+	 */
+	previousRound?: HatimMemberSeed[];
+};
+
+/**
+ * Six fixtures, covering the states the Kur'an screens can render.
+ *
+ * Between them: a lobby still filling, a round in progress with cüz nobody has taken, a
+ * capped group, a custom length that no cadence name describes, a finished hatim, and one
+ * the signed-in user belongs to without owning.
+ */
+const HATIM_GROUPS: HatimSeed[] = [
+	{
+		name: 'Ramazan Hatmi',
+		dedication: 'Ramazan ayı için',
+		inviteCode: codeFor('QURN1A2B'),
+		ownerUserId: OWNER_USER_ID,
+		memberIdPrefix: 'dev_hatim_a',
+		// Thirty days, so the cadence label reads "Aylık" — the preset QC3 offers.
+		roundDays: 30,
+		repeats: true,
+		maxPerMember: 3,
+		boundaryPolicy: 'KEEP',
+		visibility: 'OPEN',
+		status: 'RUNNING',
+		startedDaysAgo: 6,
+		autoStartWhenFull: false,
+		// 21 of 30 taken, 9 still in the pool — the state Q4 exists for.
+		members: [
+			{ name: 'Sen', cuz: [7, 22], readCuz: [7] },
+			{ name: 'Ayşe Yılmaz', cuz: [1, 2, 3], readCuz: [1, 2, 3] },
+			{ name: 'Mehmet Kaya', cuz: [4, 5], readCuz: [4] },
+			{ name: 'Zeynep Arslan', cuz: [6, 8, 9] },
+			{ name: 'Ali Demir', cuz: [10, 11, 12], readCuz: [10, 11] },
+			{ name: 'Fatma Şahin', cuz: [13, 14] },
+			{ name: 'Hasan Toprak', cuz: [15, 16, 17], readCuz: [15] },
+			{ name: 'Elif Çetin', cuz: [18, 19, 20] },
+			{ name: 'Burak Aydın', cuz: [21, 23] }
+		]
+	},
+	{
+		name: 'Hatim Halkası',
+		dedication: 'Her hafta bir hatim',
+		inviteCode: codeFor('QURN2C3D'),
+		ownerUserId: OWNER_USER_ID,
+		memberIdPrefix: 'dev_hatim_b',
+		// Seven days: the one length that returns to the same weekday, so its reset line
+		// names one. The fifteen-day group below is what the other phrasing is for.
+		roundDays: 7,
+		repeats: true,
+		maxPerMember: null,
+		boundaryPolicy: 'REPICK',
+		visibility: 'OPEN',
+		status: 'RUNNING',
+		startedDaysAgo: 2,
+		autoStartWhenFull: true,
+		// No cap: one member holds eight, which is what "kapalıysa herkes dilediği kadar alır"
+		// actually looks like.
+		members: [
+			{ name: 'Sen', cuz: [1, 2, 3, 4, 5, 6, 7, 8], readCuz: [1, 2, 3, 4, 5] },
+			{ name: 'Kerem Ateş', cuz: [9, 10, 11, 12], readCuz: [9, 10] },
+			{ name: 'Nur Aksoy', cuz: [13, 14, 15, 16, 17, 18] },
+			{ name: 'Hatice Bulut', cuz: [19, 20, 21, 22, 23, 24, 25], readCuz: [19, 20, 21] },
+			{ name: 'Yusuf Kara', cuz: [26, 27, 28, 29, 30], readCuz: [26] }
+		]
+	},
+	{
+		name: 'Kırk Günlük Hatim',
+		dedication: 'Merhum dedem için',
+		inviteCode: codeFor('QURN3E4F'),
+		ownerUserId: OWNER_USER_ID,
+		memberIdPrefix: 'dev_hatim_c',
+		/*
+		 * Fifteen days — **a one-off, and the fixture the reset line was getting wrong.** No
+		 * cadence describes it: the hatim runs fifteen days and is then finished, so the line
+		 * has to read "… tarihinde biter" rather than naming a weekday it meets exactly once.
+		 */
+		roundDays: 15,
+		repeats: false,
+		maxPerMember: 2,
+		// Inert on a one-off — there is no next round to keep cüz for. Stored as the default
+		// the create flow sends when it stops asking.
+		boundaryPolicy: 'KEEP',
+		visibility: 'PRIVATE',
+		status: 'RUNNING',
+		startedDaysAgo: 1,
+		autoStartWhenFull: false,
+		members: [
+			{ name: 'Sen', cuz: [30], readCuz: [] },
+			{ name: 'İbrahim Yücel', cuz: [1, 2], readCuz: [1] },
+			{ name: 'Sema Doğan', cuz: [3, 4] }
+		]
+	},
+	{
+		name: 'Günlük Cüz',
+		dedication: 'Her gün bir cüz',
+		inviteCode: codeFor('QURN4G5H'),
+		ownerUserId: OWNER_USER_ID,
+		memberIdPrefix: 'dev_hatim_d',
+		// One day, so the reset line reads "Her gün 00:00" — the third phrasing.
+		roundDays: 1,
+		repeats: true,
+		maxPerMember: 1,
+		boundaryPolicy: 'REPICK',
+		visibility: 'OPEN',
+		status: 'RUNNING',
+		startedDaysAgo: 4,
+		autoStartWhenFull: true,
+		// Capped at one each, so the pool is most of the map — the "sahipsiz" warning's case.
+		members: [
+			{ name: 'Sen', cuz: [12] },
+			{ name: 'Rabia Şen', cuz: [1], readCuz: [1] },
+			{ name: 'Ömer Kılıç', cuz: [2] }
+		]
+	},
+	{
+		name: 'Tamamlanan Hatim',
+		dedication: 'Şükür için',
+		inviteCode: codeFor('QURN5I6J'),
+		ownerUserId: 'dev_hatim_e_0',
+		memberIdPrefix: 'dev_hatim_e',
+		// The signed-in user is a member here, not the owner — the non-owner group screen.
+		slotUserIds: { 2: OWNER_USER_ID },
+		roundDays: 7,
+		repeats: true,
+		maxPerMember: null,
+		boundaryPolicy: 'KEEP',
+		visibility: 'OPEN',
+		status: 'RUNNING',
+		startedDaysAgo: 3,
+		autoStartWhenFull: false,
+		// Every cüz taken and read: `completedAt` is stamped, and the board is the "tamam" state.
+		members: [
+			{
+				name: 'Osman Bilgin',
+				cuz: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+				readCuz: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+			},
+			{
+				name: 'Meryem Ergin',
+				cuz: [11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
+				readCuz: [11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+			},
+			{
+				name: 'Sen',
+				cuz: [21, 22, 23, 24, 25, 26, 27, 28, 29, 30],
+				readCuz: [21, 22, 23, 24, 25, 26, 27, 28, 29, 30]
+			}
+		]
+	},
+	/*
+	 * ── Tur başı (Q7 · QR1) ─────────────────────────────────────────────────────────────
+	 *
+	 * **Six groups on their second round**, one for each way a new round can open. Each started
+	 * eight days ago on a weekly round, so round 2 has just begun and round 1 is closed behind
+	 * it; `previousRound` is what each seat held and read there. Q7 for the round in progress
+	 * is "Tamamlanan Hatim" above.
+	 */
+	{
+		// "Yeniden seçilir": you hold nothing, and last round's 7 and 22 are both free again —
+		// QR1 must be answered, and "Aynı cüzlerle devam" is on offer.
+		name: 'Tur Başı · Yeniden',
+		dedication: 'Yeni turda cüzünü seç',
+		inviteCode: codeFor('QURNC5Y7'),
+		ownerUserId: OWNER_USER_ID,
+		memberIdPrefix: 'dev_hatim_l',
+		roundDays: 7,
+		repeats: true,
+		maxPerMember: null,
+		boundaryPolicy: 'REPICK',
+		visibility: 'PRIVATE',
+		status: 'RUNNING',
+		startedDaysAgo: 8,
+		autoStartWhenFull: false,
+		members: [
+			{ name: 'Sen', cuz: [] },
+			{ name: 'Kerem Ateş', cuz: [1, 2, 3] },
+			{ name: 'Nur Aksoy', cuz: [10, 11] }
+		],
+		previousRound: [
+			{ name: 'Sen', cuz: [7, 22], readCuz: [7, 22] },
+			{ name: 'Kerem Ateş', cuz: [1, 2], readCuz: [1] },
+			{ name: 'Nur Aksoy', cuz: [10] }
+		]
+	},
+	{
+		// "Cüzler korunur": 3 and 15 were carried into this round — QR1 as a note, once.
+		name: 'Tur Başı · Korunan',
+		dedication: 'Cüzlerin seninle kalır',
+		inviteCode: codeFor('QURND6Z8'),
+		ownerUserId: OWNER_USER_ID,
+		memberIdPrefix: 'dev_hatim_m',
+		roundDays: 7,
+		repeats: true,
+		maxPerMember: null,
+		boundaryPolicy: 'KEEP',
+		visibility: 'PRIVATE',
+		status: 'RUNNING',
+		startedDaysAgo: 8,
+		autoStartWhenFull: false,
+		members: [
+			{ name: 'Sen', cuz: [3, 15] },
+			{ name: 'Ali Demir', cuz: [4, 5] }
+		],
+		previousRound: [
+			{ name: 'Sen', cuz: [3, 15], readCuz: [3] },
+			{ name: 'Ali Demir', cuz: [4, 5], readCuz: [4, 5] }
+		]
+	},
+	{
+		// "Cüzler korunur", but your only cüz last round was a havuz loan — loans go back at the
+		// boundary, so you hold nothing and QR1 must be answered after all.
+		name: 'Tur Başı · Emanet',
+		dedication: 'Emanet cüz havuza döndü',
+		inviteCode: codeFor('QURNE7A9'),
+		ownerUserId: OWNER_USER_ID,
+		memberIdPrefix: 'dev_hatim_n',
+		roundDays: 7,
+		repeats: true,
+		maxPerMember: null,
+		boundaryPolicy: 'KEEP',
+		visibility: 'PRIVATE',
+		status: 'RUNNING',
+		startedDaysAgo: 8,
+		autoStartWhenFull: false,
+		members: [
+			{ name: 'Sen', cuz: [] },
+			{ name: 'Hasan Toprak', cuz: [1, 2] }
+		],
+		previousRound: [
+			{ name: 'Sen', cuz: [9], readCuz: [9], loanCuz: [9] },
+			{ name: 'Hasan Toprak', cuz: [1, 2], readCuz: [1, 2] }
+		]
+	},
+	{
+		// Every cüz already taken this round, nothing free to pick — "Bu turda boş cüz kalmadı".
+		name: 'Tur Başı · Boş Yok',
+		dedication: 'Bu turda yer kalmadı',
+		inviteCode: codeFor('QURNF8B2'),
+		ownerUserId: OWNER_USER_ID,
+		memberIdPrefix: 'dev_hatim_o',
+		roundDays: 7,
+		repeats: true,
+		maxPerMember: null,
+		boundaryPolicy: 'REPICK',
+		visibility: 'PRIVATE',
+		status: 'RUNNING',
+		startedDaysAgo: 8,
+		autoStartWhenFull: false,
+		members: [
+			{ name: 'Sen', cuz: [] },
+			{ name: 'Yakup Erdem', cuz: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] },
+			{ name: 'Rukiye Yıldız', cuz: [16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30] }
+		],
+		previousRound: [
+			{ name: 'Sen', cuz: [5], readCuz: [5] },
+			{ name: 'Yakup Erdem', cuz: [1, 2, 3, 4], readCuz: [1, 2] },
+			{ name: 'Rukiye Yıldız', cuz: [16, 17] }
+		]
+	},
+	{
+		// Last round closed with all thirty read, and you have not opened the group since — Q7
+		// for round 1 first, then QR1 ("Yeniden seçilir", holding nothing).
+		name: 'Geçen Tur Bitti',
+		dedication: 'Geçen hafta hatim tamamlandı',
+		inviteCode: codeFor('QURNG9C3'),
+		ownerUserId: OWNER_USER_ID,
+		memberIdPrefix: 'dev_hatim_p',
+		roundDays: 7,
+		repeats: true,
+		maxPerMember: null,
+		boundaryPolicy: 'REPICK',
+		visibility: 'PRIVATE',
+		status: 'RUNNING',
+		startedDaysAgo: 8,
+		autoStartWhenFull: false,
+		members: [
+			{ name: 'Sen', cuz: [] },
+			{ name: 'Meryem Ergin', cuz: [1, 2] },
+			{ name: 'Osman Bilgin', cuz: [] }
+		],
+		previousRound: [
+			{ name: 'Sen', cuz: [28, 29, 30], readCuz: [28, 29, 30] },
+			{
+				name: 'Meryem Ergin',
+				cuz: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
+				readCuz: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
+			},
+			{
+				name: 'Osman Bilgin',
+				cuz: [15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27],
+				readCuz: [15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27]
+			}
+		]
+	},
+	{
+		// The same completed round under "Cüzler korunur" — Q7 first, then the carried note.
+		name: 'Geçen Tur Bitti · Korunan',
+		dedication: 'Tamamlandı, cüzler korundu',
+		inviteCode: codeFor('QURNH2D4'),
+		ownerUserId: OWNER_USER_ID,
+		memberIdPrefix: 'dev_hatim_q',
+		roundDays: 7,
+		repeats: true,
+		maxPerMember: null,
+		boundaryPolicy: 'KEEP',
+		visibility: 'PRIVATE',
+		status: 'RUNNING',
+		startedDaysAgo: 8,
+		autoStartWhenFull: false,
+		members: [
+			{ name: 'Sen', cuz: [28, 29, 30] },
+			{ name: 'Meryem Ergin', cuz: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14] },
+			{ name: 'Osman Bilgin', cuz: [15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27] }
+		],
+		previousRound: [
+			{ name: 'Sen', cuz: [28, 29, 30], readCuz: [28, 29, 30] },
+			{
+				name: 'Meryem Ergin',
+				cuz: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
+				readCuz: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
+			},
+			{
+				name: 'Osman Bilgin',
+				cuz: [15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27],
+				readCuz: [15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27]
+			}
+		]
+	},
+	/*
+	 * ── Keşfet ──────────────────────────────────────────────────────────────────────────
+	 *
+	 * **The four below have no seat for the signed-in user, and that is the whole point.**
+	 * Discover lists OPEN groups you are *not* in, so every fixture above — where slot 0 is
+	 * yours — is invisible there by construction. Without these the catalogue was Cevşen
+	 * only, and the mixed list the type chip and the kind filter exist for could not be seen
+	 * at all.
+	 */
+	{
+		name: 'Şehir Hatmi',
+		dedication: 'Mahallemiz için',
+		inviteCode: codeFor('QURN7M8N'),
+		// Somebody else's group, all the way down — `ownerUserId` is not the seeded user.
+		ownerUserId: 'dev_hatim_g_0',
+		memberIdPrefix: 'dev_hatim_g',
+		roundDays: 7,
+		repeats: true,
+		maxPerMember: 3,
+		boundaryPolicy: 'KEEP',
+		visibility: 'OPEN',
+		status: 'RUNNING',
+		startedDaysAgo: 2,
+		autoStartWhenFull: false,
+		// Nineteen taken, eleven free: joinable, with room to pick from.
+		members: [
+			{ name: 'Emine Korkmaz', cuz: [1, 2, 3], readCuz: [1, 2] },
+			{ name: 'Salih Öztürk', cuz: [4, 5, 6], readCuz: [4] },
+			{ name: 'Havva Güneş', cuz: [7, 8, 9, 10] },
+			{ name: 'Bilal Kurt', cuz: [11, 12, 13], readCuz: [11, 12, 13] },
+			{ name: 'Zehra Aslan', cuz: [14, 15, 16, 17, 18, 19] }
+		]
+	},
+	{
+		name: 'Dolu Hatim',
+		dedication: 'Otuz cüz de alındı',
+		inviteCode: codeFor('QURN8P9R'),
+		ownerUserId: 'dev_hatim_h_0',
+		memberIdPrefix: 'dev_hatim_h',
+		roundDays: 30,
+		repeats: true,
+		maxPerMember: null,
+		boundaryPolicy: 'KEEP',
+		visibility: 'OPEN',
+		status: 'RUNNING',
+		startedDaysAgo: 9,
+		autoStartWhenFull: false,
+		/*
+		 * **Full, and full in the way only a hatim can be**: every cüz taken while seats are
+		 * still free. A Cevşen group is full when its seats are gone; this one has five
+		 * members in thirty seats and nothing left to pick, which is exactly the case
+		 * `isFull` was rewritten for.
+		 */
+		members: [
+			{ name: 'Yakup Erdem', cuz: [1, 2, 3, 4, 5, 6], readCuz: [1, 2, 3] },
+			{ name: 'Sümeyye Acar', cuz: [7, 8, 9, 10, 11, 12], readCuz: [7, 8] },
+			{ name: 'Harun Polat', cuz: [13, 14, 15, 16, 17, 18], readCuz: [13] },
+			{ name: 'Rukiye Yıldız', cuz: [19, 20, 21, 22, 23, 24] },
+			{ name: 'Davut Şimşek', cuz: [25, 26, 27, 28, 29, 30], readCuz: [25, 26, 27, 28] }
+		]
+	},
+	{
+		name: 'Kırk Gün Hatmi',
+		dedication: 'Kırk günde bir hatim',
+		inviteCode: codeFor('QURN9S2T'),
+		ownerUserId: 'dev_hatim_i_0',
+		memberIdPrefix: 'dev_hatim_i',
+		// A one-off in the catalogue, so Keşfet shows a card whose line reads "… biter"
+		// rather than a rhythm.
+		roundDays: 40,
+		repeats: false,
+		maxPerMember: 5,
+		boundaryPolicy: 'KEEP',
+		visibility: 'OPEN',
+		status: 'RUNNING',
+		startedDaysAgo: 5,
+		autoStartWhenFull: false,
+		members: [
+			{ name: 'Mustafa Eren', cuz: [1, 2, 3, 4, 5], readCuz: [1] },
+			{ name: 'Leyla Çakır', cuz: [6, 7, 8] }
+		]
+	},
+	{
+		name: 'Biten Hatim',
+		dedication: 'On gün sürdü, bitti',
+		inviteCode: codeFor('QURNBW4X'),
+		ownerUserId: 'dev_hatim_k_0',
+		memberIdPrefix: 'dev_hatim_k',
+		/*
+		 * **A one-off whose days are already up** — the state only this kind reaches.
+		 *
+		 * A cadence always has a next round, so "the time is over" is not a thing a Cevşen
+		 * group or a repeating hatim can be. This one started twelve days ago and ran for ten:
+		 * `endsAt` is in the past, `roundIndex` is still 0 because it never rolls, and four of
+		 * its cüz were never read. Nothing rescues them — that is what finishing incomplete
+		 * looks like, and it is the case `qPoolWarn` warns about.
+		 */
+		roundDays: 10,
+		repeats: false,
+		maxPerMember: null,
+		boundaryPolicy: 'KEEP',
+		visibility: 'OPEN',
+		status: 'RUNNING',
+		startedDaysAgo: 12,
+		autoStartWhenFull: false,
+		members: [
+			{
+				name: 'Ahmet Solmaz',
+				cuz: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+				readCuz: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+			},
+			{
+				name: 'Fadime Uçar',
+				cuz: [16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30],
+				readCuz: [16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28]
+			}
+		]
+	},
+	{
+		name: 'Toplanan Hatim',
+		dedication: 'Başlamayı bekliyor',
+		inviteCode: codeFor('QURNAU3V'),
+		ownerUserId: 'dev_hatim_j_0',
+		memberIdPrefix: 'dev_hatim_j',
+		roundDays: 7,
+		repeats: true,
+		maxPerMember: 2,
+		boundaryPolicy: 'REPICK',
+		visibility: 'OPEN',
+		status: 'GATHERING',
+		autoStartWhenFull: true,
+		// A lobby to join from Keşfet — the flow that ends on the joined-welcome screen.
+		members: [
+			{ name: 'Necmi Aydoğan', cuz: [5, 6] },
+			{ name: 'Şule Kaplan', cuz: [12] }
+		]
+	},
+	{
+		name: 'Yeni Hatim',
+		dedication: 'Kodu paylaş, cüzler dolsun',
+		inviteCode: codeFor('QURN6K7L'),
+		ownerUserId: OWNER_USER_ID,
+		memberIdPrefix: 'dev_hatim_f',
+		roundDays: 30,
+		repeats: true,
+		maxPerMember: 3,
+		boundaryPolicy: 'KEEP',
+		visibility: 'OPEN',
+		status: 'GATHERING',
+		autoStartWhenFull: true,
+		// Still filling: the lobby's cüz map, part taken and mostly free.
+		members: [
+			{ name: 'Sen', cuz: [22] },
+			{ name: 'Talha Ünal', cuz: [1, 2] }
+		]
+	}
+];
+
+/**
+ * The cadence column, from what the fixture said it wanted. Mirrors `planColumnsFor`.
+ *
+ * A repeating hatim has to be one of QC3's three presets, because those are the only lengths
+ * the create flow offers as cadences — asked for anything else it throws rather than seeding
+ * a group the app could not have made.
+ */
+const cycleForSpec = (spec: Pick<HatimSeed, 'name' | 'repeats' | 'roundDays'>) => {
+	if (!spec.repeats) {
+		return 'CUSTOM' as const;
+	}
+
+	if (spec.roundDays === 1) {
+		return 'DAILY' as const;
+	}
+
+	if (spec.roundDays === 7) {
+		return 'WEEKLY' as const;
+	}
+
+	if (spec.roundDays === 30) {
+		return 'MONTHLY' as const;
+	}
+
+	throw new Error(
+		`"${spec.name}": a repeating hatim must run 1, 7 or 30 days — ${spec.roundDays} is only reachable as a one-off.`
+	);
+};
+
+const hatimUserIdForSlot = (spec: HatimSeed, slotIndex: number) =>
+	spec.slotUserIds?.[slotIndex] ?? (slotIndex === 0 ? spec.ownerUserId : `${spec.memberIdPrefix}_${slotIndex}`);
+
+const seedHatim = async (spec: HatimSeed) => {
+	const inviteCode = spec.inviteCode;
+	const existing = await prisma.group.findUnique({ where: { inviteCode }, select: { id: true } });
+
+	if (existing) {
+		await prisma.group.delete({ where: { id: existing.id } });
+	}
+
+	const now = new Date();
+	const startedAt =
+		spec.status === 'RUNNING' ? new Date(now.getTime() - (spec.startedDaysAgo ?? 0) * 24 * 60 * 60 * 1000) : null;
+
+	/*
+	 * The same helpers `ensureCurrentRound` uses, so a fixture "started N days ago" seeds on
+	 * the round the calendar already says it is on rather than being rolled forward — and
+	 * wiped — by the first request that opens it.
+	 *
+	 * **Including the rule that a one-off never leaves round 0.** Without it a ten-day
+	 * one-off started twelve days ago seeded on round 1, which no code path can produce: the
+	 * first request would have read a group whose stored round the server would never have
+	 * advanced it to, with its holdings and reads filed under a round nobody is on.
+	 */
+	const rolls = spec.repeats && startedAt !== null;
+	const roundIndex = rolls ? roundIndexSince(startedAt, spec.roundDays, now, DEFAULT_TIME_ZONE) : 0;
+	const roundStartedAt = rolls
+		? roundStartedAtFor(startedAt, spec.roundDays, roundIndex, DEFAULT_TIME_ZONE)
+		: startedAt;
+	const endsAt = roundStartedAt ? roundEndsAt(roundStartedAt, spec.roundDays, DEFAULT_TIME_ZONE) : undefined;
+
+	// The round before this one, when the fixture describes it — it has to exist to be described.
+	if (spec.previousRound && (!rolls || roundIndex < 1)) {
+		throw new Error(`"${spec.name}": previousRound needs a repeating hatim past its first round.`);
+	}
+
+	const previousRoundStartedAt =
+		spec.previousRound && startedAt
+			? roundStartedAtFor(startedAt, spec.roundDays, roundIndex - 1, DEFAULT_TIME_ZONE)
+			: null;
+
+	/** One round's holdings: in range, each cüz held once, and reads and loans only of held cüz. */
+	const assertRound = (label: string, members: HatimMemberSeed[]) => {
+		const held = new Set<number>();
+
+		members.forEach(member => {
+			member?.cuz.forEach(number => {
+				if (number < 1 || number > CUZ_COUNT) {
+					throw new Error(`"${spec.name}" (${label}): cüz ${number} is outside 1..${CUZ_COUNT}.`);
+				}
+
+				if (held.has(number)) {
+					throw new Error(`"${spec.name}" (${label}): cüz ${number} is held twice.`);
+				}
+
+				held.add(number);
+			});
+
+			[...(member?.readCuz ?? []), ...(member?.loanCuz ?? [])].forEach(number => {
+				if (!member?.cuz.includes(number)) {
+					throw new Error(
+						`"${spec.name}" (${label}): ${member?.name} read or borrowed cüz ${number} without holding it.`
+					);
+				}
+			});
+		});
+
+		return held;
+	};
+
+	const taken = assertRound('this round', spec.members);
+
+	if (spec.previousRound) {
+		assertRound('previous round', spec.previousRound);
+	}
+
+	const group = await prisma.group.create({
+		data: {
+			ownerUserId: spec.ownerUserId,
+			name: spec.name,
+			dedication: spec.dedication,
+			visibility: spec.visibility,
+			kind: 'HATIM',
+			// A hatim divides nothing by seat: `spots` is only the ceiling `slotIndex` needs,
+			// and `splitMode` records the value that never moves. See `planColumnsFor`.
+			splitMode: 'FIXED',
+			spots: CUZ_COUNT,
+			cycle: cycleForSpec(spec),
+			roundDays: spec.roundDays,
+			distribution: 'FREE_PICK',
+			maxPerMember: spec.maxPerMember,
+			boundaryPolicy: spec.boundaryPolicy,
+			status: spec.status,
+			startedAt,
+			roundIndex,
+			roundStartedAt,
+			...(endsAt ? { endsAt } : {}),
+			autoStartWhenFull: spec.autoStartWhenFull,
+			inviteCode,
+			openToJoin: true,
+			reminderEnabled: true,
+			reminderTime: '21:30',
+			timezone: DEFAULT_TIME_ZONE,
+			startsAt: startedAt ?? now,
+			members: {
+				create: spec.members.flatMap((member, slotIndex) =>
+					member === null
+						? []
+						: [
+								{
+									userId: hatimUserIdForSlot(spec, slotIndex),
+									displayName: member.name,
+									role: slotIndex === 0 ? ('OWNER' as const) : ('MEMBER' as const),
+									slotIndex,
+									// There for last round, or the round-start screens treat them
+									// as having joined this one and have nothing to look back on.
+									...(previousRoundStartedAt ? { joinedAt: previousRoundStartedAt } : {})
+								}
+						  ]
+				)
+			}
+		}
+	});
+
+	const readAt = new Date();
+	const readerByCuz = new Map<number, string>();
+
+	spec.members.forEach((member, slotIndex) => {
+		member?.readCuz?.forEach(number => {
+			readerByCuz.set(number, hatimUserIdForSlot(spec, slotIndex));
+		});
+	});
+
+	// Thirty rows, one per cüz — the board. `assignedUserId` stays null: a hatim records who
+	// holds what in `CuzHolding`, and that column means a pool claim on a Cevşen board.
+	await prisma.groupBab.createMany({
+		data: Array.from({ length: CUZ_COUNT }, (_, index) => {
+			const number = index + 1;
+			const readByUserId = readerByCuz.get(number) ?? null;
+
+			return {
+				groupId: group.id,
+				number,
+				assignedUserId: null,
+				readByUserId,
+				readAt: readByUserId ? readAt : null
+			};
+		})
+	});
+
+	// The holdings themselves, for the round the group is on.
+	await prisma.cuzHolding.createMany({
+		data: spec.members.flatMap((member, slotIndex) =>
+			(member?.cuz ?? []).map(cuzNumber => ({
+				cuzNumber,
+				groupId: group.id,
+				isLoan: member?.loanCuz?.includes(cuzNumber) ?? false,
+				roundIndex,
+				userId: hatimUserIdForSlot(spec, slotIndex)
+			}))
+		)
+	});
+
+	/*
+	 * **The round before, as the rollover would have left it** — its holdings (loans flagged, so
+	 * "Cüzler korunur" is seen not to have carried them) and its reads, dated inside it. Only
+	 * `BabRead` keeps a closed round's reads; the board above is this round's alone.
+	 */
+	if (spec.previousRound && previousRoundStartedAt) {
+		const previousReadAt = new Date(previousRoundStartedAt.getTime() + 24 * 60 * 60 * 1000);
+
+		await prisma.cuzHolding.createMany({
+			data: spec.previousRound.flatMap((member, slotIndex) =>
+				(member?.cuz ?? []).map(cuzNumber => ({
+					cuzNumber,
+					groupId: group.id,
+					isLoan: member?.loanCuz?.includes(cuzNumber) ?? false,
+					roundIndex: roundIndex - 1,
+					userId: hatimUserIdForSlot(spec, slotIndex)
+				}))
+			)
+		});
+		await prisma.babRead.createMany({
+			data: spec.previousRound.flatMap((member, slotIndex) =>
+				(member?.readCuz ?? []).map(babNumber => ({
+					babNumber,
+					groupId: group.id,
+					readAt: previousReadAt,
+					roundIndex: roundIndex - 1,
+					userId: hatimUserIdForSlot(spec, slotIndex)
+				}))
+			)
+		});
+	}
+
+	// `BabRead` is the record the rollover never clears — without it the reads above would
+	// vanish from every history and streak the moment the round turned over.
+	if (readerByCuz.size > 0) {
+		await prisma.babRead.createMany({
+			data: [...readerByCuz].map(([number, userId]) => ({
+				groupId: group.id,
+				roundIndex,
+				babNumber: number,
+				userId,
+				readAt
+			}))
+		});
+	}
+
+	// Mirrors `syncCompletedAt`: the stamp only ever agrees with a fully-read board.
+	if (readerByCuz.size === CUZ_COUNT) {
+		await prisma.group.update({ where: { id: group.id }, data: { completedAt: readAt } });
+	}
+
+	console.log(
+		`Seeded "${spec.name}" [${spec.status}/${cycleForSpec(spec)}] — ${spec.members.length} members, ${
+			taken.size
+		}/${CUZ_COUNT} cüz taken, ${readerByCuz.size} read.`
+	);
+};
+
 const seed = async () => {
 	assertNamespaceIsUsable();
 
 	for (const spec of GROUPS) {
 		await seedGroup(spec);
+	}
+
+	for (const spec of HATIM_GROUPS) {
+		await seedHatim(spec);
 	}
 
 	await prisma.userSettings.upsert({

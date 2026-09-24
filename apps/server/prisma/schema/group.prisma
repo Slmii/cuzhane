@@ -19,39 +19,93 @@ enum GroupStatus {
 enum GroupCycle {
     DAILY
     WEEKLY
+    MONTHLY
+    CUSTOM
+}
+
+/// What a group reads. **The discriminator the whole second reading type hangs off.**
+///
+/// `CEVSEN` is the hundred babs split across seats; `HATIM` is the thirty cüz of the
+/// Qur'an, held individually. It defaults to `CEVSEN`, and that default *is* the backfill —
+/// every existing row is one, and nothing else needed writing.
+enum GroupKind {
+    CEVSEN
+    HATIM
+}
+
+/// How a hatim's cüz are handed out **at the moment it starts**. Null on a Cevşen group.
+///
+/// Deliberately **not** `GroupSplitMode`, which answers a different question — which block a
+/// seat *reads today* — and whose `FREE` value is retired at the API boundary. This one is
+/// about initial allocation and is never consulted again afterwards: later joiners and
+/// second helpings both come from the pool.
+enum CuzDistribution {
+    /// Nobody starts with anything; the map opens and members take what they want.
+    FREE_PICK
+    /// Thirty divided by the roster at start, capped by `maxPerMember`; the rest go to the pool.
+    EQUAL
+    /// 1, 2, 3 … dealt out in the order people joined.
+    JOIN_ORDER
+}
+
+/// What happens to a member's cüz when a round rolls over. Null on a Cevşen group.
+enum CuzBoundaryPolicy {
+    /// The holdings are copied forward — you keep the same cüz next round.
+    KEEP
+    /// The map resets and everyone takes again.
+    REPICK
 }
 
 model Group {
-    id                String          @id @default(cuid())
+    id                String             @id @default(cuid())
     ownerUserId       String
     name              String
     dedication        String?
-    visibility        GroupVisibility @default(OPEN)
-    splitMode         GroupSplitMode  @default(ROTATION)
-    status            GroupStatus     @default(GATHERING)
-    cycle             GroupCycle      @default(WEEKLY)
-    spots             Int             @default(20)
-    inviteCode        String          @unique
-    openToJoin        Boolean         @default(true)
-    timezone          String          @default("Europe/Istanbul")
-    reminderEnabled   Boolean         @default(true)
-    reminderTime      String          @default("21:30")
-    nudgeEnabled      Boolean         @default(true)
+    visibility        GroupVisibility    @default(OPEN)
+    splitMode         GroupSplitMode     @default(ROTATION)
+    status            GroupStatus        @default(GATHERING)
+    cycle             GroupCycle         @default(WEEKLY)
+    /// What this group reads. See `GroupKind`.
+    kind              GroupKind          @default(CEVSEN)
+    /// How many days a round lasts.
+    ///
+    /// **The calendar reads this, not `cycle`.** `ROUND_DAYS` only ever mapped DAILY→1 and
+    /// WEEKLY→7, and a hatim's round is 7, 30 or any number the creator picks — which no
+    /// enum can carry. The round arithmetic was already generic (`roundIndexSince` and
+    /// `roundStartedAtFor` take a plain day count); only the plumbing assumed the enum.
+    /// `cycle` survives as the label Keşfet filters on.
+    roundDays         Int                @default(7)
+    /// Hatim only: how the thirty were handed out at start. See `CuzDistribution`.
+    distribution      CuzDistribution?
+    /// Hatim only: the most cüz one member may hold. **Mutable** — the design says the cap
+    /// can be lifted mid-round, unlike `spots`, `splitMode` and `cycle`, which are frozen.
+    maxPerMember      Int?
+    /// Hatim only: keep your cüz at the boundary, or take again. See `CuzBoundaryPolicy`.
+    boundaryPolicy    CuzBoundaryPolicy?
+    spots             Int                @default(20)
+    inviteCode        String             @unique
+    openToJoin        Boolean            @default(true)
+    timezone          String             @default("Europe/Istanbul")
+    reminderEnabled   Boolean            @default(true)
+    reminderTime      String             @default("21:30")
+    nudgeEnabled      Boolean            @default(true)
     startedAt         DateTime?
-    autoStartWhenFull Boolean         @default(true)
-    roundIndex        Int             @default(0)
+    autoStartWhenFull Boolean            @default(true)
+    roundIndex        Int                @default(0)
     roundStartedAt    DateTime?
-    startsAt          DateTime        @default(now())
+    startsAt          DateTime           @default(now())
     endsAt            DateTime?
     completedAt       DateTime?
-    createdAt         DateTime        @default(now())
-    updatedAt         DateTime        @updatedAt
+    createdAt         DateTime           @default(now())
+    updatedAt         DateTime           @updatedAt
 
     members       GroupMember[]
     babs          GroupBab[]
     reads         BabRead[]
     cheers        Cheer[]
     waitlist      GroupWaitlistEntry[]
+    cuzHoldings   CuzHolding[]
+    roundSkips    CuzRoundSkip[]
     poolReleases  PoolClaimRelease[]
     shareNotices  ShareReadNotice[]
     roundNotices  RoundCompleteNotice[]

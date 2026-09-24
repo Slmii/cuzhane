@@ -9,18 +9,25 @@ import {
 	type DiscoverGroupsParams,
 	getGroupById,
 	getGroups,
+	getPoolCuz,
 	getPoolSlots,
+	type PoolCuzInput,
 	regenerateInviteCode,
 	markPoolReleasesSeen,
+	pickRoundCuz,
+	releasePoolCuz,
 	releasePoolSlot,
+	skipRound,
 	startGroup,
+	takePoolCuz,
 	takePoolSlot,
 	type TakePoolSlotInput,
 	updateGroup,
 	type UpdateGroupInput
 } from '@/api/groups.api';
+import { WrapperApiError } from '@/api/wrapper.api';
 import { useTranslation } from '@/lib/i18n/I18n.context';
-import type { GroupSummary, PoolSlot } from '@/lib/types/domain';
+import type { GroupSummary, PoolCuz, PoolSlot } from '@/lib/types/domain';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert } from 'react-native';
 import { useLiveRefetchInterval } from './useLiveRefetchInterval';
@@ -280,12 +287,139 @@ export const useReleasePoolSlot = () => {
 	});
 };
 
+/**
+ * The hatim's havuz — the same three hooks as the seat pool, one unit apart.
+ *
+ * Its own query key: the shapes differ (a cüz is not a slot), so sharing one would mean a
+ * screen reading whichever kind happened to have been fetched last.
+ */
+export const useGetPoolCuz = (groupId: string) => {
+	const refetchInterval = useLiveRefetchInterval();
+
+	return useQuery({
+		queryKey: groupQueryKeys.poolCuz(groupId),
+		queryFn: () => getPoolCuz(groupId),
+		enabled: !!groupId,
+		refetchInterval
+	});
+};
+
+/**
+ * Taking one, optimistically: the cell fills on the tap rather than on the answer, because
+ * the fill *is* the confirmation. Two people racing for one cüz is settled by the unique key
+ * on the server; the loser's paint is rolled back and the refetch names the winner.
+ */
+export const useTakePoolCuz = () => {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		mutationFn: (input: PoolCuzInput) => takePoolCuz(input),
+		onMutate: async ({ cuzNumber, groupId }) => {
+			await queryClient.cancelQueries({ queryKey: groupQueryKeys.poolCuz(groupId) });
+
+			const previousCuz = queryClient.getQueryData<PoolCuz[]>(groupQueryKeys.poolCuz(groupId));
+
+			if (previousCuz) {
+				queryClient.setQueryData<PoolCuz[]>(
+					groupQueryKeys.poolCuz(groupId),
+					previousCuz.map(cuz =>
+						cuz.cuzNumber === cuzNumber ? { ...cuz, takenByMe: true, takenByUserId: 'optimistic' } : cuz
+					)
+				);
+			}
+
+			return { previousCuz };
+		},
+		onError: (_error, { groupId }, context) => {
+			if (context?.previousCuz) {
+				queryClient.setQueryData(groupQueryKeys.poolCuz(groupId), context.previousCuz);
+			}
+		},
+		onSettled: async () => {
+			await queryClient.invalidateQueries({ queryKey: groupQueryKeys.root() });
+		}
+	});
+};
+
+/** Handing one back — optimistic for the same reason, so the cell empties on the tap. */
+export const useReleasePoolCuz = () => {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		mutationFn: (input: PoolCuzInput) => releasePoolCuz(input),
+		onMutate: async ({ cuzNumber, groupId }) => {
+			await queryClient.cancelQueries({ queryKey: groupQueryKeys.poolCuz(groupId) });
+
+			const previousCuz = queryClient.getQueryData<PoolCuz[]>(groupQueryKeys.poolCuz(groupId));
+
+			if (previousCuz) {
+				queryClient.setQueryData<PoolCuz[]>(
+					groupQueryKeys.poolCuz(groupId),
+					previousCuz.map(cuz =>
+						cuz.cuzNumber === cuzNumber
+							? { ...cuz, takenByDisplayName: null, takenByMe: false, takenByUserId: null }
+							: cuz
+					)
+				);
+			}
+
+			return { previousCuz };
+		},
+		onError: (_error, { groupId }, context) => {
+			if (context?.previousCuz) {
+				queryClient.setQueryData(groupQueryKeys.poolCuz(groupId), context.previousCuz);
+			}
+		},
+		onSettled: async () => {
+			await queryClient.invalidateQueries({ queryKey: groupQueryKeys.root() });
+		}
+	});
+};
+
 /** Dismisses the notices telling the viewer a joiner took over a block they volunteered for. */
 export const useMarkPoolReleasesSeen = () => {
 	const queryClient = useQueryClient();
 
 	return useMutation({
 		mutationFn: (groupId: string) => markPoolReleasesSeen(groupId),
+		onSettled: async () => {
+			await queryClient.invalidateQueries({ queryKey: groupQueryKeys.root() });
+		}
+	});
+};
+
+/**
+ * QR1's two answers. Neither is optimistic: the round-start screen waits on the answer before
+ * it lets the member into the group, so there is no paint to get ahead of. Everything under the
+ * group root is refreshed afterwards — the detail's holdings and skip flag are what the gate
+ * reads, and the havuz and progress screens both change with them.
+ */
+export const usePickRoundCuz = () => {
+	const queryClient = useQueryClient();
+	const { t } = useTranslation();
+
+	return useMutation({
+		mutationFn: (input: { cuzNumbers: number[]; groupId: string }) => pickRoundCuz(input),
+		// A 409 is somebody taking one of these cüz first — worth saying as that, since the
+		// refreshed map will show which. Anything else is the app's ordinary apology.
+		onError: error => {
+			Alert.alert(t(error instanceof WrapperApiError && error.status === 409 ? 'qCuzJustTaken' : 'genericError'));
+		},
+		onSettled: async () => {
+			await queryClient.invalidateQueries({ queryKey: groupQueryKeys.root() });
+		}
+	});
+};
+
+export const useSkipRound = () => {
+	const queryClient = useQueryClient();
+	const { t } = useTranslation();
+
+	return useMutation({
+		mutationFn: (groupId: string) => skipRound(groupId),
+		onError: () => {
+			Alert.alert(t('genericError'));
+		},
 		onSettled: async () => {
 			await queryClient.invalidateQueries({ queryKey: groupQueryKeys.root() });
 		}

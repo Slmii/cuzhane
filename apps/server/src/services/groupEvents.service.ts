@@ -36,7 +36,7 @@ import { FALLBACK_DISPLAY_NAME, getMemberProfiles } from '@utils/memberProfiles'
  */
 export type GroupEventSetting = Extract<
 	keyof Prisma.UserSettingsWhereInput,
-	'poolClaimEnabled' | 'memberJoinedEnabled' | 'memberLeftEnabled'
+	'cevsenPoolClaimEnabled' | 'hatimPoolClaimEnabled' | 'memberJoinedEnabled' | 'memberLeftEnabled'
 >;
 
 type GroupEventInput = {

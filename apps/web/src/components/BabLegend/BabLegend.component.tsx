@@ -8,34 +8,74 @@ import type { BabLegendProps } from './BabLegend.types';
 /** Matches the swatch style below, so the hatch is clipped to the same rounding. */
 const SWATCH_RADIUS = 3;
 
-export const BabLegend = ({ style }: BabLegendProps) => {
+/**
+ * The board's key, and **a hatim's is four entries where a Cevşen group's is five.**
+ *
+ * Not a shortening for its own sake — the fifth has nothing to label. A Cevşen board
+ * separates "somebody else read it" from "somebody else owes it and hasn't", because a
+ * seat owes its block whether or not it has been read. On a hatim board every cüz is in
+ * exactly one of four states: read, held by somebody, held by nobody, or yours. Q3's own
+ * legend lists those four, in that order.
+ */
+export const BabLegend = ({ kind = 'CEVSEN', style }: BabLegendProps) => {
 	const { theme } = useThemeContext();
 	const { t } = useTranslation();
 
 	// Swatches mirror `BabGrid`'s tones, including the outlined "assigned to you but
 	// not read yet" state, which the board draws as a surface fill with an accent ring.
-	const entries = [
-		{ backgroundColor: theme.colors.babReadByMe, borderColor: theme.colors.babReadByMe, label: t('legendRead') },
-		{ backgroundColor: theme.colors.surface, borderColor: theme.colors.accent, label: t('legendMine') },
-		{
-			backgroundColor: theme.colors.babReadByOthers,
-			borderColor: theme.colors.babReadByOthers,
-			label: t('legendOthers')
-		},
-		{ backgroundColor: theme.colors.babOpen, borderColor: theme.colors.babOpen, label: t('legendOpen') },
-		// The pool has no reader yet, so it can't reuse a progress colour — `poolFree` and the
-		// hatch read as "belongs to a seat nobody took" rather than a fifth progress state.
-		//
-		// **`poolFree`, the same token the cells it labels use.** This swatch was drawn in
-		// `track`, which was neither the board's pool colour nor the pool board's — a legend
-		// key that didn't match the thing it was a key for.
-		{
-			backgroundColor: theme.colors.poolFree,
-			borderColor: theme.colors.poolFree,
-			isHatched: true,
-			label: t('legendPool')
-		}
-	];
+	const entries =
+		kind === 'HATIM'
+			? [
+					// One "okundu" for both readers: on a hatim board who read a cüz is on the
+					// cell itself, and the board's question is whether the hatim is covered.
+					{
+						backgroundColor: theme.colors.babReadByMe,
+						borderColor: theme.colors.babReadByMe,
+						label: t('legendDone')
+					},
+					{
+						backgroundColor: theme.colors.babReadByOthers,
+						borderColor: theme.colors.babReadByOthers,
+						label: t('legendOpen')
+					},
+					{
+						backgroundColor: theme.colors.poolFree,
+						borderColor: theme.colors.poolFree,
+						isHatched: true,
+						label: t('legendPool')
+					},
+					{ backgroundColor: theme.colors.surface, borderColor: theme.colors.accent, label: t('legendMine') }
+			  ]
+			: [
+					{
+						backgroundColor: theme.colors.babReadByMe,
+						borderColor: theme.colors.babReadByMe,
+						label: t('legendRead')
+					},
+					{ backgroundColor: theme.colors.surface, borderColor: theme.colors.accent, label: t('legendMine') },
+					{
+						backgroundColor: theme.colors.babReadByOthers,
+						borderColor: theme.colors.babReadByOthers,
+						label: t('legendOthers')
+					},
+					{
+						backgroundColor: theme.colors.babOpen,
+						borderColor: theme.colors.babOpen,
+						label: t('legendOpen')
+					},
+					// The pool has no reader yet, so it can't reuse a progress colour — `poolFree` and the
+					// hatch read as "belongs to a seat nobody took" rather than a fifth progress state.
+					//
+					// **`poolFree`, the same token the cells it labels use.** This swatch was drawn in
+					// `track`, which was neither the board's pool colour nor the pool board's — a legend
+					// key that didn't match the thing it was a key for.
+					{
+						backgroundColor: theme.colors.poolFree,
+						borderColor: theme.colors.poolFree,
+						isHatched: true,
+						label: t('legendPool')
+					}
+			  ];
 
 	return (
 		<View style={[styles.legend, style]}>

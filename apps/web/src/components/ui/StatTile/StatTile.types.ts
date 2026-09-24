@@ -1,6 +1,6 @@
 import type { StyleProp, ViewStyle } from 'react-native';
 
-export type StatTileTone = 'default' | 'accent';
+export type StatTileTone = 'default' | 'accent' | 'missed';
 
 export interface StatTileProps {
 	value: string | number;

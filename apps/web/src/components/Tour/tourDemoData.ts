@@ -166,6 +166,10 @@ const summaryOf = (spec: DemoGroupSpec): GroupSummary => {
 		completedAt: null,
 		createdAt: daysAgo(24),
 		cycle: spec.cycle,
+		// The tour walks Cevşen groups: every stop's copy describes a hundred babs split by
+		// seat, so a hatim among them would describe a board the cards do not match.
+		kind: 'CEVSEN',
+		roundDays: spec.cycle === 'WEEKLY' ? 7 : 1,
 		daysLeft: spec.cycle === 'WEEKLY' ? 2 : null,
 		dedication: spec.dedication,
 		endsAt: null,
@@ -204,6 +208,10 @@ const summaryOf = (spec: DemoGroupSpec): GroupSummary => {
 const detailOf = (spec: DemoGroupSpec): GroupDetail => ({
 	...summaryOf(spec),
 	autoStartWhenFull: false,
+	// The tour's groups are Cevşen groups: no round skips, no cap, no boundary rule.
+	boundaryPolicy: null,
+	hasSkippedRound: false,
+	maxPerMember: null,
 	babs: babsOf(spec),
 	inviteCode: spec.inviteCode,
 	members: [
@@ -291,7 +299,9 @@ export const tourDemoMyProgress = (groupId: string): MyProgress => {
 		owedCount: SHARE_LENGTH,
 		readCount,
 		roundIndex: 9 - (CLOSED_READS.length - index),
-		startedAt: hoursFromNow(spec.hoursLeft - 24 * (CLOSED_READS.length - index + 1))
+		startedAt: hoursFromNow(spec.hoursLeft - 24 * (CLOSED_READS.length - index + 1)),
+		// The tour's groups are Cevşen groups, whose periods carry no cüz cells.
+		units: []
 	}));
 
 	periods.push({
@@ -302,7 +312,8 @@ export const tourDemoMyProgress = (groupId: string): MyProgress => {
 		owedCount: SHARE_LENGTH,
 		readCount: spec.readInShare,
 		roundIndex: 9,
-		startedAt: hoursFromNow(spec.hoursLeft - 24)
+		startedAt: hoursFromNow(spec.hoursLeft - 24),
+		units: []
 	});
 
 	const owedCount = periods.length * SHARE_LENGTH;
@@ -397,6 +408,7 @@ export const TOUR_DEMO_NOTIFICATIONS: AppNotification[] = [
 	{
 		createdAt: minutesAgo(12),
 		groupId: 'tour-demo-group-2',
+		groupKind: 'CEVSEN',
 		groupName: 'Silsile Hatmi',
 		id: 'tour-demo-notification-1',
 		isRead: false,
@@ -406,6 +418,7 @@ export const TOUR_DEMO_NOTIFICATIONS: AppNotification[] = [
 	{
 		createdAt: minutesAgo(95),
 		groupId: 'tour-demo-group-1',
+		groupKind: 'CEVSEN',
 		groupName: 'Aile Hatmi',
 		id: 'tour-demo-notification-2',
 		isRead: false,
@@ -415,6 +428,7 @@ export const TOUR_DEMO_NOTIFICATIONS: AppNotification[] = [
 	{
 		createdAt: minutesAgo(60 * 20),
 		groupId: 'tour-demo-group-3',
+		groupKind: 'CEVSEN',
 		groupName: 'Şükür Hatmi',
 		id: 'tour-demo-notification-3',
 		isRead: true,
@@ -424,6 +438,7 @@ export const TOUR_DEMO_NOTIFICATIONS: AppNotification[] = [
 	{
 		createdAt: minutesAgo(60 * 30),
 		groupId: 'tour-demo-group-1',
+		groupKind: 'CEVSEN',
 		groupName: 'Aile Hatmi',
 		id: 'tour-demo-notification-4',
 		isRead: true,

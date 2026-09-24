@@ -49,7 +49,9 @@ export const useJoinGroup = () => {
 	const queryClient = useQueryClient();
 
 	return useMutation({
-		mutationFn: (groupId: string) => joinGroup(groupId),
+		// A bare group id still joins a Cevşen group; a hatim passes the cüz it is taking.
+		mutationFn: ({ cuzNumbers, groupId }: { cuzNumbers?: number[]; groupId: string }) =>
+			joinGroup(groupId, cuzNumbers),
 		onSettled: async () => {
 			await queryClient.invalidateQueries({ queryKey: groupQueryKeys.root() });
 		}

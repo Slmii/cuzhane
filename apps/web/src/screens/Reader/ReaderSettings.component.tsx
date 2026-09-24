@@ -5,9 +5,9 @@ import { READER_FONT_SIZE_MAX, READER_FONT_SIZE_MIN } from '@/lib/content/cevsen
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { arabicReaderFonts, arabicReaderFontScale } from '@/lib/theme/fonts';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import type { ReaderArabicFont, ReaderNumerals } from '@/lib/types/domain';
+import { type ReaderArabicFont, type ReaderNumerals, type ReaderTextFont, textFontFor } from '@/lib/types/domain';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { ReaderSizeSlider } from './ReaderSizeSlider.component';
 import type { ReaderSettingsProps } from './ReaderSettings.types';
 
@@ -32,10 +32,23 @@ const NUMERAL_OPTIONS: { glyph: string; key: ReaderNumerals }[] = [
 ];
 
 /** Osman Taha leads because it is the default. */
-const FONT_OPTIONS: ReaderArabicFont[] = ['uthman', 'naskh', 'amiri'];
+const TEXT_FONTS: ReaderTextFont[] = ['uthman', 'naskh', 'amiri'];
+// Hüsrev only where there are pages to show — the Kuran reader. See `ReaderTextFont`.
+const FONTS_WITH_MUSHAF_PAGES: ReaderArabicFont[] = [...TEXT_FONTS, 'husrev'];
 
 /** The sample every typeface card sets, so both are compared on the same word. */
 const FONT_SAMPLE = 'بِسْمِ';
+
+/*
+ * Hüsrev is a page image, not a font, so its samples are cut from a page: the besmele that
+ * opens Necm (page 525), whole for the preview and its first word for the card. Their aspect
+ * ratios are the crops' own pixel sizes.
+ */
+const HUSREV_PREVIEW = require('@/assets/mushaf/husrev-besmele.png');
+const HUSREV_PREVIEW_ASPECT = 965 / 92;
+const HUSREV_SAMPLE = require('@/assets/mushaf/husrev-sample.png');
+const HUSREV_SAMPLE_HEIGHT = 31;
+const HUSREV_SAMPLE_WIDTH = Math.round((HUSREV_SAMPLE_HEIGHT * 90) / 81);
 
 /**
  * The typeface's real family name, under its localised one and untranslated in either
@@ -46,6 +59,7 @@ const FONT_SAMPLE = 'بِسْمِ';
  */
 const FONT_FAMILY_NAMES: Record<ReaderArabicFont, string> = {
 	amiri: 'Amiri Quran',
+	husrev: 'Hayrât Neşriyat',
 	naskh: 'Kitab',
 	uthman: 'KFGQPC Uthman Taha Naskh'
 };
@@ -61,7 +75,7 @@ const FONT_FAMILY_NAMES: Record<ReaderArabicFont, string> = {
  *
  * It replaced a sheet that offered text size alone.
  */
-export const ReaderSettings = ({ onChange, settings }: ReaderSettingsProps) => {
+export const ReaderSettings = ({ hasMushafPages = false, onChange, settings }: ReaderSettingsProps) => {
 	const { t } = useTranslation();
 	const { theme } = useThemeContext();
 
@@ -79,8 +93,16 @@ export const ReaderSettings = ({ onChange, settings }: ReaderSettingsProps) => {
 		setDraftSize(settings.readerFontSize);
 	}
 
+	/*
+	 * The Hüsrev preview's width, measured. The crop is 965 pixels wide, and left to size itself
+	 * against a percentage it laid out at that width and ran off the card; given the card's own
+	 * measured width it fits exactly.
+	 */
+	const [husrevPreviewWidth, setHusrevPreviewWidth] = useState(0);
+
 	const fontLabels: Record<ReaderArabicFont, string> = {
 		amiri: t('fontAmiri'),
+		husrev: t('fontHusrev'),
 		naskh: t('fontNaskh'),
 		uthman: t('fontUthman')
 	};
@@ -92,11 +114,16 @@ export const ReaderSettings = ({ onChange, settings }: ReaderSettingsProps) => {
 	});
 	const cardText = (isSelected: boolean) => (isSelected ? theme.colors.text : theme.colors.subtext);
 
-	const previewFont = arabicReaderFonts[settings.readerArabicFont];
+	const fontOptions = hasMushafPages ? FONTS_WITH_MUSHAF_PAGES : TEXT_FONTS;
+	// The page images take no size and set their own digits, so those two controls step aside.
+	const isHusrev = settings.readerArabicFont === 'husrev';
+	// Hüsrev's preview is an image and never reads these.
+	const previewFace = textFontFor(settings.readerArabicFont);
+	const previewFont = arabicReaderFonts[previewFace];
 	const previewBaseSize = draftSize;
 	// Corrected the same way the reader corrects it, or the sample would be a different size
 	// from the page it is previewing.
-	const previewSize = Math.round(previewBaseSize * arabicReaderFontScale[settings.readerArabicFont]);
+	const previewSize = Math.round(previewBaseSize * arabicReaderFontScale[previewFace]);
 	/*
 	 * Leading and row height come from the **base** size, not the corrected one, so the card
 	 * is exactly as tall for every face. Keyed to the corrected size they differed by a few
@@ -119,109 +146,135 @@ export const ReaderSettings = ({ onChange, settings }: ReaderSettingsProps) => {
 			 */}
 			<View style={[styles.preview, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
 				<EyebrowText color={theme.colors.faintText}>{t('previewLabel')}</EyebrowText>
-				<View style={[styles.previewRow, { minHeight: previewLineHeight }]}>
-					{/*
-					 * Green, and on the left. It stands for a verse ornament in the running
-					 * text, and those are the page's green — the crimson is reserved for the
-					 * sübhâneke alone. Left because that is where a rosette lands at the end of
-					 * a right-to-left line.
-					 */}
-					<Ornament
-						backgroundColor={theme.colors.surface}
-						color={theme.colors.accent}
-						n={PREVIEW_ORNAMENT_NUMBER}
-						numerals={settings.readerNumerals}
-						size={PREVIEW_ORNAMENT_SIZE}
-					/>
-					<Typography
-						style={[
-							styles.previewLine,
-							{ fontFamily: previewFont, fontSize: previewSize, lineHeight: previewLineHeight }
-						]}
+				{isHusrev ? (
+					// As tall as the text preview's line, so switching faces never resizes the sheet.
+					<View
+						onLayout={event => setHusrevPreviewWidth(event.nativeEvent.layout.width)}
+						style={[styles.husrevPreview, { minHeight: previewLineHeight }]}
 					>
-						{PREVIEW_LINE}
-					</Typography>
-				</View>
+						{husrevPreviewWidth > 0 ? (
+							<Image
+								accessibilityIgnoresInvertColors
+								source={HUSREV_PREVIEW}
+								style={{
+									height: husrevPreviewWidth / HUSREV_PREVIEW_ASPECT,
+									width: husrevPreviewWidth
+								}}
+							/>
+						) : null}
+					</View>
+				) : (
+					<View style={[styles.previewRow, { minHeight: previewLineHeight }]}>
+						{/*
+						 * Green, and on the left. It stands for a verse ornament in the running
+						 * text, and those are the page's green — the crimson is reserved for the
+						 * sübhâneke alone. Left because that is where a rosette lands at the end of
+						 * a right-to-left line.
+						 */}
+						<Ornament
+							backgroundColor={theme.colors.surface}
+							color={theme.colors.accent}
+							n={PREVIEW_ORNAMENT_NUMBER}
+							numerals={settings.readerNumerals}
+							size={PREVIEW_ORNAMENT_SIZE}
+						/>
+						<Typography
+							style={[
+								styles.previewLine,
+								{ fontFamily: previewFont, fontSize: previewSize, lineHeight: previewLineHeight }
+							]}
+						>
+							{PREVIEW_LINE}
+						</Typography>
+					</View>
+				)}
 			</View>
 
-			<View style={styles.group}>
-				{/* The size and its readout share a row — the number is the label's answer. */}
-				<View style={styles.groupHeader}>
-					<EyebrowText color={theme.colors.faintText}>{t('textSize')}</EyebrowText>
-					<Typography color={theme.colors.subtext} variant='mono'>
-						{`${draftSize} px`}
-					</Typography>
-				</View>
-				<ReaderSizeSlider
-					max={READER_FONT_SIZE_MAX}
-					min={READER_FONT_SIZE_MIN}
-					onChange={size => onChange({ readerFontSize: size })}
-					onDraft={setDraftSize}
-					value={draftSize}
-				/>
-			</View>
+			{isHusrev ? null : (
+				<>
+					<View style={styles.group}>
+						{/* The size and its readout share a row — the number is the label's answer. */}
+						<View style={styles.groupHeader}>
+							<EyebrowText color={theme.colors.faintText}>{t('textSize')}</EyebrowText>
+							<Typography color={theme.colors.subtext} variant='mono'>
+								{`${draftSize} px`}
+							</Typography>
+						</View>
+						<ReaderSizeSlider
+							max={READER_FONT_SIZE_MAX}
+							min={READER_FONT_SIZE_MIN}
+							onChange={size => onChange({ readerFontSize: size })}
+							onDraft={setDraftSize}
+							value={draftSize}
+						/>
+					</View>
 
-			<View style={styles.group}>
-				<EyebrowText color={theme.colors.faintText}>{t('numerals')}</EyebrowText>
-				<View style={styles.row}>
-					{NUMERAL_OPTIONS.map(option => {
-						const isSelected = settings.readerNumerals === option.key;
+					<View style={styles.group}>
+						<EyebrowText color={theme.colors.faintText}>{t('numerals')}</EyebrowText>
+						<View style={styles.row}>
+							{NUMERAL_OPTIONS.map(option => {
+								const isSelected = settings.readerNumerals === option.key;
 
-						return (
-							<Pressable
-								accessibilityRole='button'
-								accessibilityState={{ selected: isSelected }}
-								key={option.key}
-								onPress={() => onChange({ readerNumerals: option.key })}
-								style={({ pressed }) => [
-									styles.inlineCard,
-									cardColors(isSelected),
-									{ opacity: pressed ? 0.9 : 1 }
-								]}
-							>
-								{/*
-								 * A fixed-width column for the glyph, so ١٢٣ and 123 — which are
-								 * nothing like the same width — still leave their labels on one
-								 * vertical line.
-								 */}
-								<Typography
-									color={cardText(isSelected)}
-									style={[
-										styles.numeralGlyph,
-										option.key === 'latin'
-											? null
-											: [styles.numeralGlyphArabic, { fontFamily: arabicReaderFonts.naskh }]
-									]}
-								>
-									{option.glyph}
-								</Typography>
-								<Typography color={cardText(isSelected)} variant='caption' weight='semibold'>
-									{option.key === 'latin' ? t('numLatin') : t('numArabic')}
-								</Typography>
-								{/*
-								 * Absolute, so the tick sits at the card's edge without joining the
-								 * centred pair. In the flow it widened the selected card's contents
-								 * and pushed its glyph and label off to one side, leaving the two
-								 * cards visibly out of step with each other.
-								 */}
-								{isSelected ? (
-									<Icon
-										color={theme.colors.accent}
-										name='check'
-										size={14}
-										style={styles.inlineMark}
-									/>
-								) : null}
-							</Pressable>
-						);
-					})}
-				</View>
-			</View>
+								return (
+									<Pressable
+										accessibilityRole='button'
+										accessibilityState={{ selected: isSelected }}
+										key={option.key}
+										onPress={() => onChange({ readerNumerals: option.key })}
+										style={({ pressed }) => [
+											styles.inlineCard,
+											cardColors(isSelected),
+											{ opacity: pressed ? 0.9 : 1 }
+										]}
+									>
+										{/*
+										 * A fixed-width column for the glyph, so ١٢٣ and 123 — which are
+										 * nothing like the same width — still leave their labels on one
+										 * vertical line.
+										 */}
+										<Typography
+											color={cardText(isSelected)}
+											style={[
+												styles.numeralGlyph,
+												option.key === 'latin'
+													? null
+													: [
+															styles.numeralGlyphArabic,
+															{ fontFamily: arabicReaderFonts.naskh }
+													  ]
+											]}
+										>
+											{option.glyph}
+										</Typography>
+										<Typography color={cardText(isSelected)} variant='caption' weight='semibold'>
+											{option.key === 'latin' ? t('numLatin') : t('numArabic')}
+										</Typography>
+										{/*
+										 * Absolute, so the tick sits at the card's edge without joining the
+										 * centred pair. In the flow it widened the selected card's contents
+										 * and pushed its glyph and label off to one side, leaving the two
+										 * cards visibly out of step with each other.
+										 */}
+										{isSelected ? (
+											<Icon
+												color={theme.colors.accent}
+												name='check'
+												size={14}
+												style={styles.inlineMark}
+											/>
+										) : null}
+									</Pressable>
+								);
+							})}
+						</View>
+					</View>
+				</>
+			)}
 
 			<View style={styles.group}>
 				<EyebrowText color={theme.colors.faintText}>{t('arabicFont')}</EyebrowText>
 				<View style={[styles.row, styles.fontRow]}>
-					{FONT_OPTIONS.map(font => {
+					{fontOptions.map(font => {
 						const isSelected = settings.readerArabicFont === font;
 
 						return (
@@ -238,19 +291,27 @@ export const ReaderSettings = ({ onChange, settings }: ReaderSettingsProps) => {
 								]}
 							>
 								{/* Each card sets its own face — that *is* the label. */}
-								<Typography
-									color={cardText(isSelected)}
-									style={[
-										styles.fontSample,
-										{
-											fontFamily: arabicReaderFonts[font],
-											fontSize: Math.round(18 * arabicReaderFontScale[font]),
-											lineHeight: Math.round(27 * arabicReaderFontScale[font])
-										}
-									]}
-								>
-									{FONT_SAMPLE}
-								</Typography>
+								{font === 'husrev' ? (
+									<Image
+										accessibilityIgnoresInvertColors
+										source={HUSREV_SAMPLE}
+										style={styles.husrevSample}
+									/>
+								) : (
+									<Typography
+										color={cardText(isSelected)}
+										style={[
+											styles.fontSample,
+											{
+												fontFamily: arabicReaderFonts[font],
+												fontSize: Math.round(18 * arabicReaderFontScale[font]),
+												lineHeight: Math.round(27 * arabicReaderFontScale[font])
+											}
+										]}
+									>
+										{FONT_SAMPLE}
+									</Typography>
+								)}
 								<Typography
 									color={cardText(isSelected)}
 									textAlign='center'
@@ -299,6 +360,14 @@ const styles = StyleSheet.create({
 	},
 	group: {
 		gap: 8
+	},
+	husrevPreview: {
+		alignSelf: 'stretch',
+		justifyContent: 'center'
+	},
+	husrevSample: {
+		height: HUSREV_SAMPLE_HEIGHT,
+		width: HUSREV_SAMPLE_WIDTH
 	},
 	groupHeader: {
 		alignItems: 'center',

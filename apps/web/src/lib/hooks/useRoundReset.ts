@@ -1,11 +1,14 @@
-import { useTranslation } from '@/lib/i18n/I18n.context';
 import type { GroupCycle } from '@/lib/types/domain';
+import { useTranslation } from '@/lib/i18n/I18n.context';
 import { roundResetLabels, timeUntilReset, type RoundResetLabels } from '@/lib/utils/roundReset';
 import { useMemo } from 'react';
 
 type ResetInput = {
 	roundEndsAt: string | null;
+	/** Whether the group repeats at all — a CUSTOM one states an end date instead. */
 	cycle: GroupCycle;
+	/** How many days the round runs — see `roundResetLabels` for why not the cadence. */
+	roundDays: number;
 	timezone: string;
 };
 
@@ -15,12 +18,12 @@ type ResetInput = {
  * `Intl` formatters are not cheap to build and a Groups list makes one card per group, so
  * the labels are memoised on the three inputs that can actually change them.
  */
-export const useRoundReset = ({ cycle, roundEndsAt, timezone }: ResetInput): RoundResetLabels | null => {
+export const useRoundReset = ({ cycle, roundDays, roundEndsAt, timezone }: ResetInput): RoundResetLabels | null => {
 	const { language, t } = useTranslation();
 
 	return useMemo(
-		() => roundResetLabels(roundEndsAt, cycle, timezone, language, t),
-		[cycle, language, roundEndsAt, t, timezone]
+		() => roundResetLabels(roundEndsAt, cycle, roundDays, timezone, language, t),
+		[cycle, language, roundDays, roundEndsAt, t, timezone]
 	);
 };
 

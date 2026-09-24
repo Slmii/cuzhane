@@ -33,6 +33,8 @@ import type { TabStackParamList } from '@/navigation/types';
 import { useAuth, useUser } from '@clerk/expo';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { refreshMyProfile } from '@/api/profile.api';
+import { groupQueryKeys, notificationQueryKeys } from '@/lib/hooks/queryKeys';
 import { useQueryClient } from '@tanstack/react-query';
 import { File } from 'expo-file-system';
 import { useCallback, useMemo, useState } from 'react';
@@ -209,16 +211,41 @@ export const ProfileScreen = () => {
 						}
 
 						const nextValue = getValues(field);
+						const current = field === 'firstName' ? user.firstName ?? '' : user.lastName ?? '';
 
-						if (field === 'firstName') {
-							if (nextValue !== (user.firstName ?? '')) {
-								user.update({ firstName: nextValue }).catch(() => {});
-							}
+						if (nextValue === current) {
 							return;
 						}
 
-						if (nextValue !== (user.lastName ?? '')) {
-							user.update({ lastName: nextValue }).catch(() => {});
+						/*
+						 * **The name lives in Clerk, and every screen that prints it reads it
+						 * from the server.** Members lists, round details and the pool all show
+						 * whoever holds a bab by their *live* Clerk name — so changing it here
+						 * and doing nothing else left the old one on every one of them, with
+						 * nothing to refetch and no reason to.
+						 *
+						 * Two things have to give way, and one of them is not on this device:
+						 * the server caches Clerk profiles for a minute, which is a good trade
+						 * for everyone else's name and a bad one for your own a second after
+						 * changing it. So the server is told to forget the caller first, and the
+						 * queries are invalidated only once it has — invalidating first would
+						 * refetch, hit the warm cache, and re-cache the old name for another
+						 * minute.
+						 *
+						 * Failures are swallowed the way the update itself always was: a name
+						 * that saved but did not propagate corrects itself within the minute.
+						 */
+						try {
+							await user.update(
+								field === 'firstName' ? { firstName: nextValue } : { lastName: nextValue }
+							);
+							await refreshMyProfile();
+							await queryClient.invalidateQueries({ queryKey: groupQueryKeys.root() });
+							await queryClient.invalidateQueries({ queryKey: notificationQueryKeys.root() });
+						} catch {
+							// Swallowed as the update always was — nothing here is worth an error
+							// screen, and a name that saved but did not propagate corrects itself
+							// within the cache's own minute.
 						}
 					};
 
@@ -281,7 +308,7 @@ export const ProfileScreen = () => {
 											label={t('firstName')}
 											onBlur={() => {
 												field.onBlur();
-												persistIfChanged('firstName');
+												void persistIfChanged('firstName');
 											}}
 											onChangeText={value => field.onChange(value)}
 											value={field.value}
@@ -298,7 +325,7 @@ export const ProfileScreen = () => {
 											label={t('lastName')}
 											onBlur={() => {
 												field.onBlur();
-												persistIfChanged('lastName');
+												void persistIfChanged('lastName');
 											}}
 											onChangeText={value => field.onChange(value)}
 											value={field.value}

@@ -2,7 +2,11 @@ import { GroupProgressSummary } from '@/components/GroupProgressSummary/GroupPro
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Chip } from '@/components/ui/Chip/Chip.component';
+import type { ChipTone } from '@/components/ui/Chip/Chip.types';
+import type { IconName } from '@/components/ui/Icon/Icon.types';
+import { ReadingTypeMark } from '@/components/ui/ReadingTypeMark/ReadingTypeMark.component';
 import { BodyStrongText, CaptionText, TitleText } from '@/components/ui/Typography/Typography.component';
+import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { StyleSheet, View } from 'react-native';
 import type { GroupCardProps } from './GroupCard.types';
@@ -22,6 +26,7 @@ export const GroupCard = ({
 	footerLeading,
 	isActionDisabled = false,
 	isActionPrimary = true,
+	kind,
 	name,
 	onAction,
 	onPress,
@@ -32,13 +37,41 @@ export const GroupCard = ({
 	style,
 	subtitle
 }: GroupCardProps) => {
+	const { t } = useTranslation();
 	const { theme } = useThemeContext();
 	const hasProgress = readCount !== undefined && percent !== undefined;
 	const hasFooter = Boolean(footerLabel || footerLeading || actionLabel);
 
+	/*
+	 * **Every card says what it reads, not only the hatim ones.** Q2's whole subject is one
+	 * list holding both, and a tag that appears on a card only when it is unusual makes the
+	 * other kind the unmarked default — which it stops being the moment somebody has one of
+	 * each.
+	 *
+	 * **Filled, and in the one fill nothing else uses.** The design draws this chip in sand
+	 * for a hatim and sage for a Cevşen group, beside exactly one other chip. Our cards stack
+	 * up to three, and both of those fills are already spoken for by the chips under it: sand
+	 * is "Toplanıyor" and sage is "Açık" — so a gathering hatim read as two identical sand
+	 * chips, and a running Cevşen group as two identical sage ones. `neutral` is the warm
+	 * grey neither of them is, and it suits a chip naming a category rather than news.
+	 */
+	const typeBadge = { label: kind === 'HATIM' ? t('qHatim') : t('qCevsen'), tone: 'neutral' } as const;
+	const trailingBadges: { icon?: IconName; label: string; tone?: ChipTone }[] = [
+		{ ...(badgeIcon ? { icon: badgeIcon } : {}), label: badgeLabel, tone: badgeTone },
+		...(extraBadges ?? [])
+	];
+
 	return (
 		<CardSurface onPress={onPress} style={[styles.card, style]}>
 			<View style={styles.headerRow}>
+				{/*
+				 * **The kind's mark, beside the name** — a tesbih or an open mushaf, saying only
+				 * which kind this is. The card already states its progress twice below, in the
+				 * fraction and the bar or board, so a mark that filled would be a third and
+				 * coarser copy. It sat inside the type chip for a moment, where a drawing on a
+				 * 10pt line is a smudge with a word after it.
+				 */}
+				<ReadingTypeMark backgroundColor={theme.colors.card} kind={kind} size={TYPE_MARK_SIZE} />
 				<View style={styles.headerCopy}>
 					<TitleText>{name}</TitleText>
 					{subtitle ? (
@@ -47,32 +80,24 @@ export const GroupCard = ({
 						</CaptionText>
 					) : null}
 				</View>
-				{extraBadges?.length ? (
-					// `alignSelf` per chip, not `alignItems` on the stack: `Chip` pins itself to
-					// flex-start so it never stretches, and that wins over the parent — which is
-					// what left badges of different widths ragged instead of flush right.
-					<View style={styles.badgeStack}>
+				{/* `alignSelf` per chip, not `alignItems` on the stack: `Chip` pins itself to
+				    flex-start so it never stretches, and that wins over the parent — which is
+				    what left badges of different widths ragged instead of flush right. */}
+				<View style={styles.badgeStack}>
+					<Chip label={typeBadge.label} style={styles.badge} tone={typeBadge.tone} />
+					{trailingBadges.map(badge => (
 						<Chip
-							{...(badgeIcon ? { icon: badgeIcon } : {})}
-							label={badgeLabel}
+							key={badge.label}
+							{...(badge.icon ? { icon: badge.icon } : {})}
+							label={badge.label}
 							style={styles.badge}
-							tone={badgeTone}
+							tone={badge.tone ?? 'accentOutline'}
 						/>
-						{extraBadges.map(badge => (
-							<Chip
-								key={badge.label}
-								label={badge.label}
-								style={styles.badge}
-								tone={badge.tone ?? 'accentOutline'}
-							/>
-						))}
-					</View>
-				) : (
-					<Chip {...(badgeIcon ? { icon: badgeIcon } : {})} label={badgeLabel} tone={badgeTone} />
-				)}
+					))}
+				</View>
 			</View>
 
-			{hasProgress ? <GroupProgressSummary percent={percent} readCount={readCount} /> : null}
+			{hasProgress ? <GroupProgressSummary kind={kind} percent={percent} readCount={readCount} /> : null}
 
 			{resetRow ? <View style={styles.resetRow}>{resetRow}</View> : null}
 
@@ -112,6 +137,12 @@ export const GroupCard = ({
 		</CardSurface>
 	);
 };
+
+/**
+ * Beside a 17pt group name. Under the mark's 20pt glyph threshold on purpose — a hundred
+ * beads at this size is a texture, and one ring of twelve still reads as a tesbih.
+ */
+const TYPE_MARK_SIZE = 24;
 
 const styles = StyleSheet.create({
 	card: {

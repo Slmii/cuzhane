@@ -32,7 +32,7 @@ import type { MyProgressCardProps } from './MyProgressCard.types';
  * or `missed` would put a near-black or a dark clay on dark green, which is the mistake
  * `TrailingCornerAction isOnHeaderSurface` exists to avoid on Ana sayfa.
  */
-export const MyProgressCard = ({ onPress, progress }: MyProgressCardProps) => {
+export const MyProgressCard = ({ isHatim = false, onPress, progress }: MyProgressCardProps) => {
 	const { t } = useTranslation();
 	const { theme } = useThemeContext();
 
@@ -59,7 +59,7 @@ export const MyProgressCard = ({ onPress, progress }: MyProgressCardProps) => {
 				<CaptionText color={theme.colors.onHeaderSurface} weight='semibold'>
 					{`${progress.ratePercent}%`}
 				</CaptionText>
-				{` ${t('mpRate')}`}
+				{isHatim ? ` · ${t('qThisHatim', { n: progress.periods.length })}` : ` ${t('mpRate')}`}
 			</CaptionText>
 			<Icon color={theme.colors.onHeaderSurface} name='chevronRight' size={15} strokeWidth={1.8} />
 		</CardSurface>

@@ -15,9 +15,11 @@ import {
 import { useGetGroupById } from '@/lib/hooks/useGroup';
 import { useRoundReset } from '@/lib/hooks/useRoundReset';
 import { useGetUserSettings } from '@/lib/hooks/useUserSettings';
+import { cuzSuraRange } from '@/lib/content/cuz';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { formatBabRange } from '@/lib/utils/babs';
+import { CUZ_COUNT } from '@/lib/utils/units';
 import type { TabStackParamList } from '@/navigation/types';
 import { LeaveGroupButton } from '@/screens/Groups/LeaveGroupButton.component';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -29,12 +31,13 @@ type Props = NativeStackScreenProps<TabStackParamList, 'JoinedWelcome'>;
 export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 	const { groupId } = route.params;
 	const { theme } = useThemeContext();
-	const { t } = useTranslation();
+	const { t, language } = useTranslation();
 	const group = useGetGroupById(groupId);
 	const userSettings = useGetUserSettings();
 	// With the other hooks: the loading branch below returns before the body runs.
 	const reset = useRoundReset({
 		cycle: group.data?.cycle ?? 'WEEKLY',
+		roundDays: group.data?.roundDays ?? 7,
 		roundEndsAt: group.data?.roundEndsAt ?? null,
 		timezone: group.data?.timezone ?? 'UTC'
 	});
@@ -52,8 +55,16 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 	}
 
 	const detail = group.data;
+	/*
+	 * **A hatim hands you the cüz you picked, not a range that was worked out for you** — QJ4.
+	 * The numbers are the same field and the same card; what changes is what they are called
+	 * ("Cüzlerin", not "Senin aralığın") and the line under them, which names the spans of
+	 * the Kuran rather than repeating the numerals as a range.
+	 */
+	const isHatim = detail.kind === 'HATIM';
 	// `myBabNumbers` is the server's answer for today — already rotated for a ROTATION
-	// group, and the seat's reserved block while the group is still gathering.
+	// group, and the seat's reserved block while the group is still gathering. For a hatim
+	// it is what that member holds this round.
 	const babNumbers = detail.myBabNumbers;
 	const rangeValue = formatBabRange(babNumbers);
 	// Nothing is counted until the owner opens day 1, so the range is only a reservation.
@@ -90,6 +101,8 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 	};
 
 	const spotsToFill = Math.max(0, detail.spots - detail.memberCount);
+	// What the map has, rather than what the seats have — see the fill card below.
+	const takenCuzCount = CUZ_COUNT - detail.poolBabNumbers.length;
 
 	return (
 		<ScreenContainer contentContainerStyle={styles.content} isScrollable>
@@ -120,10 +133,12 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 				</View>
 
 				<Header1 style={styles.title} textAlign='center'>
-					{t(isProvisional ? 'lobbyTitle' : 'midTitle')}
+					{t(isProvisional ? 'lobbyTitle' : isHatim ? 'qJoinedTitle2' : 'midTitle')}
 				</Header1>
 				<BodyText color={theme.colors.subtext} style={styles.sub} textAlign='center'>
-					{isProvisional ? t('lobbySub') : t('midSub', { count: babNumbers.length })}
+					{isProvisional
+						? t(isHatim ? 'qLobbyWaitSub' : 'lobbySub')
+						: t(isHatim ? 'qJoinedSub2' : 'midSub', { count: babNumbers.length })}
 				</BodyText>
 
 				{isProvisional ? (
@@ -133,7 +148,7 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 						<CardSurface style={styles.rangeCard}>
 							<Hatch radius={theme.radius.lg} />
 							<EyebrowText color={theme.colors.subtext} textAlign='center'>
-								{t('yourRange')}
+								{t(isHatim ? 'qMyCuz' : 'yourRange')}
 							</EyebrowText>
 							<Typography
 								color={theme.colors.faintText}
@@ -156,46 +171,107 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 						{/* Progress leads, the counts explain it — a separate card, because it
 						    is about the group filling up rather than about your range. */}
 						<CardSurface style={styles.fillCard}>
-							<ProgressBar percent={Math.round((detail.memberCount / detail.spots) * 100)} />
+							{/* **A gathering hatim fills with cüz, not with people**: its thirty
+							    seats are a ceiling on `slotIndex` and one member may hold six, so
+							    a seat bar reads as nearly empty while the map is nearly full. */}
+							<ProgressBar
+								percent={Math.round(
+									((isHatim ? takenCuzCount : detail.memberCount) /
+										(isHatim ? CUZ_COUNT : detail.spots)) *
+										100
+								)}
+							/>
 							<View style={styles.fillRow}>
 								<CaptionText color={theme.colors.subtext}>
-									{t('membersJoined', { count: detail.memberCount, spots: detail.spots })}
+									{isHatim
+										? `${takenCuzCount} / ${CUZ_COUNT} ${t('qCuzTaken')}`
+										: t('membersJoined', { count: detail.memberCount, spots: detail.spots })}
 								</CaptionText>
 								<CaptionText color={theme.colors.accent} weight='semibold'>
-									{t('spotsToFill', { count: spotsToFill })}
+									{isHatim
+										? `${detail.poolBabNumbers.length} ${t('qFree')}`
+										: t('spotsToFill', { count: spotsToFill })}
 								</CaptionText>
 							</View>
 						</CardSurface>
 					</>
 				) : (
 					<CardSurface style={styles.rangeCard}>
+						{/* The count rides the eyebrow — "CÜZLERİN · 3" — so the heading says how
+						    many without a line of its own above a list that is already short. */}
 						<EyebrowText color={theme.colors.subtext} textAlign='center'>
-							{t('yourRange')}
+							{isHatim ? `${t('qMyCuz')} · ${babNumbers.length}` : t('yourRange')}
 						</EyebrowText>
 						{/*
-						 * The numbers themselves, not anonymous pills: these came out of the pool,
-						 * so which ones you were handed is the point.
+						 * **A cüz is a row, a bab is a pill.** The pills were a run of numbers with
+						 * every sura range strung after them in one line, which reads as a single
+						 * long phrase and comes apart entirely past two or three cüz — and "22" on
+						 * its own says nothing about what was agreed to anyway. One row per cüz
+						 * pairs each number with its own span and is the same shape at one or six.
 						 *
-						 * Filled in the board's own `babReadByMe`, the same green the invite preview
-						 * gives them and the same one they wear once read. Three screens in a row
-						 * show these numbers — preview, here, then the board — and one colour makes
-						 * that one fact rather than three that merely look alike.
+						 * The hundred-bab groups keep the pills: their share is contiguous, the
+						 * numbers *are* the fact, and thirteen rows would be a screenful.
 						 */}
-						<View style={styles.numeralRow}>
-							{babNumbers.map(number => (
-								<View
-									key={number}
-									style={[
-										styles.numeral,
-										{ backgroundColor: theme.colors.babReadByMe, borderRadius: theme.radius.sm }
-									]}
-								>
-									{/* `onAccent`, the same pairing the board uses — the fill is dark
-									    enough that accent-on-accent would be unreadable. */}
-									<CaptionText color={theme.colors.onAccent}>{number}</CaptionText>
-								</View>
-							))}
-						</View>
+						{isHatim ? (
+							<View style={styles.cuzRows}>
+								{babNumbers.map(number => (
+									<View
+										key={number}
+										style={[
+											styles.cuzRow,
+											{
+												backgroundColor: theme.colors.surfaceMuted,
+												borderRadius: theme.radius.md
+											}
+										]}
+									>
+										<View
+											style={[
+												styles.cuzTile,
+												{ backgroundColor: theme.colors.accent, borderRadius: theme.radius.sm }
+											]}
+										>
+											{/* The display face, as the frame sets it. */}
+											<Typography
+												color={theme.colors.onAccent}
+												style={styles.cuzNumeral}
+												variant='display'
+											>
+												{number}
+											</Typography>
+										</View>
+										<CaptionText style={styles.cuzRange}>
+											{cuzSuraRange(number, language)}
+										</CaptionText>
+									</View>
+								))}
+							</View>
+						) : (
+							/*
+							 * The numbers themselves, not anonymous pills: these came out of the
+							 * pool, so which ones you were handed is the point.
+							 *
+							 * Filled in the board's own `babReadByMe`, the same green the invite
+							 * preview gives them and the same one they wear once read. Three screens
+							 * in a row show these numbers — preview, here, then the board — and one
+							 * colour makes that one fact rather than three that merely look alike.
+							 */
+							<View style={styles.numeralRow}>
+								{babNumbers.map(number => (
+									<View
+										key={number}
+										style={[
+											styles.numeral,
+											{ backgroundColor: theme.colors.babReadByMe, borderRadius: theme.radius.sm }
+										]}
+									>
+										{/* `onAccent`, the same pairing the board uses — the fill is
+										    dark enough that accent-on-accent would be unreadable. */}
+										<CaptionText color={theme.colors.onAccent}>{number}</CaptionText>
+									</View>
+								))}
+							</View>
+						)}
 						{/*
 						 * Both clocks, as everywhere else the reset is stated. The reset is a
 						 * group-wide fact on the creator's zone, so for anyone in another one the
@@ -246,10 +322,14 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 				) : (
 					<>
 						<AppButton onPress={handleStartReading} title={t('startReading')} />
-						{/* A reminder that's already on replaces the "set one" ghost button rather
-						    than sitting beside it — the design swaps the two, and having both would
-						    be two ways to the same place. */}
-						{activeReminder ? (
+						{/*
+						 * **Nothing about the reminder on a hatim.** The daily reminder counts
+						 * Cevşen groups only — see `reminderTotals` — so offering to set one
+						 * here, or reporting one that is already on, would promise this group a
+						 * nudge it is deliberately left out of. Same reason the gathering state
+						 * above dropped "Başladığında bana bildir".
+						 */}
+						{isHatim ? null : activeReminder ? (
 							<Pressable
 								onPress={handleSetReminder}
 								style={({ pressed }) => [
@@ -329,6 +409,29 @@ const styles = StyleSheet.create({
 	// wrapping broke it wherever the width happened to run out — usually leaving "sende"
 	// hanging off the end of the first line, attached to the group's clock rather than to
 	// yours. The local time is its own fact, so it gets its own line.
+	cuzNumeral: {
+		fontSize: 17,
+		lineHeight: 21
+	},
+	cuzRange: {
+		flex: 1
+	},
+	cuzRow: {
+		alignItems: 'center',
+		flexDirection: 'row',
+		gap: 13,
+		padding: 8
+	},
+	cuzRows: {
+		gap: 8,
+		marginTop: 14
+	},
+	cuzTile: {
+		alignItems: 'center',
+		height: 44,
+		justifyContent: 'center',
+		width: 44
+	},
 	roundEndBlock: {
 		borderTopWidth: StyleSheet.hairlineWidth,
 		gap: 4,

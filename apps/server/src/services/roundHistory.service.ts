@@ -1,8 +1,9 @@
 import { CONFLICT, FORBIDDEN, NOT_FOUND } from '@config/httpCodes';
 import { HttpError } from '@config/httpError';
 import prisma from '@db/prisma';
-import { BAB_COUNT, slotIndexForBab } from '@utils/babs';
-import { ROUND_DAYS, roundEndsAt, roundIndexSince, roundStartedAtFor, type CycleName } from '@utils/rounds';
+import { slotIndexForBab } from '@utils/babs';
+import { unitCountFor } from '@utils/units';
+import { roundEndsAt, roundIndexSince, roundStartedAtFor, type CycleName } from '@utils/rounds';
 import { normalizeUserId } from '@utils/normalizeUserId';
 import { ensureCurrentRoundFor } from './rounds.service';
 import { requireMembership } from './groupAccess.service';
@@ -73,9 +74,9 @@ const boundsFor = (group: Group, roundIndex: number) => {
 	// A group cannot have history before it started, so `startedAt` is non-null on every
 	// path that reaches here — the callers all guard on RUNNING first.
 	const startedAt = group.startedAt as Date;
-	const start = roundStartedAtFor(startedAt, ROUND_DAYS[group.cycle], roundIndex, group.timezone);
+	const start = roundStartedAtFor(startedAt, group.roundDays, roundIndex, group.timezone);
 
-	return { startedAt: start, endsAt: roundEndsAt(start, group.cycle, group.timezone) };
+	return { startedAt: start, endsAt: roundEndsAt(start, group.roundDays, group.timezone) };
 };
 
 const loadRunningGroup = async (userId: string, groupId: string) => {
@@ -109,6 +110,7 @@ const loadRunningGroup = async (userId: string, groupId: string) => {
  */
 export const listRoundsForUser = async (userId: string, groupId: string): Promise<RoundSummary[]> => {
 	const { group, normalizedUserId } = await loadRunningGroup(userId, groupId);
+	const unitCount = unitCountFor(group);
 
 	const [members, reads] = await Promise.all([
 		prisma.groupMember.findMany({ where: { groupId }, orderBy: { slotIndex: 'asc' } }),
@@ -141,7 +143,7 @@ export const listRoundsForUser = async (userId: string, groupId: string): Promis
 		const owedCount =
 			viewer === undefined
 				? 0
-				: Array.from({ length: BAB_COUNT }, (_, index) => index + 1).filter(
+				: Array.from({ length: unitCount }, (_, index) => index + 1).filter(
 						babNumber => owedSlotForBab(group, babNumber, roundIndex) === viewer.slotIndex
 				  ).length;
 
@@ -151,7 +153,7 @@ export const listRoundsForUser = async (userId: string, groupId: string): Promis
 			endsAt: endsAt.toISOString(),
 			readCount: bucket.total,
 			// An open round has nothing "missing" yet — the day is not over.
-			missedCount: roundIndex === group.roundIndex ? 0 : BAB_COUNT - bucket.total,
+			missedCount: roundIndex === group.roundIndex ? 0 : unitCount - bucket.total,
 			myReadCount: bucket.mine,
 			myOwedCount: owedCount,
 			isOpen: roundIndex === group.roundIndex
@@ -184,7 +186,7 @@ export const getRoundDetailForUser = async (
 	const memberBySlot = new Map<number, GroupMember>(members.map(member => [member.slotIndex, member]));
 	const readByNumber = new Map(reads.map(read => [read.babNumber, read]));
 
-	const babs: RoundBab[] = Array.from({ length: BAB_COUNT }, (_, index) => {
+	const babs: RoundBab[] = Array.from({ length: unitCountFor(group) }, (_, index) => {
 		const number = index + 1;
 		const read = readByNumber.get(number);
 		const slotIndex = owedSlotForBab(group, number, roundIndex);
@@ -209,7 +211,7 @@ export const getRoundDetailForUser = async (
 		startedAt: startedAt.toISOString(),
 		endsAt: endsAt.toISOString(),
 		isOpen: roundIndex === group.roundIndex,
-		readCount: BAB_COUNT - missed.length,
+		readCount: unitCountFor(group) - missed.length,
 		missedCount: missed.length,
 		missedPeopleCount: new Set(missed.map(bab => bab.owedByUserId).filter(Boolean)).size,
 		babs
@@ -242,7 +244,7 @@ export const coverMissedBabsForUser = async (
 
 	const wanted = [...new Set(babNumbers)];
 
-	if (wanted.some(babNumber => !Number.isInteger(babNumber) || babNumber < 1 || babNumber > BAB_COUNT)) {
+	if (wanted.some(babNumber => !Number.isInteger(babNumber) || babNumber < 1 || babNumber > unitCountFor(group))) {
 		throw new HttpError(NOT_FOUND, 'Bab not found');
 	}
 
@@ -334,6 +336,16 @@ export type MyProgressPeriod = {
 	 * Always empty for the open round: nothing is missed while there is still time.
 	 */
 	missedBabs: { babNumber: number; roundIndex: number }[];
+	/**
+	 * **A hatim's cüz, each with its outcome** — what Q6 draws as one cell per cüz: read,
+	 * missed, or (in the open round) still open. Empty for a Cevşen group, whose strip draws
+	 * only counts; see `owedCount` for why the numbers stay off that payload.
+	 *
+	 * `isRead` is "read by anyone", the same test `missedBabs` uses, so a closed round's cells
+	 * and its missed list can never disagree. In a hatim only the holder can mark a cüz, so
+	 * that is also "read by you".
+	 */
+	units: { number: number; isRead: boolean }[];
 };
 
 export type MyProgress = {
@@ -369,13 +381,14 @@ export const getMyProgressForUser = async (userId: string, groupId: string): Pro
 	 * misses; this screen puts a number against one person, so being wrong reads as an
 	 * accusation.
 	 */
-	const joinedRoundIndex = roundIndexSince(
-		group.startedAt as Date,
-		ROUND_DAYS[group.cycle],
-		member.joinedAt,
-		group.timezone
-	);
-	const oldestRoundIndex = Math.max(0, joinedRoundIndex);
+	const joinedRoundIndex = roundIndexSince(group.startedAt as Date, group.roundDays, member.joinedAt, group.timezone);
+	/*
+	 * Capped at the round the group is on. For a repeating group that changes nothing — nobody
+	 * joins after the present — but a one-off ("Tek seferlik") never leaves round 0 however long
+	 * it runs, while the arithmetic above keeps counting stretches of `roundDays`. Someone joining
+	 * after the first stretch got a floor past the only round there is, and an empty record.
+	 */
+	const oldestRoundIndex = Math.min(Math.max(0, joinedRoundIndex), group.roundIndex);
 
 	/*
 	 * What this seat owed, round by round — computed first, because it is also what the query
@@ -387,12 +400,38 @@ export const getMyProgressForUser = async (userId: string, groupId: string): Pro
 	 * turns hundreds of clauses into at most `spots` of them.
 	 */
 	const owedByRound = new Map<number, number[]>();
-	const roundsByBlock = new Map<string, { babNumbers: number[]; roundIndexes: number[] }>();
+	const isHatim = group.kind === 'HATIM';
+
+	/*
+	 * **A hatim owes what was held, not what a seat derives.** A member holds *specific* cüz,
+	 * round by round — chosen on the way in, carried by KEEP, re-picked by REPICK, or taken
+	 * from the havuz as a loan — and `CuzHolding` keeps every round's rows. The seat maths
+	 * below would hand a hatim member a slice of the hundred that has nothing to do with them.
+	 */
+	const holdings = isHatim
+		? await prisma.cuzHolding.findMany({
+				orderBy: { cuzNumber: 'asc' },
+				select: { cuzNumber: true, roundIndex: true },
+				where: { groupId, roundIndex: { gte: oldestRoundIndex, lte: group.roundIndex }, userId: member.userId }
+		  })
+		: [];
 
 	for (let roundIndex = oldestRoundIndex; roundIndex <= group.roundIndex; roundIndex++) {
-		const owed = babNumbersInRound(group, member.slotIndex, roundIndex);
+		owedByRound.set(
+			roundIndex,
+			isHatim
+				? holdings.filter(holding => holding.roundIndex === roundIndex).map(holding => holding.cuzNumber)
+				: babNumbersInRound(group, member.slotIndex, roundIndex)
+		);
+	}
 
-		owedByRound.set(roundIndex, owed);
+	const roundsByBlock = new Map<string, { babNumbers: number[]; roundIndexes: number[] }>();
+
+	for (const [roundIndex, owed] of owedByRound) {
+		// A round in which nothing was held asks the database nothing.
+		if (owed.length === 0) {
+			continue;
+		}
 
 		const key = owed.join(',');
 		const block = roundsByBlock.get(key) ?? { babNumbers: owed, roundIndexes: [] };
@@ -461,7 +500,8 @@ export const getMyProgressForUser = async (userId: string, groupId: string): Pro
 			owedCount: owed.length,
 			readCount,
 			roundIndex,
-			startedAt: startedAt.toISOString()
+			startedAt: startedAt.toISOString(),
+			units: isHatim ? owed.map(number => ({ isRead: readByAnyone.has(number), number })) : []
 		});
 	}
 

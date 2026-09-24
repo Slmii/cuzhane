@@ -19,12 +19,28 @@
  * These helpers are deliberately server-only. The client never computes a round — it is
  * handed `roundIndex` — so nothing here needs mirroring into `apps/web`.
  */
-export type CycleName = 'DAILY' | 'WEEKLY';
+/**
+ * The cadences a group can be *labelled* with. Keşfet filters on this, and it is what the
+ * group screen's chip says.
+ *
+ * **It is no longer what the calendar reads.** A hatim's round is any number of days the
+ * creator picks, which no enum can carry, so the day count moved to `Group.roundDays` and
+ * these became presets that fill it in. The two still agree for every Cevşen group — see
+ * the backfill migration, which set DAILY to 1 and WEEKLY to 7 rather than letting the
+ * column's default quietly make every daily group weekly.
+ */
+export type CycleName = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'CUSTOM';
 
-/** How long one round lasts, in days. Every cycle rolls; none is open-ended. */
-export const ROUND_DAYS: Record<CycleName, number> = {
+/**
+ * The day count each preset stands for, for the one direction that still needs it: turning
+ * a chosen cadence into `roundDays` at creation. **Nothing reads a group's length through
+ * here any more** — read `group.roundDays`, which is the only thing that can answer for a
+ * custom round.
+ */
+export const ROUND_DAYS: Record<Exclude<CycleName, 'CUSTOM'>, number> = {
 	DAILY: 1,
-	WEEKLY: 7
+	WEEKLY: 7,
+	MONTHLY: 30
 };
 
 const DAY_MS = 86_400_000;
@@ -198,8 +214,8 @@ export const roundStartedAtFor = (startedAt: Date, roundDays: number, roundIndex
  * midnight the rollover fires. Adding a fixed number of hours to `startedAt` used to put
  * this several hours after the group had already rolled.
  */
-export const roundEndsAt = (roundStartedAt: Date, cycle: CycleName, timeZone: string): Date =>
-	startOfCivilDay(civilDayNumber(roundStartedAt, timeZone) + ROUND_DAYS[cycle], timeZone);
+export const roundEndsAt = (roundStartedAt: Date, roundDays: number, timeZone: string): Date =>
+	startOfCivilDay(civilDayNumber(roundStartedAt, timeZone) + Math.max(1, Math.floor(roundDays)), timeZone);
 
 /** Whether a string is a time zone this platform actually knows, for validating client input. */
 export const isValidTimeZone = (timeZone: string): boolean => {

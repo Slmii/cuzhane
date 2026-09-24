@@ -29,7 +29,7 @@ export interface LegalPage {
 	sections: LegalSection[];
 }
 
-const UPDATED = '2026-09-06';
+const UPDATED = '2026-09-24';
 
 const privacyTr: LegalPage = {
 	title: 'Gizlilik',
@@ -56,6 +56,13 @@ const privacyTr: LegalPage = {
 			heading: 'Saklamadığımız veriler',
 			paragraphs: [
 				'Analitik aracı kullanmıyoruz. Reklam ağı yok, izleme pikseli yok, üçüncü taraf çerezi yok. Konumunu, rehberini, takvimini veya cihazındaki başka hiçbir şeyi okumuyoruz. Okuduğun metnin kendisi uygulamayla birlikte gelir; hangi kelimeyi ne zaman okuduğun sunucuya gitmez.'
+			]
+		},
+		{
+			heading: 'Kuran metni',
+			paragraphs: [
+				'Uygulamadaki Kuran metni, Kral Fahd Kur’an-ı Kerim Basım Kompleksi’nin (Medine) Medine Mushafı’dır. Quran Foundation’ın (quran.com) API’sinden alınır ve uygulamayla birlikte gelir. Metin cihazında okunur. Bir âyete basılı tuttuğunda meali, kendi sunucumuz aracılığıyla Quran Foundation’dan o an istenir: yalnızca âyetin numarası ve dil gider; hesabın ya da senin hakkında hiçbir bilgi gitmez. Meal cihazında saklanmaz.',
+				'“Hüsrev hattı” seçildiğinde sayfalar, Hayrât Neşriyat’ın Ahmed Hüsrev hattıyla basılan Tevâfuklu Kur’ân-ı Kerîm’inden gelir ve Hayrat Vakfı’nın izniyle kullanılır; Hatim duası da aynı baskının sayfalarıdır. Sayfa görselleri bir kez kendi sunucumuzdan indirilir ve cihazında saklanır; bu indirme hesabınla yapılmaz ve hesabına bağlanmaz.'
 			]
 		},
 		{
@@ -125,6 +132,13 @@ const privacyEn: LegalPage = {
 			]
 		},
 		{
+			heading: 'The Quran text',
+			paragraphs: [
+				'The Quran text in the app is the Madinah Mushaf of the King Fahd Glorious Qur’an Printing Complex (Madinah). It comes from the Quran Foundation’s API (quran.com) and ships inside the app. It is read on your device. When you long-press a verse, its translation is requested from the Quran Foundation at that moment, through our own server: only the verse number and the language are sent — nothing about you or your account. The translation is not stored on your device.',
+				'When you choose “Hüsrev script”, the pages come from the Tevâfuklu Qur’an printed by Hayrât Neşriyat in the hand of Ahmed Hüsrev, used with the permission of Hayrat Vakfı; so does the Hatim prayer. The page images are downloaded once from our own server and kept on your device; the download is made without your account and is not tied to it.'
+			]
+		},
+		{
 			heading: 'Who can see your data',
 			paragraphs: [
 				'Members of a group can see each other’s name, share and progress — that is what running a hatim together means. Beyond that, your data is processed only by these providers:'
@@ -188,6 +202,13 @@ const privacyNl: LegalPage = {
 			heading: 'Wat we niet bewaren',
 			paragraphs: [
 				'Er is geen analysetool. Geen advertentienetwerk, geen trackingpixel, geen cookie van derden. We lezen je locatie, contacten, agenda of wat dan ook op je toestel niet. De tekst die je leest zit in de app zelf; welke woorden je wanneer leest, bereikt de server nooit.'
+			]
+		},
+		{
+			heading: 'De Korantekst',
+			paragraphs: [
+				'De Korantekst in de app is de Medina-mushaf van het King Fahd-complex voor het drukken van de Edele Koran (Medina). Hij komt van de API van de Quran Foundation (quran.com) en zit in de app zelf. Je leest hem op je toestel. Houd je een vers ingedrukt, dan wordt de vertaling op dat moment via onze eigen server bij de Quran Foundation opgevraagd: alleen het versnummer en de taal gaan mee — niets over jou of je account. De vertaling wordt niet op je toestel bewaard.',
+				'Kies je “Hüsrev-schrift”, dan komen de pagina’s uit de Tevâfuklu Koran die Hayrât Neşriyat drukte in het handschrift van Ahmed Hüsrev, gebruikt met toestemming van Hayrat Vakfı; het Hatim-gebed ook. De paginabeelden worden één keer van onze eigen server gedownload en op je toestel bewaard; die download gebeurt zonder je account en is er niet aan gekoppeld.'
 			]
 		},
 		{

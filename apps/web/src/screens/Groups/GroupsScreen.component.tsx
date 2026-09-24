@@ -140,6 +140,7 @@ export const GroupsScreen = () => {
 				return (
 					<Animated.View layout={cardLayout}>
 						<GroupCard
+							kind={item.kind}
 							// "Lobiyi gör", not the bare "Görüntüle" Discover uses for a group you
 							// already belong to — one tap apart, the same word would be carrying two
 							// different meanings.
@@ -165,17 +166,28 @@ export const GroupsScreen = () => {
 			const isCompleted = item.completedAt !== null;
 			// Called straight rather than through the hook: this renders per row, and a hook
 			// per card would change hook order as the list grows or shrinks.
-			const reset = roundResetLabels(item.roundEndsAt, item.cycle, item.timezone, language, t);
+			const reset = roundResetLabels(item.roundEndsAt, item.cycle, item.roundDays, item.timezone, language, t);
 
 			return (
 				<Animated.View layout={cardLayout}>
 					<GroupCard
+						kind={item.kind}
 						actionLabel={isCompleted ? t('view') : t('continue')}
 						badgeIcon={visibilityIcon(item.visibility)}
 						badgeLabel={t(visibilityLabelKey(item.visibility))}
 						badgeTone={visibilityChipTone(item.visibility)}
 						footerCaption={`${t('todayLabel')} · ${item.myReadCount}/${item.myBabNumbers.length}`}
-						footerLabel={`${t(planLabelKey(item.splitMode))} · ${formatBabRange(item.myBabNumbers)}`}
+						/*
+						 * **A hatim has no reading plan to name.** `splitMode` decides which block a
+						 * seat rotates onto, and a hatim has neither — it stores `FIXED` because the
+						 * column cannot be empty, so the Cevşen label would read "Sabit · 7, 22" and
+						 * describe nothing. The design's own footer names the holding instead:
+						 * "Cüzlerin · 7, 22". The numbers themselves need no special case —
+						 * `formatBabRange` already renders scattered ones as a list.
+						 */
+						footerLabel={`${
+							item.kind === 'HATIM' ? t('qMyCuz') : t(planLabelKey(item.splitMode))
+						} · ${formatBabRange(item.myBabNumbers)}`}
 						// Filled even when the round is finished: the hatim itself is ongoing, so a
 						// de-emphasised button would read as "this group is done". Only the label
 						// softens — there is nothing left to continue today.

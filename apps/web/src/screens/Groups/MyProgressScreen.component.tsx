@@ -8,12 +8,14 @@ import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { StatTile } from '@/components/ui/StatTile/StatTile.component';
 import { CaptionText, TitleText, Typography } from '@/components/ui/Typography/Typography.component';
 import { useGetGroupById } from '@/lib/hooks/useGroup';
+import { useRequireRoundCuz } from '@/lib/hooks/useHatimRoundGate';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useGetMyProgress } from '@/lib/hooks/useRounds';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { MyProgressPeriod } from '@/lib/types/domain';
 import type { TabStackParamList } from '@/navigation/types';
+import { HatimProgress } from '@/screens/Groups/HatimProgress.component';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -35,6 +37,8 @@ const LEGEND = ['mpLegendFull', 'mpLegendPart', 'mpLegendNone', 'mpLegendOpen'] 
  */
 export const MyProgressScreen = ({ navigation, route }: Props) => {
 	const { groupId } = route.params;
+	// Holding no cüz this round means QR1 comes first, however this screen was reached.
+	useRequireRoundCuz(groupId, navigation);
 	const { language, t } = useTranslation();
 	const { theme } = useThemeContext();
 
@@ -58,7 +62,11 @@ export const MyProgressScreen = ({ navigation, route }: Props) => {
 		// arriving blank and growing a title a moment later.
 		return (
 			<ScreenContainer>
-				<ScreenHeader hasBackButton subtitle={t('mpSub')} title={t('myProgress')} />
+				<ScreenHeader
+					hasBackButton
+					subtitle={t(groupQuery.data?.kind === 'HATIM' ? 'qMpSub' : 'mpSub')}
+					title={t('myProgress')}
+				/>
 			</ScreenContainer>
 		);
 	}
@@ -68,6 +76,22 @@ export const MyProgressScreen = ({ navigation, route }: Props) => {
 	}
 
 	const group = groupQuery.data;
+
+	// Q6: a hatim's record is cüz per round, not a strip of seat shares.
+	if (group.kind === 'HATIM') {
+		return (
+			<ScreenContainer isScrollable pullToRefresh={pullToRefresh}>
+				<ScreenHeader hasBackButton subtitle={t('qMpSub')} title={t('myProgress')} />
+				<HatimProgress
+					cycle={group.cycle}
+					onOpenPool={() => navigation.navigate('Pool', { groupId })}
+					onReadCuz={cuzNumber => navigation.navigate('CuzReader', { cuzNumber, groupId })}
+					progress={progress}
+					roundDays={group.roundDays}
+				/>
+			</ScreenContainer>
+		);
+	}
 	const isWeekly = progress.cycle === 'WEEKLY';
 	const openPeriod = progress.periods.at(-1);
 

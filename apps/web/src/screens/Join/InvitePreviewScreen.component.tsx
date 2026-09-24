@@ -1,4 +1,6 @@
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
+import { CuzMap, CuzMapLegend } from '@/components/CuzMap/CuzMap.component';
+import type { CuzCellState } from '@/components/CuzMap/CuzMap.types';
 import { InvitePreviewSkeleton } from './InvitePreviewSkeleton.component';
 import { SCREEN_TITLE_PADDING_UNDER_BAR } from '@/components/ScreenTitle/ScreenTitle.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
@@ -8,13 +10,20 @@ import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
 import { ProgressBar } from '@/components/ui/ProgressBar/ProgressBar.component';
 import { SeatStack } from '@/components/ui/SeatStack/SeatStack.component';
-import { CaptionText, EyebrowText, Header2, TitleText } from '@/components/ui/Typography/Typography.component';
+import {
+	CaptionText,
+	EyebrowText,
+	Header2,
+	NumericText,
+	TitleText
+} from '@/components/ui/Typography/Typography.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useGroupPreviewById, useJoinGroup } from '@/lib/hooks/useMembership';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useRoundReset } from '@/lib/hooks/useRoundReset';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { cycleLabelKey, splitModeLabelKey } from '@/lib/utils/groups';
+import { CUZ_COUNT } from '@/lib/utils/units';
 import type { TabStackParamList } from '@/navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useState } from 'react';
@@ -51,6 +60,7 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 	// Above the early returns with the other hooks — the loading branch below returns first.
 	const reset = useRoundReset({
 		cycle: preview.data?.cycle ?? 'WEEKLY',
+		roundDays: preview.data?.roundDays ?? 7,
 		roundEndsAt: preview.data?.roundEndsAt ?? null,
 		timezone: preview.data?.timezone ?? 'UTC'
 	});
@@ -68,6 +78,55 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 	}
 
 	const data = preview.data;
+	/*
+	 * **A hatim preview counts cüz, not seats** — QJ1 and QJ2.
+	 *
+	 * Its `spots` is thirty as a ceiling on `slotIndex` and divides nothing, so every number
+	 * this screen reads off the seat count answers a question a hatim does not ask: "2 / 30
+	 * kontenjan" on a group whose thirty cüz are gone, and a "sana atanır" block that nobody
+	 * is assigned. What a joiner weighs instead is the map — which of the thirty are still
+	 * free — and the two rules deciding what becomes of the ones they take.
+	 */
+	const isHatim = data.kind === 'HATIM';
+	const freeCuz = new Set(data.poolBabNumbers);
+	const readCuz = new Set(data.readBabNumbers);
+	const takenCuzCount = CUZ_COUNT - freeCuz.size;
+	// Read wins over held: a finished cüz is still somebody's, and "okundu" is the more
+	// useful of the two facts. A free cüz cannot be read, so those two never compete.
+	const cuzStateOf = (number: number): CuzCellState =>
+		readCuz.has(number) ? 'read' : freeCuz.has(number) ? 'free' : 'taken';
+	// "3 cüz", or the absence of a cap said out loud — a blank row would read as unknown.
+	const maxPerMemberLabel = data.maxPerMember === null ? t('qNoMax') : `${data.maxPerMember} ${t('cuz')}`;
+
+	/**
+	 * QJ1's and QJ2's shared card: how many cüz are going spare, and which ones.
+	 *
+	 * `isFirst` because it leads on QJ1 and follows the "all taken" card on QJ2, and the
+	 * design gives the first card under a title more air than one card gives the next.
+	 */
+	const cuzMapCard = (isFirst: boolean) => (
+		<CardSurface style={[styles.sectionCard, isFirst ? styles.firstCard : null]}>
+			<View style={styles.sectionHead}>
+				<View style={styles.cuzCount}>
+					<NumericText color={theme.colors.accent}>{freeCuz.size}</NumericText>
+					<CaptionText color={theme.colors.faintText}>{t('qFreeCuz')}</CaptionText>
+				</View>
+				{data.daysLeft === null ? null : (
+					<CaptionText color={theme.colors.subtext}>{`${data.daysLeft} ${t('qDaysLeft')}`}</CaptionText>
+				)}
+			</View>
+			{/* The compact map: QJ1 and QJ2 report with ten across, not the picker's six. */}
+			<CuzMap stateOf={cuzStateOf} style={styles.cuzMap} variant='compact' />
+			{/* Only the states this map draws: a full hatim has no free cell to key, and
+			    nothing here is yours until you have joined. */}
+			<CuzMapLegend states={data.isFull ? ['read', 'taken'] : ['read', 'taken', 'free']} />
+		</CardSurface>
+	);
+
+	// A push, not a replace: the preview is what someone backs out to if they change their
+	// mind about which cüz — nothing has been taken yet.
+	const handlePickCuz = () => navigation.push('PickCuz', { groupId: data.id });
+
 	const handleDiscover = () => {
 		// Reached from Keşfet, this screen sits *on* the Discover stack, so switching to the
 		// Discover tab is a no-op and the button did nothing. Popping the tab's own stack is
@@ -84,13 +143,26 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 					{/* Clears the navigator's back button, which this screen draws no link of
 					    its own beside. Same band every pushed screen's heading starts below. */}
 					<View style={[styles.chipRow, styles.chipRowUnderBar]}>
-						<Chip label={`${t('full')} · ${data.memberCount}/${data.spots}`} tone='neutral' />
+						{isHatim ? <Chip label={t('qHatim')} tone='sand' /> : null}
+						{/* What is full, by the measure that kind of group uses: seats for a
+						    Cevşen group, cüz for a hatim — whose seats are still nearly all
+						    free while there is nothing left to read. */}
+						<Chip
+							label={`${t('full')} · ${
+								isHatim ? `${takenCuzCount}/${CUZ_COUNT}` : `${data.memberCount}/${data.spots}`
+							}`}
+							tone='neutral'
+						/>
 						<Chip label={t(cycleLabelKey(data.cycle))} tone='accent' />
 					</View>
 
 					<Header2 style={styles.previewName}>{data.name}</Header2>
 					<CaptionText color={theme.colors.subtext} style={styles.dedication}>
-						{`${t(cycleLabelKey(data.cycle))} · ${t(splitModeLabelKey(data.splitMode))}`}
+						{/* A hatim has no split mode to name — everybody picks — so it says who is
+						    in it instead, which is what QJ2 puts here. */}
+						{isHatim
+							? `${t(cycleLabelKey(data.cycle))} · ${data.memberCount} ${t('members')}`
+							: `${t(cycleLabelKey(data.cycle))} · ${t(splitModeLabelKey(data.splitMode))}`}
 					</CaptionText>
 
 					{/* Why you can't join, stated plainly and centred — this is the whole reason
@@ -101,30 +173,48 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 						    and left the glyph floating. This is the one that steps off a card in
 						    both themes — the same reason Home's shelf pill uses it. */}
 						<View style={[styles.fullCircle, { backgroundColor: theme.colors.segmentTrack }]}>
-							<Icon color={theme.colors.subtext} name='memberFull' size={22} strokeWidth={1.7} />
+							<Icon
+								color={theme.colors.subtext}
+								name={isHatim ? 'book' : 'memberFull'}
+								size={22}
+								strokeWidth={1.7}
+							/>
 						</View>
-						<TitleText textAlign='center'>{t('fullTitle')}</TitleText>
+						{/*
+						 * A hatim is not full of *people* — QJ2's whole point is that its seats
+						 * are free and there is still nothing to read, so "Kontenjan tamamlandı"
+						 * would be both wrong and the opposite of the reason they can't join.
+						 */}
+						<TitleText textAlign='center'>{t(isHatim ? 'qFullTitle' : 'fullTitle')}</TitleText>
 						<CaptionText color={theme.colors.subtext} style={styles.fullNote} textAlign='center'>
-							{t('fullNote')}
+							{t(isHatim ? 'qFullNote' : 'fullNote')}
 						</CaptionText>
 					</CardSurface>
 
 					{/* The round still shows: you can see how it is going, you just can't join it. */}
-					<CardSurface style={styles.sectionCard}>
-						<View style={styles.sectionHead}>
-							<EyebrowText color={theme.colors.faintText}>{t('roundNow')}</EyebrowText>
-							<CaptionText color={theme.colors.subtext}>{`${data.readCount} / 100`}</CaptionText>
-						</View>
-						<ProgressBar percent={data.percent} style={styles.sectionBar} />
-						<CaptionText color={theme.colors.subtext}>{t('allClaimed')}</CaptionText>
-					</CardSurface>
+					{isHatim ? (
+						cuzMapCard(false)
+					) : (
+						<CardSurface style={styles.sectionCard}>
+							<View style={styles.sectionHead}>
+								<EyebrowText color={theme.colors.faintText}>{t('roundNow')}</EyebrowText>
+								<CaptionText color={theme.colors.subtext}>{`${data.readCount} / 100`}</CaptionText>
+							</View>
+							<ProgressBar percent={data.percent} style={styles.sectionBar} />
+							<CaptionText color={theme.colors.subtext}>{t('allClaimed')}</CaptionText>
+						</CardSurface>
+					)}
 
 					{/* No "round ends" row here, unlike 03b — it only matters to someone who is
 					    about to start reading. */}
 					<CardSurface isFlush style={styles.metaCard}>
 						{[
 							{ label: t('cadence'), value: t(cycleLabelKey(data.cycle)) },
-							{ label: t('groupSize'), value: `${data.memberCount} / ${data.spots}` },
+							// A hatim's seat count says nothing, so it states the cap instead —
+							// the rule that decides how many of the thirty one reader may hold.
+							isHatim
+								? { label: t('qMaxPer'), value: maxPerMemberLabel }
+								: { label: t('groupSize'), value: `${data.memberCount} / ${data.spots}` },
 							{ label: t('createdBy'), value: data.createdByName }
 						].map((row, index, rows) => (
 							<View
@@ -161,7 +251,9 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 		? data.dedication
 			? t('forName', { dedication: data.dedication })
 			: ''
-		: [data.dedication, t(splitModeLabelKey(data.splitMode))].filter(Boolean).join(' · ');
+		: // A hatim has no split mode: everybody picks, which is the one thing "Serbest seçim"
+		  // would be saying, and QC2 has already said it.
+		  [data.dedication, isHatim ? '' : t(splitModeLabelKey(data.splitMode))].filter(Boolean).join(' · ');
 	// What a joiner would actually be handed: their seat's share, capped by what's unclaimed.
 	const shareSize = data.nextRange ? data.nextRange.end - data.nextRange.start + 1 : 0;
 	// The seat's own block, spelled out. This is what a joiner is actually handed, and it
@@ -194,7 +286,7 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 	const handleJoinNow = async () => {
 		setJoinedShare({ poolCount: data.poolBabNumbers.length, rows: babRows });
 
-		const joined = await joinByGroupId.mutateAsync(data.id);
+		const joined = await joinByGroupId.mutateAsync({ groupId: data.id });
 
 		// Joining from Keşfet and joining by code produce the same thing, so both land on
 		// the same welcome, which decides whether it is showing "your babs are ready" or
@@ -234,6 +326,76 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 		{ label: t('createdBy'), value: data.createdByName }
 	];
 
+	/**
+	 * QJ1's rules card — the two things a hatim decides that nothing else on the screen says,
+	 * plus the reset a joiner is joining into.
+	 *
+	 * The cap and the boundary are on the preview rather than discovered after joining
+	 * because they are exactly what is being weighed: a cap of one is a different group from
+	 * no cap, and "cüzler korunur" is a commitment past this round.
+	 */
+	const hatimRuleRows: { label: string; value: string; secondary?: string }[] = [
+		{ label: t('qMaxPer'), value: maxPerMemberLabel },
+		// A one-off has no boundary to survive — it ends rather than rolling — so the policy
+		// is not a rule of it, exactly as QC3 hides the choice for that cadence.
+		...(data.cycle === 'CUSTOM'
+			? []
+			: [{ label: t('qAtEnd'), value: t(data.boundaryPolicy === 'REPICK' ? 'qRepick' : 'qKeepCuz') }]),
+		...(isRunning
+			? [
+					{
+						label: t('qRoundEnds'),
+						value: reset ? reset.group : '—',
+						...(reset ? { secondary: reset.local } : {})
+					}
+			  ]
+			: []),
+		{ label: t('createdBy'), value: data.createdByName }
+	];
+
+	/**
+	 * 03c's "how this starts" card. Extracted because a gathering hatim fills with **cüz**,
+	 * not with people: its thirty seats are a ceiling on `slotIndex` and one member may hold
+	 * six, so a seat bar over a hatim reads as nearly empty at the moment it is nearly full.
+	 */
+	const startsWhenCard = (
+		<CardSurface style={[styles.sectionCard, styles.firstCard]}>
+			<EyebrowText color={theme.colors.faintText} style={styles.startsEyebrow}>
+				{t('startsWhen')}
+			</EyebrowText>
+			<View style={styles.startRows}>
+				<View style={styles.startRow}>
+					<View style={[styles.startIcon, { backgroundColor: theme.colors.accentSoft }]}>
+						<Icon color={theme.colors.accent} name='play' size={13} strokeWidth={2} />
+					</View>
+					<CaptionText weight='semibold'>{t('startsManual')}</CaptionText>
+				</View>
+				<View style={styles.startRow}>
+					<View style={[styles.startIcon, { backgroundColor: theme.colors.accentSoft }]}>
+						<Icon color={theme.colors.accent} name='memberCheck' size={13} strokeWidth={1.9} />
+					</View>
+					<CaptionText weight='semibold'>{t(isHatim ? 'qAutoStartFull' : 'startsFull')}</CaptionText>
+				</View>
+			</View>
+			<ProgressBar
+				percent={Math.round(
+					((isHatim ? takenCuzCount : data.memberCount) / (isHatim ? CUZ_COUNT : data.spots)) * 100
+				)}
+				style={styles.fillBar}
+			/>
+			<View style={styles.sectionHead}>
+				<CaptionText color={theme.colors.subtext}>
+					{isHatim
+						? `${takenCuzCount} / ${CUZ_COUNT} ${t('qCuzTaken')}`
+						: t('membersJoined', { count: data.memberCount, spots: data.spots })}
+				</CaptionText>
+				<CaptionText color={theme.colors.accent} weight='semibold'>
+					{isHatim ? `${freeCuz.size} ${t('qFree')}` : t('spotsToFill', { count: spotsToFill })}
+				</CaptionText>
+			</View>
+		</CardSurface>
+	);
+
 	// "Zeynep K., Emre T. +12" — two names and a count, since the preview is only handed
 	// the first couple.
 	const unnamedCount = Math.max(0, data.memberCount - data.memberNames.length);
@@ -248,6 +410,9 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 				    something — sage for running, sand for waiting — and the cadence chip
 				    takes whichever is left, so the two never carry the same weight. */}
 				<View style={[styles.chipRow, styles.chipRowUnderBar]}>
+					{/* What is read leads, as it does on a group card — before a hatim's status
+					    or its cadence means anything, you have to know it is a hatim. */}
+					{isHatim ? <Chip label={t('qHatim')} tone='neutral' /> : null}
 					<Chip label={t(isRunning ? 'running' : 'notStarted')} tone={isRunning ? 'accent' : 'sand'} />
 					<Chip label={t(cycleLabelKey(data.cycle))} tone={isRunning ? 'sand' : 'accent'} />
 				</View>
@@ -259,7 +424,56 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 					</CaptionText>
 				) : null}
 
-				{isRunning ? (
+				{isHatim ? (
+					/*
+					 * QJ1 — a hatim states two things and no progress bar: what is left on the
+					 * map, and the rules you are agreeing to. The bar was the wrong instrument
+					 * anyway ("N / 100" over thirty cüz); the map is the count.
+					 */
+					<>
+						{isRunning ? null : startsWhenCard}
+						{cuzMapCard(isRunning)}
+
+						<CardSurface isFlush style={styles.metaCard}>
+							{hatimRuleRows.map((row, index) => (
+								<View
+									key={row.label}
+									style={[
+										styles.metaRow,
+										index < hatimRuleRows.length - 1
+											? {
+													borderBottomColor: theme.colors.divider,
+													borderBottomWidth: StyleSheet.hairlineWidth
+											  }
+											: null
+									]}
+								>
+									<CaptionText color={theme.colors.subtext}>{row.label}</CaptionText>
+									<View style={styles.metaValue}>
+										<CaptionText textAlign='right' weight='semibold'>
+											{row.value}
+										</CaptionText>
+										{row.secondary ? (
+											<CaptionText
+												color={theme.colors.accent}
+												textAlign='right'
+												weight='semibold'
+											>
+												{row.secondary}
+											</CaptionText>
+										) : null}
+									</View>
+								</View>
+							))}
+						</CardSurface>
+
+						{/* Outside the card: it is the condition on the button, not a rule of
+						    the group — and the button is what it sits above. */}
+						<CaptionText color={theme.colors.subtext} style={styles.startsNote}>
+							{t('qJoinNote')}
+						</CaptionText>
+					</>
+				) : isRunning ? (
 					<>
 						{/* 03b — what you would be joining mid-round. */}
 						<CardSurface style={[styles.sectionCard, styles.firstCard]}>
@@ -343,42 +557,7 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 				) : (
 					/* 03c — a group that hasn't started, and the two ways it can. */
 					<>
-						<CardSurface style={[styles.sectionCard, styles.firstCard]}>
-							<EyebrowText color={theme.colors.faintText} style={styles.startsEyebrow}>
-								{t('startsWhen')}
-							</EyebrowText>
-							<View style={styles.startRows}>
-								<View style={styles.startRow}>
-									<View style={[styles.startIcon, { backgroundColor: theme.colors.accentSoft }]}>
-										<Icon color={theme.colors.accent} name='play' size={13} strokeWidth={2} />
-									</View>
-									<CaptionText weight='semibold'>{t('startsManual')}</CaptionText>
-								</View>
-								<View style={styles.startRow}>
-									<View style={[styles.startIcon, { backgroundColor: theme.colors.accentSoft }]}>
-										<Icon
-											color={theme.colors.accent}
-											name='memberCheck'
-											size={13}
-											strokeWidth={1.9}
-										/>
-									</View>
-									<CaptionText weight='semibold'>{t('startsFull')}</CaptionText>
-								</View>
-							</View>
-							<ProgressBar
-								percent={Math.round((data.memberCount / data.spots) * 100)}
-								style={styles.fillBar}
-							/>
-							<View style={styles.sectionHead}>
-								<CaptionText color={theme.colors.subtext}>
-									{t('membersJoined', { count: data.memberCount, spots: data.spots })}
-								</CaptionText>
-								<CaptionText color={theme.colors.accent} weight='semibold'>
-									{t('spotsToFill', { count: spotsToFill })}
-								</CaptionText>
-							</View>
-						</CardSurface>
+						{startsWhenCard}
 
 						{/* Outside the card: it explains the card above rather than belonging to it. */}
 						<CaptionText color={theme.colors.subtext} style={styles.startsNote}>
@@ -387,36 +566,40 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 					</>
 				)}
 
-				<CardSurface isFlush style={[styles.metaCard, isRunning ? null : styles.metaCardAfterNote]}>
-					{metaRows.map((row, index) => (
-						<View
-							key={row.label}
-							style={[
-								styles.metaRow,
-								index < metaRows.length - 1
-									? {
-											borderBottomColor: theme.colors.divider,
-											borderBottomWidth: StyleSheet.hairlineWidth
-									  }
-									: null
-							]}
-						>
-							<CaptionText color={theme.colors.subtext}>{row.label}</CaptionText>
-							{/* A right-aligned column, so a second line stacks under the first
+				{/* A hatim has stated all of this in its rules card already, and the row this
+				    one leads with — "Kontenjan 2 / 30" — is the number that means least to it. */}
+				{isHatim ? null : (
+					<CardSurface isFlush style={[styles.metaCard, isRunning ? null : styles.metaCardAfterNote]}>
+						{metaRows.map((row, index) => (
+							<View
+								key={row.label}
+								style={[
+									styles.metaRow,
+									index < metaRows.length - 1
+										? {
+												borderBottomColor: theme.colors.divider,
+												borderBottomWidth: StyleSheet.hairlineWidth
+										  }
+										: null
+								]}
+							>
+								<CaptionText color={theme.colors.subtext}>{row.label}</CaptionText>
+								{/* A right-aligned column, so a second line stacks under the first
 							    instead of running back towards the label. */}
-							<View style={styles.metaValue}>
-								<CaptionText textAlign='right' weight='semibold'>
-									{row.value}
-								</CaptionText>
-								{row.secondary ? (
-									<CaptionText color={theme.colors.accent} textAlign='right' weight='semibold'>
-										{row.secondary}
+								<View style={styles.metaValue}>
+									<CaptionText textAlign='right' weight='semibold'>
+										{row.value}
 									</CaptionText>
-								) : null}
+									{row.secondary ? (
+										<CaptionText color={theme.colors.accent} textAlign='right' weight='semibold'>
+											{row.secondary}
+										</CaptionText>
+									) : null}
+								</View>
 							</View>
-						</View>
-					))}
-				</CardSurface>
+						))}
+					</CardSurface>
+				)}
 
 				{/* Who is already here. A running group states it as one line; a gathering one
 				    gives it an eyebrow, because "who is waiting with me" is the question that
@@ -445,12 +628,18 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 				    gathering one hands you a wait. */}
 				{/* The chevron trails the words, pointing out of the button: this commits and moves
 				    you on, rather than qualifying the label the way a leading glyph would. */}
+				{/*
+				 * **A hatim is not joined from here** — QJ3 is. You cannot be in one and hold
+				 * no cüz, so the button opens the picker rather than posting a join the server
+				 * would refuse: this screen used to call the Cevşen join path for both kinds,
+				 * and against a hatim that came back as an unhandled error on the tap.
+				 */}
 				<AppButton
 					icon='chevronRight'
 					iconPosition='trailing'
 					isLoading={joinByGroupId.isPending}
-					onPress={handleJoinNow}
-					title={t(isRunning ? 'joinAndRead' : 'joinAndWait')}
+					onPress={isHatim ? handlePickCuz : handleJoinNow}
+					title={t(isHatim ? 'qJoinPick' : isRunning ? 'joinAndRead' : 'joinAndWait')}
 				/>
 			</View>
 		</ScreenContainer>
@@ -494,6 +683,16 @@ const styles = StyleSheet.create({
 		flexDirection: 'row',
 		gap: 6,
 		marginBottom: 10
+	},
+	// The count and its unit on one baseline, the way the lobby heads its own map.
+	cuzCount: {
+		alignItems: 'baseline',
+		flexDirection: 'row',
+		gap: 6
+	},
+	// The same air the pool board leaves between its grid and the numbers above it.
+	cuzMap: {
+		marginTop: 14
 	},
 	// The same air `ScreenHeader` leaves under its back row, so this heading sits where a
 	// pushed screen's does instead of crowding the back link.

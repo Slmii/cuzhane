@@ -6,6 +6,7 @@ import { GroupIdParamsSchema } from '@schemas/group.schema';
 import {
 	InviteCodeBody,
 	InviteCodeBodySchema,
+	JoinGroupBodySchema,
 	InviteCodeParamsSchema,
 	MemberUserIdParamsSchema
 } from '@schemas/membership.schema';
@@ -69,7 +70,12 @@ membershipRouter.post(
 			} = res.locals;
 
 			const displayName = resolveDisplayName(req);
-			const membership = await joinGroupByCodeForUser(userId, displayName, validatedBody.code);
+			const membership = await joinGroupByCodeForUser(
+				userId,
+				displayName,
+				validatedBody.code,
+				validatedBody.cuzNumbers
+			);
 			res.status(CREATED).json(membership);
 		} catch (error) {
 			next(error);
@@ -83,12 +89,15 @@ membershipRouter.post(
 	async (req: Request, res: Response<object, ResponseLocals>, next: NextFunction) => {
 		try {
 			const { groupId } = GroupIdParamsSchema.parse(req.params);
+			// Parsed here rather than as middleware: this route already parses its params by
+			// hand, and the body is optional — a Cevşen join posts none at all.
+			const { cuzNumbers } = JoinGroupBodySchema.parse(req.body ?? {});
 			const {
 				auth: { userId }
 			} = res.locals;
 
 			const displayName = resolveDisplayName(req);
-			const membership = await joinGroupForUser(userId, displayName, groupId);
+			const membership = await joinGroupForUser(userId, displayName, groupId, cuzNumbers);
 			res.status(CREATED).json(membership);
 		} catch (error) {
 			next(error);

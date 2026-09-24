@@ -1,5 +1,7 @@
 import prisma from '@db/prisma';
 import { normalizeUserId } from '@utils/normalizeUserId';
+import { CUZ_COUNT } from '@utils/units';
+import type { GroupKind } from '../generated/prisma/client';
 
 /**
  * Push copy lives on the server because the server is what sends it — the phone is not
@@ -78,11 +80,26 @@ export const poolClaimReleasedPush = (language: PushLanguage, range: string) => 
  * No pronoun for the reader in any of the three: a name says nothing about how somebody is
  * addressed, and "his share" would be a guess printed on someone else's lock screen.
  */
+/**
+ * What the group's units are called in a push, and how many of them there are.
+ *
+ * The phone is not involved in composing a notification it receives while closed, so this is a
+ * second, smaller copy table beside the client's `strings.ts` — and the unit word is the part
+ * of it that a hatim changes: "all 100 babs read" is simply false about thirty cüz.
+ */
+const UNITS: Record<GroupKind, { count: number; trPossessive: string; word: Record<PushLanguage, string> }> = {
+	// `trPossessive` is spelled out rather than built from the word: Turkish vowel harmony
+	// puts "bab" at "babın" and "cüz" at "cüzün", so a shared `${word}ın` would write "cüzın".
+	CEVSEN: { count: 100, trPossessive: 'babın', word: { en: 'babs', nl: 'babs', tr: 'bab' } },
+	HATIM: { count: CUZ_COUNT, trPossessive: 'cüzün', word: { en: 'juz', nl: 'cüz', tr: 'cüz' } }
+};
+
 export const groupReadPush = (
 	language: PushLanguage,
-	input: { groupName: string; range: string; readerName: string }
+	input: { groupName: string; kind: GroupKind; range: string; readerName: string }
 ) => {
-	const { groupName, range, readerName } = input;
+	const { groupName, kind, range, readerName } = input;
+	const unit = UNITS[kind].word[language];
 
 	if (language === 'tr') {
 		return {
@@ -97,13 +114,13 @@ export const groupReadPush = (
 	if (language === 'nl') {
 		return {
 			title: groupName,
-			body: `${readerName} is klaar met babs ${range}.`
+			body: `${readerName} is klaar met ${unit} ${range}.`
 		};
 	}
 
 	return {
 		title: groupName,
-		body: `${readerName} finished babs ${range}.`
+		body: `${readerName} finished ${unit} ${range}.`
 	};
 };
 
@@ -117,26 +134,31 @@ export const groupReadPush = (
  * Sent once per round per group — see `claimRoundCompleteNotice` — and never to whoever read the
  * last bab: their phone is already in their hand and the group screen is about to tell them.
  */
-export const roundCompletePush = (language: PushLanguage, input: { groupName: string; roundNumber: number }) => {
-	const { groupName, roundNumber } = input;
+export const roundCompletePush = (
+	language: PushLanguage,
+	input: { groupName: string; kind: GroupKind; roundNumber: number }
+) => {
+	const { groupName, kind, roundNumber } = input;
+	const { count, trPossessive } = UNITS[kind];
+	const unit = UNITS[kind].word[language];
 
 	if (language === 'tr') {
 		return {
 			title: groupName,
-			body: `${roundNumber}. tur tamamlandı — 100 babın hepsi okundu.`
+			body: `${roundNumber}. tur tamamlandı — ${count} ${trPossessive} hepsi okundu.`
 		};
 	}
 
 	if (language === 'nl') {
 		return {
 			title: groupName,
-			body: `Ronde ${roundNumber} is voltooid — alle 100 babs gelezen.`
+			body: `Ronde ${roundNumber} is voltooid — alle ${count} ${unit} gelezen.`
 		};
 	}
 
 	return {
 		title: groupName,
-		body: `Round ${roundNumber} is complete — all 100 babs read.`
+		body: `Round ${roundNumber} is complete — all ${count} ${unit} read.`
 	};
 };
 
@@ -153,27 +175,30 @@ export const roundCompletePush = (language: PushLanguage, input: { groupName: st
  */
 export const poolClaimPush = (
 	language: PushLanguage,
-	input: { groupName: string; range: string; takerName: string }
+	input: { groupName: string; kind: GroupKind; range: string; takerName: string }
 ) => {
-	const { groupName, range, takerName } = input;
+	const { groupName, kind, range, takerName } = input;
+	const unit = UNITS[kind].word[language];
 
 	if (language === 'tr') {
 		return {
 			title: groupName,
-			body: `${takerName} havuzdan ${range} bablarını üstlendi.`
+			// "bablarını" / "cüzlerini" — the plural accusative, spelled per unit for the same
+			// harmony reason as `trPossessive` above.
+			body: `${takerName} havuzdan ${range} ${kind === 'HATIM' ? 'cüzlerini' : 'bablarını'} üstlendi.`
 		};
 	}
 
 	if (language === 'nl') {
 		return {
 			title: groupName,
-			body: `${takerName} heeft babs ${range} uit de pool genomen.`
+			body: `${takerName} heeft ${unit} ${range} uit de pool genomen.`
 		};
 	}
 
 	return {
 		title: groupName,
-		body: `${takerName} took babs ${range} from the pool.`
+		body: `${takerName} took ${unit} ${range} from the pool.`
 	};
 };
 

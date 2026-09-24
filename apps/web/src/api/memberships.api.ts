@@ -18,8 +18,17 @@ export const joinGroupByCode = async (code: string) =>
 		body: JSON.stringify({ code })
 	});
 
-export const joinGroup = async (groupId: string) =>
-	wrapperApi<GroupDetail>(`/memberships/join/${groupId}`, { method: 'POST' });
+/**
+ * `cuzNumbers` is what a hatim is joined *with* — the server refuses one without it, since
+ * you cannot be in a hatim and hold nothing. A Cevşen join sends no body at all, which is
+ * also what every installed app sends, so the route treats it as optional on the wire and
+ * requires it per kind in the service.
+ */
+export const joinGroup = async (groupId: string, cuzNumbers?: number[]) =>
+	wrapperApi<GroupDetail>(`/memberships/join/${groupId}`, {
+		method: 'POST',
+		...(cuzNumbers ? { body: JSON.stringify({ cuzNumbers }) } : {})
+	});
 
 export const leaveGroup = async (groupId: string) =>
 	wrapperApi<{ success: boolean }>(`/memberships/${groupId}/leave`, { method: 'DELETE' });

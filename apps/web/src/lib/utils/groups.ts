@@ -7,7 +7,22 @@ import { BAB_COUNT, babRuns, formatRun } from '@/lib/utils/babs';
 
 export const CYCLE_OPTIONS: GroupCycle[] = ['DAILY', 'WEEKLY'];
 
-export const cycleLabelKey = (cycle: GroupCycle): StringKey => (cycle === 'DAILY' ? 'daily' : 'weekly');
+/**
+ * The cadence's name.
+ *
+ * **A full map, not `DAILY ? … : 'weekly'`.** That was complete while the only two values
+ * were DAILY and WEEKLY, and it silently labelled a monthly hatim "Haftalık" and a one-off
+ * the same — the shape of every other bug this feature has produced. `CUSTOM` is not a
+ * cadence at all, so it borrows the "tek seferlik" wording rather than naming a rhythm.
+ */
+const CYCLE_LABEL_KEYS: Record<GroupCycle, StringKey> = {
+	CUSTOM: 'qCustom',
+	DAILY: 'daily',
+	MONTHLY: 'qMonthly',
+	WEEKLY: 'weekly'
+};
+
+export const cycleLabelKey = (cycle: GroupCycle): StringKey => CYCLE_LABEL_KEYS[cycle];
 
 export const visibilityLabelKey = (visibility: GroupVisibility): StringKey =>
 	visibility === 'OPEN' ? 'open' : 'private';

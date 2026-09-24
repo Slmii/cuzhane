@@ -72,6 +72,20 @@ const nameOf = (user: {
  * Keşfet show names and counts, never faces, because someone deciding whether to join has
  * not yet been let in.
  */
+/**
+ * Drops one user's cached profile, so the next read of it goes back to Clerk.
+ *
+ * **For the one case where a minute of staleness is not acceptable: your own name.** The TTL
+ * above is a good trade for everyone else's — a name changes rarely, and the cost of being a
+ * minute behind is that somebody else sees the old one for a minute. It is a bad trade for
+ * the person who has just changed theirs and gone looking for it, which is exactly when they
+ * are looking. `POST /profile/refresh` calls this for the caller and nobody else; a client
+ * cannot evict anyone's entry but its own.
+ */
+export const forgetMemberProfile = (userId: string): void => {
+	cache.delete(userId);
+};
+
 export const getMemberProfiles = async (userIds: string[]): Promise<Map<string, MemberProfile>> => {
 	const now = Date.now();
 

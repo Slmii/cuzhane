@@ -12,11 +12,13 @@ enum ReaderNumerals {
     latin
 }
 
+// `husrev` is not a font: it is the Kuran reader's Hüsrev hattı page images. The Cevşen has
+// no page images, so its readers draw the default font for it — see `textFontFor` in the app.
 enum ReaderArabicFont {
     naskh
     amiri
     uthman
-    madinah /// @deprecated Use `uthman` instead.
+    husrev
 }
 
 model UserSettings {
@@ -25,9 +27,25 @@ model UserSettings {
     language             AppLanguage      @default(en)
     reminderEnabled      Boolean          @default(false)
     reminderTime         String           @default("21:30")
-    groupReadsEnabled    Boolean          @default(false)
-    roundCompleteEnabled Boolean          @default(true)
-    poolClaimEnabled     Boolean          @default(false)
+    /// Three notifications are **per reading type**, because they describe different work:
+    /// "someone finished their share" is a bab range in one and a cüz in the other, and a
+    /// reader in both wants to hear about them separately.
+    ///
+    /// The Cevşen three keep their original columns via `@map` — renaming a column outright
+    /// is a drop and an add, which would have silently reset everyone's preferences. The
+    /// field names are what the code reads, so nothing may refer to the bare old names.
+    cevsenGroupReadsEnabled    Boolean @default(false) @map("groupReadsEnabled")
+    cevsenRoundCompleteEnabled Boolean @default(true)  @map("roundCompleteEnabled")
+    cevsenPoolClaimEnabled     Boolean @default(false) @map("poolClaimEnabled")
+
+    /// The same three for a hatim, defaulting exactly as their Cevşen twins do — the round
+    /// completing is the moment the app is built around, so it is the one that is opt-out.
+    hatimGroupReadsEnabled    Boolean @default(false)
+    hatimRoundCompleteEnabled Boolean @default(true)
+    hatimPoolClaimEnabled     Boolean @default(false)
+
+    /// Who is in the group is the same event whatever the group reads, so these two are
+    /// shared — the "Genel" section.
     memberJoinedEnabled  Boolean          @default(false)
     memberLeftEnabled    Boolean          @default(false)
     nudgeEnabled         Boolean          @default(true)

@@ -120,6 +120,25 @@ up, takes a database dump, pulls, and restarts — then blocks on the API's heal
 finishes with an HTTPS request to `/health`. A red job means production did not change, or
 changed and failed; either way, look before pushing again.
 
+## The Hüsrev mushaf pages
+
+The Kuran reader's Hüsrev mode draws 605 page images (91 MB) that are **not in the repo** and
+**not built by CI**. Caddy serves them from `/opt/cuzhane/mushaf` at `/mushaf/page-NNN.png` on
+both API domains (the `mushaf` snippet in the Caddyfile). They are generated locally by
+`pnpm --filter @cuzhane/server mushaf:import` into `apps/server/mushaf/`.
+
+Upload them **before** the first deploy that mounts the folder — if it does not exist, Docker
+creates it owned by root and the upload then fails for want of permission:
+
+```
+ssh <droplet> 'mkdir -p /opt/cuzhane/mushaf'
+rsync -az --checksum apps/server/mushaf/ <droplet>:/opt/cuzhane/mushaf/
+```
+
+Pass condition: `curl -sI https://$DOMAIN/mushaf/page-000.png` answers `200` with
+`Cache-Control: public, max-age=31536000, immutable`. Re-run the `rsync` only if the import is
+re-run; a page never changes, which is why it is cached for a year.
+
 ## Rolling back
 
 The image is tagged with every commit sha, so:

@@ -145,6 +145,14 @@ export const HomeScreen = () => {
 			return;
 		}
 
+		// A hatim's next cüz opens its own page (Q4): the reader is the Cevşen's, and on a cüz
+		// number it would show a bab of the wrong text.
+		if (group?.kind === 'HATIM') {
+			navigation.navigate('CuzDetail', { cuzNumber: babNumber, groupId });
+
+			return;
+		}
+
 		navigation.navigate('BabReader', { babNumber, groupId });
 	};
 

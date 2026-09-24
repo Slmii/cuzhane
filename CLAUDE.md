@@ -304,7 +304,8 @@ tidy up any rows left from before. Re-adding the feature means rebuilding that s
     `Onboarding`, `Tabs` and sheet routes. Tabs carry `popToTopOnBlur`, so leaving a tab resets it to its
     root — switching away from a group and back lands on the tab's list, not the group you were in.
     `TAB_BAR_HIDDEN_ROUTES` lists the screens the bar steps aside for, and it also zeroes
-    `TabBarOffsetContext`, so never hide the bar without going through it. It holds **only `Search`**:
+    `TabBarOffsetContext`, so never hide the bar without going through it. It holds **`Search` and
+    `HatimComplete`** (Q7's full-bleed green page, which then clears the home indicator itself):
     the reader was once an entry, on the grounds that reading should be immersive, and is being tried
     with the bar left in. A screen that keeps the bar must not inset its own `bottom` safe-area edge — the bar is a
     sibling below it and already clears the home indicator, and doing both stacks two gaps (which is exactly
@@ -897,6 +898,158 @@ verse mark.
 
 Nesih is the default. Medine Mushaf was briefly made the default and reverted, back when the
 `U+06EA` stripping made it the wrong face to hand someone first.
+
+## The Hüsrev mushaf (page images)
+
+"Hüsrev hattı" in the Kuran reader's settings shows **Hayrât Neşriyat's Ahmed Hüsrev hattı
+Tevâfuklu Kur'ân-ı Kerîm as page images**, **used with Hayrat Vakfı's written permission** —
+credited on the privacy page (a line under every page was tried and removed). It is the one reader
+face that is not a font: the Hüsrev fonts were tried and dropped, because they lean on
+thirty-seven private `zz` OpenType features only the publisher's app applies.
+
+-   **Source**: their "Kur'an-ı Kerim - iPad için" app, which runs on Apple Silicon Macs.
+    `pnpm --filter @cuzhane/server mushaf:import` (`scripts/import-hayrat-mushaf.ts`) writes the
+    605 pages to `apps/server/mushaf/` (**gitignored**, 91 MB) and the bundled
+    `mushaf.data.json` (ayahs per page, pages per cüz) from their own `HayratKuran.db`. Each
+    `Page.bundle/NNN.syf` is a PNG behind a fake `Rar!` header; the files run back to front
+    (page `p` is file `604 − p`); pages count from **0** (Fâtiha).
+-   **Its cüz are its own**: twenty whole pages each, so eight of them start or end one to five
+    ayahs away from the Madinah cüz in `cuz.data.json`, which the pick and detail screens still
+    show. The reader in Hüsrev mode walks the edition's pages; `suraNameFor` names a sura by
+    number because Hüsrev's cüz 26 opens in a sura our cüz 26 does not list.
+-   **Served, not bundled.** The dev API serves `/mushaf/*` from that folder; in production
+    **Caddy** answers the same path from `/opt/cuzhane/mushaf` on both API domains (the Caddyfile's
+    `mushaf` snippet; uploading them is in `deploy/README.md`), so the app does not change. `useMushafPage`
+    downloads a page once into the cache directory (under a `.part` name, moved into place — an
+    Android download that fails halfway leaves a torn file) and prefetches the next.
+-   **Saved like any face, drawn only by the Kuran**: `husrev` is a `ReaderArabicFont` value in
+    the database, but not a font, so everything that sets text takes `ReaderTextFont` and goes
+    through `textFontFor`. Only the cüz reader offers it (`hasMushafPages`); with it saved, the
+    Cevşen readers draw the default face (Osman Taha) and their sheet shows that one chosen —
+    there is one stored choice, so picking a font there replaces Hüsrev for the Kuran too. The
+    pages are black ink on a transparent ground, so they sit on `mushafPaper`, light in both
+    themes.
+-   **The green behind a verse is the edition's sajdah mark**, and the app points at it with the
+    Icon Set's "Secde süsü" (`SecdeOrnament`): a gilt eight-point star holding سجدة (the
+    design's ۩, swapped for the word on request — a React Native text placed per platform, since
+    Amiri sits at different heights in the same line box on each, and Android's SVG cannot
+    shape Arabic, so SVG text came out unjoined), hung
+    `top: -22, right: 18` off the page, half over its top edge — at the **corner, not at the
+    verse**, on every page that carries one. A tap scrolls the green up under the header
+    (`handleSecdePress`; a page that fits scrolls nowhere). It **drags up and down only**, along
+    the right edge, from that resting place to its foot on the paper's bottom edge, because at
+    rest it can sit on the first line's ink; each sajdah page starts it at the top again.
+    **It lives in the reader, not in `MushafImagePage`**, because the page remounts on every
+    turn and an exit needs something still mounted to play on: turning onto a sajdah page slides
+    it in leftward from the edge, turning off one slides it back out rightward (keyframes, not `entering`), and it
+    renders nothing until its first sajdah page. Its box and the green's position come from
+    `mushafPaperGeometry` — arithmetic from the body's width, the paper's padding beside it. The
+    reader's `ScrollView` is React Native's, and a real drag on the mark still goes to the mark —
+    a scripted `cliclick` drag in the simulator does not move it, which is not a bug. Unlike the paper it sits on the reader's
+    ground, so it has a light and a dark twin (`mushafMark*`), the shadow's alpha baked into
+    its token. It replaced the "Yüzen işaret" pill, which pointed at the verse's first word:
+    that is why `IMAGE_BODY_TOP` exists — the 22 of overhang needs room under the header. The fourteen verses
+    come from their `Secde` table; *where* on the page is read from the pixels at import
+    (`findSecdeStart` — the highlight is one flat palette colour, `#D4FFC2`), not from their
+    `Koordinatlar`, whose coordinate space was never worked out. Stored as fractions of the
+    page, which is why `MushafImagePage` draws the image in a frame of the page's exact shape.
+-   **The cüz reader's header sits above its scroll view, not stuck inside it.** It never
+    scrolled, and as a sticky header Android repositioned it from scroll events: a page turn
+    from a scrolled page jumps to the top at once, the header ran a frame behind, and the
+    screen flickered — reached by tapping the sajdah mark, then ›. The page image also has
+    `fadeDuration={0}`: Android's 300ms fade washed every turn in from blank paper.
+-   **A page that fails to draw is deleted and fetched afresh** (`redownload`), remounting the
+    image by `key` — the new file lands at the same path, and React Native does not reload an
+    unchanged source. A second failure shows Tekrar dene rather than looping. On web there is no
+    file system, so the page is its URL and the browser caches it.
+-   **No long press in Hüsrev mode, by decision.** The pages are images with no per-verse layer,
+    so the meal sheet below is the typeset reader's alone.
+-   **The page being left stays until the next one has drawn** (`MushafImagePage`, no longer
+    remounted per page). A new image decodes after it mounts, so a turn showed a frame of bare
+    paper — and from a scrolled page, where the turn's scroll-to-top ran on the tap, a jump with
+    it. The new page loads hidden over the old one, swaps in on its `onLoad`, and calls
+    `onShown`, where the reader scrolls to the top: the jump and the new page land together.
+-   **The Hatim duası is the edition's own four pages** (`HatimDuaScreen`, from Q7's button and
+    a row on a Kuran group's screen once its round is complete): the app's `hatimdua.html` stacks `hat_1…4.png`, which the
+    import copies to `dua-1…4.png` beside the pages — same format, same cache, same Caddy path.
+    `useMushafPage`/`MushafImagePage` take a **path** (`mushafPagePath`, `MUSHAF_DUA_PATHS`)
+    rather than a page number for exactly this. **Hüsrev only, and no Aa**, by decision: an Aa
+    and typeset faces were started and taken out again. Never typeset it from anywhere but a
+    sourced text.
+
+## The typeset Kuran reader (`MushafPage`)
+
+The Madinah text from the Quran Foundation, drawn word by word (see the component's own notes
+on why, and on printed lines versus flowed rows).
+
+-   **The text marks its own sajdah verses.** The Uthmani words carry `۩` (`U+06E9`) on the last
+    word of each — fifteen, including Hac 77, with Nahl's at 50 — and `SAJDAH_VERSE_KEYS` in
+    `quran.ts` is read from that, not kept beside it (`quran.test.ts` pins the list). The Hüsrev
+    pages follow their own edition's fourteen; each reader follows its edition.
+-   **A sajdah verse is washed in gilt** (the Icon Set's "Secde âyeti"): a rounded `giltSoft` band
+    behind its words on each row, its end mark and its `۩` in `gilt`. Rows lay themselves out
+    (right to left, spread, flush or centred), so a band's edges are **computed from the measured
+    widths by the same rules** — `rowBands` in `mushafLayout.ts`, tested — never measured off the
+    screen. The long-pressed verse gets the same band in `verseSelection` (sage), over the gilt.
+-   **Every word knows its verse** (`pageWordVerses`): a page's `verses` list lines up with its end
+    marks one for one, and **every page ends on a verse end** in this edition — both held by
+    `quran.test.ts`, and `verseText` relies on the second.
+-   **A nested text span must re-declare the line height** (`spanStyle`), not just face and size.
+    iOS takes a paragraph's line spacing from its first character, so a span at the start of a word
+    — the red name in "ٱللَّهِ ۚ" — set the whole word's line to Typography's 21pt and cut the lams off.
+-   **The fetch script puts an end mark on its verse's last line.** The API once reported 84:21's
+    ٢١ a line early, mid-verse; `fetch-quran-text.ts` now moves such a mark and logs it. The words
+    are never moved.
+-   **The sura heading is the Icon Set's "Sure başlığı"** (`SuraHeader`): a pointed cartouche drawn
+    from the design's paths, gilt star · double sage rule · gilt diamond either side, and under it
+    "17 · İsrâ · Mekkî · 111 âyet". Two decisions differ from the file, on request: the cartouche is
+    64pt tall and **as wide as the name** (plus room for its points), and the name is in the
+    reader's Aa face at 24 × the face's scale rather than Amiri Bold 38. **The frame is drawn at
+    the cartouche's measured width** — an `Svg` sized `'100%'` did not follow the box and drew
+    short. Mekkî/Medenî is `revelationPlace` in `sura.data.json`, from the same API.
+
+### The verse meal (long press)
+
+Long-press any word or mark of a verse in the typeset reader and `VerseMealSheet` opens: the
+verse, its meal in the interface language with the translator credited, and on a sajdah verse the
+note "Bu âyette tilâvet secdesi yapılır."
+
+-   **Fetched live, never bundled** — `GET /api/quran/translation?verseKey=53:62&lang=tr`, behind
+    the auth gate. The Quran Foundation credentials stay on the server (`QURAN_CLIENT_ID` /
+    `QURAN_CLIENT_SECRET`, optional in `env.ts`: without them the API boots and the meal answers
+    503). Translations: **Diyanet İşleri (77), Saheeh International (20), Sofian S. Siregar
+    (144)** — chosen once, in `quranTranslation.service.ts`, which also strips the source's
+    footnote markup and decodes entities (`toPlainMeal`, tested), and keeps a bounded in-memory
+    cache. A verse past its sura's end is refused as 400 (`SURA_VERSE_COUNTS`), not sent upstream.
+-   **One sheet layout for both readers**: `MealSheetView`, filled by the Cevşen's `MealSheet` and
+    the Kuran's `VerseMealSheet`. Its body scrolls past 70% of the screen — a long verse otherwise
+    grew the sheet to full height, where iOS 26 turns a sheet opaque, and ran the meal off screen.
+-   The privacy page (`legal.ts`) says what the request carries: the verse and the language, never
+    the account.
+
+## Q7 — the hatim is complete
+
+`HatimCompleteScreen`, from "Hatim Tamamlandi.dc.html": a deep green page lit from the top, a ring
+with **a small mushaf inside it** (`HatimBook`) that opens, turns twelve pages and closes onto its
+green binding, a gilt burst around the ring as it closes and a few twinkling stars
+(`HatimCelebration`). The design's timings, easings and scatter are kept; its colours are
+`hatimCompletePalette`, fixed in both themes.
+
+-   **Changed from the design on request:** no falling confetti, a close button (the app's
+    icon-only `AppButton`) where its replay was, the content centred with only the foot line at
+    the bottom, and no navigator header — the header lay over the corner button and took its taps.
+    The design's "Hatim duası" button is in, over the foot line, opening `HatimDua` (below).
+-   **It starts on the push's `transitionEnd`**, not on mount, or it played its opening while the
+    page slid in; a 700ms fallback covers a change with no transition.
+-   **A leaf shows its back by swapping faces at the edge-on moment**, computed from the easings
+    (a page at 41.64% of its turn, the cover at 88.62%) — React Native has no `preserve-3d`, so
+    `backfaceVisibility` cannot see through a turning parent. The cover's stacking is on the
+    animation timeline too (a still endpaper below the pages, the turning cover above them, unseen
+    until it moves), not on a timer.
+-   Three port details worth keeping: CSS `radial-gradient(circle …)` sizes to the corner, so the
+    glow and rays use `r` of 70.71%, not 50%; react-native-svg ignores `patternTransform` on iOS,
+    so the hatching is drawn diagonal in its tile; and a fading view's drop shadow does not fade
+    with it, so the book's left board fades on a plain wrapper.
 
 ## Notifications
 

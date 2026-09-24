@@ -1,6 +1,8 @@
+import { CuzMap, CuzMapLegend } from '@/components/CuzMap/CuzMap.component';
 import { InviteQr } from '@/components/InviteQr/InviteQr.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
+import { AvatarStack } from '@/components/ui/AvatarStack/AvatarStack.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Chip } from '@/components/ui/Chip/Chip.component';
@@ -19,6 +21,7 @@ import { useGetGroupById, useStartGroup, useUpdateGroup } from '@/lib/hooks/useG
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
+import { unitCountFor } from '@/lib/utils/units';
 import type { TabStackParamList } from '@/navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Clipboard from 'expo-clipboard';
@@ -34,6 +37,11 @@ type Props = NativeStackScreenProps<TabStackParamList, 'Lobby'>;
  * 1 (design 06a); everyone else sees the range being held for them, marked provisional
  * because nothing is committed until the owner starts (06b).
  */
+/** Small enough to read as a summary rather than a member list. */
+const JOINED_AVATAR_SIZE = 30;
+/** As the frame draws it — five faces, then the count. Past five the stack falls back to "+N". */
+const JOINED_AVATAR_MAX = 5;
+
 export const LobbyScreen = ({ navigation, route }: Props) => {
 	const { groupId } = route.params;
 	const { theme } = useThemeContext();
@@ -69,6 +77,10 @@ export const LobbyScreen = ({ navigation, route }: Props) => {
 	}
 
 	const detail = group.data;
+	const isHatim = detail.kind === 'HATIM';
+	// By seat, so the creator leads and the order matches the order people arrived in.
+	const memberNames = [...detail.members].sort((a, b) => a.slotIndex - b.slotIndex).map(member => member.displayName);
+	const unitCount = unitCountFor(detail.kind);
 	const openSpots = detail.spots - detail.memberCount;
 	const fillPercent = Math.round((detail.memberCount / detail.spots) * 100);
 
@@ -91,22 +103,59 @@ export const LobbyScreen = ({ navigation, route }: Props) => {
 		startGroup.mutate(groupId, { onSuccess: () => navigation.replace('GroupDetail', { groupId }) });
 	};
 
+	/*
+	 * **A hatim fills with cüz, not with people.** Its seat count is pinned at thirty and
+	 * divides nothing — one member may hold six — so "1 / 30 katıldı · 29 boş kontenjan" was
+	 * answering a question nobody in a hatim asks, over a grid of seats that mean nothing.
+	 * What is actually filling up is the map: how many of the thirty are spoken for, and
+	 * which. Everything else on this screen (the code, the QR, Başlat) is the same either way.
+	 */
+	const takenCuzCount = unitCount - detail.poolBabNumbers.length;
+	/*
+	 * Plain sets, not `useMemo`: this sits *below* the screen's guards, where a hook cannot
+	 * go, and thirty numbers cost nothing to re-Set. `CuzMap` is not memoised, so there is no
+	 * identity to preserve either — memoising here would buy nothing and move the hook above
+	 * the data it reads.
+	 */
+	const myCuz = new Set(detail.myBabNumbers);
+	const freeCuz = new Set(detail.poolBabNumbers);
+
 	const fillCard = (
 		<CardSurface>
 			<View style={styles.fillRow}>
-				<NumericText color={theme.colors.accent}>{detail.memberCount}</NumericText>
-				<CaptionText color={theme.colors.faintText}>{`/ ${detail.spots} ${t('joinedCount')}`}</CaptionText>
+				<NumericText color={theme.colors.accent}>{isHatim ? takenCuzCount : detail.memberCount}</NumericText>
+				<CaptionText color={theme.colors.faintText}>
+					{isHatim ? `/ ${unitCount} ${t('qCuzTaken')}` : `/ ${detail.spots} ${t('joinedCount')}`}
+				</CaptionText>
 				{detail.isOwner ? (
 					<CaptionText color={theme.colors.faintText} style={styles.openSpots}>
-						{`${openSpots} ${t('openSpots')}`}
+						{isHatim ? `${detail.poolBabNumbers.length} ${t('qFree')}` : `${openSpots} ${t('openSpots')}`}
 					</CaptionText>
 				) : null}
 			</View>
-			<ProgressBar percent={fillPercent} style={styles.fillBar} />
-			<SpotsGrid filled={detail.memberCount} total={detail.spots} />
+			<ProgressBar
+				percent={isHatim ? Math.round((takenCuzCount / unitCount) * 100) : fillPercent}
+				style={styles.fillBar}
+			/>
+			{isHatim ? (
+				<>
+					<CuzMap stateOf={number => (myCuz.has(number) ? 'mine' : freeCuz.has(number) ? 'free' : 'taken')} />
+					{/*
+					 * **The key belongs wherever the map is**, and this was the one place drawing
+					 * thirty cells in three fills without one — the picker has it and the group
+					 * board has it, so a lobby left the reader to work out that tan meant free.
+					 *
+					 * "senin" rather than the picker's "seçtin": here the solid cells are what
+					 * you already hold, not a selection being made.
+					 */}
+					<CuzMapLegend mineLabel={t('legendMine')} />
+				</>
+			) : (
+				<SpotsGrid filled={detail.memberCount} total={detail.spots} />
+			)}
 			{detail.isOwner ? (
 				<CaptionText color={theme.colors.subtext} style={styles.poolNote}>
-					{t('poolNote')}
+					{t(isHatim ? 'qLobbyPoolNote' : 'poolNote')}
 				</CaptionText>
 			) : null}
 		</CardSurface>
@@ -173,10 +222,35 @@ export const LobbyScreen = ({ navigation, route }: Props) => {
 							</View>
 						) : null}
 					</View>
+					{/*
+					 * **Who is already in, above the switch that decides when it starts.**
+					 *
+					 * The card said how many seats or cüz were gone and never who had arrived,
+					 * which is the thing a creator watching a lobby is actually waiting for —
+					 * and the one piece of it a number cannot carry. It sits on the invite
+					 * card's own divider rather than in a card of its own: it is the answer to
+					 * the code directly above it.
+					 *
+					 * Both kinds get it. Nothing about "people have joined" is particular to
+					 * how the group divides its reading.
+					 */}
+					<View style={[styles.joinedRow, { borderBottomColor: theme.colors.border }]}>
+						{/*
+						 * Five, not the stack's default three. The frame draws five overlapping
+						 * faces and then the count — at three the row was two faces short and
+						 * carried a "+2" chip instead, which breaks the overlap's rhythm and
+						 * says the same number twice: once in the chip and again in "5 kişi
+						 * katıldı" right beside it.
+						 */}
+						<AvatarStack max={JOINED_AVATAR_MAX} names={memberNames} size={JOINED_AVATAR_SIZE} />
+						<CaptionText color={theme.colors.subtext}>
+							{t('joinedPeople', { count: detail.memberCount })}
+						</CaptionText>
+					</View>
 					<ToggleRow
-						hint={t('autoStartHint')}
+						hint={t(isHatim ? 'qAutoStartHint' : 'autoStartHint')}
 						onValueChange={value => updateGroup.mutate({ autoStartWhenFull: value, groupId })}
-						title={t('autoStartFull')}
+						title={t(isHatim ? 'qAutoStartFull' : 'autoStartFull')}
 						value={detail.autoStartWhenFull}
 					/>
 				</CardSurface>
@@ -256,6 +330,21 @@ const styles = StyleSheet.create({
 	openSpots: {
 		marginLeft: 'auto'
 	},
+	/**
+	 * The avatar row, between the invite block and the switch.
+	 *
+	 * **Bottom edge only.** The invite block above already draws its own bottom hairline, so
+	 * a top border here stacked two lines in the same place — and left the row running
+	 * straight into the switch below it with nothing between them.
+	 */
+	joinedRow: {
+		alignItems: 'center',
+		borderBottomWidth: StyleSheet.hairlineWidth,
+		flexDirection: 'row',
+		gap: 12,
+		paddingHorizontal: 15,
+		paddingVertical: 13
+	},
 	poolNote: {
 		marginTop: 12
 	},
@@ -276,7 +365,6 @@ const styles = StyleSheet.create({
 	stateRow: {
 		alignItems: 'center',
 		flexDirection: 'row',
-		justifyContent: 'space-between',
-		marginBottom: 10
+		justifyContent: 'space-between'
 	}
 });

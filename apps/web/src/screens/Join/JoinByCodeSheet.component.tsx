@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/Typography/Typography.component';
 import { useJoinGroupByCode, useLookupGroupByCode } from '@/lib/hooks/useMembership';
 import { useTranslation } from '@/lib/i18n/I18n.context';
+import { unitCountFor, unitLabelKey } from '@/lib/utils/units';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { cycleLabelKey } from '@/lib/utils/groups';
 import { formatInviteCode } from '@/lib/utils/inviteCode';
@@ -199,7 +200,28 @@ export const JoinByCodeSheet = ({ initialCode, isVisible, onClose }: JoinByCodeS
 		await findGroup(code);
 	};
 
+	// Above the handlers: `handleJoin` branches on the group's kind, and reading it from
+	// below them left React Compiler inferring the seat grid's memo depended on the whole
+	// lookup rather than on `spots`.
+	const data = lookup.data;
+
 	const handleJoin = async () => {
+		/*
+		 * **A hatim is not joined from here either** — it goes to QJ3 to pick cüz first.
+		 *
+		 * This is the second door into the join and it had the same defect the Keşfet preview
+		 * had: it posts a join with no `cuzNumbers`, which the server refuses ("at least one
+		 * cüz"), so typing a Kuran group's code and tapping Katıl produced an unhandled error
+		 * rather than a screen. Closing first, because a sheet cannot present a screen over
+		 * itself and iOS will not stack one sheet on another.
+		 */
+		if (data?.kind === 'HATIM') {
+			handleClose();
+			navigation.navigate('PickCuz', { groupId: data.id });
+
+			return;
+		}
+
 		const joined = await joinByCode.mutateAsync(code);
 
 		handleClose();
@@ -211,7 +233,6 @@ export const JoinByCodeSheet = ({ initialCode, isVisible, onClose }: JoinByCodeS
 		navigation.navigate('Tabs', { screen: 'Discover' });
 	};
 
-	const data = lookup.data;
 	// Memoised for the same reason as every other grid's cells: `CellGrid` keeps a cell only
 	// while the item it was handed keeps its identity, and this sheet re-renders on every
 	// keystroke of the code above.
@@ -292,7 +313,9 @@ export const JoinByCodeSheet = ({ initialCode, isVisible, onClose }: JoinByCodeS
 								<Typography color={theme.colors.accent} style={styles.count} variant='numeric'>
 									{data.readCount}
 								</Typography>
-								<CaptionText color={theme.colors.faintText}>{`/ 100 ${t('babs')}`}</CaptionText>
+								<CaptionText color={theme.colors.faintText}>{`/ ${unitCountFor(data.kind)} ${t(
+									unitLabelKey(data.kind)
+								)}`}</CaptionText>
 							</View>
 							<ProgressBar percent={data.percent} style={styles.bar} />
 
@@ -326,11 +349,13 @@ export const JoinByCodeSheet = ({ initialCode, isVisible, onClose }: JoinByCodeS
 							/>
 						) : null}
 
+						{/* The label states what the tap does: a Cevşen group is joined here and
+						    now, a hatim goes to the picker first. */}
 						<AppButton
 							isLoading={joinByCode.isPending}
 							onPress={() => void handleJoin()}
 							style={styles.primary}
-							title={t('joinNow')}
+							title={t(data.kind === 'HATIM' ? 'qJoinPick' : 'joinNow')}
 						/>
 						<AppButton
 							onPress={() => setStep('code')}

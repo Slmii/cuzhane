@@ -10,6 +10,9 @@ import {
 	GroupIdParamsSchema,
 	CoverRoundBabsBodySchema,
 	RoundParamsSchema,
+	PickRoundCuzBody,
+	PickRoundCuzBodySchema,
+	PoolCuzParamsSchema,
 	PoolSlotParamsSchema,
 	UpdateGroupBody,
 	UpdateGroupBodySchema
@@ -30,6 +33,8 @@ import {
 	releasePoolSlotForUser,
 	takePoolSlotForUser
 } from '@services/pool.service';
+import { listPoolCuzForUser, releasePoolCuzForUser, takePoolCuzForUser } from '@services/cuzPool.service';
+import { pickRoundCuzForUser, skipRoundForUser } from '@services/cuzRound.service';
 import {
 	coverMissedBabsForUser,
 	getMyProgressForUser,
@@ -214,6 +219,102 @@ groupsRouter.delete(
 			} = res.locals;
 
 			const result = await releasePoolSlotForUser(userId, groupId, slotIndex);
+			res.status(OK).json(result);
+		} catch (error) {
+			next(error);
+		}
+	}
+);
+
+/*
+ * **The hatim's havuz, addressed by cüz.** Its own three routes rather than a branch inside
+ * the three above: those take a `slotIndex`, which a hatim has no meaning for — see
+ * `cuzPool.service`. Same verbs, same shapes, one unit apart.
+ */
+groupsRouter.get(
+	'/:groupId/pool-cuz',
+	async (req: Request, res: Response<object, ResponseLocals>, next: NextFunction) => {
+		try {
+			const { groupId } = GroupIdParamsSchema.parse(req.params);
+			const {
+				auth: { userId }
+			} = res.locals;
+
+			const cuz = await listPoolCuzForUser(userId, groupId);
+			res.status(OK).json(cuz);
+		} catch (error) {
+			next(error);
+		}
+	}
+);
+
+groupsRouter.post(
+	'/:groupId/pool-cuz/:cuzNumber',
+	async (req: Request, res: Response<object, ResponseLocals>, next: NextFunction) => {
+		try {
+			const { cuzNumber, groupId } = PoolCuzParamsSchema.parse(req.params);
+			const {
+				auth: { userId }
+			} = res.locals;
+
+			const result = await takePoolCuzForUser(userId, groupId, cuzNumber);
+			res.status(OK).json(result);
+		} catch (error) {
+			next(error);
+		}
+	}
+);
+
+groupsRouter.delete(
+	'/:groupId/pool-cuz/:cuzNumber',
+	async (req: Request, res: Response<object, ResponseLocals>, next: NextFunction) => {
+		try {
+			const { cuzNumber, groupId } = PoolCuzParamsSchema.parse(req.params);
+			const {
+				auth: { userId }
+			} = res.locals;
+
+			const result = await releasePoolCuzForUser(userId, groupId, cuzNumber);
+			res.status(OK).json(result);
+		} catch (error) {
+			next(error);
+		}
+	}
+);
+
+/*
+ * **The round-start screen's two answers (QR1).** A pick is the member's own cüz for the round,
+ * not a loan out of the havuz above; skipping sits the round out. See `cuzRound.service`.
+ */
+groupsRouter.post(
+	'/:groupId/round-cuz',
+	validateData(PickRoundCuzBodySchema, 'body'),
+	async (req: Request, res: Response<object, ResponseLocalsWithBody<PickRoundCuzBody>>, next: NextFunction) => {
+		try {
+			const { groupId } = GroupIdParamsSchema.parse(req.params);
+			const {
+				auth: { userId },
+				validatedBody
+			} = res.locals;
+
+			const result = await pickRoundCuzForUser(userId, groupId, validatedBody.cuzNumbers);
+			res.status(OK).json(result);
+		} catch (error) {
+			next(error);
+		}
+	}
+);
+
+groupsRouter.post(
+	'/:groupId/round-skip',
+	async (req: Request, res: Response<object, ResponseLocals>, next: NextFunction) => {
+		try {
+			const { groupId } = GroupIdParamsSchema.parse(req.params);
+			const {
+				auth: { userId }
+			} = res.locals;
+
+			const result = await skipRoundForUser(userId, groupId);
 			res.status(OK).json(result);
 		} catch (error) {
 			next(error);

@@ -247,27 +247,34 @@ export const RoundDetailScreen = ({ route }: Props) => {
 				 * Runs are keyed on state, since a cover changes a contiguous stretch.
 				 */}
 				<CellGrid borderWidth={2} columns={10} items={cells} />
-			</CardSurface>
 
-			<View style={styles.legend}>
-				{legend.map(entry => (
-					<View key={entry.state} style={styles.legendItem}>
-						{/* The same table the cells use, so a swatch cannot drift from what it keys. */}
-						<View
-							style={[
-								styles.legendSwatch,
-								{
-									backgroundColor: appearanceFor(entry.state, theme).backgroundColor,
-									borderColor: appearanceFor(entry.state, theme).borderColor
-								}
-							]}
-						>
-							{entry.state === 'pool' ? <Hatch /> : null}
+				{/*
+				 * **Inside the card, with the board it keys.** It sat below the card as a loose
+				 * row, which read as a footnote to the screen rather than as the key to the
+				 * grid directly above it — and left the only board in the app whose legend was
+				 * not on the same surface as its cells. The group board and the pool both keep
+				 * theirs in.
+				 */}
+				<View style={styles.legend}>
+					{legend.map(entry => (
+						<View key={entry.state} style={styles.legendItem}>
+							{/* The same table the cells use, so a swatch cannot drift from what it keys. */}
+							<View
+								style={[
+									styles.legendSwatch,
+									{
+										backgroundColor: appearanceFor(entry.state, theme).backgroundColor,
+										borderColor: appearanceFor(entry.state, theme).borderColor
+									}
+								]}
+							>
+								{entry.state === 'pool' ? <Hatch /> : null}
+							</View>
+							<CaptionText color={theme.colors.subtext}>{entry.label}</CaptionText>
 						</View>
-						<CaptionText color={theme.colors.subtext}>{entry.label}</CaptionText>
-					</View>
-				))}
-			</View>
+					))}
+				</View>
+			</CardSurface>
 
 			<StatText color={theme.colors.faintText} style={styles.rowsHeading}>
 				{t('missedTitle')}
@@ -349,11 +356,19 @@ const styles = StyleSheet.create({
 		marginBottom: 11,
 		padding: 13
 	},
+	/**
+	 * The same 11 `PoolGrid` puts between its board and its key.
+	 *
+	 * It had a `marginBottom: 20` and no top margin, which was right while it sat *below* the
+	 * card — the gap was to the next section. Inside the card those are both wrong: the key
+	 * ends up flush against the last row of cells, and the bottom margin adds to the card's
+	 * own padding.
+	 */
 	legend: {
 		columnGap: 14,
 		flexDirection: 'row',
 		flexWrap: 'wrap',
-		marginBottom: 20,
+		marginTop: 11,
 		rowGap: 8
 	},
 	legendItem: {

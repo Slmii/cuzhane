@@ -5,6 +5,7 @@ import { BodyStrongText, CaptionText, StatText } from '@/components/ui/Typograph
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { relativeAge } from '@/lib/utils/notifications';
+import { CUZ_COUNT } from '@/lib/utils/units';
 import { StyleSheet, View } from 'react-native';
 import type { NotificationRowProps } from './NotificationRow.types';
 
@@ -97,7 +98,27 @@ export const NotificationRow = ({ notification, now }: NotificationRowProps) => 
 		}
 	};
 
-	const { body, icon, title } = copyByKind[notification.kind];
+	/*
+	 * **Q8 — the same events about a hatim.** The cüz goes into the title beside the person
+	 * ("Ayşe · 29. cüz") and the body says what they did with it; a closed round is the hatim
+	 * itself, "Tur 3 · 30 / 30"; and the member lines count people, because a hatim has no seats
+	 * for "{count}/{spots}" to fill. A released pool claim is a Cevşen seat event and has no twin.
+	 */
+	const hatimCopy: Partial<Record<AppNotification['kind'], { body: string; title: string }>> = {
+		MEMBER_JOINED: { body: t('notifMembersBody', { count: memberCount }), title: copyByKind.MEMBER_JOINED.title },
+		MEMBER_LEFT: { body: t('notifMembersBody', { count: memberCount }), title: copyByKind.MEMBER_LEFT.title },
+		POOL_BAB_CLAIMED: { body: t('notifCuzTookBody'), title: t('notifCuzTitle', { name: takerName, range }) },
+		ROUND_COMPLETE: {
+			body: t('notifHatimDoneBody', { count: CUZ_COUNT, round: roundNumber }),
+			title: t('notifHatimDoneTitle')
+		},
+		SHARE_READ: { body: t('notifCuzReadBody'), title: t('notifCuzTitle', { name: readerName, range }) }
+	};
+
+	const { icon } = copyByKind[notification.kind];
+	const { body, title } =
+		(notification.groupKind === 'HATIM' ? hatimCopy[notification.kind] : undefined) ??
+		copyByKind[notification.kind];
 
 	return (
 		/*
