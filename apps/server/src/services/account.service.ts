@@ -64,9 +64,10 @@ export const deleteAccountForUser = async (userId: string): Promise<{ success: t
 		 * carries a group name and often another member's display name, and the delete-account
 		 * copy promises the lot is gone.
 		 *
-		 * `ShareReadNotice` is left alone deliberately: it is a claim that an announcement was
-		 * already made for a (group, user, round), it names nobody, and deleting it would let the
-		 * same round announce itself a second time for whoever is still in that group.
+		 * `ShareReadNotice` and `GroupEventNotice` are left alone deliberately: each is a claim
+		 * that an announcement was already made for a (group, user, round), it names nobody, and
+		 * deleting it would let the same round announce itself a second time for whoever is still
+		 * in that group.
 		 */
 		await tx.notification.deleteMany({ where: { userId: normalizedUserId } });
 		await tx.userSettings.deleteMany({ where: { userId: normalizedUserId } });

@@ -16,8 +16,8 @@ afterAll(async () => {
 	await new Promise(resolve => server.close(resolve));
 });
 
-const post = (body: string) =>
-	fetch(`${origin}/api/feedback`, { body, headers: { 'Content-Type': 'application/json' }, method: 'POST' });
+const post = (body: string, contentType = 'application/json') =>
+	fetch(`${origin}/api/feedback`, { body, headers: { 'Content-Type': contentType }, method: 'POST' });
 
 describe('a bad request body', () => {
 	it('answers 400 for malformed JSON, not 500', async () => {
@@ -30,5 +30,11 @@ describe('a bad request body', () => {
 		const response = await post(JSON.stringify({ message: 'x'.repeat(400 * 1024) }));
 
 		expect(response.status).toBe(413);
+	});
+
+	it('answers with the parser’s own 4xx for any other body error, not 500', async () => {
+		const response = await post('{}', 'application/json; charset=latin1');
+
+		expect(response.status).toBe(415);
 	});
 });

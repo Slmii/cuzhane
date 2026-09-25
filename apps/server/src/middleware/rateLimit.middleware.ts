@@ -46,7 +46,7 @@ export const poolRateLimit = rateLimit({
 	handler: tooManyRequestsHandler
 });
 
-/** Things that call a third party or write a row per request: the verse meal, feedback, push tokens. */
+/** Things that call a third party or write a row per request: the verse meal and push-token registration. */
 export const externalCallRateLimit = rateLimit({
 	windowMs: 60 * 1000,
 	limit: 30,

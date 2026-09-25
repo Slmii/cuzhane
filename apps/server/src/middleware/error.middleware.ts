@@ -1,7 +1,12 @@
-import { BAD_REQUEST, INTERNAL_SERVER_ERROR, NOT_FOUND, REQUEST_TOO_LONG } from '@config/httpCodes';
+import { BAD_REQUEST, INTERNAL_SERVER_ERROR, NOT_FOUND } from '@config/httpCodes';
 import { HttpError } from '@config/httpError';
 import { NextFunction, Request, Response } from 'express';
 import { prettifyError, ZodError } from 'zod';
+
+const BODY_ERROR_MESSAGES: Partial<Record<string, string>> = {
+	'entity.parse.failed': 'Malformed JSON body',
+	'entity.too.large': 'Request body too large'
+};
 
 export const notFoundHandler = (_req: Request, res: Response) => {
 	res.status(NOT_FOUND).json({ error: 'Route not found' });
@@ -29,18 +34,13 @@ export const errorHandler = (error: unknown, _req: Request, res: Response, _next
 		return;
 	}
 
-	// `express.json` rejects a malformed or oversized body with its own `type`; those are the
-	// client's mistake, not ours, and a 500 hid that.
-	const bodyErrorType = (error as { type?: unknown } | null)?.type;
+	// `express.json` rejects a body it cannot read (malformed, oversized, wrong charset, aborted)
+	// with its own 4xx `status`, flagged `expose`; those are the client's mistake, not ours, and a
+	// 500 hid that. The message is ours, not the parser's, which can quote the body back.
+	const bodyError = error as { expose?: unknown; status?: unknown; type?: unknown } | null;
 
-	if (bodyErrorType === 'entity.parse.failed') {
-		res.status(BAD_REQUEST).json({ error: 'Malformed JSON body' });
-
-		return;
-	}
-
-	if (bodyErrorType === 'entity.too.large') {
-		res.status(REQUEST_TOO_LONG).json({ error: 'Request body too large' });
+	if (bodyError?.expose === true && typeof bodyError.type === 'string' && typeof bodyError.status === 'number') {
+		res.status(bodyError.status).json({ error: BODY_ERROR_MESSAGES[bodyError.type] ?? 'Unreadable request body' });
 
 		return;
 	}

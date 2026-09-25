@@ -1,7 +1,12 @@
 import { NO_CONTENT } from '@config/httpCodes';
 import { ResponseLocalsWithBody } from '@interfaces/response.types';
 import { validateData } from '@middleware/validate.middleware';
-import { RegisterPushTokenBody, RegisterPushTokenBodySchema } from '@schemas/pushToken.schema';
+import {
+	RegisterPushTokenBody,
+	RegisterPushTokenBodySchema,
+	RemovePushTokenBody,
+	RemovePushTokenBodySchema
+} from '@schemas/pushToken.schema';
 import { registerPushToken, removePushToken } from '@services/pushToken.service';
 import { NextFunction, Request, Response, Router } from 'express';
 import { externalCallRateLimit } from '@middleware/rateLimit.middleware';
@@ -29,8 +34,8 @@ pushTokenRouter.post(
 
 pushTokenRouter.delete(
 	'/',
-	validateData(RegisterPushTokenBodySchema, 'body'),
-	async (_req: Request, res: Response<object, ResponseLocalsWithBody<RegisterPushTokenBody>>, next: NextFunction) => {
+	validateData(RemovePushTokenBodySchema, 'body'),
+	async (_req: Request, res: Response<object, ResponseLocalsWithBody<RemovePushTokenBody>>, next: NextFunction) => {
 		try {
 			const {
 				auth: { userId },
