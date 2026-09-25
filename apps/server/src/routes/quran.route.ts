@@ -3,12 +3,14 @@ import { validateData } from '@middleware/validate.middleware';
 import { VerseTranslationQuery, VerseTranslationQuerySchema } from '@schemas/quran.schema';
 import { getVerseTranslation, type VerseTranslation } from '@services/quranTranslation.service';
 import { NextFunction, Request, Response, Router } from 'express';
+import { externalCallRateLimit } from '@middleware/rateLimit.middleware';
 
 const quranRouter = Router();
 
 // A verse's meal in the interface language — `?verseKey=53:62&lang=tr`.
 quranRouter.get(
 	'/translation',
+	externalCallRateLimit,
 	validateData(VerseTranslationQuerySchema, 'query'),
 	async (
 		_req: Request,

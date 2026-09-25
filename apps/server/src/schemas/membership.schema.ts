@@ -24,8 +24,8 @@ export const InviteCodeParamsSchema = z.object({
 });
 
 export const MemberUserIdParamsSchema = z.object({
-	groupId: z.string().trim().min(1),
-	memberUserId: z.string().trim().min(1)
+	groupId: z.string().trim().min(1).max(64),
+	memberUserId: z.string().trim().min(1).max(64)
 });
 
 export type InviteCodeBody = z.infer<typeof InviteCodeBodySchema>;

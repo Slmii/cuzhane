@@ -190,7 +190,8 @@ export const takePoolSlotForUser = async (
 			 * spare cüz are taken a different way (Q3, unbuilt). When that lands it calls
 			 * `settingFor('poolClaim', kind)` rather than adding a branch here.
 			 */
-			setting: settingFor('poolClaim', 'CEVSEN')
+			setting: settingFor('poolClaim', 'CEVSEN'),
+			subject: String(slotIndex)
 		});
 	}
 

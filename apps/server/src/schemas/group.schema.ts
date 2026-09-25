@@ -33,11 +33,11 @@ const GroupVisibilitySchema = z.enum(['OPEN', 'PRIVATE']);
 const GroupCycleSchema = z.enum(['DAILY', 'WEEKLY']);
 
 export const GroupIdParamsSchema = z.object({
-	groupId: z.string().trim().min(1)
+	groupId: z.string().trim().min(1).max(64)
 });
 
 export const RoundParamsSchema = z.object({
-	groupId: z.string().trim().min(1),
+	groupId: z.string().trim().min(1).max(64),
 	// Path params arrive as strings; the service rejects a round the group has not reached.
 	roundIndex: z.coerce.number().int().min(0)
 });
@@ -48,14 +48,14 @@ export const CoverRoundBabsBodySchema = z.object({
 });
 
 export const PoolSlotParamsSchema = z.object({
-	groupId: z.string().trim().min(1),
+	groupId: z.string().trim().min(1).max(64),
 	// Path params arrive as strings; the service checks the seat is actually in the pool.
 	slotIndex: z.coerce.number().int().min(0).max(49)
 });
 
 /** The hatim's havuz is addressed by cüz, not by seat — see `cuzPool.service`. */
 export const PoolCuzParamsSchema = z.object({
-	groupId: z.string().trim().min(1),
+	groupId: z.string().trim().min(1).max(64),
 	cuzNumber: z.coerce.number().int().min(1).max(CUZ_COUNT)
 });
 

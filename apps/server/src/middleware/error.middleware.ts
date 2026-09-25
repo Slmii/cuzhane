@@ -1,4 +1,4 @@
-import { BAD_REQUEST, INTERNAL_SERVER_ERROR, NOT_FOUND } from '@config/httpCodes';
+import { BAD_REQUEST, INTERNAL_SERVER_ERROR, NOT_FOUND, REQUEST_TOO_LONG } from '@config/httpCodes';
 import { HttpError } from '@config/httpError';
 import { NextFunction, Request, Response } from 'express';
 import { prettifyError, ZodError } from 'zod';
@@ -25,6 +25,22 @@ export const errorHandler = (error: unknown, _req: Request, res: Response, _next
 			error: error.message,
 			details: error.details
 		});
+
+		return;
+	}
+
+	// `express.json` rejects a malformed or oversized body with its own `type`; those are the
+	// client's mistake, not ours, and a 500 hid that.
+	const bodyErrorType = (error as { type?: unknown } | null)?.type;
+
+	if (bodyErrorType === 'entity.parse.failed') {
+		res.status(BAD_REQUEST).json({ error: 'Malformed JSON body' });
+
+		return;
+	}
+
+	if (bodyErrorType === 'entity.too.large') {
+		res.status(REQUEST_TOO_LONG).json({ error: 'Request body too large' });
 
 		return;
 	}

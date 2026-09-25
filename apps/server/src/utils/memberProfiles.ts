@@ -48,12 +48,12 @@ const evictIfCrowded = (now: number) => {
 	}
 };
 
-/** The same precedence `resolveDisplayName` applies to session claims, over a full user. */
-const nameOf = (user: {
-	fullName: string | null;
-	firstName: string | null;
-	emailAddresses: { emailAddress: string }[];
-}) => user.fullName?.trim() || user.firstName?.trim() || user.emailAddresses[0]?.emailAddress?.trim() || null;
+/**
+ * The same precedence `resolveDisplayName` applies to session claims, over a full user — and
+ * the same refusal to fall back to an email address, which other members would then see.
+ */
+const nameOf = (user: { fullName: string | null; firstName: string | null }) =>
+	user.fullName?.trim() || user.firstName?.trim() || null;
 
 /**
  * Names and photos for a set of members, by user id.

@@ -33,7 +33,8 @@ Root scripts live in the top `package.json`; run them from the repo root.
     runs `migrate deploy` into it; `setupEnv.ts` points every worker there. `assertIsTestDatabase`
     refuses to truncate a database not ending in `_test` — never weaken it. `fileParallelism: false`.
 -   Prisma: `pnpm --filter @cuzhane/server db:migrate|db:generate|db:studio|db:seed`. **Never hand-write
-    a migration**: `db:migrate --name …`, then `db:generate`. `db:seed` rebuilds the dev data (new
+    a migration**: `db:migrate --name …`, then `db:generate`. **Never run `prisma format`** — the
+    schema files are 4-space indented and it rewrites them to 2; check with `prisma validate`. `db:seed` rebuilds the dev data (new
     group ids, which also resets the device's once-a-round "seen" flags).
 -   Server build: `tsc` + `tsc-alias --resolve-full-paths` (path aliases are rewritten at build time).
 -   Hüsrev pages and the Hatim duası: the images in `apps/server/mushaf/` (gitignored) are the only
@@ -115,7 +116,7 @@ round machinery. `unitCountFor(group)` answers "how many" — never write a lite
     `(groupId, roundIndex, babNumber)`). Anything historical reads `BabRead`. Every read/unread path
     writes through `recordRead`.
 -   Covering a closed round is append-only (`coverMissedBabsForUser`): inserts the missing `BabRead`,
-    409 if already covered, 403 for the open round. Who owed what in a past round is derived
+    409 if already covered, 403 for the open round and for rounds that closed before the member joined. Who owed what in a past round is derived
     (`owedSlotForBab` for Cevşen, `CuzHolding` for a hatim).
 -   `spots`, `splitMode`, `cycle`, `kind` are immutable after creation.
 
@@ -132,6 +133,11 @@ round machinery. `unitCountFor(group)` answers "how many" — never write a lite
     elsewhere, then fixes `completedAt`. The client calls it **before** Clerk's `user.delete()`.
 -   `Feedback` attaches the account email (from Clerk, best effort) and client diagnostics itself —
     don't add them back as questions. Reference: `CV-` + 4 invite-alphabet chars.
+-   **A display name is never an email address** — `resolveDisplayName`, `nameOf` and the client's
+    `useViewerIdentity` fall back to "Member". Names reach every member, and the owner's reaches
+    anyone previewing an open group.
+-   Group events (pool take, join, leave) are announced **once per actor, per round, per subject**
+    via `GroupEventNotice` in `notifyGroupMembers` — a take/release or join/leave loop stays silent.
 -   Unreferenced on purpose: `Cheer` (model, service, route, hooks) and the `GroupWaitlistEntry`
     table. Dropping either needs a destructive migration.
 
@@ -142,7 +148,11 @@ round machinery. `unitCountFor(group)` answers "how many" — never write a lite
 -   **Public: `/health` only.** Everything else is under `/api` behind `requireAuthApi` +
     `populateAuthLocals`, including the mushaf page images (`/api/mushaf/*`, static, private cache).
 -   Routes are thin (`src/routes/*.route.ts`); logic in `src/services/*`; Zod in `src/schemas/`
-    via `validate.middleware.ts`.
+    via `validate.middleware.ts`. Id params are capped at 64 characters.
+-   Per-user rate limits (`middleware/rateLimit.middleware.ts`) on join/leave/code lookup, creating a
+    group, cheers, pool take/release, the verse meal, push-token registration and feedback. A new
+    route that writes rows for other users or calls a third party gets one too.
+-   Push tokens must pass `Expo.isExpoPushToken`; an account keeps its 10 most recent.
 -   **Responses go through `services/groupSerializers.ts`** — never a raw Prisma row. Its types mirror
     `apps/web/src/lib/types/domain.ts` field for field; the workspaces share no package, so **change
     both together**.

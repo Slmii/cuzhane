@@ -32,6 +32,26 @@ model PoolClaimRelease {
     @@index([groupId, roundIndex])
 }
 
+/// A group event already announced — somebody taking a pool slot or cüz, joining, or leaving.
+///
+/// Each is said once per actor, per round, per subject (the slot or cüz taken; empty for a join
+/// or a leave). Without it, taking and releasing in a loop — or joining and leaving an open
+/// group — filed an inbox row for every member and pushed to them on every turn. The unique key
+/// settles two requests at once; the next round announces itself again.
+model GroupEventNotice {
+    id          String   @id @default(cuid())
+    groupId     String
+    actorUserId String
+    kind        String
+    roundIndex  Int
+    subject     String   @default("")
+    createdAt   DateTime @default(now())
+
+    group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+    @@unique([groupId, actorUserId, kind, roundIndex, subject])
+}
+
 model ShareReadNotice {
     id         String   @id @default(cuid())
     groupId    String

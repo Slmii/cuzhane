@@ -1,6 +1,6 @@
 import { CREATED, OK } from '@config/httpCodes';
 import { ResponseLocals, ResponseLocalsWithBody, ResponseLocalsWithQuery } from '@interfaces/response.types';
-import { createGroupRateLimit } from '@middleware/rateLimit.middleware';
+import { createGroupRateLimit, poolRateLimit } from '@middleware/rateLimit.middleware';
 import { validateData } from '@middleware/validate.middleware';
 import {
 	CreateGroupBody,
@@ -194,6 +194,7 @@ groupsRouter.get('/:groupId/pool', async (req: Request, res: Response<object, Re
 
 groupsRouter.post(
 	'/:groupId/pool/:slotIndex',
+	poolRateLimit,
 	async (req: Request, res: Response<object, ResponseLocals>, next: NextFunction) => {
 		try {
 			const { groupId, slotIndex } = PoolSlotParamsSchema.parse(req.params);
@@ -211,6 +212,7 @@ groupsRouter.post(
 
 groupsRouter.delete(
 	'/:groupId/pool/:slotIndex',
+	poolRateLimit,
 	async (req: Request, res: Response<object, ResponseLocals>, next: NextFunction) => {
 		try {
 			const { groupId, slotIndex } = PoolSlotParamsSchema.parse(req.params);
@@ -250,6 +252,7 @@ groupsRouter.get(
 
 groupsRouter.post(
 	'/:groupId/pool-cuz/:cuzNumber',
+	poolRateLimit,
 	async (req: Request, res: Response<object, ResponseLocals>, next: NextFunction) => {
 		try {
 			const { cuzNumber, groupId } = PoolCuzParamsSchema.parse(req.params);
@@ -267,6 +270,7 @@ groupsRouter.post(
 
 groupsRouter.delete(
 	'/:groupId/pool-cuz/:cuzNumber',
+	poolRateLimit,
 	async (req: Request, res: Response<object, ResponseLocals>, next: NextFunction) => {
 		try {
 			const { cuzNumber, groupId } = PoolCuzParamsSchema.parse(req.params);

@@ -26,6 +26,8 @@ const membershipRouter = Router();
 
 membershipRouter.get(
 	'/preview/code/:code',
+	// Shares the join limit: looking a code up is the first half of guessing one.
+	joinRateLimit,
 	async (req: Request, res: Response<object, ResponseLocals>, next: NextFunction) => {
 		try {
 			const { code } = InviteCodeParamsSchema.parse(req.params);
@@ -107,6 +109,7 @@ membershipRouter.post(
 
 membershipRouter.delete(
 	'/:groupId/leave',
+	joinRateLimit,
 	async (req: Request, res: Response<object, ResponseLocals>, next: NextFunction) => {
 		try {
 			const { groupId } = GroupIdParamsSchema.parse(req.params);

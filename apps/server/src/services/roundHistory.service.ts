@@ -284,7 +284,18 @@ export const coverMissedBabsForUser = async (
 	roundIndex: number,
 	babNumbers: number[]
 ): Promise<RoundDetail> => {
-	const { group, normalizedUserId } = await loadRunningGroup(userId, groupId);
+	const { group, member, normalizedUserId } = await loadRunningGroup(userId, groupId);
+
+	/*
+	 * Only rounds since the member joined. A round that closed before they had a seat was never
+	 * theirs to fill, and covering it would write their name over the group's history and into
+	 * their own totals and streak — the same floor `getMyProgressForUser` puts on their record.
+	 */
+	const joinedRoundIndex = roundIndexSince(group.startedAt as Date, group.roundDays, member.joinedAt, group.timezone);
+
+	if (roundIndex < joinedRoundIndex) {
+		throw new HttpError(FORBIDDEN, 'That round closed before you joined');
+	}
 
 	if (roundIndex < 0 || roundIndex >= group.roundIndex) {
 		// The open round is covered by the ordinary read paths, which also keep the board

@@ -189,6 +189,20 @@ describe('getRoundDetailForUser', () => {
 });
 
 describe('coverMissedBabsForUser', () => {
+	it('refuses a round that closed before the member joined', async () => {
+		const group = await createGroup({ startedDaysAgo: 3 });
+
+		// Seat 1 joined on day 2, so rounds 0 and 1 were over before they had a seat.
+		await prisma.groupMember.updateMany({
+			data: { joinedAt: daysAgo(1) },
+			where: { groupId: group.id, userId: SEAT_ONE }
+		});
+
+		await expect(coverMissedBabsForUser(SEAT_ONE, group.id, 0, [1])).rejects.toMatchObject({ statusCode: 403 });
+		await expect(coverMissedBabsForUser(SEAT_ONE, group.id, 1, [1])).rejects.toMatchObject({ statusCode: 403 });
+		await expect(coverMissedBabsForUser(SEAT_ONE, group.id, 2, [1])).resolves.toBeDefined();
+	});
+
 	it('records the cover against the round that missed it, crediting the coverer', async () => {
 		const group = await createGroup({ startedDaysAgo: 3 });
 

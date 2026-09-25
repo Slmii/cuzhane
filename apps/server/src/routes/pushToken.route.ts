@@ -4,11 +4,13 @@ import { validateData } from '@middleware/validate.middleware';
 import { RegisterPushTokenBody, RegisterPushTokenBodySchema } from '@schemas/pushToken.schema';
 import { registerPushToken, removePushToken } from '@services/pushToken.service';
 import { NextFunction, Request, Response, Router } from 'express';
+import { externalCallRateLimit } from '@middleware/rateLimit.middleware';
 
 const pushTokenRouter = Router();
 
 pushTokenRouter.post(
 	'/',
+	externalCallRateLimit,
 	validateData(RegisterPushTokenBodySchema, 'body'),
 	async (_req: Request, res: Response<object, ResponseLocalsWithBody<RegisterPushTokenBody>>, next: NextFunction) => {
 		try {

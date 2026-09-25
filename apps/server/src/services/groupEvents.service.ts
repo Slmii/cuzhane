@@ -68,6 +68,12 @@ type GroupEventInput = {
 	/** `data.kind` on the push payload, which the client routes on. */
 	pushKind: string;
 	/**
+	 * What the event is about, for saying it **once per actor, per round, per subject** — the
+	 * slot or cüz taken; empty for a join or a leave. See `GroupEventNotice`: without it, a
+	 * take/release or join/leave loop filed a row for every member, and pushed, on every turn.
+	 */
+	subject?: string;
+	/**
 	 * Built from what the group looks like *now*, after the write — the member count in
 	 * particular, which is the whole news in two of the three.
 	 */
@@ -84,12 +90,18 @@ export const notifyGroupMembers = async ({
 	excludeUserIds,
 	groupId,
 	pushKind,
-	setting
+	setting,
+	subject = ''
 }: GroupEventInput): Promise<void> => {
 	try {
 		const group = await prisma.group.findUnique({
 			where: { id: groupId },
-			select: { name: true, spots: true, members: { select: { displayName: true, userId: true } } }
+			select: {
+				name: true,
+				roundIndex: true,
+				spots: true,
+				members: { select: { displayName: true, userId: true } }
+			}
 		});
 
 		if (group === null) {
@@ -100,6 +112,16 @@ export const notifyGroupMembers = async ({
 		const others = group.members.filter(member => !excluded.has(member.userId));
 
 		if (others.length === 0) {
+			return;
+		}
+
+		// Said once: a second take of the same slot, or a rejoin, this round stays silent.
+		const claimed = await prisma.groupEventNotice.createMany({
+			data: [{ actorUserId, groupId, kind: pushKind, roundIndex: group.roundIndex, subject }],
+			skipDuplicates: true
+		});
+
+		if (claimed.count === 0) {
 			return;
 		}
 

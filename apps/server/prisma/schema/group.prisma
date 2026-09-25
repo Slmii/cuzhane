@@ -108,6 +108,7 @@ model Group {
     roundSkips    CuzRoundSkip[]
     poolReleases  PoolClaimRelease[]
     shareNotices  ShareReadNotice[]
+    eventNotices  GroupEventNotice[]
     roundNotices  RoundCompleteNotice[]
     notifications Notification[]
 

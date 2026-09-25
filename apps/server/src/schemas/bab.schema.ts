@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const BabParamsSchema = z.object({
-	groupId: z.string().trim().min(1),
+	groupId: z.string().trim().min(1).max(64),
 	babNumber: z.coerce.number().int().min(1).max(100)
 });
 

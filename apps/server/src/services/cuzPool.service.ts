@@ -192,7 +192,8 @@ export const takePoolCuzForUser = async (
 			excludeUserIds: [normalizedUserId],
 			groupId,
 			pushKind: 'pool-claim',
-			setting: settingFor('poolClaim', 'HATIM')
+			setting: settingFor('poolClaim', 'HATIM'),
+			subject: String(cuzNumber)
 		});
 	}
 
