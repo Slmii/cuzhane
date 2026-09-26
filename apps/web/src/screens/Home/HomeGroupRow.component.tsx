@@ -3,7 +3,7 @@ import { TourTarget } from '@/components/Tour/TourTarget.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { ProgressBar } from '@/components/ui/ProgressBar/ProgressBar.component';
-import { BodyStrongText, Typography } from '@/components/ui/Typography/Typography.component';
+import { BodyStrongText, CaptionText, Typography } from '@/components/ui/Typography/Typography.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { StyleSheet, View } from 'react-native';
@@ -24,6 +24,15 @@ export const HomeGroupRow = ({ group, isTourTarget = false, onOpenReader, onPres
 	const { t } = useTranslation();
 	const isDone = group.done >= group.total;
 	const percent = group.total === 0 ? 0 : Math.round((group.done / group.total) * 100);
+	if (group.isFlexible && group.total === 0) {
+		return (
+			<CardSurface onPress={onPress}>
+				<BodyStrongText>{group.name}</BodyStrongText>
+				<CaptionText color={theme.colors.subtext}>{t('planFlexible')}</CaptionText>
+				<AppButton title={t('flexibleChoose')} onPress={onPress} variant='surface' />
+			</CardSurface>
+		);
+	}
 
 	const button = (
 		<AppButton

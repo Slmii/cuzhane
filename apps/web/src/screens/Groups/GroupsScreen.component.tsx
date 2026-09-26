@@ -182,8 +182,16 @@ export const GroupsScreen = () => {
 						badgeIcon={visibilityIcon(item.visibility)}
 						badgeLabel={t(visibilityLabelKey(item.visibility))}
 						badgeTone={visibilityChipTone(item.visibility)}
-						footerCaption={`${t('todayLabel')} · ${item.myReadCount}/${item.myBabNumbers.length}`}
-						footerLabel={`${t(planLabelKey(item.splitMode))} · ${formatBabRange(item.myBabNumbers)}`}
+						footerCaption={
+							item.splitMode === 'FLEXIBLE'
+								? t('flexibleMembers', { count: item.memberCount })
+								: `${t('todayLabel')} · ${item.myReadCount}/${item.myBabNumbers.length}`
+						}
+						footerLabel={
+							item.splitMode === 'FLEXIBLE'
+								? t('planFlexible')
+								: `${t(planLabelKey(item.splitMode))} · ${formatBabRange(item.myBabNumbers)}`
+						}
 						// Filled even when the round is finished: the hatim itself is ongoing, so a
 						// de-emphasised button would read as "this group is done". Only the label
 						// softens — there is nothing left to continue today.

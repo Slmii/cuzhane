@@ -9,7 +9,7 @@ import type { FormOptionGroupProps } from './OptionGroup.types';
  * A radio group rendered as the design's choice cards (visibility, split mode), bound
  * to a form field. Same `Controller` pattern as `Field`/`Switch`, different control.
  */
-export const FormOptionGroup = ({ direction = 'row', error, name, options, style }: FormOptionGroupProps) => {
+export const FormOptionGroup = ({ direction = 'row', error, name, onChange, options, style }: FormOptionGroupProps) => {
 	const { theme } = useThemeContext();
 	const { control } = useFormContext();
 
@@ -28,7 +28,10 @@ export const FormOptionGroup = ({ direction = 'row', error, name, options, style
 									hint={option.hint}
 									isSelected={field.value === option.value}
 									key={option.value}
-									onPress={() => field.onChange(option.value)}
+									onPress={() => {
+										field.onChange(option.value);
+										onChange?.(option.value);
+									}}
 									style={direction === 'row' ? styles.rowItem : undefined}
 									title={option.title}
 								/>

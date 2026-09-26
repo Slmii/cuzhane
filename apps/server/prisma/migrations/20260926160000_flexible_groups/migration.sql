@@ -1,0 +1,1 @@
+ALTER TYPE "GroupSplitMode" ADD VALUE 'FLEXIBLE';

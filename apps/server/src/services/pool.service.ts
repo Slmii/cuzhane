@@ -2,6 +2,7 @@ import { BAD_REQUEST, CONFLICT } from '@config/httpCodes';
 import { HttpError } from '@config/httpError';
 import prisma from '@db/prisma';
 import { normalizeUserId } from '@utils/normalizeUserId';
+import { isAnonymousTo, visibleUserId } from '@utils/groupPrivacy';
 import { syncCompletedAt } from './babs.service';
 import { getMemberProfiles } from '@utils/memberProfiles';
 import { notifyGroupMembers } from './groupEvents.service';
@@ -79,9 +80,14 @@ export const listPoolSlotsForUser = async (userId: string, groupId: string): Pro
 	// Clerk's name first, the stored one second — a member who set their name after joining is
 	// still stored under whatever their claims held on the day.
 	const takerOf = (userId: string | null) => ({
-		takenByUserId: userId,
-		takenByDisplayName: userId ? profiles.get(userId)?.displayName ?? nameByUserId.get(userId) ?? null : null,
-		takenByImageUrl: userId ? profiles.get(userId)?.imageUrl ?? null : null,
+		takenByUserId: visibleUserId(group, normalizedUserId, userId),
+		takenByDisplayName: userId
+			? isAnonymousTo(group, normalizedUserId, userId)
+				? 'Member'
+				: profiles.get(userId)?.displayName ?? nameByUserId.get(userId) ?? null
+			: null,
+		takenByImageUrl:
+			userId && !isAnonymousTo(group, normalizedUserId, userId) ? profiles.get(userId)?.imageUrl ?? null : null,
 		takenByMe: userId === normalizedUserId
 	});
 
@@ -190,6 +196,9 @@ export const takePoolSlotForUser = async (
 			throw new HttpError(BAD_REQUEST, 'The pool opens when the hatim starts');
 		}
 
+		if (group.splitMode === 'FLEXIBLE') {
+			throw new HttpError(BAD_REQUEST, 'Choose an individual portion in a flexible group');
+		}
 		const babNumbers = poolBlockFor(group, group.members, slotIndex);
 
 		if (!babNumbers) {
@@ -239,6 +248,9 @@ export const releasePoolSlotForUser = async (
 		await ensureCurrentRound(tx, groupId);
 
 		const group = await tx.group.findUniqueOrThrow({ where: { id: groupId }, include: { members: true } });
+		if (group.splitMode === 'FLEXIBLE') {
+			throw new HttpError(BAD_REQUEST, 'Choose an individual portion in a flexible group');
+		}
 		const babNumbers = poolBlockFor(group, group.members, slotIndex);
 
 		if (!babNumbers) {
@@ -304,8 +316,8 @@ export const releasePoolSlotForUser = async (
  * of a block's three is a real contribution, so several members may split an empty seat's
  * block between them.
  */
-const requirePartsPool = (group: Pick<Group, 'kind'>): void => {
-	if (group.kind !== 'HIZB') {
+const requirePartsPool = (group: Pick<Group, 'kind' | 'splitMode'>): void => {
+	if (group.kind !== 'HIZB' && group.splitMode !== 'FLEXIBLE') {
 		throw new HttpError(BAD_REQUEST, 'Cevşen pool slots are taken whole');
 	}
 };
@@ -352,9 +364,17 @@ export const takePoolPartForUser = async (
 		}
 
 		requireInPool(group, group.members, babNumber);
+		if (!group.members.some(member => member.userId === normalizedUserId)) {
+			throw new HttpError(BAD_REQUEST, 'You are no longer a member of this group');
+		}
 
 		const claimed = await tx.groupBab.updateMany({
-			where: { groupId, number: babNumber, assignedUserId: null },
+			where: {
+				groupId,
+				number: babNumber,
+				assignedUserId: null,
+				...(group.splitMode === 'FLEXIBLE' ? { readAt: null } : {})
+			},
 			data: { assignedUserId: normalizedUserId }
 		});
 
@@ -393,6 +413,10 @@ export const releasePoolPartForUser = async (
 		requireInPool(group, group.members, babNumber);
 
 		const mine = { groupId, number: babNumber, assignedUserId: normalizedUserId };
+		if (group.splitMode === 'FLEXIBLE') {
+			await tx.groupBab.updateMany({ where: { ...mine, readAt: null }, data: { assignedUserId: null } });
+			return;
+		}
 		const unread = await tx.groupBab.updateMany({
 			where: { ...mine, readByUserId: normalizedUserId },
 			data: { readByUserId: null, readAt: null }

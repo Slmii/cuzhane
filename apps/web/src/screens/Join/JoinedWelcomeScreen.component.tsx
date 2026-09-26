@@ -107,6 +107,18 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 		navigation.replace('Tabs', { screen: 'Groups' });
 	};
 
+	if (detail.splitMode === 'FLEXIBLE') {
+		return (
+			<ScreenContainer>
+				<Header1>{t('flexibleJoined')}</Header1>
+				<BodyText>{detail.name}</BodyText>
+				<BodyText color={theme.colors.subtext}>{t('planFlexibleHint')}</BodyText>
+				<CaptionText>{t('flexibleMembers', { count: detail.memberCount })}</CaptionText>
+				<AppButton title={t('flexibleChoose')} onPress={handleStartReading} />
+			</ScreenContainer>
+		);
+	}
+
 	const spotsToFill = Math.max(0, detail.spots - detail.memberCount);
 
 	return (

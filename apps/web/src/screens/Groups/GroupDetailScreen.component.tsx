@@ -1,4 +1,5 @@
 import { BabGrid } from '@/components/BabGrid/BabGrid.component';
+import { FlexibleReadingPanel } from '@/components/FlexibleReadingPanel/FlexibleReadingPanel.component';
 import { BabLegend } from '@/components/BabLegend/BabLegend.component';
 import { BabRow } from '@/components/BabRow/BabRow.component';
 import { GridSkeleton } from '@/components/GridSkeleton/GridSkeleton.component';
@@ -29,7 +30,7 @@ import {
 import { groupQueryKeys } from '@/lib/hooks/queryKeys';
 import { useGetBabs, useSetBabRead } from '@/lib/hooks/useBab';
 import { useCurrentUserId } from '@/lib/hooks/useCurrentUserId';
-import { useGetGroupById, useMarkPoolReleasesSeen } from '@/lib/hooks/useGroup';
+import { useGetGroupById, useGetPoolSlots, useMarkPoolReleasesSeen } from '@/lib/hooks/useGroup';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useRoundReset, useTimeUntilReset } from '@/lib/hooks/useRoundReset';
 import { useGetMyProgress, useGetRounds } from '@/lib/hooks/useRounds';
@@ -177,6 +178,8 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 	const groupQuery = useGetGroupById(groupId);
 
 	const babsQuery = useGetBabs(groupId);
+	const isFlexible = groupQuery.data?.splitMode === 'FLEXIBLE';
+	const flexiblePoolQuery = useGetPoolSlots(groupId, isFlexible);
 	// Both read from the query data rather than the narrowed `detail` below, so they sit with
 	// the other hooks above the early returns and keep hook order stable.
 	const reset = useRoundReset({
@@ -188,10 +191,18 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 	const untilReset = useTimeUntilReset(groupQuery.data?.roundEndsAt ?? null);
 	const roundsQuery = useGetRounds(groupId);
 	// Gated on the group having started: see the hook.
-	const myProgressQuery = useGetMyProgress(groupId, groupQuery.data?.status === 'RUNNING');
+	const myProgressQuery = useGetMyProgress(
+		groupId,
+		groupQuery.data?.status === 'RUNNING' && groupQuery.data.splitMode !== 'FLEXIBLE'
+	);
 	const setBabRead = useSetBabRead();
 	const markPoolReleasesSeen = useMarkPoolReleasesSeen();
-	const pullToRefresh = usePullToRefresh(groupQuery, babsQuery, roundsQuery, myProgressQuery);
+	const pullToRefresh = usePullToRefresh(
+		groupQuery,
+		babsQuery,
+		roundsQuery,
+		...(isFlexible ? [flexiblePoolQuery] : [myProgressQuery])
+	);
 	/*
 	 * Which book's skeleton to hold while the group loads, off the shelf the screen is usually
 	 * opened from. Read off the cache rather than subscribed to, as `LobbyScreen` seeds its own:
@@ -383,6 +394,46 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 	 * whole of it. Once every pool portion has somebody the card says so rather than offering
 	 * none — and stays, so the way to Havuz doesn't go with the last claim.
 	 */
+	if (detail.splitMode === 'FLEXIBLE') {
+		return (
+			<>
+				<ScreenContainer pullToRefresh={pullToRefresh}>
+					{header}
+					<CardSurface>
+						<TitleText>{t('planFlexible')}</TitleText>
+						<CaptionText>{t('flexibleMembers', { count: detail.memberCount })}</CaptionText>
+						<CaptionText>{`${t('groupProgress')}: ${detail.readCount} / ${detail.partCount}`}</CaptionText>
+						{reset ? <RoundResetRow groupLabel={reset.group} localLabel={reset.local} /> : null}
+					</CardSurface>
+					<FlexibleReadingPanel
+						group={detail}
+						onOpenReader={number =>
+							detail.kind === 'HIZB'
+								? navigation.navigate('HizbReader', { groupId, partNumber: number })
+								: navigation.navigate('BabReader', { groupId, babNumber: number })
+						}
+					/>
+					<AppButton title={t('membersTitle')} onPress={() => setSheet('members')} variant='surface' />
+					<AppButton
+						title={t('rounds')}
+						onPress={() => navigation.navigate('Rounds', { groupId })}
+						variant='surface'
+					/>
+					<LeaveGroupButton groupId={groupId} isFlexible isOwner={detail.isOwner} />
+				</ScreenContainer>
+				<ShareSheet group={detail} isVisible={openSheet === 'share'} onClose={closeSheet} />
+				{detail.isOwner ? (
+					<ManageSheet
+						group={detail}
+						isVisible={openSheet === 'manage'}
+						onClose={closeSheet}
+						onOpenMembers={handleOpenMembers}
+					/>
+				) : null}
+				<MembersSheet groupId={groupId} isVisible={openSheet === 'members'} onClose={closeSheet} />
+			</>
+		);
+	}
 	const freePoolCount = detail.poolBabNumbers.length;
 	const hizbPoolCount = freePoolCount > 0 ? freePoolCount : detail.poolAllBabNumbers.length;
 	const hizbPoolLine = () =>
@@ -728,7 +779,12 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 															  // board, and "cmt9x…" says less than nothing.
 															  bab.readByDisplayName
 																? t('readBeforeYoursBy', {
-																		name: bab.readByDisplayName
+																		name:
+																			(detail.hideMemberNames &&
+																				!detail.isOwner) ||
+																			bab.readByUserId?.startsWith('anonymous:')
+																				? t('anonymousMember')
+																				: bab.readByDisplayName
 																  })
 																: t('readBeforeYours')
 															: isRead

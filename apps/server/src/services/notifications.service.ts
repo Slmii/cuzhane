@@ -1,6 +1,7 @@
 import prisma from '@db/prisma';
 import type { GroupKindName } from '@utils/groupKinds';
 import { normalizeUserId } from '@utils/normalizeUserId';
+import { anonymousNotificationPayload } from '@utils/groupPrivacy';
 import type { NotificationKind, Prisma } from '../generated/prisma/client';
 
 /**
@@ -51,15 +52,23 @@ export const recordNotification = async ({ groupId, groupName, payload, userIds 
 
 	try {
 		const { kind, ...rest } = payload;
-
-		await prisma.notification.createMany({
-			data: userIds.map(userId => ({
-				groupId,
-				groupName,
-				kind,
-				payload: rest as Prisma.InputJsonValue,
-				userId: normalizeUserId(userId)
-			}))
+		await prisma.$transaction(async tx => {
+			// Privacy updates take this row lock too: a named event cannot land after their scrub.
+			await tx.$queryRaw`SELECT "id" FROM "Group" WHERE "id" = ${groupId} FOR UPDATE`;
+			const group = await tx.group.findUnique({ where: { id: groupId }, select: { hideMemberNames: true } });
+			if (!group) {
+				return;
+			}
+			const storedPayload = group.hideMemberNames ? anonymousNotificationPayload(rest) : rest;
+			await tx.notification.createMany({
+				data: userIds.map(userId => ({
+					groupId,
+					groupName,
+					kind,
+					payload: storedPayload as Prisma.InputJsonValue,
+					userId: normalizeUserId(userId)
+				}))
+			});
 		});
 	} catch (error) {
 		console.error('Failed to record a notification', error);
@@ -105,7 +114,7 @@ const serializeNotification = (row: {
 	kind: NotificationKind;
 	groupId: string | null;
 	groupName: string;
-	group: { kind: GroupKindName } | null;
+	group: { kind: GroupKindName; hideMemberNames: boolean } | null;
 	payload: Prisma.JsonValue;
 	readAt: Date | null;
 	createdAt: Date;
@@ -117,7 +126,9 @@ const serializeNotification = (row: {
 	id: row.id,
 	isRead: row.readAt !== null,
 	kind: row.kind,
-	payload: (row.payload ?? {}) as Record<string, unknown>
+	payload: row.group?.hideMemberNames
+		? anonymousNotificationPayload((row.payload ?? {}) as Record<string, unknown>)
+		: ((row.payload ?? {}) as Record<string, unknown>)
 });
 
 /**
@@ -134,7 +145,7 @@ export const listNotificationsForUser = async (userId: string): Promise<Notifica
 		where: { userId: normalizeUserId(userId) },
 		orderBy: { createdAt: 'desc' },
 		take: INBOX_LIMIT,
-		include: { group: { select: { kind: true } } }
+		include: { group: { select: { kind: true, hideMemberNames: true } } }
 	});
 
 	return rows.map(serializeNotification);

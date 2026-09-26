@@ -123,6 +123,7 @@ export const useSetAllBabsRead = () => {
 		onSettled: async (_data, _error, { groupId }) => {
 			await Promise.all([
 				queryClient.invalidateQueries({ queryKey: groupQueryKeys.babs(groupId) }),
+				queryClient.invalidateQueries({ queryKey: groupQueryKeys.pool(groupId) }),
 				queryClient.invalidateQueries({ queryKey: groupQueryKeys.groupById(groupId) }),
 				queryClient.invalidateQueries({ queryKey: groupQueryKeys.groups() }),
 				queryClient.invalidateQueries({ queryKey: profileQueryKeys.stats() }),
@@ -171,6 +172,7 @@ export const useSetBabRead = () => {
 		onSettled: async (_data, _error, { groupId }) => {
 			await Promise.all([
 				queryClient.invalidateQueries({ queryKey: groupQueryKeys.babs(groupId) }),
+				queryClient.invalidateQueries({ queryKey: groupQueryKeys.pool(groupId) }),
 				queryClient.invalidateQueries({ queryKey: groupQueryKeys.groupById(groupId) }),
 				queryClient.invalidateQueries({ queryKey: groupQueryKeys.groups() }),
 				queryClient.invalidateQueries({ queryKey: profileQueryKeys.stats() }),

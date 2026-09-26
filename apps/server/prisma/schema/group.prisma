@@ -9,6 +9,7 @@ enum GroupSplitMode {
     ROTATION
     FIXED
     FREE
+    FLEXIBLE
 }
 
 enum GroupStatus {
@@ -33,6 +34,7 @@ model Group {
     name              String
     dedication        String?
     visibility        GroupVisibility @default(OPEN)
+    hideMemberNames   Boolean         @default(false)
     splitMode         GroupSplitMode  @default(ROTATION)
     status            GroupStatus     @default(GATHERING)
     cycle             GroupCycle      @default(WEEKLY)

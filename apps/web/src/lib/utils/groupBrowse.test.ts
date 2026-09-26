@@ -64,6 +64,11 @@ describe('applyGroupBrowse — filtering', () => {
 		expect(applyGroupBrowse(groups, state({ hasSeatsOnly: true })).map(g => g.name)).toEqual(['room']);
 	});
 
+	it('keeps unlimited flexible groups when filtering for space to join', () => {
+		const flexible = { ...group({ name: 'flexible', spotsLeft: 0 }), splitMode: 'FLEXIBLE' as const };
+		expect(applyGroupBrowse([flexible], state({ hasSeatsOnly: true }))).toEqual([flexible]);
+	});
+
 	it('applies every condition together, not just the last one', () => {
 		const groups = [
 			group({ cycle: 'DAILY', name: 'Sabah', spotsLeft: 0, status: 'GATHERING' }),

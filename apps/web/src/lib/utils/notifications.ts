@@ -102,7 +102,12 @@ export const notificationText = (
 	{ groupKind, kind, payload }: Pick<AppNotification, 'groupKind' | 'kind' | 'payload'>,
 	t: Translate
 ): { title: string; body: string } => {
-	const text = (name: string) => (typeof payload[name] === 'string' ? (payload[name] as string) : '');
+	const text = (name: string) =>
+		payload.anonymous === true && ['readerName', 'takerName', 'memberName'].includes(name)
+			? t('anonymousMember')
+			: typeof payload[name] === 'string'
+			? (payload[name] as string)
+			: '';
 	const count = (name: string) => (typeof payload[name] === 'number' ? (payload[name] as number) : 0);
 	const isHizb = groupKind === 'HIZB';
 	const range = text('range');
@@ -156,12 +161,18 @@ export const notificationText = (
 		}
 		case 'MEMBER_JOINED':
 			return {
-				body: t('notifMemberJoinedBody', { count: count('memberCount'), spots: count('spots') }),
+				body:
+					count('spots') === 0
+						? t('flexibleMembers', { count: count('memberCount') })
+						: t('notifMemberJoinedBody', { count: count('memberCount'), spots: count('spots') }),
 				title: t('notifMemberJoinedTitle', { name: text('memberName') })
 			};
 		case 'MEMBER_LEFT':
 			return {
-				body: t('notifMemberLeftBody', { count: count('memberCount'), spots: count('spots') }),
+				body:
+					count('spots') === 0
+						? t('flexibleMembers', { count: count('memberCount') })
+						: t('notifMemberLeftBody', { count: count('memberCount'), spots: count('spots') }),
 				title: t('notifMemberLeftTitle', { name: text('memberName') })
 			};
 	}

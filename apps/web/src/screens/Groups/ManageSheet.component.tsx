@@ -6,7 +6,7 @@ import { Form } from '@/components/ui/Form/Form.component';
 import { FormOptionGroup } from '@/components/ui/Form/OptionGroup/OptionGroup.component';
 import { NavRow } from '@/components/ui/NavRow/NavRow.component';
 import { ToggleRow } from '@/components/ui/ToggleRow/ToggleRow.component';
-import { EyebrowText, FieldLabelText, Header2 } from '@/components/ui/Typography/Typography.component';
+import { CaptionText, EyebrowText, FieldLabelText, Header2 } from '@/components/ui/Typography/Typography.component';
 import { useDeleteGroup, useUpdateGroup } from '@/lib/hooks/useGroup';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { editGroupSchema, type EditGroupForm } from '@/lib/schemas/group.schema';
@@ -58,7 +58,7 @@ export const ManageSheet = ({ group, isVisible, onClose, onOpenMembers }: Props)
 			dedication: values.dedication.trim() === '' ? null : values.dedication.trim(),
 			groupId: group.id,
 			name: values.name.trim(),
-			visibility: values.visibility
+			visibility: group.splitMode === 'FLEXIBLE' ? 'OPEN' : values.visibility
 		});
 
 		setIsSaved(true);
@@ -86,7 +86,10 @@ export const ManageSheet = ({ group, isVisible, onClose, onOpenMembers }: Props)
 		});
 	};
 
-	const spotsHint = `${group.memberCount} / ${group.spots} · ${group.spotsLeft} ${t('spotsLeft')}`;
+	const isFlexible = group.splitMode === 'FLEXIBLE';
+	const spotsHint = isFlexible
+		? t('flexiblePublicHint')
+		: `${group.memberCount} / ${group.spots} · ${group.spotsLeft} ${t('spotsLeft')}`;
 
 	return (
 		/*
@@ -163,15 +166,21 @@ export const ManageSheet = ({ group, isVisible, onClose, onOpenMembers }: Props)
 									useHeadingFont
 								/>
 								<Field label={t('dedication')} name='dedication' placeholder={t('dedicationHint')} />
-								<FieldLabelText style={styles.fieldLabel}>{t('visibility')}</FieldLabelText>
-								<FormOptionGroup
-									direction='row'
-									name='visibility'
-									options={[
-										{ hint: t('openHint'), title: t('open'), value: 'OPEN' },
-										{ hint: t('privateHint'), title: t('private'), value: 'PRIVATE' }
-									]}
-								/>
+								{isFlexible ? (
+									<CaptionText>{t('flexiblePublicHint')}</CaptionText>
+								) : (
+									<>
+										<FieldLabelText style={styles.fieldLabel}>{t('visibility')}</FieldLabelText>
+										<FormOptionGroup
+											direction='row'
+											name='visibility'
+											options={[
+												{ hint: t('openHint'), title: t('open'), value: 'OPEN' },
+												{ hint: t('privateHint'), title: t('private'), value: 'PRIVATE' }
+											]}
+										/>
+									</>
+								)}
 							</View>
 
 							{/* Who may come in, and who already has: switches that mean something the
@@ -182,7 +191,18 @@ export const ManageSheet = ({ group, isVisible, onClose, onOpenMembers }: Props)
 							</EyebrowText>
 							<View style={styles.card}>
 								<ToggleRow
+									title={t('hideMemberNames')}
+									hint={t('hideMemberNamesHint')}
+									value={group.hideMemberNames}
+									disabled={updateGroup.isPending}
+									onValueChange={next =>
+										updateGroup.mutate({ groupId: group.id, hideMemberNames: next })
+									}
+								/>
+								<Divider />
+								<ToggleRow
 									hint={spotsHint}
+									disabled={isFlexible}
 									onValueChange={next => updateGroup.mutate({ groupId: group.id, openToJoin: next })}
 									title={t('openToJoin')}
 									value={group.openToJoin}
@@ -190,7 +210,9 @@ export const ManageSheet = ({ group, isVisible, onClose, onOpenMembers }: Props)
 								<Divider />
 								<NavRow
 									label={t('membersTitle')}
-									meta={`${group.memberCount} / ${group.spots}`}
+									meta={
+										isFlexible ? String(group.memberCount) : `${group.memberCount} / ${group.spots}`
+									}
 									onPress={onOpenMembers}
 								/>
 							</View>

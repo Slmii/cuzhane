@@ -11,6 +11,11 @@ const issuePaths = (input: Record<string, unknown>) => {
 };
 
 describe('createGroupSchema', () => {
+	it('accepts flexible groups without restricting their internal portion count to seat capacities', () => {
+		expect(
+			schema.safeParse({ name: 'Open reading', kind: 'CEVSEN', spots: 100, splitMode: 'FLEXIBLE' }).success
+		).toBe(true);
+	});
 	it('reads a group with no kind as the Cevşen', () => {
 		const result = schema.safeParse({ name: 'Hatim' });
 

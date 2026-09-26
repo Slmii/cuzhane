@@ -1,3 +1,4 @@
+import { LateReadingNotice } from '@/components/LateReadingNotice/LateReadingNotice.component';
 import { TourTarget } from '@/components/Tour/TourTarget.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
@@ -6,7 +7,7 @@ import { EyebrowText, Typography } from '@/components/ui/Typography/Typography.c
 import type { CevsenInvocation } from '@/lib/content/cevsen';
 import { READER_FONT_SIZE_DEFAULT } from '@/lib/content/cevsen';
 import { useGetBabs, useSetBabRead } from '@/lib/hooks/useBab';
-import { useGetGroupById, useGetPoolSlots, useTakePoolSlot } from '@/lib/hooks/useGroup';
+import { useGetGroupById, useGetPoolSlots, useTakePoolPart, useTakePoolSlot } from '@/lib/hooks/useGroup';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { WrapperApiError } from '@/api/wrapper.api';
 import { useCoverBabs, useGetRoundDetail } from '@/lib/hooks/useRounds';
@@ -94,6 +95,7 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 	// The three that describe the group's state; the text itself is bundled and never stale.
 	const pullToRefresh = usePullToRefresh(groupQuery, babsQuery, poolQuery);
 	const takePoolSlot = useTakePoolSlot();
+	const takePoolPart = useTakePoolPart();
 	const settingsQuery = useGetUserSettings();
 	const updateSettings = useUpdateUserSettings();
 	const setBabRead = useSetBabRead();
@@ -178,6 +180,10 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 
 		if (coveredRoundIndex === null || !group || group.mySlotIndex === null) {
 			return group?.myBabNumbers ?? NO_BAB_NUMBERS;
+		}
+
+		if (group.splitMode === 'FLEXIBLE') {
+			return NO_BAB_NUMBERS;
 		}
 
 		// The group's own count: a share is a slice of the parts the group divides.
@@ -441,6 +447,7 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 	 * pool and nobody's yet, or it is another member's.
 	 */
 	const isMine = myBabNumbers.includes(babNumber);
+	const isFlexiblePoolDone = groupQuery.data?.splitMode === 'FLEXIBLE' && isPoolBab && isRead;
 	/*
 	 * **The same gate as the open round**: your own bab or an unclaimed one, never another
 	 * member's. Covering changes *which* round the question is asked about, not who may
@@ -501,6 +508,8 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 
 	const readHint = coverErrorHint
 		? coverErrorHint
+		: isFlexiblePoolDone
+		? t('coverDone')
 		: isMine
 		? t('longPressHint')
 		: isCovering && isPoolBab && !isRead
@@ -607,6 +616,27 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 	};
 
 	const handleTakeAndRead = () => {
+		if (isFlexiblePoolDone) {
+			return;
+		}
+		if (groupQuery.data?.splitMode === 'FLEXIBLE') {
+			takePoolPart.mutate(
+				{ groupId, babNumber },
+				{
+					onSuccess: () =>
+						setBabRead.mutate(
+							{ groupId, babNumber, read: true },
+							{
+								onSuccess: () => {
+									tapBack();
+									goToBab(nextBabNumber);
+								}
+							}
+						)
+				}
+			);
+			return;
+		}
 		if (poolSlotIndex === null) {
 			return;
 		}
@@ -804,6 +834,12 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 			<View style={[styles.footer, { borderTopColor: theme.colors.readerRule }]}>
 				{/* Same flat surface as the header above, for the same reason — see the note there. */}
 				<View style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.readerSurface }]} />
+				{coveredRound && canMark && !isRead ? <LateReadingNotice daysLate={coveredRound.daysLate} /> : null}
+				{takePoolPart.isError || setBabRead.isError ? (
+					<Typography color={theme.colors.danger} variant='caption'>
+						{t('genericError')}
+					</Typography>
+				) : null}
 				{/*
 				 * One line saying why the button below reads the way it does — and only when
 				 * there is something to say. A bab already in your share gets no line at all.
@@ -850,7 +886,13 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 						 * muting the design rejected than to the solid "not yours today" it had.
 						 */}
 						<AppButton
-							disabled={!canMark || (isCovering && isRead)}
+							disabled={
+								!canMark ||
+								isFlexiblePoolDone ||
+								(isCovering && isRead) ||
+								takePoolPart.isPending ||
+								setBabRead.isPending
+							}
 							onPress={isCovering ? handleCover : isPoolBab ? handleTakeAndRead : toggleCurrentRead}
 							style={styles.markButtonSlot}
 							/*
@@ -864,7 +906,9 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 							 * Okudum · Geri al on the next render.
 							 */
 							title={
-								!canMark
+								isFlexiblePoolDone
+									? t('coverDone')
+									: !canMark
 									? t('readLocked')
 									: isCovering && isRead
 									? /*

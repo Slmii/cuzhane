@@ -13,6 +13,8 @@ import { normalizeUserId } from '@utils/normalizeUserId';
  */
 export type PushLanguage = 'tr' | 'en' | 'nl';
 
+const anonymousMember = (language: PushLanguage) => ({ tr: 'Bir üye', en: 'A member', nl: 'Een lid' }[language]);
+
 /**
  * The reader's language, defaulting the way `UserSettings` does.
  *
@@ -154,20 +156,20 @@ export const groupReadPush = (
 			// share, and calling that their share would be untrue. English and Dutch state the
 			// babs rather than claim anything about whose they were, so they needed no change.
 			// It names no noun at all, which is why a Hizb group's line reads the same.
-			body: `${readerName} okumasını tamamladı (${range}).`
+			body: `${readerName || anonymousMember(language)} okumasını tamamladı (${range}).`
 		};
 	}
 
 	if (language === 'nl') {
 		return {
 			title: groupName,
-			body: `${readerName} is klaar met ${partNoun(language, kind, range)} ${range}.`
+			body: `${readerName || anonymousMember(language)} is klaar met ${partNoun(language, kind, range)} ${range}.`
 		};
 	}
 
 	return {
 		title: groupName,
-		body: `${readerName} finished ${partNoun(language, kind, range)} ${range}.`
+		body: `${readerName || anonymousMember(language)} finished ${partNoun(language, kind, range)} ${range}.`
 	};
 };
 
@@ -234,21 +236,29 @@ export const poolClaimPush = (
 			// A lone part takes the ordinal — "19. bölümü", the nineteenth — since "19 bölümü"
 			// would read as nineteen of them.
 			body: isSinglePart(range)
-				? `${takerName} havuzdan ${range}. ${nouns.accusative} üstlendi.`
-				: `${takerName} havuzdan ${range} ${nouns.possessiveAccusative} üstlendi.`
+				? `${takerName || anonymousMember(language)} havuzdan ${range}. ${nouns.accusative} üstlendi.`
+				: `${takerName || anonymousMember(language)} havuzdan ${range} ${nouns.possessiveAccusative} üstlendi.`
 		};
 	}
 
 	if (language === 'nl') {
 		return {
 			title: groupName,
-			body: `${takerName} heeft ${partNoun(language, kind, range)} ${range} uit de pool genomen.`
+			body: `${takerName || anonymousMember(language)} heeft ${partNoun(
+				language,
+				kind,
+				range
+			)} ${range} uit de pool genomen.`
 		};
 	}
 
 	return {
 		title: groupName,
-		body: `${takerName} took ${partNoun(language, kind, range)} ${range} from the pool.`
+		body: `${takerName || anonymousMember(language)} took ${partNoun(
+			language,
+			kind,
+			range
+		)} ${range} from the pool.`
 	};
 };
 
@@ -268,20 +278,26 @@ export const memberJoinedPush = (
 	if (language === 'tr') {
 		return {
 			title: groupName,
-			body: `${memberName} gruba katıldı — ${memberCount}/${spots} kişi.`
+			body: `${memberName || anonymousMember(language)} gruba katıldı — ${
+				spots > 0 ? `${memberCount}/${spots}` : memberCount
+			} kişi.`
 		};
 	}
 
 	if (language === 'nl') {
 		return {
 			title: groupName,
-			body: `${memberName} is lid geworden — ${memberCount}/${spots} leden.`
+			body: `${memberName || anonymousMember(language)} is lid geworden — ${
+				spots > 0 ? `${memberCount}/${spots}` : memberCount
+			} leden.`
 		};
 	}
 
 	return {
 		title: groupName,
-		body: `${memberName} joined — ${memberCount}/${spots} members.`
+		body: `${memberName || anonymousMember(language)} joined — ${
+			spots > 0 ? `${memberCount}/${spots}` : memberCount
+		} members.`
 	};
 };
 
@@ -305,19 +321,25 @@ export const memberLeftPush = (
 	if (language === 'tr') {
 		return {
 			title: groupName,
-			body: `${memberName} gruptan ayrıldı — ${memberCount}/${spots} kişi.`
+			body: `${memberName || anonymousMember(language)} gruptan ayrıldı — ${
+				spots > 0 ? `${memberCount}/${spots}` : memberCount
+			} kişi.`
 		};
 	}
 
 	if (language === 'nl') {
 		return {
 			title: groupName,
-			body: `${memberName} heeft de groep verlaten — ${memberCount}/${spots} leden.`
+			body: `${memberName || anonymousMember(language)} heeft de groep verlaten — ${
+				spots > 0 ? `${memberCount}/${spots}` : memberCount
+			} leden.`
 		};
 	}
 
 	return {
 		title: groupName,
-		body: `${memberName} left — ${memberCount}/${spots} members.`
+		body: `${memberName || anonymousMember(language)} left — ${
+			spots > 0 ? `${memberCount}/${spots}` : memberCount
+		} members.`
 	};
 };

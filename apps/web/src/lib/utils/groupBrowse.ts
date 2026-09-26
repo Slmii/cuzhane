@@ -1,5 +1,5 @@
 import type { StringKey } from '@/lib/i18n/strings';
-import type { GroupCycle, GroupStatus } from '@/lib/types/domain';
+import type { GroupCycle, GroupSplitMode, GroupStatus } from '@/lib/types/domain';
 
 export type GroupSortKey = 'newest' | 'seats' | 'soon';
 
@@ -51,6 +51,7 @@ export const isGroupBrowseMenuActive = (state: GroupBrowseState) =>
 
 /** The minimum a group must carry to be browsed. Both screens' rows satisfy it. */
 type BrowsableGroup = {
+	splitMode?: GroupSplitMode;
 	name: string;
 	cycle: GroupCycle;
 	status: GroupStatus;
@@ -77,7 +78,7 @@ export const applyGroupBrowse = <T extends BrowsableGroup>(groups: T[] | undefin
 			return false;
 		}
 
-		if (state.hasSeatsOnly && group.spotsLeft <= 0) {
+		if (state.hasSeatsOnly && group.splitMode !== 'FLEXIBLE' && group.spotsLeft <= 0) {
 			return false;
 		}
 
@@ -86,6 +87,9 @@ export const applyGroupBrowse = <T extends BrowsableGroup>(groups: T[] | undefin
 
 	return [...filtered].sort((a, b) => {
 		if (state.sortKey === 'seats') {
+			if ((a.splitMode === 'FLEXIBLE') !== (b.splitMode === 'FLEXIBLE')) {
+				return a.splitMode === 'FLEXIBLE' ? -1 : 1;
+			}
 			return b.spotsLeft - a.spotsLeft;
 		}
 

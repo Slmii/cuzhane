@@ -7,6 +7,7 @@ export interface HomeGroupRowGroup {
 	moreCount: number;
 	total: number;
 	done: number;
+	isFlexible?: boolean;
 }
 
 export interface HomeGroupRowProps {

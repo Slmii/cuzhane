@@ -188,13 +188,13 @@ export const useStartGroup = () => {
 	});
 };
 
-export const useGetPoolSlots = (groupId: string) => {
+export const useGetPoolSlots = (groupId: string, isEnabled = true) => {
 	const refetchInterval = useLiveRefetchInterval();
 
 	return useQuery({
 		queryKey: groupQueryKeys.pool(groupId),
 		queryFn: () => getPoolSlots(groupId),
-		enabled: !!groupId,
+		enabled: !!groupId && isEnabled,
 		refetchInterval
 	});
 };

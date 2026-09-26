@@ -63,11 +63,11 @@ export const visibilityIcon = (visibility: GroupVisibility): IconName => (visibi
 
 /** The long form, for a card subtitle: "Sabit paylaşım". */
 export const splitModeLabelKey = (splitMode: GroupSplitMode): StringKey =>
-	splitMode === 'FIXED' ? 'fixedSplit' : 'planRotation';
+	splitMode === 'FLEXIBLE' ? 'planFlexible' : splitMode === 'FIXED' ? 'fixedSplit' : 'planRotation';
 
 /** The short form used wherever the plan sits inline beside a range. */
 export const planLabelKey = (splitMode: GroupSplitMode): StringKey =>
-	splitMode === 'FIXED' ? 'planFixed' : 'planRotation';
+	splitMode === 'FLEXIBLE' ? 'planFlexible' : splitMode === 'FIXED' ? 'planFixed' : 'planRotation';
 
 export type BabCellContext = {
 	viewerUserId: string | null;

@@ -1,3 +1,4 @@
+import { LateReadingNotice } from '@/components/LateReadingNotice/LateReadingNotice.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
 import { Avatar } from '@/components/ui/Avatar/Avatar.component';
@@ -17,6 +18,7 @@ import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { AppTheme } from '@/lib/theme/tokens';
 import { BAB_COUNT, formatBabRange } from '@/lib/utils/babs';
+import { visibleMemberIdentity } from '@/lib/utils/groupPrivacy';
 import { staggerWithinRuns } from '@/lib/utils/groups';
 import { roundCellStates, roundRows, type RoundCellState, type RoundRow } from '@/lib/utils/rounds';
 import type { TabStackParamList } from '@/navigation/types';
@@ -164,7 +166,10 @@ export const RoundDetailScreen = ({ navigation, route }: Props) => {
 	}
 
 	const round = roundQuery.data;
-	const members = membersQuery.data ?? [];
+	const privateNames = groupQuery.data.hideMemberNames && !groupQuery.data.isOwner;
+	const members = (membersQuery.data ?? []).map(member =>
+		visibleMemberIdentity(member, groupQuery.data, viewerUserId, t('anonymousMember'))
+	);
 
 	if (isHizb) {
 		return (
@@ -181,7 +186,11 @@ export const RoundDetailScreen = ({ navigation, route }: Props) => {
 		);
 	}
 
-	const rows = roundRows(round, members, viewerUserId);
+	const rows = roundRows(round, members, viewerUserId).map(row =>
+		!row.isPool && !row.isViewer && (privateNames || row.key.startsWith('anonymous:'))
+			? { ...row, name: t('anonymousMember'), imageUrl: null }
+			: row
+	);
 
 	/**
 	 * Who did the covering, from the reader's point of view: "devraldığın" on your own row,
@@ -193,7 +202,7 @@ export const RoundDetailScreen = ({ navigation, route }: Props) => {
 			? t('fromMember')
 			: row.covered?.isViewer
 			? t('transferred')
-			: `${row.covered?.byName} ${t('tookOver')}`;
+			: `${privateNames ? t('anonymousMember') : row.covered?.byName} ${t('tookOver')}`;
 
 	/** The row's second line. Which shape it takes is decided in `roundRows` and tested there. */
 	const detailLine = (row: RoundRow) => {
@@ -292,6 +301,8 @@ export const RoundDetailScreen = ({ navigation, route }: Props) => {
 					</View>
 				))}
 			</View>
+
+			{round.missedCount > 0 ? <LateReadingNotice daysLate={round.daysLate} /> : null}
 
 			<StatText color={theme.colors.faintText} style={styles.rowsHeading}>
 				{t('missedTitle')}

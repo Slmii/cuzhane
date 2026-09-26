@@ -163,7 +163,8 @@ export const listBabsForUser = async (userId: string, groupId: string): Promise<
 		}
 	}
 
-	return babs.map(bab => serializeBab(bab, nameByUserId));
+	const privacyGroup = await prisma.group.findUniqueOrThrow({ where: { id: groupId } });
+	return babs.map(bab => serializeBab(bab, nameByUserId, { group: privacyGroup, viewerUserId: normalizedUserId }));
 };
 
 /**
@@ -247,7 +248,12 @@ const notifyGroupOfShareRead = async (input: { groupId: string; range: string; r
 	try {
 		const group = await prisma.group.findUnique({
 			where: { id: groupId },
-			select: { kind: true, name: true, members: { select: { displayName: true, userId: true } } }
+			select: {
+				kind: true,
+				name: true,
+				hideMemberNames: true,
+				members: { select: { displayName: true, userId: true } }
+			}
 		});
 
 		if (group === null) {
@@ -269,7 +275,9 @@ const notifyGroupOfShareRead = async (input: { groupId: string; range: string; r
 		// join and is the fallback when the lookup comes back empty — see `getMemberProfiles`.
 		const profiles = await getMemberProfiles([readerId]);
 		const stored = group.members.find(member => member.userId === readerId)?.displayName;
-		const readerName = profiles.get(readerId)?.displayName ?? stored ?? FALLBACK_DISPLAY_NAME;
+		const readerName = group.hideMemberNames
+			? ''
+			: profiles.get(readerId)?.displayName ?? stored ?? FALLBACK_DISPLAY_NAME;
 
 		/*
 		 * **Filed for everyone, pushed only to those who asked.** The inbox is the record — the
@@ -288,6 +296,7 @@ const notifyGroupOfShareRead = async (input: { groupId: string; range: string; r
 			return;
 		}
 
+		const latest = await prisma.group.findUnique({ where: { id: groupId }, select: { hideMemberNames: true } });
 		await Promise.all(
 			recipients.map(recipient =>
 				sendPushToUser(recipient.userId, {
@@ -295,7 +304,7 @@ const notifyGroupOfShareRead = async (input: { groupId: string; range: string; r
 						groupName: group.name,
 						kind: group.kind,
 						range,
-						readerName
+						readerName: latest?.hideMemberNames !== false ? '' : readerName
 					}),
 					data: { groupId, kind: 'group-read' }
 				})
@@ -556,7 +565,8 @@ export const setBabReadForUser = async (
 		});
 	}
 
-	return serializeBab(outcome.bab);
+	const privacyGroup = await prisma.group.findUniqueOrThrow({ where: { id: groupId } });
+	return serializeBab(outcome.bab, undefined, { group: privacyGroup, viewerUserId: normalizedUserId });
 };
 
 /**
@@ -707,5 +717,8 @@ export const setAssignedBabsReadForUser = async (
 		});
 	}
 
-	return result.babs.map(bab => serializeBab(bab));
+	const privacyGroup = await prisma.group.findUniqueOrThrow({ where: { id: groupId } });
+	return result.babs.map(bab =>
+		serializeBab(bab, undefined, { group: privacyGroup, viewerUserId: normalizedUserId })
+	);
 };

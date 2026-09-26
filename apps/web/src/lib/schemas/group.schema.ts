@@ -31,10 +31,11 @@ export const createGroupSchema = (t: Translate) =>
 			name: z.string().trim().min(1, t('fieldRequired')).max(GROUP_NAME_MAX),
 			dedication: z.string().trim().max(DEDICATION_MAX).default(''),
 			visibility: z.enum(['OPEN', 'PRIVATE']).default('OPEN'),
+			hideMemberNames: z.boolean().default(false),
 			/** What the group reads, and so how many parts it divides. Immutable once created. */
 			kind: z.enum(['CEVSEN', 'HIZB']).default('CEVSEN'),
 			// Rotation is the design's default and the first option offered.
-			splitMode: z.enum(['ROTATION', 'FIXED']).default('ROTATION'),
+			splitMode: z.enum(['ROTATION', 'FIXED', 'FLEXIBLE']).default('ROTATION'),
 			// Which sizes and cycles are allowed depends on the kind, so both are checked below.
 			spots: z.number().int().default(20),
 			cycle: z.enum(['DAILY', 'WEEKLY', 'MONTHLY']).default('DAILY')
@@ -53,7 +54,7 @@ export const createGroupSchema = (t: Translate) =>
 		 * are immutable after creation, so a wrong one is refused here rather than kept forever.
 		 */
 		.superRefine((form, context) => {
-			if (!SPOTS_FOR_KIND[form.kind].includes(form.spots)) {
+			if (form.splitMode !== 'FLEXIBLE' && !SPOTS_FOR_KIND[form.kind].includes(form.spots)) {
 				context.addIssue({ code: 'custom', message: t('fieldRequired'), path: ['spots'] });
 			}
 

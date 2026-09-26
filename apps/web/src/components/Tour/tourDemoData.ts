@@ -164,6 +164,7 @@ const summaryOf = (spec: DemoGroupSpec): GroupSummary => {
 
 	return {
 		completedAt: null,
+		hideMemberNames: false,
 		createdAt: daysAgo(24),
 		cycle: spec.cycle,
 		daysLeft: spec.cycle === 'WEEKLY' ? 2 : null,

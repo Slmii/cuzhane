@@ -23,7 +23,7 @@ import type { LeaveGroupButtonProps } from './LeaveGroupButton.types';
  * member's are one pattern — which is what retired `ui/DangerConfirmButton`, the old
  * arm-and-tap-again button, and its "Emin misin? Sil" label with it.
  */
-export const LeaveGroupButton = ({ groupId }: LeaveGroupButtonProps) => {
+export const LeaveGroupButton = ({ groupId, isFlexible = false, isOwner = false }: LeaveGroupButtonProps) => {
 	const { t } = useTranslation();
 	const navigation = useNavigation<NativeStackNavigationProp<TabStackParamList>>();
 	const leaveGroup = useLeaveGroup();
@@ -60,7 +60,7 @@ export const LeaveGroupButton = ({ groupId }: LeaveGroupButtonProps) => {
 		confirmDestructive({
 			cancelLabel: t('cancel'),
 			confirmLabel: t('leaveGroup'),
-			message: t('leaveHint'),
+			message: t(isFlexible ? (isOwner ? 'flexibleOwnerLeaveHint' : 'flexibleLeaveHint') : 'leaveHint'),
 			onConfirm: confirmLeave,
 			title: t('leaveGroup')
 		});

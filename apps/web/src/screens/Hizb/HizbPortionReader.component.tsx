@@ -1,4 +1,5 @@
 import { WrapperApiError } from '@/api/wrapper.api';
+import { LateReadingNotice } from '@/components/LateReadingNotice/LateReadingNotice.component';
 import { RepetitionCounter } from '@/components/RepetitionCounter/RepetitionCounter.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { PullToRefresh } from '@/components/ui/PullToRefresh/PullToRefresh.component';
@@ -592,7 +593,13 @@ export const HizbPortionReader = ({ navigation, params }: Props) => {
 			return {
 				color: theme.colors.faintText,
 				text: currentBab?.readByDisplayName
-					? t('readBeforeYoursBy', { name: currentBab.readByDisplayName })
+					? t('readBeforeYoursBy', {
+							name:
+								(group?.hideMemberNames && !group.isOwner) ||
+								currentBab.readByUserId?.startsWith('anonymous:')
+									? t('anonymousMember')
+									: currentBab.readByDisplayName
+					  })
 					: t('readBeforeYours')
 			};
 		}
@@ -762,6 +769,7 @@ export const HizbPortionReader = ({ navigation, params }: Props) => {
 
 			<View style={[styles.footer, { borderTopColor: theme.colors.readerRule }]}>
 				<View style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.readerSurface }]} />
+				{round && decision?.action === 'cover' ? <LateReadingNotice daysLate={round.daysLate} /> : null}
 				{/* Drawn inert while the round loads, so it is already in place when it wakes. */}
 				{showsCounter ? (
 					<RepetitionCounter count={count} isDisabled={!isReady} onChange={setCount} required={required} />

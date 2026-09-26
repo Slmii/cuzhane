@@ -35,7 +35,7 @@ const STEP_DOT = 22;
  * should be read as progress. If the API ever does report stages, drive them from that
  * rather than adding timers.
  */
-export const CreatingGroupStep = () => {
+export const CreatingGroupStep = ({ isFlexible = false }: { isFlexible?: boolean }) => {
 	const { t } = useTranslation();
 	const { theme } = useThemeContext();
 	const isReducedMotion = useReducedMotion();
@@ -56,7 +56,7 @@ export const CreatingGroupStep = () => {
 			<View>
 				<Typography variant='title'>{t('creatingTitle')}</Typography>
 				<CaptionText color={theme.colors.subtext} style={styles.subtitle}>
-					{t('creatingSub')}
+					{t(isFlexible ? 'creatingFlexibleSub' : 'creatingSub')}
 				</CaptionText>
 
 				<View style={[styles.track, { backgroundColor: theme.colors.secondary }]}>
@@ -77,7 +77,9 @@ export const CreatingGroupStep = () => {
 						<View style={styles.stepDot}>
 							<SkeletonSpinner size={STEP_DOT} thickness={2} />
 						</View>
-						<BodyText weight='medium'>{t('creatingStepBabs')}</BodyText>
+						<BodyText weight='medium'>
+							{t(isFlexible ? 'creatingFlexibleParts' : 'creatingStepBabs')}
+						</BodyText>
 					</View>
 
 					{/* Not started: a dashed ring, so the row reads as pending rather than stalled. */}

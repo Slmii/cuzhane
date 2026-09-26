@@ -109,7 +109,9 @@ export const DiscoverScreen = () => {
 					// this list.
 					extraBadges={[{ label: t(item.status === 'RUNNING' ? 'running' : 'notStarted') }]}
 					footerCaption={
-						item.isFull
+						item.splitMode === 'FLEXIBLE'
+							? t('flexibleMembers', { count: item.memberCount })
+							: item.isFull
 							? `${t('full')} · ${item.spots}/${item.spots}`
 							: `${item.spotsLeft} ${t('spotsLeft')} · ${item.memberCount}/${item.spots}`
 					}

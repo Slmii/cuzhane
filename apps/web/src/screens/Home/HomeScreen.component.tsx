@@ -87,13 +87,17 @@ export const HomeScreen = () => {
 	const rows = useMemo<HomeGroupRowGroup[]>(
 		() =>
 			(groups ?? [])
-				.filter(group => group.status === 'RUNNING' && group.myBabNumbers.length > 0)
+				.filter(
+					group =>
+						group.status === 'RUNNING' && (group.myBabNumbers.length > 0 || group.splitMode === 'FLEXIBLE')
+				)
 				.map(group => {
 					// One slice large, the rest counted — a share held in several pieces would
 					// otherwise spell three ranges across a row built for one.
 					const slices = shareSlices(group.myBabNumbers, group.myNextBabNumber);
 
 					return {
+						isFlexible: group.splitMode === 'FLEXIBLE',
 						done: group.myReadCount,
 						id: group.id,
 						moreCount: slices.moreCount,
@@ -166,8 +170,9 @@ export const HomeScreen = () => {
 	 * nothing today — all gathering, or all finished — keeps the streak and says so.
 	 */
 	const hasNoGroups = (groups ?? []).length === 0;
-	const doneGroups = rows.filter(row => row.done >= row.total).length;
-	const isAllDone = rows.length > 0 && doneGroups === rows.length;
+	const progressRows = rows.filter(row => row.total > 0);
+	const doneGroups = progressRows.filter(row => row.done >= row.total).length;
+	const isAllDone = progressRows.length > 0 && doneGroups === progressRows.length;
 	const doneBabs = rows.reduce((sum, row) => sum + row.done, 0);
 	const totalBabs = rows.reduce((sum, row) => sum + row.total, 0);
 	const ringOffset = totalBabs === 0 ? RING_CIRCUMFERENCE : RING_CIRCUMFERENCE * (1 - doneBabs / totalBabs);
@@ -274,7 +279,9 @@ export const HomeScreen = () => {
 												{t('myGroups')}
 											</Typography>
 											<CaptionText color={theme.colors.faintText} style={styles.groupsSummary}>
-												{t('groupsDone', { done: doneGroups, total: rows.length })}
+												{progressRows.length > 0
+													? t('groupsDone', { done: doneGroups, total: progressRows.length })
+													: t('flexibleChoose')}
 											</CaptionText>
 										</View>
 										{/* The docking ring's descendant: the day's whole share as

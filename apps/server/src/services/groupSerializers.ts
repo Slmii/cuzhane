@@ -3,6 +3,7 @@ import { partCountFor, type GroupKindName } from '@utils/groupKinds';
 import { formatInviteCode } from '@utils/inviteCode';
 import { FALLBACK_DISPLAY_NAME, type MemberProfile } from '@utils/memberProfiles';
 import { civilDayNumber, roundEndsAt } from '@utils/rounds';
+import { isAnonymousTo, visibleUserId } from '@utils/groupPrivacy';
 import type { CycleName } from '@utils/rounds';
 import type {
 	Cheer,
@@ -16,7 +17,7 @@ import type {
 // package, so the contract is duplicated here on purpose. Keep the two in sync by hand.
 
 export type GroupVisibility = 'OPEN' | 'PRIVATE';
-export type GroupSplitMode = 'ROTATION' | 'FIXED';
+export type GroupSplitMode = 'ROTATION' | 'FIXED' | 'FLEXIBLE';
 export type GroupStatus = 'GATHERING' | 'RUNNING';
 export type BabRange = { start: number; end: number };
 /** One source of truth: the same union the round maths takes, MONTHLY included. */
@@ -55,6 +56,7 @@ export type GroupMember = {
 };
 
 export type GroupSummary = {
+	hideMemberNames: boolean;
 	id: string;
 	name: string;
 	dedication: string | null;
@@ -141,6 +143,7 @@ export type PoolClaimReleaseNotice = {
 };
 
 export type GroupInvitePreview = {
+	hideMemberNames: boolean;
 	id: string;
 	name: string;
 	dedication: string | null;
@@ -201,7 +204,7 @@ export type GroupInvitePreview = {
  * honest reading of such a row.
  */
 export const toSplitMode = (splitMode: Group['splitMode']): GroupSplitMode =>
-	splitMode === 'ROTATION' ? 'ROTATION' : 'FIXED';
+	splitMode === 'FLEXIBLE' ? 'FLEXIBLE' : splitMode === 'ROTATION' ? 'ROTATION' : 'FIXED';
 
 /**
  * The round a group is on. Null while it is still gathering — nothing is counted yet.
@@ -232,6 +235,9 @@ type PlanShape = Pick<Group, 'spots' | 'splitMode' | 'kind'>;
  * would be a second thing to remember to change when the split rules move.
  */
 export const babNumbersInRound = (group: PlanShape, slotIndex: number, roundIndex: number | null): number[] => {
+	if (group.splitMode === 'FLEXIBLE') {
+		return [];
+	}
 	const partCount = partCountFor(group.kind);
 
 	if (roundIndex === null) {
@@ -245,6 +251,9 @@ export const babNumbersInRound = (group: PlanShape, slotIndex: number, roundInde
 };
 
 const rangeInRound = (group: PlanShape, slotIndex: number, roundIndex: number): BabRange | null => {
+	if (group.splitMode === 'FLEXIBLE') {
+		return null;
+	}
 	const partCount = partCountFor(group.kind);
 
 	return toSplitMode(group.splitMode) === 'ROTATION'
@@ -285,10 +294,15 @@ export const poolBlocks = (
 	members: Pick<GroupMemberModel, 'slotIndex'>[],
 	roundIndex: number
 ): { slotIndex: number; babNumbers: number[] }[] =>
-	poolSlotIndexes(members, group.spots).map(slotIndex => ({
-		slotIndex,
-		babNumbers: babNumbersInRound(group, slotIndex, roundIndex)
-	}));
+	group.splitMode === 'FLEXIBLE'
+		? Array.from({ length: partCountFor(group.kind) }, (_, slotIndex) => ({
+				slotIndex,
+				babNumbers: [slotIndex + 1]
+		  }))
+		: poolSlotIndexes(members, group.spots).map(slotIndex => ({
+				slotIndex,
+				babNumbers: babNumbersInRound(group, slotIndex, roundIndex)
+		  }));
 
 /**
  * Flattened `poolBlocks`. Write paths check a claim against it: `assignedUserId` is only ever
@@ -333,11 +347,21 @@ const nextFreeSlotFromMembers = (members: GroupMemberModel[], spots: number): nu
  *
  * Optional so the paths that don't need a name don't pay for a profile lookup.
  */
-export const serializeBab = (bab: GroupBabModel, nameByUserId?: Map<string, string>): GroupBab => ({
+export const serializeBab = (
+	bab: GroupBabModel,
+	nameByUserId?: Map<string, string>,
+	privacy?: { group: Group; viewerUserId: string }
+): GroupBab => ({
 	number: bab.number,
-	assignedUserId: bab.assignedUserId,
-	readByUserId: bab.readByUserId,
-	readByDisplayName: bab.readByUserId ? nameByUserId?.get(bab.readByUserId) ?? null : null,
+	assignedUserId: privacy
+		? visibleUserId(privacy.group, privacy.viewerUserId, bab.assignedUserId)
+		: bab.assignedUserId,
+	readByUserId: privacy ? visibleUserId(privacy.group, privacy.viewerUserId, bab.readByUserId) : bab.readByUserId,
+	readByDisplayName: bab.readByUserId
+		? privacy && isAnonymousTo(privacy.group, privacy.viewerUserId, bab.readByUserId)
+			? 'Member'
+			: nameByUserId?.get(bab.readByUserId) ?? null
+		: null,
 	readAt: bab.readAt ? bab.readAt.toISOString() : null
 });
 
@@ -385,6 +409,7 @@ export const toGroupSummary = (
 
 	return {
 		id: group.id,
+		hideMemberNames: group.hideMemberNames,
 		name: group.name,
 		dedication: group.dedication,
 		visibility: group.visibility,
@@ -396,7 +421,7 @@ export const toGroupSummary = (
 		spots: group.spots,
 		memberCount,
 		spotsLeft,
-		isFull: spotsLeft === 0,
+		isFull: group.splitMode !== 'FLEXIBLE' && spotsLeft === 0,
 		openToJoin: group.openToJoin,
 		readCount,
 		percent: progressPercent(readCount, babs.length),
@@ -453,24 +478,30 @@ export const toGroupMember = (
 	// The member list shows what each person is reading *today*, so it goes through the same
 	// rotation the viewer's own share does. Filtering by `assignedUserId` would show every
 	// member their day-1 block forever.
-	const babNumbers = babNumbersInRound(group, member.slotIndex, roundIndexFor(group));
+	const babNumbers =
+		group.splitMode === 'FLEXIBLE'
+			? babs
+					.filter(bab => bab.assignedUserId === member.userId || bab.readByUserId === member.userId)
+					.map(bab => bab.number)
+			: babNumbersInRound(group, member.slotIndex, roundIndexFor(group));
 	const babNumberSet = new Set(babNumbers);
 	const memberBabs = babs.filter(bab => babNumberSet.has(bab.number));
 	const readCount = memberBabs.filter(bab => bab.readAt !== null).length;
 
 	const profile = profiles?.get(member.userId);
+	const anonymous = isAnonymousTo(group, viewerUserId, member.userId);
 
 	return {
-		id: member.id,
-		userId: member.userId,
+		id: anonymous ? visibleUserId(group, viewerUserId, member.userId)! : member.id,
+		userId: visibleUserId(group, viewerUserId, member.userId)!,
 		/*
 		 * Clerk first, the stored name second, and "Member" only when neither has anything.
 		 * `GroupMember.displayName` is written once at join time from whatever the session
 		 * claims held then, so anyone who signed up before filling in their profile was stored
 		 * as "Member" and stayed that way however often they set a name afterwards.
 		 */
-		displayName: profile?.displayName ?? member.displayName ?? FALLBACK_DISPLAY_NAME,
-		imageUrl: profile?.imageUrl ?? null,
+		displayName: anonymous ? 'Member' : profile?.displayName ?? member.displayName ?? FALLBACK_DISPLAY_NAME,
+		imageUrl: anonymous ? null : profile?.imageUrl ?? null,
 		role: member.role,
 		slotIndex: member.slotIndex,
 		joinedAt: member.joinedAt.toISOString(),
@@ -507,7 +538,7 @@ export const toGroupDetail = (
 			.filter(release => release.userId === viewerUserId && release.seenAt === null)
 			.filter(release => release.roundIndex === roundIndex)
 			.map(release => ({ id: release.id, startBab: release.startBab, endBab: release.endBab })),
-		ownerUserId: group.ownerUserId,
+		ownerUserId: visibleUserId(group, viewerUserId, group.ownerUserId)!,
 		/*
 		 * Every member's to share, not just the owner's.
 		 *
@@ -526,7 +557,7 @@ export const toGroupDetail = (
 		babs: babs
 			.slice()
 			.sort((a, b) => a.number - b.number)
-			.map(bab => serializeBab(bab)),
+			.map(bab => serializeBab(bab, undefined, { group, viewerUserId })),
 		members: members
 			.slice()
 			.sort((a, b) => a.slotIndex - b.slotIndex)
@@ -546,7 +577,7 @@ export const toInvitePreview = (
 	const readCount = babs.filter(bab => bab.readAt !== null).length;
 	const memberCount = members.length;
 	const spotsLeft = Math.max(0, group.spots - memberCount);
-	const isFull = spotsLeft === 0;
+	const isFull = group.splitMode !== 'FLEXIBLE' && spotsLeft === 0;
 	const nextFreeSlot = nextFreeSlotFromMembers(members, group.spots);
 	// The seat a joiner would take, and the block it reads on the day they land in it.
 	const nextRange =
@@ -597,8 +628,11 @@ export const toInvitePreview = (
 			? civilDayNumber(new Date(), group.timezone) - civilDayNumber(group.roundStartedAt, group.timezone) + 1
 			: null,
 		timezone: group.timezone,
-		createdByName: members.find(member => member.userId === group.ownerUserId)?.displayName ?? '',
-		memberNames: members
+		hideMemberNames: group.hideMemberNames,
+		createdByName: group.hideMemberNames
+			? ''
+			: members.find(member => member.userId === group.ownerUserId)?.displayName ?? '',
+		memberNames: (group.hideMemberNames ? [] : members)
 			.slice()
 			.sort((a, b) => a.slotIndex - b.slotIndex)
 			.slice(0, PREVIEW_MEMBER_NAMES)

@@ -1,4 +1,5 @@
 import { DetailsCard } from '@/components/DetailsCard/DetailsCard.component';
+import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { InvitePreviewSkeleton } from './InvitePreviewSkeleton.component';
 import { SCREEN_TITLE_PADDING_UNDER_BAR } from '@/components/ScreenTitle/ScreenTitle.component';
@@ -107,6 +108,36 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 		navigation.navigate('Tabs', { screen: 'Discover' });
 	};
 
+	if (data.splitMode === 'FLEXIBLE') {
+		return (
+			<ScreenContainer pullToRefresh={pullToRefresh}>
+				<ScreenHeader hasBackButton title={data.name} subtitle={data.dedication ?? undefined} />
+				<CardSurface>
+					<TitleText>{t('planFlexible')}</TitleText>
+					<CaptionText color={theme.colors.subtext}>{t('planFlexibleHint')}</CaptionText>
+					<CaptionText>{t('flexibleMembers', { count: data.memberCount })}</CaptionText>
+					<CaptionText>{`${t(cycleLabelKey(data.cycle))} · ${data.readCount} / ${
+						data.partCount
+					}`}</CaptionText>
+				</CardSurface>
+				{joinByGroupId.isError ? (
+					<CaptionText color={theme.colors.danger}>{t('genericError')}</CaptionText>
+				) : null}
+				<AppButton
+					title={t(data.isMember ? 'view' : 'joinNow')}
+					disabled={joinByGroupId.isPending}
+					onPress={() =>
+						data.isMember
+							? navigation.replace('GroupDetail', { groupId })
+							: joinByGroupId.mutate(groupId, {
+									onSuccess: joined => navigation.replace('JoinedWelcome', { groupId: joined.id })
+							  })
+					}
+				/>
+			</ScreenContainer>
+		);
+	}
+
 	if (data.isFull) {
 		// HJ2 names the plan by what it does to the portions: "Aylık · sabit bölümler".
 		const fullPlanKey = isHizb
@@ -175,7 +206,7 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 								{ label: t('cadence'), value: cadenceValue },
 								{ label: t('readingPlan'), value: t(planLabelKey(data.splitMode)) },
 								{ label: t('groupSize'), value: `${data.memberCount} / ${data.spots}` },
-								{ label: t('createdBy'), value: data.createdByName }
+								{ label: t('createdBy'), value: data.createdByName || t('anonymousMember') }
 							]}
 							style={styles.metaCard}
 						/>
@@ -184,7 +215,7 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 							{[
 								{ label: t('cadence'), value: t(cycleLabelKey(data.cycle)) },
 								{ label: t('groupSize'), value: `${data.memberCount} / ${data.spots}` },
-								{ label: t('createdBy'), value: data.createdByName }
+								{ label: t('createdBy'), value: data.createdByName || t('anonymousMember') }
 							].map((row, index, rows) => (
 								<View
 									key={row.label}
@@ -303,7 +334,7 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 			label: t('groupSize'),
 			value: isRunning ? `${data.memberCount} / ${data.spots}` : `${data.spots}`
 		},
-		{ label: t('createdBy'), value: data.createdByName }
+		{ label: t('createdBy'), value: data.createdByName || t('anonymousMember') }
 	];
 
 	// "Zeynep K., Emre T. +12" — two names and a count, since the preview is only handed

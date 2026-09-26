@@ -13,6 +13,7 @@ import type { GroupSummary } from '@/lib/types/domain';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert } from 'react-native';
 import { groupOwnedQueryKeys, groupQueryKeys } from './queryKeys';
+import { useLiveRefetchInterval } from './useLiveRefetchInterval';
 
 /**
  * Looking a code up is something the reader *does*, so it's a mutation rather than a
@@ -136,10 +137,12 @@ export const useLeaveGroup = () => {
  * reopening is still instant after the first look.
  */
 export const useGetGroupMembers = (groupId: string, isEnabled = true) => {
+	const refetchInterval = useLiveRefetchInterval();
 	return useQuery({
 		queryKey: groupQueryKeys.members(groupId),
 		queryFn: () => getGroupMembers(groupId),
-		enabled: !!groupId && isEnabled
+		enabled: !!groupId && isEnabled,
+		refetchInterval: isEnabled ? refetchInterval : false
 	});
 };
 

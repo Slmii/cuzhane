@@ -13,6 +13,7 @@ export type CreateGroupInput = {
 	name: string;
 	dedication?: string;
 	visibility: GroupVisibility;
+	hideMemberNames?: boolean;
 	/** What the group reads. Optional over the wire; the server defaults it to the Cevşen. */
 	kind?: GroupKind;
 	splitMode: GroupSplitMode;
@@ -35,6 +36,7 @@ export type UpdateGroupInput = {
 	name?: string;
 	dedication?: string | null;
 	visibility?: GroupVisibility;
+	hideMemberNames?: boolean;
 	openToJoin?: boolean;
 	reminderEnabled?: boolean;
 	reminderTime?: string;

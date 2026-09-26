@@ -18,6 +18,7 @@ export type CreateGroupInput = {
 	name: string;
 	dedication?: string | null | undefined;
 	visibility: GroupVisibility;
+	hideMemberNames?: boolean | undefined;
 	/** What the group reads. The schema has already held `spots` and `cycle` to its rules. */
 	kind: GroupKindName;
 	splitMode: GroupSplitMode;
@@ -38,6 +39,7 @@ export type UpdateGroupInput = {
 	name?: string | undefined;
 	dedication?: string | null | undefined;
 	visibility?: GroupVisibility | undefined;
+	hideMemberNames?: boolean | undefined;
 	openToJoin?: boolean | undefined;
 	reminderEnabled?: boolean | undefined;
 	reminderTime?: string | undefined;
@@ -143,6 +145,10 @@ export const createGroupForUser = async (
 ): Promise<GroupDetail> => {
 	const normalizedUserId = normalizeUserId(userId);
 	const startsAt = new Date();
+	const flexible = input.splitMode === 'FLEXIBLE';
+	if (flexible && input.visibility !== 'OPEN') {
+		throw new HttpError(BAD_REQUEST, 'Flexible groups must be open');
+	}
 	// A placeholder until the owner starts: `startGroupForUser` recomputes it from the
 	// moment round 0 actually begins, so gathering time doesn't eat into the round.
 	const endsAt = roundEndsAt(startsAt, input.cycle, 0, input.timezone);
@@ -159,21 +165,23 @@ export const createGroupForUser = async (
 				name: input.name,
 				dedication: input.dedication ?? null,
 				visibility: input.visibility,
+				hideMemberNames: input.hideMemberNames ?? false,
 				kind: input.kind,
 				splitMode: input.splitMode,
 				cycle: input.cycle,
-				spots: input.spots,
+				spots: flexible ? partCountFor(input.kind) : input.spots,
 				// The owner's zone becomes the group's day. Everyone's board resets on this
 				// clock, which is why it is captured once and never changed.
 				timezone: input.timezone,
 				inviteCode,
 				reminderEnabled: input.reminderEnabled,
 				reminderTime: input.reminderTime,
-				autoStartWhenFull: input.autoStartWhenFull ?? true,
+				autoStartWhenFull: flexible ? false : input.autoStartWhenFull ?? true,
 				// A new group gathers members first — the owner starts day 1 explicitly, so
 				// nothing is counted while people are still joining.
-				status: 'GATHERING',
-				startedAt: null,
+				status: flexible ? 'RUNNING' : 'GATHERING',
+				startedAt: flexible ? startsAt : null,
+				roundStartedAt: flexible ? startsAt : null,
 				startsAt,
 				endsAt
 			}
@@ -211,6 +219,13 @@ export const updateGroupForUser = async (
 	input: UpdateGroupInput
 ): Promise<GroupDetail> => {
 	await requireOwner(userId, groupId);
+	const existing = await prisma.group.findUniqueOrThrow({ where: { id: groupId } });
+	if (
+		existing.splitMode === 'FLEXIBLE' &&
+		(input.visibility === 'PRIVATE' || input.openToJoin === false || input.autoStartWhenFull === true)
+	) {
+		throw new HttpError(BAD_REQUEST, 'Flexible groups stay open to everyone');
+	}
 
 	if (input.spots !== undefined || input.splitMode !== undefined || input.cycle !== undefined) {
 		throw new HttpError(BAD_REQUEST, 'Spots, split mode, and cycle cannot be changed after creation');
@@ -229,6 +244,9 @@ export const updateGroupForUser = async (
 	if (input.visibility !== undefined) {
 		data.visibility = input.visibility;
 	}
+	if (input.hideMemberNames !== undefined) {
+		data.hideMemberNames = input.hideMemberNames;
+	}
 
 	if (input.openToJoin !== undefined) {
 		data.openToJoin = input.openToJoin;
@@ -246,9 +264,14 @@ export const updateGroupForUser = async (
 		data.autoStartWhenFull = input.autoStartWhenFull;
 	}
 
-	await prisma.group.update({
-		where: { id: groupId },
-		data
+	await prisma.$transaction(async tx => {
+		await tx.group.update({ where: { id: groupId }, data });
+		if (input.hideMemberNames === true) {
+			// Older inbox rows outlive the group. Remove their names permanently as well.
+			await tx.$executeRaw`UPDATE "Notification"
+				SET "payload" = ("payload"::jsonb - 'readerName' - 'takerName' - 'memberName') || '{"anonymous":true}'::jsonb
+				WHERE "groupId" = ${groupId}`;
+		}
 	});
 
 	return getGroupDetailForUser(userId, groupId);

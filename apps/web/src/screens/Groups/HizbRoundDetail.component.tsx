@@ -2,6 +2,7 @@ import { WrapperApiError } from '@/api/wrapper.api';
 import { HIZB_RING_WIDTH, hizbRoundCellItem } from '@/components/HizbBoard/hizbCellPalette';
 import { HizbLegend } from '@/components/HizbBoard/HizbLegend.component';
 import type { PullToRefreshState } from '@/components/ui/PullToRefresh/PullToRefresh.types';
+import { LateReadingNotice } from '@/components/LateReadingNotice/LateReadingNotice.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
 import { Avatar } from '@/components/ui/Avatar/Avatar.component';
@@ -32,7 +33,7 @@ export const HIZB_ROUND_COLUMNS = 11;
 const COVER_TAKEN_STATUS = 409;
 
 type Props = {
-	group: Pick<GroupDetail, 'id' | 'timezone'>;
+	group: Pick<GroupDetail, 'id' | 'timezone' | 'hideMemberNames' | 'isOwner'>;
 	round: RoundDetail;
 	members: GroupMember[];
 	viewerUserId: string | null;
@@ -57,6 +58,7 @@ export const HizbRoundDetail = ({ group, members, onOpenReader, pullToRefresh, r
 	const { theme } = useThemeContext();
 	const { language, t } = useTranslation();
 	const coverBabs = useCoverBabs();
+	const privateNames = group.hideMemberNames && !group.isOwner;
 	/**
 	 * Rows acted on during this visit. They stay listed once settled, so the row under the next
 	 * tap is still the one that was there — memory, like the Havuz's `takenHere`, not a record.
@@ -69,8 +71,13 @@ export const HizbRoundDetail = ({ group, members, onOpenReader, pullToRefresh, r
 		[round, t, theme, viewerUserId]
 	);
 	const rows = useMemo(
-		() => hizbRoundRows(round, members, viewerUserId, settledHere),
-		[members, round, settledHere, viewerUserId]
+		() =>
+			hizbRoundRows(round, members, viewerUserId, settledHere).map(row =>
+				!row.isPool && !row.isViewer && (privateNames || row.key.startsWith('anonymous:'))
+					? { ...row, name: t('anonymousMember'), imageUrl: null }
+					: row
+			),
+		[members, privateNames, round, settledHere, t, viewerUserId]
 	);
 	/*
 	 * "Kişi" from the portions themselves rather than the server's `missedPeopleCount`: the cover
@@ -100,7 +107,7 @@ export const HizbRoundDetail = ({ group, members, onOpenReader, pullToRefresh, r
 			? t('fromMember')
 			: row.covered?.isViewer
 			? t('transferred')
-			: `${row.covered?.byName} ${t('tookOver')}`;
+			: `${privateNames ? t('anonymousMember') : row.covered?.byName} ${t('tookOver')}`;
 
 	/** The row's second line, in the shape `roundRows` picked for it. */
 	const detailLine = (row: HizbRoundRow) => {
@@ -187,6 +194,8 @@ export const HizbRoundDetail = ({ group, members, onOpenReader, pullToRefresh, r
 			</CardSurface>
 
 			<HizbLegend style={styles.legend} variant='round' />
+
+			{round.missedCount > 0 ? <LateReadingNotice daysLate={round.daysLate} /> : null}
 
 			{/* A round that missed nothing says so, rather than ending on the grid as if it had not loaded. */}
 			{rows.length === 0 ? (

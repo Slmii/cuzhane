@@ -75,11 +75,12 @@ export const CreateGroupBodySchema = z
 		name: z.string().trim().min(1).max(60),
 		dedication: z.string().trim().max(120).nullable().optional(),
 		visibility: GroupVisibilitySchema.default('OPEN'),
+		hideMemberNames: z.boolean().default(false),
 		/** What the group reads, and so how many parts it divides. Immutable after creation. */
 		kind: z.enum(['CEVSEN', 'HIZB']).default('CEVSEN'),
 		// `FREE` is retired — the DB enum still carries it for legacy rows, but no new
 		// group can choose it. Rotation is the design's default and comes first.
-		splitMode: z.enum(['ROTATION', 'FIXED']).default('ROTATION'),
+		splitMode: z.enum(['ROTATION', 'FIXED', 'FLEXIBLE']).default('ROTATION'),
 		// Which cycles are allowed depends on the kind, so that is checked below.
 		cycle: GroupCycleSchema.default('WEEKLY'),
 		// Which sizes are allowed depends on the kind too. 20 stays the default because it is
@@ -96,7 +97,11 @@ export const CreateGroupBodySchema = z
 	 * message under the control that caused it.
 	 */
 	.superRefine((body, context) => {
-		if (body.kind === 'CEVSEN') {
+		if (body.splitMode === 'FLEXIBLE') {
+			if (body.visibility !== 'OPEN') {
+				context.addIssue({ code: 'custom', message: 'Flexible groups must be open', path: ['visibility'] });
+			}
+		} else if (body.kind === 'CEVSEN') {
 			/*
 			 * Three sizes only. Each divides the hundred evenly — 20, 10 and 5 babs a head — so
 			 * no seat carries a leftover bab. Mirrors `SPOTS_VALUES` on the client.
@@ -130,6 +135,7 @@ export const UpdateGroupBodySchema = z
 		name: z.string().trim().min(1).max(60).optional(),
 		dedication: z.string().trim().max(120).nullable().optional(),
 		visibility: GroupVisibilitySchema.optional(),
+		hideMemberNames: z.boolean().optional(),
 		openToJoin: z.boolean().optional(),
 		reminderEnabled: z.boolean().optional(),
 		reminderTime: TimeStringSchema.optional(),

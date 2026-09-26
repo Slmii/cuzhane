@@ -1,4 +1,5 @@
 import { GridSkeleton } from '@/components/GridSkeleton/GridSkeleton.component';
+import { FlexibleReadingPanel } from '@/components/FlexibleReadingPanel/FlexibleReadingPanel.component';
 import { SkeletonStatusRow } from '@/components/Skeleton/SkeletonStatusRow.component';
 import { PoolGrid } from '@/components/PoolGrid/PoolGrid.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
@@ -10,7 +11,7 @@ import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { Hatch } from '@/components/ui/Hatch/Hatch.component';
 import { BodyStrongText, CaptionText, NumericText, Typography } from '@/components/ui/Typography/Typography.component';
-import { useGetPoolSlots, useReleasePoolSlot, useTakePoolSlot } from '@/lib/hooks/useGroup';
+import { useGetGroupById, useGetPoolSlots, useReleasePoolSlot, useTakePoolSlot } from '@/lib/hooks/useGroup';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useViewerIdentity } from '@/lib/hooks/useViewerIdentity';
 import { useTranslation } from '@/lib/i18n/I18n.context';
@@ -84,6 +85,7 @@ const CevsenPoolScreen = ({ route }: Props) => {
 	const { theme } = useThemeContext();
 	const { t } = useTranslation();
 	const pool = useGetPoolSlots(groupId);
+	const group = useGetGroupById(groupId);
 	// Your own name and photo: a row you just claimed can draw your avatar before the server
 	// echoes the name back, and it draws the picture you actually set rather than a generated
 	// face — see `useViewerIdentity`.
@@ -236,7 +238,11 @@ const CevsenPoolScreen = ({ route }: Props) => {
 		 */
 		const canUndo = isTaken && slot.takenByMe;
 		const isJustTaken = canUndo && takenHere.includes(slot.slotIndex);
-		const takerLabel = slot.takenByMe ? t('poolMine') : `${slot.takenByDisplayName ?? ''} ${t('takenBy')}`.trim();
+		const hidesTaker =
+			!slot.takenByMe &&
+			(slot.takenByUserId?.startsWith('anonymous:') || (group.data?.hideMemberNames && !group.data.isOwner));
+		const takerName = hidesTaker ? t('anonymousMember') : slot.takenByDisplayName ?? '';
+		const takerLabel = slot.takenByMe ? t('poolMine') : `${takerName} ${t('takenBy')}`.trim();
 		/*
 		 * Matched against the slot actually in flight. Both mutations belong to the whole screen,
 		 * so read bare they would dim every free row's button at once — a crowded pool would look
@@ -306,8 +312,8 @@ const CevsenPoolScreen = ({ route }: Props) => {
 				 */}
 				{isTaken ? (
 					<Avatar
-						imageUrl={slot.takenByMe ? viewer.imageUrl : slot.takenByImageUrl}
-						name={slot.takenByMe ? viewer.displayName : slot.takenByDisplayName ?? ''}
+						imageUrl={slot.takenByMe ? viewer.imageUrl : hidesTaker ? null : slot.takenByImageUrl}
+						name={slot.takenByMe ? viewer.displayName : takerName}
 						size={AVATAR_SIZE}
 						tone={slot.takenByMe ? 'accent' : 'sand'}
 					/>
@@ -383,18 +389,38 @@ const CevsenPoolScreen = ({ route }: Props) => {
 	);
 };
 
-/**
- * One route, two pools: a Cevşen group's is offered a block at a time, a Hizb group's a portion
- * at a time (`HizbPoolScreen`, HZ3).
- *
- * **The route carries the kind; nothing is read to find it.** Subscribing to the group for it
- * added the group's refetch and polling to every Cevşen visit, and reading it off the cache
- * instead answers nothing on a cold start — a deep link or a restored stack would get the
- * Cevşen's screen for a Hizb group. A kind is fixed at creation, so the one the caller had
- * cannot go stale, and the type makes every way here say which.
- */
-export const PoolScreen = (props: Props) =>
-	props.route.params.kind === 'HIZB' ? <HizbPoolScreen {...props} /> : <CevsenPoolScreen {...props} />;
+/** A flexible group's pool is individual portions, regardless of which book it reads. */
+export const PoolScreen = (props: Props) => {
+	const { groupId } = props.route.params;
+	const group = useGetGroupById(groupId);
+	const { t } = useTranslation();
+	if (group.isPending) {
+		return (
+			<ScreenContainer>
+				<CaptionText>{t('loadingPool')}</CaptionText>
+			</ScreenContainer>
+		);
+	}
+	if (group.isError || !group.data) {
+		return <ErrorState queries={[group]} />;
+	}
+	if (group.data.splitMode === 'FLEXIBLE') {
+		return (
+			<ScreenContainer>
+				<ScreenHeader hasBackButton title={group.data.name} />
+				<FlexibleReadingPanel
+					group={group.data}
+					onOpenReader={number =>
+						group.data.kind === 'HIZB'
+							? props.navigation.navigate('HizbReader', { groupId, partNumber: number })
+							: props.navigation.navigate('BabReader', { groupId, babNumber: number })
+					}
+				/>
+			</ScreenContainer>
+		);
+	}
+	return props.route.params.kind === 'HIZB' ? <HizbPoolScreen {...props} /> : <CevsenPoolScreen {...props} />;
+};
 
 const styles = StyleSheet.create({
 	// Square at 44pt for a short range, widening rather than wrapping for one like

@@ -1,7 +1,10 @@
 import prisma from '@db/prisma';
 import { listNotificationsForUser, recordNotification } from '@services/notifications.service';
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { updateGroupForUser } from '@services/groups.service';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { assertIsTestDatabase, testDatabaseUrl } from '../support/testDatabase';
+
+vi.mock('@utils/memberProfiles', () => ({ getMemberProfiles: async () => new Map(), FALLBACK_DISPLAY_NAME: 'Member' }));
 
 assertIsTestDatabase(testDatabaseUrl());
 
@@ -29,6 +32,30 @@ afterAll(async () => {
 });
 
 describe('listNotificationsForUser', () => {
+	it('anonymizes existing and new notices and keeps names hidden after deletion', async () => {
+		const group = await createGroup('CEVSEN', 'PRIVACY1');
+		await prisma.groupMember.create({
+			data: { groupId: group.id, userId: 'test_owner', displayName: 'Owner', role: 'OWNER', slotIndex: 0 }
+		});
+		await recordNotification({
+			groupId: group.id,
+			groupName: group.name,
+			userIds: [READER],
+			payload: { kind: 'SHARE_READ', readerName: 'Secret Name', range: '1–5' }
+		});
+		await updateGroupForUser('test_owner', group.id, { hideMemberNames: true });
+		await recordNotification({
+			groupId: group.id,
+			groupName: group.name,
+			userIds: [READER],
+			payload: { kind: 'MEMBER_JOINED', memberName: 'New Secret', memberCount: 2, spots: 20 }
+		});
+		expect(JSON.stringify(await listNotificationsForUser(READER))).not.toContain('Secret');
+		await prisma.group.delete({ where: { id: group.id } });
+		const archived = await listNotificationsForUser(READER);
+		expect(JSON.stringify(archived)).not.toContain('Secret');
+		expect(archived.every(row => row.payload.anonymous === true)).toBe(true);
+	});
 	it('carries the kind of the group each row is about', async () => {
 		const hizb = await createGroup('HIZB', 'INBOXHZ1');
 		const cevsen = await createGroup('CEVSEN', 'INBOXCV1');

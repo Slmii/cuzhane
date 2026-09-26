@@ -7,6 +7,7 @@ import { FormKindOptionGroup } from '@/components/ui/Form/KindOptionGroup/KindOp
 import { FormOptionGroup } from '@/components/ui/Form/OptionGroup/OptionGroup.component';
 import { Select } from '@/components/ui/Form/Select/Select.component';
 import { FormStepper } from '@/components/ui/Form/Stepper/Stepper.component';
+import { ToggleRow } from '@/components/ui/ToggleRow/ToggleRow.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
 import { SpotsGrid } from '@/components/ui/SpotsGrid/SpotsGrid.component';
 import { BodyText, CaptionText, FieldLabelText } from '@/components/ui/Typography/Typography.component';
@@ -39,7 +40,7 @@ type CreateGroupScreenProps = NativeStackScreenProps<RootStackParamList, 'Create
  */
 const FIELDS_BY_STEP: Record<CreateGroupStep, (keyof GroupForm)[]> = {
 	1: ['kind'],
-	2: ['name', 'dedication', 'visibility'],
+	2: ['name', 'dedication', 'visibility', 'hideMemberNames'],
 	3: ['spots', 'splitMode'],
 	4: ['cycle']
 };
@@ -141,13 +142,14 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 				 */
 				reminderEnabled: true,
 				reminderTime: '21:00',
-				spots: values.spots,
+				spots: values.splitMode === 'FLEXIBLE' ? partCountFor(values.kind) : values.spots,
 				splitMode: values.splitMode,
 				// Whoever creates the group sets its clock: rounds roll at midnight here, for
 				// every member wherever they are. Not a form field — asking someone to pick a
 				// time zone to start a hatim would be absurd.
 				timezone: deviceTimeZone(),
-				visibility: values.visibility
+				hideMemberNames: values.hideMemberNames,
+				visibility: values.splitMode === 'FLEXIBLE' ? 'OPEN' : values.visibility
 			},
 			{
 				onSuccess: created =>
@@ -157,12 +159,13 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 					// `Tabs` dismisses the sheet and delivers the params in one dispatch, so
 					// there's no separate `goBack` to fire an unhandled action.
 					//
-					// Straight to the lobby: a new group always starts out gathering, so the
-					// group board would only redirect there anyway. Inside the Groups tab, so
-					// it keeps the bottom bar and a sensible back stack.
+					// Flexible groups start immediately; assigned groups gather in the lobby.
 					navigation.popTo('Tabs', {
 						screen: 'Groups',
-						params: { screen: 'Lobby', params: { groupId: created.id } }
+						params: {
+							screen: created.status === 'RUNNING' ? 'GroupDetail' : 'Lobby',
+							params: { groupId: created.id }
+						}
 					})
 			}
 		);
@@ -187,13 +190,15 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 					dedication: '',
 					kind: 'CEVSEN',
 					name: '',
-					visibility: 'OPEN'
+					visibility: 'OPEN',
+					hideMemberNames: false
 				}}
 				isDisabled={createGroup.isPending}
 				schema={schema}
 				render={({ handleSubmit, setValue, trigger, watch }) => {
 					const spots = watch('spots');
 					const kind = watch('kind');
+					const isFlexible = watch('splitMode') === 'FLEXIBLE';
 					const perPart = babsPerPerson(spots, partCountFor(kind));
 					// The Hizb's line names its own unit, and "1 portion" and a lone seat are lines of
 					// their own — see `perPersonHizbOne` / `perPersonHizbSolo`. The Cevşen's is the
@@ -259,7 +264,7 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 						 */
 						<View style={styles.sheetColumn}>
 							{createGroup.isPending ? (
-								<CreatingGroupStep />
+								<CreatingGroupStep isFlexible={isFlexible} />
 							) : (
 								<CreateGroupStepHeader
 									onBack={handleBack}
@@ -329,53 +334,84 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 											name='visibility'
 											options={[
 												{ hint: t('openHint'), title: t('open'), value: 'OPEN' },
-												{ hint: t('privateHint'), title: t('private'), value: 'PRIVATE' }
+												...(!isFlexible
+													? [
+															{
+																hint: t('privateHint'),
+																title: t('private'),
+																value: 'PRIVATE'
+															}
+													  ]
+													: [])
 											]}
+										/>
+										<ToggleRow
+											title={t('hideMemberNames')}
+											hint={t('hideMemberNamesHint')}
+											value={watch('hideMemberNames')}
+											onValueChange={next => setValue('hideMemberNames', next)}
 										/>
 									</>
 								) : null}
 
 								{!createGroup.isPending && step === 3 ? (
 									<>
-										<FieldLabelText style={styles.fieldLabel}>{t('spots')}</FieldLabelText>
-										<View style={styles.spotsCard}>
-											{/* The kind's own sizes: the Cevşen's three (5, 10 and 20 each
-										    divide the hundred evenly), the Hizb's every count from 1 to
-										    33 — so +/- walk the list rather than adding a constant. */}
-											<FormStepper
-												caption={spotsCaption}
-												name='spots'
-												style={styles.stepper}
-												values={SPOTS_FOR_KIND[kind]}
-											/>
-											{/* Every seat is a seat that will be filled — the grid shows the
-										    capacity being chosen, not who has joined yet. */}
-											{/* Sized for the kind's largest option, so stepping down doesn't
-										    drop a row out from under the plan options below it. */}
-											<SpotsGrid
-												columns={SPOTS_COLUMNS_FOR_KIND[kind]}
-												filled={spots}
-												maxTotal={MAX_SPOTS_FOR_KIND[kind]}
-												total={spots}
-											/>
-										</View>
-										<CaptionText color={theme.colors.faintText}>
-											{t(SPOTS_NOTE_KEY_FOR_KIND[kind])}
-										</CaptionText>
 										<FieldLabelText style={styles.fieldLabel}>{t('readingPlan')}</FieldLabelText>
 										<FormOptionGroup
 											direction='column'
 											name='splitMode'
+											onChange={next => {
+												if (next === 'FLEXIBLE') {
+													setValue('visibility', 'OPEN', { shouldValidate: true });
+												}
+											}}
 											options={[
 												{
 													hint: t('planRotationHint'),
 													title: t('planRotation'),
 													value: 'ROTATION'
 												},
-												{ hint: t('planFixedHint'), title: t('planFixed'), value: 'FIXED' }
+												{ hint: t('planFixedHint'), title: t('planFixed'), value: 'FIXED' },
+												{
+													hint: t('planFlexibleHint'),
+													title: t('planFlexible'),
+													value: 'FLEXIBLE'
+												}
 											]}
 										/>
-										<PlanPreview kind={kind} splitMode={watch('splitMode')} spots={spots} />
+										{isFlexible ? (
+											<BodyText color={theme.colors.subtext}>{t('flexiblePublicHint')}</BodyText>
+										) : (
+											<>
+												<FieldLabelText style={styles.fieldLabel}>{t('spots')}</FieldLabelText>
+												<View style={styles.spotsCard}>
+													{/* The kind's own sizes: the Cevşen's three (5, 10 and 20 each
+										    divide the hundred evenly), the Hizb's every count from 1 to
+										    33 — so +/- walk the list rather than adding a constant. */}
+													<FormStepper
+														caption={spotsCaption}
+														name='spots'
+														style={styles.stepper}
+														values={SPOTS_FOR_KIND[kind]}
+													/>
+													{/* Every seat is a seat that will be filled — the grid shows the
+										    capacity being chosen, not who has joined yet. */}
+													{/* Sized for the kind's largest option, so stepping down doesn't
+										    drop a row out from under the plan options below it. */}
+													<SpotsGrid
+														columns={SPOTS_COLUMNS_FOR_KIND[kind]}
+														filled={spots}
+														maxTotal={MAX_SPOTS_FOR_KIND[kind]}
+														total={spots}
+													/>
+												</View>
+												<CaptionText color={theme.colors.faintText}>
+													{t(SPOTS_NOTE_KEY_FOR_KIND[kind])}
+												</CaptionText>
+
+												<PlanPreview kind={kind} splitMode={watch('splitMode')} spots={spots} />
+											</>
+										)}
 									</>
 								) : null}
 

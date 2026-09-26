@@ -1,4 +1,4 @@
-import { toInvitePreview } from '@services/groupSerializers';
+import { toGroupDetail, toInvitePreview } from '@services/groupSerializers';
 import { describe, expect, it } from 'vitest';
 import type { Group, GroupMember } from '../../src/generated/prisma/client';
 
@@ -18,6 +18,7 @@ const group = (overrides: Partial<Group> = {}): Group => ({
 	name: 'Hizb Halkası',
 	dedication: null,
 	visibility: 'OPEN',
+	hideMemberNames: false,
 	splitMode: 'ROTATION',
 	status: 'RUNNING',
 	cycle: 'MONTHLY',
@@ -76,5 +77,65 @@ describe('toInvitePreview', () => {
 
 		expect(autoStarting.autoStartWhenFull).toBe(true);
 		expect(ownerStarted.autoStartWhenFull).toBe(false);
+	});
+});
+
+describe('member privacy', () => {
+	const reader: GroupMember = {
+		...owner,
+		id: 'member_2',
+		userId: 'test_reader',
+		displayName: 'Private Reader',
+		role: 'MEMBER',
+		slotIndex: 1
+	};
+	const anonymousGroup = () => Object.assign(group(), { hideMemberNames: true });
+	const profiles = new Map([[OWNER, { displayName: 'Private Owner', imageUrl: 'https://example.com/owner.jpg' }]]);
+
+	it('hides other members names, photos and account identifiers from members', () => {
+		const detail = toGroupDetail(anonymousGroup(), [], [owner, reader], [], reader.userId, [], profiles);
+		const other = detail.members[0]!;
+		expect(other.displayName).not.toContain('Owner');
+		expect(other.imageUrl).toBeNull();
+		expect(other.userId).not.toBe(OWNER);
+		expect(detail.ownerUserId).toBe(other.userId);
+		expect(detail.members[1]?.userId).toBe(reader.userId);
+	});
+
+	it('keeps owner management access to members', () => {
+		const detail = toGroupDetail(anonymousGroup(), [], [owner, reader], [], OWNER, [], profiles);
+		expect(detail.members[1]?.displayName).toBe('Private Reader');
+		expect(detail.members[1]?.userId).toBe(reader.userId);
+	});
+
+	it('does not expose names in invite previews', () => {
+		const preview = toInvitePreview(anonymousGroup(), [], [owner, reader], 'test_outsider');
+		expect(preview.createdByName).toBe('');
+		expect(preview.memberNames).toEqual([]);
+	});
+
+	it('uses the same anonymous identifiers for board reads and members', () => {
+		const now = new Date();
+		const detail = toGroupDetail(
+			anonymousGroup(),
+			[
+				{
+					id: 'b1',
+					groupId: 'group_1',
+					number: 1,
+					assignedUserId: OWNER,
+					readByUserId: OWNER,
+					readAt: now,
+					createdAt: now,
+					updatedAt: now
+				}
+			],
+			[owner, reader],
+			[],
+			reader.userId
+		);
+		expect(detail.babs[0]?.readByUserId).toBe(detail.members[0]?.userId);
+		expect(detail.babs[0]?.assignedUserId).toBe(detail.members[0]?.userId);
+		expect(detail.babs[0]?.readByUserId).not.toBe(OWNER);
 	});
 });

@@ -7,7 +7,7 @@ import {
 	listRoundsForUser
 } from '@services/roundHistory.service';
 import { civilDayNumber, DEFAULT_TIME_ZONE, roundIndexSince, startOfCivilDay } from '@utils/rounds';
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { assertIsTestDatabase, testDatabaseUrl } from '../support/testDatabase';
 
 assertIsTestDatabase(testDatabaseUrl());
@@ -37,7 +37,7 @@ const daysAgo = (days: number): Date => {
  * WEEKLY group is on round 2, which is the case the strip's eight-column slice has to handle.
  */
 const createGroup = async ({
-	cycle = 'DAILY' as 'DAILY' | 'WEEKLY',
+	cycle = 'DAILY' as 'DAILY' | 'WEEKLY' | 'MONTHLY',
 	startedDaysAgo = 3,
 	seats = [0, 1],
 	splitMode = 'ROTATION' as 'ROTATION' | 'FIXED'
@@ -99,6 +99,10 @@ afterAll(async () => {
 	await prisma.$disconnect();
 });
 
+afterEach(() => {
+	vi.useRealTimers();
+});
+
 describe('listRoundsForUser', () => {
 	it('lists every round newest first and flags only the current one as open', async () => {
 		const group = await createGroup({ startedDaysAgo: 3 });
@@ -154,6 +158,58 @@ describe('listRoundsForUser', () => {
 });
 
 describe('getRoundDetailForUser', () => {
+	it('hides other members’ identities in private history while preserving own reads and counts', async () => {
+		const group = await createGroup({ startedDaysAgo: 2 });
+		await prisma.group.update({ where: { id: group.id }, data: { hideMemberNames: true } });
+		await recordHistory(group.id, 0, [1], OWNER);
+		await recordHistory(group.id, 0, [11], SEAT_ONE);
+
+		const detail = await getRoundDetailForUser(SEAT_ONE, group.id, 0);
+
+		expect(detail.babs[0]?.readByUserId).toMatch(/^anonymous:/);
+		expect(detail.babs[0]?.readByUserId).toBe(detail.babs[0]?.owedByUserId);
+		expect(detail.babs[10]?.readByUserId).toBe(SEAT_ONE);
+		expect(detail.babs[10]?.owedByUserId).toBe(SEAT_ONE);
+		expect(detail.readCount).toBe(2);
+		expect(detail.missedPeopleCount).toBe(2);
+
+		const ownerDetail = await getRoundDetailForUser(OWNER, group.id, 0);
+		expect(ownerDetail.babs[0]?.readByUserId).toBe(OWNER);
+		expect(ownerDetail.babs[10]?.readByUserId).toBe(SEAT_ONE);
+	});
+
+	it.each([
+		['open round', 'DAILY', 'UTC', '2026-09-24T12:00:00Z', '2026-09-24T23:59:59Z', 0],
+		['the exact deadline', 'DAILY', 'UTC', '2026-09-24T12:00:00Z', '2026-09-25T00:00:00Z', 1],
+		['two days late', 'DAILY', 'UTC', '2026-09-24T12:00:00Z', '2026-09-26T15:00:00Z', 2],
+		['older missed day', 'DAILY', 'UTC', '2026-09-24T12:00:00Z', '2026-09-30T15:00:00Z', 6],
+		['weekly deadline', 'WEEKLY', 'UTC', '2026-09-01T12:00:00Z', '2026-09-10T15:00:00Z', 3],
+		['clamped monthly deadline', 'MONTHLY', 'UTC', '2026-01-31T12:00:00Z', '2026-03-02T15:00:00Z', 3],
+		['spring DST midnight', 'DAILY', 'Europe/Amsterdam', '2026-03-28T12:00:00Z', '2026-03-29T22:00:00Z', 2],
+		['fall DST long day', 'DAILY', 'Europe/Amsterdam', '2026-10-24T12:00:00Z', '2026-10-25T22:30:00Z', 1],
+		[
+			'group midnight before UTC midnight',
+			'DAILY',
+			'Europe/Istanbul',
+			'2026-09-24T12:00:00Z',
+			'2026-09-24T21:00:00Z',
+			1
+		]
+	] as const)('reports calendar days late for %s', async (_label, cycle, timezone, start, now, daysLate) => {
+		vi.useFakeTimers({ toFake: ['Date'] });
+		vi.setSystemTime(new Date(now));
+		const group = await createGroup({ cycle, startedDaysAgo: 0 });
+		await prisma.group.update({
+			where: { id: group.id },
+			data: { startedAt: new Date(start), roundStartedAt: new Date(start), timezone }
+		});
+
+		const detail = await getRoundDetailForUser(OWNER, group.id, 0);
+
+		expect(detail.daysLate).toBe(daysLate);
+		expect(detail.isOpen).toBe(daysLate === 0);
+	});
+
 	it('attributes each bab to the seat that owed it in THAT round, not today', async () => {
 		const group = await createGroup({ startedDaysAgo: 3, splitMode: 'ROTATION' });
 
@@ -261,6 +317,7 @@ describe('coverMissedBabsForUser', () => {
 		const detail = await coverMissedBabsForUser(SEAT_ONE, group.id, 1, block);
 
 		expect(detail.readCount).toBe(block.length);
+		expect(detail.daysLate).toBe(2);
 		expect(await prisma.babRead.count({ where: { groupId: group.id, roundIndex: 1, userId: SEAT_ONE } })).toBe(
 			block.length
 		);

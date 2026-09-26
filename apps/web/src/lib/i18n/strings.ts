@@ -17,6 +17,10 @@ export const isAppLanguage = (value: unknown): value is AppLanguage =>
 	typeof value === 'string' && (APP_LANGUAGES as readonly string[]).includes(value);
 
 const tr = {
+	hideMemberNames: 'Üye adlarını gizle',
+	hideMemberNamesHint:
+		'Üyeler birbirlerinin adlarını ve fotoğraflarını göremez. Etkinlik bildirimleri anonimdir. Grup sahibi üyeleri yönetmek için adları görebilir.',
+	anonymousMember: 'Bir üye',
 	// Copy lifted verbatim from the Cüzhane design doc.
 	greet: 'Selâm, {name}',
 	myGroups: 'Gruplarım',
@@ -886,6 +890,22 @@ const tr = {
 	hizbParts: '{parts}. bölüm',
 	hizbPartsOne: '{parts}. bölüm',
 	markAsRead: 'Okundu işaretle',
+	creatingFlexibleSub: 'Grup ve ortak okuma havuzu hazırlanıyor.',
+	creatingFlexibleParts: 'Ortak bölümler hazırlanıyor',
+	planFlexible: 'Açık ve esnek',
+	planFlexibleHint: 'Herkes katılıp ayrılabilir. Sabit görev olmadan okumak istediğin bölümleri seç.',
+	flexiblePublicHint: 'Bu grup herkese açıktır ve hemen başlar. Üye sınırı yoktur.',
+	flexibleMembers: 'Üye sayısı: {count}',
+	flexibleChoose: 'Okumak için bölüm seç',
+	flexibleAvailable: 'Boşta',
+	flexibleClaimed: 'Üstlenildi',
+	flexibleTakeAndRead: 'Seç ve oku',
+	flexibleLeaveHint: 'Okunmamış bölümlerin yeniden paylaşıma açılır. İstediğin zaman katılabilirsin.',
+	flexibleOwnerLeaveHint:
+		'Okunmamış bölümlerin yeniden paylaşıma açılır. Yönetim başka bir üyeye geçer. Son üye ayrılsa da grup katılıma açık kalır.',
+	flexibleJoined: 'Gruba katıldın',
+	lateReadingNoticeOne: 'Bu okuma 1 gün gecikti. Yine de okundu olarak işaretleyebilirsin.',
+	lateReadingNoticeMany: 'Bu okuma {days} gün gecikti. Yine de okundu olarak işaretleyebilirsin.',
 	portionTakenError: 'Bu bölüm başkası tarafından alındı.',
 	roundNothingMissedHizb: 'Bu turda eksik kalan bölüm yok.',
 
@@ -1006,6 +1026,10 @@ const tr = {
 type Strings = Record<keyof typeof tr, string>;
 
 const en: Strings = {
+	hideMemberNames: 'Hide member names',
+	hideMemberNamesHint:
+		'Members cannot see each other’s names or photos. Activity notifications are anonymous. The group owner can see names to manage members.',
+	anonymousMember: 'A member',
 	// Copy lifted verbatim from the Cüzhane design doc.
 	greet: 'Salaam, {name}',
 	myGroups: 'My groups',
@@ -1773,6 +1797,22 @@ const en: Strings = {
 	hizbParts: 'Portions {parts}',
 	hizbPartsOne: 'Portion {parts}',
 	markAsRead: 'Mark as read',
+	creatingFlexibleSub: 'Preparing your group and its shared reading pool.',
+	creatingFlexibleParts: 'Preparing shared portions',
+	planFlexible: 'Open and flexible',
+	planFlexibleHint: 'Anyone can join or leave. Choose portions to read without a fixed assignment.',
+	flexiblePublicHint: 'This group is public and starts immediately. There is no member limit.',
+	flexibleMembers: 'Members: {count}',
+	flexibleChoose: 'Choose a portion to read',
+	flexibleAvailable: 'Available',
+	flexibleClaimed: 'Claimed',
+	flexibleTakeAndRead: 'Choose and read',
+	flexibleLeaveHint: 'Your unread portions become available again. You can rejoin at any time.',
+	flexibleOwnerLeaveHint:
+		'Your unread portions become available again. Another member becomes the owner. The group stays open even when the last member leaves.',
+	flexibleJoined: 'You joined the group',
+	lateReadingNoticeOne: 'This reading is 1 day late. You can still mark it as read.',
+	lateReadingNoticeMany: 'This reading is {days} days late. You can still mark it as read.',
 	portionTakenError: 'Someone else claimed this portion.',
 	roundNothingMissedHizb: 'Nothing was missed this round.',
 
@@ -1863,6 +1903,10 @@ const en: Strings = {
 };
 
 const nl: Strings = {
+	hideMemberNames: 'Namen van leden verbergen',
+	hideMemberNamesHint:
+		'Leden zien elkaars namen en foto’s niet. Activiteitsmeldingen zijn anoniem. De groepseigenaar kan namen zien om leden te beheren.',
+	anonymousMember: 'Een lid',
 	greet: 'Salaam, {name}',
 	myGroups: 'Mijn groepen',
 	open: 'Open',
@@ -2629,6 +2673,22 @@ const nl: Strings = {
 	hizbParts: 'Gedeelten {parts}',
 	hizbPartsOne: 'Gedeelte {parts}',
 	markAsRead: 'Markeer als gelezen',
+	creatingFlexibleSub: 'Je groep en de gezamenlijke leesdelen worden voorbereid.',
+	creatingFlexibleParts: 'Gezamenlijke delen voorbereiden',
+	planFlexible: 'Open en flexibel',
+	planFlexibleHint: 'Iedereen kan deelnemen en vertrekken. Kies zelf wat je leest, zonder vaste toewijzing.',
+	flexiblePublicHint: 'Deze groep is openbaar en begint meteen. Er is geen ledenlimiet.',
+	flexibleMembers: 'Leden: {count}',
+	flexibleChoose: 'Kies een deel om te lezen',
+	flexibleAvailable: 'Beschikbaar',
+	flexibleClaimed: 'Gekozen',
+	flexibleTakeAndRead: 'Kies en lees',
+	flexibleLeaveHint: 'Jouw ongelezen delen worden weer beschikbaar. Je kunt op elk moment opnieuw deelnemen.',
+	flexibleOwnerLeaveHint:
+		'Jouw ongelezen delen worden weer beschikbaar. Een ander lid wordt beheerder. De groep blijft open, ook als het laatste lid vertrekt.',
+	flexibleJoined: 'Je bent lid van de groep',
+	lateReadingNoticeOne: 'Deze lezing is 1 dag te laat. Je kunt deze nog steeds als gelezen markeren.',
+	lateReadingNoticeMany: 'Deze lezing is {days} dagen te laat. Je kunt deze nog steeds als gelezen markeren.',
 	portionTakenError: 'Dit gedeelte is door iemand anders genomen.',
 	roundNothingMissedHizb: 'Er is deze ronde niets gemist.',
 	membersTitle: 'Leden',

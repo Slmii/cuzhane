@@ -1,5 +1,5 @@
 export type GroupVisibility = 'OPEN' | 'PRIVATE';
-export type GroupSplitMode = 'ROTATION' | 'FIXED';
+export type GroupSplitMode = 'ROTATION' | 'FIXED' | 'FLEXIBLE';
 export type GroupStatus = 'GATHERING' | 'RUNNING';
 export type BabRange = { start: number; end: number };
 export type GroupCycle = 'DAILY' | 'WEEKLY' | 'MONTHLY';
@@ -37,6 +37,7 @@ export type GroupBab = {
 
 /** Shape returned by list endpoints — enough to render a group card without the bab grid. */
 export type GroupSummary = {
+	hideMemberNames: boolean;
 	id: string;
 	name: string;
 	dedication: string | null;
@@ -129,6 +130,7 @@ export type GroupDetail = GroupSummary & {
 
 /** Unauthenticated-ish preview shown when opening an invite link or entering a code. */
 export type GroupInvitePreview = {
+	hideMemberNames: boolean;
 	id: string;
 	name: string;
 	dedication: string | null;
@@ -343,6 +345,8 @@ export type RoundDetail = {
 	startedAt: string;
 	endsAt: string;
 	isOpen: boolean;
+	/** Server-calculated calendar days late in the group's zone; zero while open. */
+	daysLate: number;
 	/** See `RoundSummary.partCount`; `babs` has exactly this many entries. */
 	partCount: number;
 	readCount: number;

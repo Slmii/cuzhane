@@ -3,7 +3,8 @@ import { HttpError } from '@config/httpError';
 import prisma from '@db/prisma';
 import { slotIndexForBab } from '@utils/babs';
 import { partCountFor } from '@utils/groupKinds';
-import { roundEndsAt, roundIndexSince, roundStartedAtFor, type CycleName } from '@utils/rounds';
+import { visibleUserId } from '@utils/groupPrivacy';
+import { civilDayNumber, roundEndsAt, roundIndexSince, roundStartedAtFor, type CycleName } from '@utils/rounds';
 import { normalizeUserId } from '@utils/normalizeUserId';
 import { assertRepetitionsMet } from './repetitions.service';
 import { ensureCurrentRoundFor } from './rounds.service';
@@ -48,6 +49,8 @@ export type RoundDetail = {
 	startedAt: string;
 	endsAt: string;
 	isOpen: boolean;
+	/** Calendar days late in the group's zone; the exclusive deadline starts day one. */
+	daysLate: number;
 	/** See `RoundSummary.partCount`; `babs` has exactly this many entries. */
 	partCount: number;
 	readCount: number;
@@ -66,6 +69,9 @@ export type RoundDetail = {
  * stores who owed what, exactly as nothing stores who reads what.
  */
 const owedSlotForBab = (group: Pick<Group, 'spots' | 'splitMode' | 'kind'>, babNumber: number, roundIndex: number) => {
+	if (group.splitMode === 'FLEXIBLE') {
+		return null;
+	}
 	const blockIndex = slotIndexForBab(babNumber, group.spots, partCountFor(group.kind));
 
 	if (blockIndex === null) {
@@ -188,7 +194,7 @@ export const getRoundDetailForUser = async (
 	groupId: string,
 	roundIndex: number
 ): Promise<RoundDetail> => {
-	const { group } = await loadRunningGroup(userId, groupId);
+	const { group, normalizedUserId } = await loadRunningGroup(userId, groupId);
 
 	if (roundIndex < 0 || roundIndex > group.roundIndex) {
 		throw new HttpError(NOT_FOUND, 'Round not found');
@@ -225,17 +231,25 @@ export const getRoundDetailForUser = async (
 
 	const missed = babs.filter(bab => bab.readByUserId === null);
 	const { startedAt, endsAt } = boundsFor(group, roundIndex);
+	const isOpen = roundIndex === group.roundIndex;
 
 	return {
 		roundIndex,
 		startedAt: startedAt.toISOString(),
 		endsAt: endsAt.toISOString(),
-		isOpen: roundIndex === group.roundIndex,
+		isOpen,
+		daysLate: isOpen
+			? 0
+			: Math.max(1, civilDayNumber(new Date(), group.timezone) - civilDayNumber(endsAt, group.timezone) + 1),
 		partCount,
 		readCount: partCount - missed.length,
 		missedCount: missed.length,
 		missedPeopleCount: new Set(missed.map(bab => bab.owedByUserId).filter(Boolean)).size,
-		babs
+		babs: babs.map(bab => ({
+			...bab,
+			readByUserId: visibleUserId(group, normalizedUserId, bab.readByUserId),
+			owedByUserId: visibleUserId(group, normalizedUserId, bab.owedByUserId)
+		}))
 	};
 };
 

@@ -11,6 +11,7 @@ import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { GroupMember } from '@/lib/types/domain';
 import { formatBabRange } from '@/lib/utils/babs';
+import { visibleMemberIdentity } from '@/lib/utils/groupPrivacy';
 import { useCallback, useMemo } from 'react';
 import { confirmDestructive } from '@/lib/utils/confirmDestructive';
 import { ScrollView, StyleSheet, View } from 'react-native';
@@ -88,7 +89,8 @@ export const MembersSheet = ({ groupId, isVisible, onClose }: MembersSheetProps)
 
 	const rows = useMemo(
 		() =>
-			members.map(member => {
+			members.map(cachedMember => {
+				const member = visibleMemberIdentity(cachedMember, detail, userId, t('anonymousMember'));
 				// Spread as a pair: the remove button is a bare glyph, so its accessibility label
 				// travels with the handler rather than being optional beside it. Annotated rather
 				// than inlined so the conditional keeps the union instead of widening to two
@@ -113,7 +115,7 @@ export const MembersSheet = ({ groupId, isVisible, onClose }: MembersSheetProps)
 					/>
 				);
 			}),
-		[detail?.isOwner, handleRemovePress, members, t, userId]
+		[detail, handleRemovePress, members, t, userId]
 	);
 
 	const handleClose = () => {
@@ -158,7 +160,9 @@ export const MembersSheet = ({ groupId, isVisible, onClose }: MembersSheetProps)
 					) : (
 						<>
 							<CaptionText color={theme.colors.subtext} style={styles.subtitle}>
-								{`${detail.memberCount} / ${detail.spots} · ${detail.spotsLeft} ${t('spotsLeft')}`}
+								{detail.splitMode === 'FLEXIBLE'
+									? t('flexibleMembers', { count: detail.memberCount })
+									: `${detail.memberCount} / ${detail.spots} · ${detail.spotsLeft} ${t('spotsLeft')}`}
 							</CaptionText>
 
 							<View>{rows}</View>

@@ -305,7 +305,9 @@ export const JoinByCodeSheet = ({ initialCode, isVisible, onClose }: JoinByCodeS
 							<View style={[styles.statGrid, { borderTopColor: theme.colors.borderStrong }]}>
 								<View style={styles.stat}>
 									<Typography style={styles.statValue} variant='title'>
-										{`${data.memberCount} / ${data.spots}`}
+										{data.splitMode === 'FLEXIBLE'
+											? String(data.memberCount)
+											: `${data.memberCount} / ${data.spots}`}
 									</Typography>
 									<StatText color={theme.colors.faintText}>{t('members')}</StatText>
 								</View>
@@ -321,6 +323,9 @@ export const JoinByCodeSheet = ({ initialCode, isVisible, onClose }: JoinByCodeS
 						{/* The promise the code is making. Only when there is a seat to promise —
 						    a group can fill between the code being shared and typed. `formatRun`,
 						    since a Hizb seat can hold a single portion: "7", not "7–7". */}
+						{data.splitMode === 'FLEXIBLE' ? (
+							<CaptionText color={theme.colors.subtext}>{t('planFlexibleHint')}</CaptionText>
+						) : null}
 						{data.nextRange ? (
 							<AssignmentBanner
 								description={t('autoAssign')}

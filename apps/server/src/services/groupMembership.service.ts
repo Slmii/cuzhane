@@ -142,7 +142,8 @@ const attemptJoin = async (
 		const taken = new Set(group.members.map(member => member.slotIndex));
 		let slotIndex: number | null = null;
 
-		for (let slot = 0; slot < group.spots; slot++) {
+		const slotLimit = group.splitMode === 'FLEXIBLE' ? group.members.length + 1 : group.spots;
+		for (let slot = 0; slot < slotLimit; slot++) {
 			if (!taken.has(slot)) {
 				slotIndex = slot;
 				break;
@@ -153,12 +154,16 @@ const attemptJoin = async (
 			throw new HttpError(CONFLICT, 'This group is full');
 		}
 
+		const becomesOwner = group.splitMode === 'FLEXIBLE' && group.members.length === 0;
+		if (becomesOwner) {
+			await tx.group.update({ where: { id: groupId }, data: { ownerUserId: normalizedUserId } });
+		}
 		await tx.groupMember.create({
 			data: {
 				groupId,
 				userId: normalizedUserId,
 				displayName,
-				role: 'MEMBER',
+				role: becomesOwner ? 'OWNER' : 'MEMBER',
 				slotIndex
 			}
 		});
@@ -181,7 +186,7 @@ const attemptJoin = async (
 		// `group.members` is the list from before the seat was filled, which is what makes this
 		// seat a pool block at all. No `ensureCurrentRound` first: on a stale round this clears
 		// babs the rollover is about to clear wholesale anyway, so the worst case is a no-op.
-		const coveredBabNumbers = poolBlockFor(group, group.members, slotIndex);
+		const coveredBabNumbers = group.splitMode === 'FLEXIBLE' ? null : poolBlockFor(group, group.members, slotIndex);
 
 		if (coveredBabNumbers) {
 			// Read before the clear — afterwards there is nothing left to ask. A Cevşen block is
@@ -364,6 +369,19 @@ const removeMember = async (
 	notice: { displayName: string; excludeUserIds: string[] }
 ): Promise<void> => {
 	await prisma.$transaction(async tx => {
+		await lockGroup(tx, groupId);
+		const group = await tx.group.findUniqueOrThrow({
+			where: { id: groupId },
+			include: { members: { orderBy: { joinedAt: 'asc' } } }
+		});
+		if (group.splitMode === 'FLEXIBLE' && group.ownerUserId === userId) {
+			const successor = group.members.find(member => member.userId !== userId);
+			if (successor) {
+				await tx.groupMember.update({ where: { id: successor.id }, data: { role: 'OWNER' } });
+			}
+			// An empty flexible circle stays discoverable. Its next joiner takes ownership.
+			await tx.group.update({ where: { id: groupId }, data: { ownerUserId: successor?.userId ?? '' } });
+		}
 		// Delete the membership FIRST. Unassigning before deleting leaves a window in
 		// which the member — still a member as far as a concurrent request is concerned —
 		// claims another bab that the cleanup has already swept past, stranding it
@@ -376,10 +394,12 @@ const removeMember = async (
 		// Clearing progress is scoped to reads this member actually made. Under ROTATION
 		// their seat's block is read by a different member each day, so wiping every read on
 		// the babs merely *assigned* to them would delete other people's work.
-		await tx.groupBab.updateMany({
-			where: { groupId, assignedUserId: userId, readByUserId: userId },
-			data: { readByUserId: null, readAt: null }
-		});
+		if (group.splitMode !== 'FLEXIBLE') {
+			await tx.groupBab.updateMany({
+				where: { groupId, assignedUserId: userId, readByUserId: userId },
+				data: { readByUserId: null, readAt: null }
+			});
+		}
 
 		await tx.groupBab.updateMany({
 			where: { groupId, assignedUserId: userId },
@@ -411,7 +431,8 @@ export const leaveGroupForUser = async (userId: string, groupId: string): Promis
 	const normalizedUserId = normalizeUserId(userId);
 	const membership = await requireMembership(normalizedUserId, groupId);
 
-	if (membership.role === 'OWNER') {
+	const group = await prisma.group.findUniqueOrThrow({ where: { id: groupId } });
+	if (membership.role === 'OWNER' && group.splitMode !== 'FLEXIBLE') {
 		throw new HttpError(BAD_REQUEST, 'The group owner cannot leave. Delete the group instead.');
 	}
 

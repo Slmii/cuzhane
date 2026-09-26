@@ -5,6 +5,8 @@ import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { HIZB_PORTION_COUNT, HIZB_WORKS, type HizbWorkKey, workOf } from '@/lib/content/hizbPortions';
 import { useGetBabs } from '@/lib/hooks/useBab';
 import { useGetGroupById } from '@/lib/hooks/useGroup';
+import { useCurrentUserId } from '@/lib/hooks/useCurrentUserId';
+import { visibleMemberIdentity } from '@/lib/utils/groupPrivacy';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { hizbIndexWorks } from '@/lib/utils/hizbIndex';
@@ -33,6 +35,7 @@ export const HizbIndexScreen = ({ navigation, route }: Props) => {
 	const { groupId } = route.params;
 	const { t } = useTranslation();
 	const groupQuery = useGetGroupById(groupId);
+	const viewerUserId = useCurrentUserId();
 	const babsQuery = useGetBabs(groupId);
 	const pullToRefresh = usePullToRefresh(groupQuery, babsQuery);
 	/** Undefined until the reader taps a card — the default below stands until then. */
@@ -41,7 +44,18 @@ export const HizbIndexScreen = ({ navigation, route }: Props) => {
 	// Above the early returns, reading the query data, so hook order holds across the branches.
 	const group = groupQuery.data;
 	const babs = babsQuery.data;
-	const works = useMemo(() => (group && babs ? hizbIndexWorks(babs, group) : null), [babs, group]);
+	const works = useMemo(
+		() =>
+			group && babs
+				? hizbIndexWorks(babs, {
+						...group,
+						members: group.members.map(member =>
+							visibleMemberIdentity(member, group, viewerUserId, t('anonymousMember'))
+						)
+				  })
+				: null,
+		[babs, group, t, viewerUserId]
+	);
 	const currentPart = group?.myNextBabNumber ?? group?.myBabNumbers[0];
 	// Guarded on the book: `workOf` throws for a number the Hizb doesn't have.
 	const defaultWorkKey =
