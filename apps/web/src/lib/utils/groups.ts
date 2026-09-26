@@ -31,6 +31,23 @@ export const partUnitKey = (kind: GroupKind): StringKey => (kind === 'HIZB' ? 'p
 /** The same noun titling one part — "Bab 12", "Bölüm 19". */
 export const partLabelKey = (kind: GroupKind): StringKey => (kind === 'HIZB' ? 'portion' : 'bab');
 
+/**
+ * Whether a written range is a single part. `formatRun` and `formatBabRange` write one part as a
+ * bare number — "19" — and anything more with a dash or a comma, so the string says it. The
+ * server's push copy asks the same question the same way (`pushCopy.ts`), so a row in the inbox
+ * and the push it mirrors agree about "portion" against "portions".
+ */
+export const isSinglePart = (range: string) => !/[–,]/.test(range);
+
+/**
+ * A set of Hizb portions with its noun, where the language puts it — "15–16. bölüm", "Portions
+ * 15–16", "Portion 19". `parts` is already written (`formatBabRange`, `shareSlices`).
+ */
+export const hizbPartsLabel = (
+	parts: string,
+	t: (key: 'hizbParts' | 'hizbPartsOne', values: Record<string, string>) => string
+) => t(isSinglePart(parts) ? 'hizbPartsOne' : 'hizbParts', { parts });
+
 export const visibilityLabelKey = (visibility: GroupVisibility): StringKey =>
 	visibility === 'OPEN' ? 'open' : 'private';
 

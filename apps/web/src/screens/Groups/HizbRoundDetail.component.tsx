@@ -13,6 +13,7 @@ import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { GroupDetail, GroupMember, RoundDetail } from '@/lib/types/domain';
 import { formatBabRange } from '@/lib/utils/babs';
+import { hizbPartsLabel } from '@/lib/utils/groups';
 import { hizbRoundCells, hizbRoundRows, roundDateRange, type HizbRoundRow } from '@/lib/utils/rounds';
 import { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -63,8 +64,7 @@ export const HizbRoundDetail = ({ group, members, onOpenReader, pullToRefresh, r
 	);
 
 	/** "15–16. bölüm", "Portion 19" — a set of portions with the noun in the language's own place. */
-	const partsText = (numbers: number[]) =>
-		t(numbers.length === 1 ? 'hizbPartsOne' : 'hizbParts', { parts: formatBabRange(numbers) });
+	const partsText = (numbers: number[]) => hizbPartsLabel(formatBabRange(numbers), t);
 
 	/**
 	 * Who did the covering, from the reader's side — the Cevşen screen's own three phrasings:

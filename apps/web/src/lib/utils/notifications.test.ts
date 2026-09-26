@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bucketFor, groupNotifications, relativeAge } from './notifications';
+import { bucketFor, groupNotifications, notificationText, relativeAge } from './notifications';
 import type { AppNotification } from '@/lib/types/domain';
 
 const at = (year: number, month: number, day: number, hour = 12) => new Date(year, month, day, hour);
@@ -76,5 +76,84 @@ describe('relativeAge', () => {
 		const now = at(2026, 5, 10, 12);
 
 		expect(relativeAge(new Date(now.getTime() - 5_000).toISOString(), now)).toEqual({ count: 0, unit: 'now' });
+	});
+});
+
+describe('notificationText', () => {
+	// The key with its values, so a test asserts on the line chosen rather than on its Turkish.
+	const t = (key: string, values?: Record<string, string | number>) =>
+		values === undefined
+			? key
+			: `${key}(${Object.entries(values)
+					.map(([name, value]) => `${name}=${value}`)
+					.join(',')})`;
+
+	const row = (
+		kind: AppNotification['kind'],
+		payload: Record<string, unknown>,
+		groupKind: AppNotification['groupKind'] = 'CEVSEN'
+	) => ({ groupKind, kind, payload });
+
+	it('composes a Cevşen row exactly as before', () => {
+		expect(notificationText(row('SHARE_READ', { range: '1–13', readerName: 'Ali' }), t)).toEqual({
+			body: 'notifShareReadBody(range=1–13)',
+			title: 'notifShareReadTitle(name=Ali)'
+		});
+		expect(notificationText(row('POOL_CLAIM_RELEASED', { endBab: 20, startBab: 16 }), t)).toEqual({
+			body: 'notifPoolReleasedBody',
+			title: 'notifPoolReleasedTitle(range=16–20)'
+		});
+		expect(notificationText(row('ROUND_COMPLETE', { roundNumber: 4 }), t).body).toBe('notifRoundCompleteBody');
+	});
+
+	it('names portions in a Hizb group, singular for a range of one', () => {
+		expect(notificationText(row('SHARE_READ', { range: '15–16', readerName: 'Ali' }, 'HIZB'), t).body).toBe(
+			'notifShareReadBodyHizb(range=15–16)'
+		);
+		expect(notificationText(row('SHARE_READ', { range: '19', readerName: 'Ali' }, 'HIZB'), t).body).toBe(
+			'notifShareReadBodyHizbOne(range=19)'
+		);
+	});
+
+	it('writes a released Hizb portion as one number, not a span of one', () => {
+		expect(notificationText(row('POOL_CLAIM_RELEASED', { endBab: 27, startBab: 27 }, 'HIZB'), t)).toEqual({
+			body: 'notifPoolReleasedBodyHizbOne',
+			title: 'notifPoolReleasedTitleHizbOne(range=27)'
+		});
+		expect(notificationText(row('POOL_CLAIM_RELEASED', { endBab: 16, startBab: 15 }, 'HIZB'), t).title).toBe(
+			'notifPoolReleasedTitleHizb(range=15–16)'
+		);
+	});
+
+	it('names portions on a Hizb pool claim, title and body', () => {
+		expect(notificationText(row('POOL_BAB_CLAIMED', { range: '24', takerName: 'Hilal' }, 'HIZB'), t)).toEqual({
+			body: 'notifPoolClaimedBodyHizbOne(range=24)',
+			title: 'notifPoolClaimedTitleHizbOne(name=Hilal)'
+		});
+		expect(notificationText(row('POOL_BAB_CLAIMED', { range: '5, 31', takerName: 'Hilal' }, 'HIZB'), t).body).toBe(
+			'notifPoolClaimedBodyHizb(range=5, 31)'
+		);
+	});
+
+	it('counts the Hizb’s own portions when a round closes', () => {
+		expect(notificationText(row('ROUND_COMPLETE', { roundNumber: 2 }, 'HIZB'), t)).toEqual({
+			body: 'notifRoundCompleteBodyHizb(count=33)',
+			title: 'notifRoundCompleteTitle(round=2)'
+		});
+	});
+
+	it('reads a member row the same for either book, since it names no part', () => {
+		const payload = { memberCount: 4, memberName: 'Zeynep', spots: 12 };
+
+		expect(notificationText(row('MEMBER_LEFT', payload, 'HIZB'), t)).toEqual(
+			notificationText(row('MEMBER_LEFT', payload), t)
+		);
+		expect(notificationText(row('MEMBER_JOINED', payload, 'HIZB'), t).body).toBe(
+			'notifMemberJoinedBody(count=4,spots=12)'
+		);
+	});
+
+	it('survives a payload missing its fields', () => {
+		expect(notificationText(row('SHARE_READ', {}, 'HIZB'), t).title).toBe('notifShareReadTitle(name=)');
 	});
 });

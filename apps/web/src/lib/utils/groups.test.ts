@@ -7,8 +7,10 @@ import {
 	cycleOptionsFor,
 	emptyBabCells,
 	hizbBoardCells,
+	hizbPartsLabel,
 	hizbSeatColumns,
 	hizbShareLabel,
+	isSinglePart,
 	movesEachRound,
 	partLabelKey,
 	partUnitKey,
@@ -382,5 +384,22 @@ describe('hizbShareLabel', () => {
 
 	it('draws a dash for no share at all', () => {
 		expect(hizbShareLabel([], 'bölüm')).toBe('—');
+	});
+});
+
+describe('isSinglePart', () => {
+	it('reads a bare number as one part and a span or a list as several', () => {
+		expect(isSinglePart('19')).toBe(true);
+		expect(isSinglePart('15–16')).toBe(false);
+		expect(isSinglePart('5, 31')).toBe(false);
+	});
+});
+
+describe('hizbPartsLabel', () => {
+	const t = (key: string, values: Record<string, string>) => `${key}(${values.parts})`;
+
+	it('picks the singular line for one portion and the plural for more', () => {
+		expect(hizbPartsLabel('19', t)).toBe('hizbPartsOne(19)');
+		expect(hizbPartsLabel('15–16', t)).toBe('hizbParts(15–16)');
 	});
 });

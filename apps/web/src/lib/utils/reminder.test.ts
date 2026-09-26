@@ -1,6 +1,6 @@
 import type { GroupSummary } from '@/lib/types/domain';
 import { describe, expect, it } from 'vitest';
-import { isNextReminderTomorrow, reminderTotals } from './reminder';
+import { isNextReminderTomorrow, reminderBody, reminderTotals, type ReminderTotals } from './reminder';
 
 const at = (hour: number, minute: number, second = 0) => new Date(2026, 7, 29, hour, minute, second);
 
@@ -27,6 +27,7 @@ describe('isNextReminderTomorrow', () => {
 const group = (overrides: Partial<GroupSummary>): GroupSummary =>
 	({
 		id: 'g',
+		kind: 'CEVSEN',
 		status: 'RUNNING',
 		myBabNumbers: [1, 2, 3, 4, 5],
 		myReadCount: 0,
@@ -64,7 +65,13 @@ describe('reminderTotals', () => {
 			group({ id: 'noShare', myBabNumbers: [] })
 		]);
 
-		expect(totals).toEqual({ participatingGroups: 0, pendingGroups: 0, unread: 0 });
+		expect(totals).toEqual({
+			participatingGroups: 0,
+			pendingGroups: 0,
+			unread: 0,
+			unreadBabs: 0,
+			unreadPortions: 0
+		});
 	});
 
 	it('never reports negative work when more is read than the share holds', () => {
@@ -78,5 +85,96 @@ describe('reminderTotals', () => {
 
 	it('treats no groups at all as nothing to say', () => {
 		expect(reminderTotals(undefined).participatingGroups).toBe(0);
+	});
+});
+
+describe('reminderTotals by kind', () => {
+	it('counts a Cevşen group’s babs as babs', () => {
+		const totals = reminderTotals([group({ myBabNumbers: [1, 2, 3], myReadCount: 1 })]);
+
+		expect(totals).toMatchObject({ unread: 2, unreadBabs: 2, unreadPortions: 0 });
+	});
+
+	it('counts a Hizb group’s portions as portions', () => {
+		const totals = reminderTotals([group({ kind: 'HIZB', myBabNumbers: [15, 16], myReadCount: 0 })]);
+
+		expect(totals).toMatchObject({ unread: 2, unreadBabs: 0, unreadPortions: 2 });
+	});
+
+	it('keeps the two apart when both are owed', () => {
+		const totals = reminderTotals([
+			group({ id: 'cevsen', myBabNumbers: [1, 2, 3, 4, 5], myReadCount: 2 }),
+			group({ id: 'hizb', kind: 'HIZB', myBabNumbers: [19], myReadCount: 0 })
+		]);
+
+		expect(totals).toEqual({
+			participatingGroups: 2,
+			pendingGroups: 2,
+			unread: 4,
+			unreadBabs: 3,
+			unreadPortions: 1
+		});
+	});
+});
+
+describe('reminderBody', () => {
+	const totals = (overrides: Partial<ReminderTotals>): ReminderTotals => ({
+		participatingGroups: 1,
+		pendingGroups: 1,
+		unread: 0,
+		unreadBabs: 0,
+		unreadPortions: 0,
+		...overrides
+	});
+
+	it('keeps the Cevşen’s own line for babs alone', () => {
+		expect(reminderBody(totals({ unread: 5, unreadBabs: 5 }))).toEqual({ key: 'notifBody', values: { unread: 5 } });
+	});
+
+	it('names the groups when several Cevşen groups owe babs', () => {
+		expect(reminderBody(totals({ pendingGroups: 2, unread: 9, unreadBabs: 9 }))).toEqual({
+			key: 'notifBodyGroups',
+			values: { groups: 2, unread: 9 }
+		});
+	});
+
+	it('says portions for a Hizb group, with a line for one', () => {
+		expect(reminderBody(totals({ unread: 2, unreadPortions: 2 }))).toEqual({
+			key: 'notifBodyPortions',
+			values: { unread: 2 }
+		});
+		expect(reminderBody(totals({ unread: 1, unreadPortions: 1 }))).toEqual({
+			key: 'notifBodyPortionsOne',
+			values: { unread: 1 }
+		});
+	});
+
+	it('names the groups when several Hizb groups owe portions', () => {
+		expect(reminderBody(totals({ pendingGroups: 3, unread: 4, unreadPortions: 4 }))).toEqual({
+			key: 'notifBodyGroupsPortions',
+			values: { groups: 3, unread: 4 }
+		});
+	});
+
+	it('says readings, never babs, when both are owed', () => {
+		expect(reminderBody(totals({ pendingGroups: 2, unread: 4, unreadBabs: 3, unreadPortions: 1 }))).toEqual({
+			key: 'notifBodyGroupsMixed',
+			values: { groups: 2, unread: 4 }
+		});
+	});
+
+	it('still nudges once nothing is owed', () => {
+		expect(reminderBody(totals({ participatingGroups: 2 }))).toEqual({ key: 'notifBodyIdle' });
+	});
+
+	it('picks its sentence from the totals of a real shelf', () => {
+		// The mixed case end to end: a Cevşen group, a Hizb group, and a finished one beside them.
+		const shelf = reminderTotals([
+			group({ id: 'cevsen', myBabNumbers: [1, 2, 3, 4, 5], myReadCount: 0 }),
+			group({ id: 'hizb', kind: 'HIZB', myBabNumbers: [15, 16], myReadCount: 1 }),
+			group({ id: 'done', kind: 'HIZB', myBabNumbers: [7], myReadCount: 1 })
+		]);
+
+		expect(reminderBody(shelf)).toEqual({ key: 'notifBodyGroupsMixed', values: { groups: 2, unread: 6 } });
 	});
 });

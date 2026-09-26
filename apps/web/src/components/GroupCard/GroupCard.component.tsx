@@ -8,6 +8,12 @@ import { StyleSheet, View } from 'react-native';
 import type { GroupCardProps } from './GroupCard.types';
 
 /**
+ * The kind mark's size before a card's name — small enough to sit on the title's line, where
+ * the group screen's heading draws the same star at 44.
+ */
+export const GROUP_CARD_MARK_SIZE = 18;
+
+/**
  * One card for both the "My groups" list and Discover. The two differ only in which
  * optional blocks they pass — progress on the former, a seat/avatar footer on the
  * latter — so the header, badge and footer layout stay in one place.
@@ -29,7 +35,8 @@ export const GroupCard = ({
 	resetRow,
 	extraBadges,
 	style,
-	subtitle
+	subtitle,
+	titleLeading
 }: GroupCardProps) => {
 	const { theme } = useThemeContext();
 	const hasProgress = progress !== undefined;
@@ -39,7 +46,15 @@ export const GroupCard = ({
 		<CardSurface onPress={onPress} style={[styles.card, style]}>
 			<View style={styles.headerRow}>
 				<View style={styles.headerCopy}>
-					<TitleText>{name}</TitleText>
+					{titleLeading ? (
+						<View style={styles.titleRow}>
+							{/* Centred on the title's first line, however many lines the name wraps to. */}
+							<View style={styles.titleLeading}>{titleLeading}</View>
+							<TitleText style={styles.titleText}>{name}</TitleText>
+						</View>
+					) : (
+						<TitleText>{name}</TitleText>
+					)}
 					{subtitle ? (
 						<CaptionText color={theme.colors.subtext} style={styles.subtitle}>
 							{subtitle}
@@ -163,5 +178,18 @@ const styles = StyleSheet.create({
 	},
 	subtitle: {
 		lineHeight: 17
+	},
+	// `TitleText`'s own line height, so the mark sits on the first line's centre.
+	titleLeading: {
+		height: 22,
+		justifyContent: 'center'
+	},
+	titleRow: {
+		alignItems: 'flex-start',
+		flexDirection: 'row',
+		gap: 7
+	},
+	titleText: {
+		flexShrink: 1
 	}
 });

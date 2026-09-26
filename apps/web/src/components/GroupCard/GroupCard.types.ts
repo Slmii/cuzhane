@@ -6,6 +6,11 @@ import type { ChipTone } from '@/components/ui/Chip/Chip.types';
 
 export interface GroupCardProps {
 	name: string;
+	/**
+	 * A mark before the name — the Hizb's star, so a Hizb group and a Cevşen group can be told
+	 * apart in a list without reading either. Absent on a Cevşen card, which draws as it always has.
+	 */
+	titleLeading?: ReactNode;
 	subtitle?: string;
 	badgeLabel: string;
 	badgeTone?: ChipTone;

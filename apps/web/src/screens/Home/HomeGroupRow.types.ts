@@ -1,7 +1,7 @@
 export interface HomeGroupRowGroup {
 	id: string;
 	name: string;
-	/** The stretch the reader is in, as `shareSlices` picks it — "43–47". */
+	/** The stretch the reader is in, as `shareSlices` picks it — "43–47", or "19. bölüm" for a Hizb group. */
 	range: string;
 	/** Ranges beyond that one, counted rather than spelled out. */
 	moreCount: number;

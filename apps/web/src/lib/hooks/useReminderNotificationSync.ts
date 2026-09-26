@@ -15,7 +15,7 @@ import {
 	type ReminderContent,
 	type ReminderSchedule
 } from '@/lib/utils/notifications/reminderSignatures';
-import { reminderTotals } from '@/lib/utils/reminder';
+import { reminderBody, reminderTotals } from '@/lib/utils/reminder';
 import { useAuth } from '@clerk/expo';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { AppState } from 'react-native';
@@ -91,32 +91,22 @@ export const useReminderNotificationSync = () => {
 	 * is what keeps it honest — reading a bab re-syncs and replaces the pending notification.
 	 */
 	const content = useMemo<ReminderContent | null>(() => {
-		const { participatingGroups, pendingGroups, unread } = reminderTotals(groups);
+		const totals = reminderTotals(groups);
 
 		// Nothing to be reminded about is not the same as having finished — no notification
 		// at all, rather than one saying the day is done.
-		if (participatingGroups === 0) {
+		if (totals.participatingGroups === 0) {
 			return null;
 		}
 
-		return {
-			/*
-			 * The number of groups is named as soon as there is more than one, because a bare
-			 * total reads as a single group's — six groups on the shelf and one line saying "26
-			 * babın kaldı" invites the question of which twenty-six. With one group there is
-			 * nothing to disambiguate and the count says it all.
-			 *
-			 * A share already finished shouldn't be told it has "0 babs left"; it still gets a
-			 * nudge, because tomorrow's round opens before this fires again.
-			 */
-			body:
-				unread === 0
-					? t('notifBodyIdle')
-					: pendingGroups > 1
-					? t('notifBodyGroups', { groups: pendingGroups, unread })
-					: t('notifBody', { unread }),
-			title: t('notifTitle')
-		};
+		/*
+		 * Which sentence — babs, portions, both, several groups or none owed — is `reminderBody`'s,
+		 * and tested there. Its text lands in `contentSig`, so a change of wording, like a change of
+		 * count, replaces the pending notification rather than leaving yesterday's standing.
+		 */
+		const body = reminderBody(totals);
+
+		return { body: t(body.key, body.values), title: t('notifTitle') };
 	}, [groups, t]);
 
 	/**

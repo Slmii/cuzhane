@@ -1,8 +1,16 @@
+import type { StringKey } from '@/lib/i18n/strings';
 import type { GroupSummary } from '@/lib/types/domain';
 
 export type ReminderTotals = {
-	/** Babs still owed today, summed across every running group. */
+	/**
+	 * Everything still owed today across every running group — babs and portions together, which
+	 * is only a number worth printing once the copy stops calling it either (see `reminderBody`).
+	 */
 	unread: number;
+	/** Of those, the Cevşen groups' babs. */
+	unreadBabs: number;
+	/** And the Hizb groups' portions — a different book's unit, so never added into the babs. */
+	unreadPortions: number;
 	/** How many of those groups still owe something — 0 when the day is done. */
 	pendingGroups: number;
 	/**
@@ -45,13 +53,51 @@ export const reminderTotals = (groups: GroupSummary[] | undefined): ReminderTota
 	return running.reduce<ReminderTotals>(
 		(totals, group) => {
 			const outstanding = Math.max(0, group.myBabNumbers.length - group.myReadCount);
+			const isHizb = group.kind === 'HIZB';
 
 			return {
 				participatingGroups: totals.participatingGroups + 1,
 				pendingGroups: totals.pendingGroups + (outstanding > 0 ? 1 : 0),
-				unread: totals.unread + outstanding
+				unread: totals.unread + outstanding,
+				unreadBabs: totals.unreadBabs + (isHizb ? 0 : outstanding),
+				unreadPortions: totals.unreadPortions + (isHizb ? outstanding : 0)
 			};
 		},
-		{ participatingGroups: 0, pendingGroups: 0, unread: 0 }
+		{ participatingGroups: 0, pendingGroups: 0, unread: 0, unreadBabs: 0, unreadPortions: 0 }
 	);
+};
+
+export type ReminderBody = { key: StringKey; values?: Record<string, number> };
+
+/**
+ * The reminder's sentence, chosen from the totals — the scheduler turns it into text, and the
+ * text is what `contentSig` compares, so a change of wording replaces the pending notification.
+ *
+ * **Babs and portions are never summed under one noun.** Only babs keeps the Cevşen's lines as
+ * they were; only portions is their twin, with its own line for one — a Hizb seat often holds a
+ * single portion, so "1 portions" would be the ordinary case in English and Dutch. Owing both
+ * says "okuman", a reading, which is true of either. It is always the several-groups line: a
+ * group reads one book, so owing both means at least one group of each.
+ *
+ * Past one group the count is named with the groups, because a bare total over several reads as
+ * one group's. Nothing owed is still a nudge, since the next round opens before this fires again.
+ */
+export const reminderBody = ({ pendingGroups, unread, unreadBabs, unreadPortions }: ReminderTotals): ReminderBody => {
+	if (unread === 0) {
+		return { key: 'notifBodyIdle' };
+	}
+
+	if (unreadBabs > 0 && unreadPortions > 0) {
+		return { key: 'notifBodyGroupsMixed', values: { groups: pendingGroups, unread } };
+	}
+
+	if (unreadPortions > 0) {
+		return pendingGroups > 1
+			? { key: 'notifBodyGroupsPortions', values: { groups: pendingGroups, unread } }
+			: { key: unread === 1 ? 'notifBodyPortionsOne' : 'notifBodyPortions', values: { unread } };
+	}
+
+	return pendingGroups > 1
+		? { key: 'notifBodyGroups', values: { groups: pendingGroups, unread } }
+		: { key: 'notifBody', values: { unread } };
 };

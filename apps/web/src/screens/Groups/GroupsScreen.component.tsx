@@ -1,4 +1,4 @@
-import { GroupCard } from '@/components/GroupCard/GroupCard.component';
+import { GROUP_CARD_MARK_SIZE, GroupCard } from '@/components/GroupCard/GroupCard.component';
 import { RoundResetRow } from '@/components/RoundResetRow/RoundResetRow.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { PullToRefresh } from '@/components/ui/PullToRefresh/PullToRefresh.component';
@@ -7,6 +7,7 @@ import { ShelfEmptyState } from '@/components/ShelfEmptyState/ShelfEmptyState.co
 import { GroupCardSkeleton } from '@/components/Skeleton/GroupCardSkeleton.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
+import { KindMark } from '@/components/ui/KindMark/KindMark.component';
 import { Typography } from '@/components/ui/Typography/Typography.component';
 import { useGetGroups } from '@/lib/hooks/useGroup';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
@@ -92,6 +93,15 @@ export const GroupsScreen = () => {
 
 	const isReducedMotion = useReducedMotion();
 	const cardLayout = isReducedMotion ? undefined : CARD_LAYOUT;
+	/*
+	 * The Hizb's star before a Hizb group's name, so the two books can be told apart down the
+	 * list; a Cevşen card has none and draws as it always has. One element for every row — its
+	 * cut-out is the card's own surface, which only changes with the theme.
+	 */
+	const hizbMark = useMemo(
+		() => <KindMark backgroundColor={theme.colors.surface} kind='HIZB' size={GROUP_CARD_MARK_SIZE} />,
+		[theme.colors.surface]
+	);
 
 	// The design pins this block: the + stays reachable however far the shelf scrolls,
 	// which is the whole reason it moved up here from the bottom of the list. It paints
@@ -152,6 +162,7 @@ export const GroupsScreen = () => {
 							}
 							footerLabel={item.isOwner ? `${t('creator')} · ${t('you')}` : t('provisional')}
 							name={item.name}
+							titleLeading={item.kind === 'HIZB' ? hizbMark : null}
 							onAction={() => goToGathering(item.id, item.isOwner)}
 							onPress={() => goToGathering(item.id, item.isOwner)}
 							// Members out of seats, as the lobby itself counts them — "4 / 12 katıldı".
@@ -188,6 +199,7 @@ export const GroupsScreen = () => {
 						// softens — there is nothing left to continue today.
 						isActionPrimary
 						name={item.name}
+						titleLeading={item.kind === 'HIZB' ? hizbMark : null}
 						onAction={() => goToGroup(item.id)}
 						onPress={() => goToGroup(item.id)}
 						progress={{
@@ -213,7 +225,7 @@ export const GroupsScreen = () => {
 				</Animated.View>
 			);
 		},
-		[cardLayout, goToGathering, goToGroup, language, t]
+		[cardLayout, goToGathering, goToGroup, hizbMark, language, t]
 	);
 
 	if (isError) {

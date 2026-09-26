@@ -84,7 +84,12 @@ export const StreakCard = ({ last30Days, longestStreakDays, streakDays }: Streak
 				<View>
 					<EyebrowText color={theme.colors.accent}>{t('streakCurrent')}</EyebrowText>
 					<Typography style={styles.value} variant='header1' weight='regular'>
-						{streakDays === 0 ? t('streakNone') : `${streakDays} ${t('days')}`}
+						{/* Its own line for one, so English reads "1 day" — the same pair the round's countdown uses. */}
+						{streakDays === 0
+							? t('streakNone')
+							: streakDays === 1
+							? t('dayCountOne')
+							: t('dayCount', { count: streakDays })}
 					</Typography>
 				</View>
 				{/* Only once there is a record to hold on to. */}

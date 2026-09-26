@@ -13,7 +13,7 @@ import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { toAlphaColor } from '@/lib/theme/tokens';
-import { shareSlices } from '@/lib/utils/groups';
+import { hizbPartsLabel, shareSlices } from '@/lib/utils/groups';
 import { TabBarOffsetContext } from '@/navigation/TabBarOffsetContext';
 import { TabStackParamList } from '@/navigation/types';
 import { JoinByCodeSheet } from '@/screens/Join/JoinByCodeSheet.component';
@@ -98,11 +98,15 @@ export const HomeScreen = () => {
 						id: group.id,
 						moreCount: slices.moreCount,
 						name: group.name,
-						range: slices.current,
+						/*
+						 * A Hizb share is a portion or two, and a bare "19" beside a Cevşen row's "43–47"
+						 * would read as a bab — so its range carries the noun: "19. bölüm", "Portions 15–16".
+						 */
+						range: group.kind === 'HIZB' ? hizbPartsLabel(slices.current, t) : slices.current,
 						total: group.myBabNumbers.length
 					};
 				}),
-		[groups]
+		[groups, t]
 	);
 
 	// Finished groups sink to the bottom, so whatever is still owed stays at the top.
@@ -141,6 +145,13 @@ export const HomeScreen = () => {
 
 		if (babNumber === undefined) {
 			navigation.navigate('GroupDetail', { groupId });
+
+			return;
+		}
+
+		// A Hizb group's part is a portion, which is the Hizb reader's; the number means the same thing.
+		if (group?.kind === 'HIZB') {
+			navigation.navigate('HizbReader', { groupId, partNumber: babNumber });
 
 			return;
 		}
