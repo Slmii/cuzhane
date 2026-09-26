@@ -1,9 +1,9 @@
 # Deploying the API
 
 One server runs Caddy (TLS and reverse proxy), the API and Postgres as containers. The files in
-this folder — `compose.yml`, `Caddyfile` and `backup.sh` — are copied onto the server **by CI on
-every deploy**, so they are edited here and never on the server itself; the next deploy would
-overwrite a change made there.
+this folder — `compose.yml`, `compose.preview.yml`, `Caddyfile` and `backup.sh` — are copied onto
+the server **by CI on every deploy**, so they are edited here and never on the server itself; the
+next deploy would overwrite a change made there.
 
 Secrets are never in this repository. The server keeps them in its own `.env`, built from
 `.env.example`. The operator's runbook — access, database connections, backups and restores —
@@ -21,9 +21,25 @@ databases, each pinned to its own image tag (`IMAGE_TAG`, `PREVIEW_IMAGE_TAG`) s
 never moves the other. Preview is what the `development` branch and the Expo `preview` channel
 run against.
 
-**Infrastructure changes go through `main`.** The deploy job takes `compose.yml`, `Caddyfile` and
-`backup.sh` from `main` whichever branch triggered it, so a merge to `development` cannot change
-production's setup. A change to these files is merged to `main` first.
+**Each environment's API is configured from its own branch; what they share goes through
+`main`.**
+
+| File                  | Holds                                               | Shipped from           |
+| --------------------- | --------------------------------------------------- | ---------------------- |
+| `compose.yml`         | Caddy, Postgres, production's `api`                 | `main`, always         |
+| `Caddyfile`           | The edge for all three sites                        | `main`, always         |
+| `backup.sh`           | The nightly dump root's cron runs                   | `main`, always         |
+| `compose.preview.yml` | Preview's `api-preview`, and nothing else           | the branch deploying   |
+
+So a new environment variable for preview is added to `compose.preview.yml` on `development` and
+reaches preview with its next deploy; for production it is added to `compose.yml` on `main`. The
+value itself goes in the server's `.env` by hand either way. The deploy refuses a
+`compose.preview.yml` that defines anything but `api-preview` — compose merges files by service
+name, so one could otherwise redefine production's services from `development`. A production
+deploy leaves the server's `compose.preview.yml` alone (it only installs one if there is none).
+
+The server's `.env` carries `COMPOSE_FILE=compose.yml:compose.preview.yml`, written by every
+deploy, so a plain `docker compose` there sees both files.
 
 ## How a deploy runs
 

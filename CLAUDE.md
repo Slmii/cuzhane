@@ -48,6 +48,12 @@ in its `overrides` (`react`/`react-dom` 19.1.0, `@react-navigation/native` 7.2.2
 -   One server runs Caddy, `api` (production), `api-preview` and one Postgres with two databases
     (`cuzhane`, `cuzhane_preview`). Secrets are never in the repo. Edit deploy files here, never on
     the server — CI overwrites them. Overview: `deploy/README.md`.
+-   **Two compose files.** `deploy/compose.yml` (Caddy, Postgres, production's `api`), `Caddyfile`
+    and `backup.sh` always ship from `main`; `deploy/compose.preview.yml` (only `api-preview` — the
+    workflow refuses anything else) ships from the branch deploying. A new env var goes in the
+    file for the environment that needs it — preview's on `development`, production's on `main` —
+    and its value in the server's `.env` by hand. Compose defaults them to empty (`:-`), so a
+    missing passthrough is silent: the verse meal answered 503 on preview for exactly this.
 -   **Hüsrev page images are not in the repo or the image** (`apps/server/mushaf/`, gitignored, also
     in `.dockerignore`); the server mounts them read-only into both API containers at
     `/app/apps/server/mushaf`. A branch whose `.gitignore` predates them shows them as untracked —
