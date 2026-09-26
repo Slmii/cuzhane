@@ -19,13 +19,16 @@ import {
 	NumericText,
 	Typography
 } from '@/components/ui/Typography/Typography.component';
+import { groupQueryKeys } from '@/lib/hooks/queryKeys';
 import { useGetGroupById, useStartGroup, useUpdateGroup } from '@/lib/hooks/useGroup';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
+import type { GroupSummary } from '@/lib/types/domain';
 import { cycleLabelKey, hizbSeatColumns, movesEachRound, planLabelKey } from '@/lib/utils/groups';
 import type { TabStackParamList } from '@/navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useQueryClient } from '@tanstack/react-query';
 import * as Clipboard from 'expo-clipboard';
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -51,6 +54,15 @@ export const LobbyScreen = ({ navigation, route }: Props) => {
 	const group = useGetGroupById(groupId);
 	const startGroup = useStartGroup();
 	const pullToRefresh = usePullToRefresh(group);
+	/*
+	 * Which lobby the skeleton stands in for, off the shelf the lobby is opened from — Gruplarım,
+	 * Ara, and create-group, whose mutation refetches the shelf before it navigates. Read off the
+	 * cache rather than subscribed to, as `GroupDetailToolbar` seeds its glyph: it is only a
+	 * seed, and a lobby missing from the shelf simply gets the Cevşen's.
+	 */
+	const seededKind = useQueryClient()
+		.getQueryData<GroupSummary[]>(groupQueryKeys.groups())
+		?.find(entry => entry.id === groupId)?.kind;
 
 	// 06a is the creator's lobby and the only one there is. A member waiting for the group
 	// to start has a designed screen of their own — the same "you're in, waiting" state they
@@ -69,7 +81,7 @@ export const LobbyScreen = ({ navigation, route }: Props) => {
 	if (group.isLoading) {
 		return (
 			<ScreenContainer isScrollable={false}>
-				<LobbySkeleton />
+				<LobbySkeleton kind={seededKind ?? 'CEVSEN'} />
 			</ScreenContainer>
 		);
 	}
@@ -84,6 +96,12 @@ export const LobbyScreen = ({ navigation, route }: Props) => {
 	// and the start copy, which counts rounds where the Cevşen's still says "Gün 1".
 	const isHizb = detail.kind === 'HIZB';
 	const openSpots = detail.spots - detail.memberCount;
+	/*
+	 * A full Hizb lobby has no auto-start to offer: `autoStartIfFull` runs only inside a join,
+	 * and with no seat left there is no join to come — the owner's button is the only way in.
+	 * That includes every one-seat group, whose owner fills it on creation and can never leave.
+	 */
+	const hasAutoStartToggle = !isHizb || openSpots > 0;
 	const fillPercent = Math.round((detail.memberCount / detail.spots) * 100);
 
 	const handleCopyInvite = async () => {
@@ -232,7 +250,18 @@ export const LobbyScreen = ({ navigation, route }: Props) => {
 					</View>
 					{isHizb ? (
 						// Who is already in, in seat order — faces for the first few, then the count.
-						<View style={[styles.membersRow, { borderBottomColor: theme.colors.border }]}>
+						<View
+							style={[
+								styles.membersRow,
+								// Last in the card when the toggle is gone, so no rule under it.
+								hasAutoStartToggle
+									? {
+											borderBottomColor: theme.colors.border,
+											borderBottomWidth: StyleSheet.hairlineWidth
+									  }
+									: null
+							]}
+						>
 							<AvatarStack
 								people={[...detail.members]
 									.sort((a, b) => a.slotIndex - b.slotIndex)
@@ -245,12 +274,14 @@ export const LobbyScreen = ({ navigation, route }: Props) => {
 							</CaptionText>
 						</View>
 					) : null}
-					<ToggleRow
-						hint={t(isHizb ? 'autoStartHintHizb' : 'autoStartHint')}
-						onValueChange={value => updateGroup.mutate({ autoStartWhenFull: value, groupId })}
-						title={isHizb ? t('autoStartFullHizb', { spots: detail.spots }) : t('autoStartFull')}
-						value={detail.autoStartWhenFull}
-					/>
+					{hasAutoStartToggle ? (
+						<ToggleRow
+							hint={t(isHizb ? 'autoStartHintHizb' : 'autoStartHint')}
+							onValueChange={value => updateGroup.mutate({ autoStartWhenFull: value, groupId })}
+							title={isHizb ? t('autoStartFullHizb', { spots: detail.spots }) : t('autoStartFull')}
+							value={detail.autoStartWhenFull}
+						/>
+					) : null}
 				</CardSurface>
 			</View>
 			{/*
@@ -331,7 +362,6 @@ const styles = StyleSheet.create({
 	},
 	membersRow: {
 		alignItems: 'center',
-		borderBottomWidth: StyleSheet.hairlineWidth,
 		flexDirection: 'row',
 		gap: 10,
 		paddingHorizontal: 15,
@@ -366,6 +396,12 @@ const styles = StyleSheet.create({
 	/*
 	 * The Hizb's state row heads the screen, so it clears the navigator's bar — and gives up
 	 * most of its margin, since the heading under it opens with 8 of its own and HC4 leaves 10.
+	 *
+	 * **By hand, because `ScreenTitle` has nowhere to put this row.** Its eyebrow sits inside
+	 * the text column, left of `action`, at a pinned 14pt; HC4's chip is 22pt and stands at the
+	 * far right, over the mark — a full-width row above the title *and* its action. Owning that
+	 * would be a second layout in the component every screen heads with, for one screen, so
+	 * the row reserves the band itself, as the invite preview's chip row does.
 	 */
 	stateRowUnderBar: {
 		marginBottom: 2,

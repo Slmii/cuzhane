@@ -246,7 +246,7 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 	if (detail.status === 'GATHERING') {
 		return (
 			<ScreenContainer>
-				<LobbySkeleton />
+				<LobbySkeleton kind={detail.kind} />
 			</ScreenContainer>
 		);
 	}

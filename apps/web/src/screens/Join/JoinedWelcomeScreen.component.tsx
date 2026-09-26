@@ -61,11 +61,12 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 	// Nothing is counted until the owner opens day 1, so the range is only a reservation.
 	const isProvisional = detail.status === 'GATHERING';
 	/*
-	 * HJ3 — the Hizb's wait. The same screen with its own noun, and one line more: which of
-	 * the book's works the reserved portions sit in, since "15–16" alone says nothing to
-	 * someone who hasn't learnt the division by number. Nothing is recomputed for it:
-	 * while the group gathers the server derives `myBabNumbers` from the seat alone, which is
-	 * exactly round 0's share — `babNumbersForRound(slot, spots, 0, partCount)`.
+	 * HJ3 — the Hizb's wait, and its welcome into a running group. The same screen with its
+	 * own noun, and one line more in both states: which of the book's works the portions sit
+	 * in, since "15–16" alone says nothing to someone who hasn't learnt the division by
+	 * number. Nothing is recomputed for the wait: while the group gathers the server derives
+	 * `myBabNumbers` from the seat alone, which is exactly round 0's share —
+	 * `babNumbersForRound(slot, spots, 0, partCount)`.
 	 */
 	const isHizb = detail.kind === 'HIZB';
 	const worksLine = isHizb
@@ -73,6 +74,8 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 				.map(work => t(work.titleKey))
 				.join(' · ')
 		: '';
+	// "biri sana atandı" / "An unclaimed portion" — a Hizb seat can hold a single portion.
+	const midSubKey = isHizb ? (babNumbers.length === 1 ? 'midSubHizbOne' : 'midSubHizb') : 'midSub';
 	// While settings are still loading we don't know either way, so fall back to the unset
 	// (ghost button) state rather than flashing the soft-green row and then swapping it out.
 	//
@@ -135,12 +138,12 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 				</View>
 
 				<Header1 style={styles.title} textAlign='center'>
-					{t(isProvisional ? 'lobbyTitle' : 'midTitle')}
+					{t(isProvisional ? 'lobbyTitle' : isHizb ? 'midTitleHizb' : 'midTitle')}
 				</Header1>
 				<BodyText color={theme.colors.subtext} style={styles.sub} textAlign='center'>
 					{isProvisional
 						? t(isHizb ? 'lobbySubHizb' : 'lobbySub')
-						: t('midSub', { count: babNumbers.length })}
+						: t(midSubKey, { count: babNumbers.length })}
 				</BodyText>
 
 				{isProvisional ? (
@@ -192,7 +195,7 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 				) : (
 					<CardSurface style={styles.rangeCard}>
 						<EyebrowText color={theme.colors.subtext} textAlign='center'>
-							{t('yourRange')}
+							{t(isHizb ? 'yourPortions' : 'yourRange')}
 						</EyebrowText>
 						{/*
 						 * The numbers themselves, not anonymous pills: these came out of the pool,
@@ -218,6 +221,11 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 								</View>
 							))}
 						</View>
+						{worksLine ? (
+							<CaptionText color={theme.colors.subtext} style={styles.works} textAlign='center'>
+								{worksLine}
+							</CaptionText>
+						) : null}
 						{/*
 						 * Both clocks, as everywhere else the reset is stated. The reset is a
 						 * group-wide fact on the creator's zone, so for anyone in another one the

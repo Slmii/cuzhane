@@ -1,3 +1,4 @@
+import { DetailsCard } from '@/components/DetailsCard/DetailsCard.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { InvitePreviewSkeleton } from './InvitePreviewSkeleton.component';
 import { SCREEN_TITLE_PADDING_UNDER_BAR } from '@/components/ScreenTitle/ScreenTitle.component';
@@ -167,31 +168,42 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 					) : null}
 
 					{/* No "round ends" row here, unlike 03b — it only matters to someone who is
-					    about to start reading. */}
-					<CardSurface isFlush style={styles.metaCard}>
-						{[
-							{ label: t('cadence'), value: cadenceValue },
-							...(isHizb ? [{ label: t('readingPlan'), value: t(planLabelKey(data.splitMode)) }] : []),
-							{ label: t('groupSize'), value: `${data.memberCount} / ${data.spots}` },
-							{ label: t('createdBy'), value: data.createdByName }
-						].map((row, index, rows) => (
-							<View
-								key={row.label}
-								style={[
-									styles.metaRow,
-									index < rows.length - 1
-										? {
-												borderBottomColor: theme.colors.divider,
-												borderBottomWidth: StyleSheet.hairlineWidth
-										  }
-										: null
-								]}
-							>
-								<CaptionText color={theme.colors.subtext}>{row.label}</CaptionText>
-								<CaptionText weight='semibold'>{row.value}</CaptionText>
-							</View>
-						))}
-					</CardSurface>
+					    about to start reading. HJ2 adds the plan and names the Ritim's day. */}
+					{isHizb ? (
+						<DetailsCard
+							rows={[
+								{ label: t('cadence'), value: cadenceValue },
+								{ label: t('readingPlan'), value: t(planLabelKey(data.splitMode)) },
+								{ label: t('groupSize'), value: `${data.memberCount} / ${data.spots}` },
+								{ label: t('createdBy'), value: data.createdByName }
+							]}
+							style={styles.metaCard}
+						/>
+					) : (
+						<CardSurface isFlush style={styles.metaCard}>
+							{[
+								{ label: t('cadence'), value: t(cycleLabelKey(data.cycle)) },
+								{ label: t('groupSize'), value: `${data.memberCount} / ${data.spots}` },
+								{ label: t('createdBy'), value: data.createdByName }
+							].map((row, index, rows) => (
+								<View
+									key={row.label}
+									style={[
+										styles.metaRow,
+										index < rows.length - 1
+											? {
+													borderBottomColor: theme.colors.divider,
+													borderBottomWidth: StyleSheet.hairlineWidth
+											  }
+											: null
+									]}
+								>
+									<CaptionText color={theme.colors.subtext}>{row.label}</CaptionText>
+									<CaptionText weight='semibold'>{row.value}</CaptionText>
+								</View>
+							))}
+						</CardSurface>
+					)}
 				</View>
 				<View style={styles.footer}>
 					{/* One way out, and it is forward: back to the groups you could join. */}
@@ -217,6 +229,12 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 		: [data.dedication, t(splitModeLabelKey(data.splitMode))].filter(Boolean).join(' · ');
 	// What a joiner would actually be handed: their seat's share, capped by what's unclaimed.
 	const shareSize = data.nextRange ? data.nextRange.end - data.nextRange.start + 1 : 0;
+	// A Hizb seat can hold a single portion, which English and Dutch can't say with "these {count}".
+	const joinRangeNoteKey = isHizb
+		? shareSize === 1
+			? 'joinRangeNoteHizbOne'
+			: 'joinRangeNoteHizb'
+		: 'joinRangeNote';
 	// The seat's own block, spelled out. This is what a joiner is actually handed, and it
 	// exists whenever a seat is free — unlike `poolBabNumbers`, which carries only the part
 	// nobody has volunteered for and comes back empty in a group whose free seats have all
@@ -332,7 +350,10 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 							</View>
 							<ProgressBar percent={data.percent} style={styles.sectionBar} />
 							<CaptionText color={theme.colors.subtext}>
-								{t('inProgressNote', { day: data.roundDayIndex ?? 1, read: data.readCount })}
+								{t(isHizb ? 'inProgressNoteHizb' : 'inProgressNote', {
+									day: data.roundDayIndex ?? 1,
+									read: data.readCount
+								})}
 							</CaptionText>
 						</CardSurface>
 
@@ -351,13 +372,15 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 						{shownRows.length > 0 ? (
 							<CardSurface style={styles.sectionCard}>
 								<View style={styles.sectionHead}>
-									<EyebrowText color={theme.colors.faintText}>{t('yourRange')}</EyebrowText>
+									<EyebrowText color={theme.colors.faintText}>
+										{t(isHizb ? 'yourPortions' : 'yourRange')}
+									</EyebrowText>
 									{/* Not a second count of the chips below — every bab sitting in
 									    an empty seat, which is the group's state rather than your
 									    share, and includes the block you are about to take. The
 									    same number its Havuz screen shows. */}
 									<CaptionText color={theme.colors.accent}>
-										{t('unclaimedCount', { count: shownPoolCount })}
+										{t(isHizb ? 'unclaimedCountHizb' : 'unclaimedCount', { count: shownPoolCount })}
 									</CaptionText>
 								</View>
 								{/*
@@ -398,7 +421,7 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 									))}
 								</View>
 								<CaptionText color={theme.colors.subtext} style={styles.sectionNote}>
-									{t('joinRangeNote', { count: shareSize })}
+									{t(joinRangeNoteKey, { count: shareSize })}
 								</CaptionText>
 							</CardSurface>
 						) : null}

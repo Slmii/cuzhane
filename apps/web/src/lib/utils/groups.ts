@@ -304,20 +304,19 @@ export type PlanPreviewRow = {
  */
 export const movesEachRound = (splitMode: GroupSplitMode, spots: number) => splitMode === 'ROTATION' && spots > 1;
 
-/** The widest a Hizb lobby's seat row gets — a third of the 33 seats it can hold. */
+/** The narrowest and widest a Hizb lobby's seat row gets. */
+const HIZB_SEAT_COLUMNS_MIN = 8;
 const HIZB_SEAT_COLUMNS_MAX = 11;
 
 /**
- * How many columns the Hizb lobby's seat lattice (HC4) lays its seats out in.
- *
- * Up to ten seats keep the ten-wide row the Cevşen's lobby always has. Past that the rows are
- * **balanced**, at most eleven wide: HC4 draws sixteen as two rows of eight, and the full 33
- * comes out as three of eleven. A fixed width would leave a ragged last row — sixteen across
- * eleven is a row and a stub of five — and an empty stretch of lattice reads as seats that
- * are missing rather than seats that were never there.
+ * How many columns the Hizb lobby's seat lattice (HC4) lays its seats out in: ten up to ten
+ * seats — the Cevşen lobby's row — and past that as few rows as eleven columns allow, evened
+ * out across them, but never narrower than eight. HC4 draws sixteen as two rows of eight and
+ * the full 33 comes out as three of eleven; the floor is what keeps a cell from ballooning
+ * where evening out alone would halve the width (twelve seats as two rows of six).
  */
 export const hizbSeatColumns = (spots: number) =>
-	spots <= 10 ? 10 : Math.ceil(spots / Math.ceil(spots / HIZB_SEAT_COLUMNS_MAX));
+	spots <= 10 ? 10 : Math.max(HIZB_SEAT_COLUMNS_MIN, Math.ceil(spots / Math.ceil(spots / HIZB_SEAT_COLUMNS_MAX)));
 
 /**
  * What `PlanPreview` draws. Under ROTATION, the first `maxRounds` rounds of one seat — never more

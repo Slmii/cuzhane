@@ -771,7 +771,8 @@ const tr = {
 	startNowHizb: 'Şimdi başlat',
 	startHintHizb: 'Tur 1 bu an başlar. Sayım o ana kadar açılmaz.',
 	hizbPerPerson: 'kişi başı {count} bölüm',
-	// Its own line so English and Dutch can say "1 portion" — see `perPersonHizbOne`.
+	// Its own line so English and Dutch can say "1 portion", as the create sheet's caption
+	// does with its own `One` line (`perPersonHizbOne`, further down).
 	hizbPerPersonOne: 'kişi başı 1 bölüm',
 	spotsRemaining: '{count} yer kaldı',
 	// A group that waits for its creator alone — `startsNote` promises the full-group start too.
@@ -784,6 +785,14 @@ const tr = {
 	yourPortions: 'Bölümlerin',
 	lobbySubHizb: 'Bölümlerin hazır. Grup başlayınca açılır.',
 	morePeople: '{count} kişi daha',
+	// The same screens once the group is running — the Cevşen's lines count babs.
+	inProgressNoteHizb: 'Tur {day}. gününde · {read} bölüm okundu',
+	unclaimedCountHizb: '{count} bölüm sahipsiz',
+	joinRangeNoteHizb: 'Şimdi katılırsan bu {count} bölüm bu tur senin olur.',
+	joinRangeNoteHizbOne: 'Şimdi katılırsan bu bölüm bu tur senin olur.',
+	midTitleHizb: 'Katıldın — bölümlerin hazır',
+	midSubHizb: 'Boşta kalan bölümlerden {count} tanesi sana atandı.',
+	midSubHizbOne: 'Boşta kalan bölümlerden biri sana atandı.',
 
 	// App-specific copy the static design never has to spell out:
 	// validation, error/empty states and parameterised variants.
@@ -1588,6 +1597,13 @@ const en: Strings = {
 	yourPortions: 'Your portions',
 	lobbySubHizb: 'Your portions are ready. They unlock when the group starts.',
 	morePeople: '{count} more to go',
+	inProgressNoteHizb: 'Day {day} of the round · {read} read so far',
+	unclaimedCountHizb: '{count} unclaimed',
+	joinRangeNoteHizb: 'Join now and these {count} portions are yours for this round.',
+	joinRangeNoteHizbOne: 'Join now and this portion is yours for this round.',
+	midTitleHizb: "You're in — your portions are ready",
+	midSubHizb: '{count} unclaimed portions were assigned to you.',
+	midSubHizbOne: 'An unclaimed portion was assigned to you.',
 
 	// App-specific copy the static design never has to spell out:
 	// validation, error/empty states and parameterised variants.
@@ -2358,6 +2374,13 @@ const nl: Strings = {
 	yourPortions: 'Jouw gedeelten',
 	lobbySubHizb: 'Je gedeelten staan klaar. Ze gaan open zodra de groep start.',
 	morePeople: 'nog {count} te gaan',
+	inProgressNoteHizb: 'Dag {day} van de ronde · {read} al gelezen',
+	unclaimedCountHizb: '{count} zonder eigenaar',
+	joinRangeNoteHizb: 'Als je nu meedoet, zijn deze {count} gedeelten deze ronde van jou.',
+	joinRangeNoteHizbOne: 'Als je nu meedoet, is dit gedeelte deze ronde van jou.',
+	midTitleHizb: 'Je bent erbij — je gedeelten zijn klaar',
+	midSubHizb: 'Er zijn {count} vrije gedeelten aan jou toegewezen.',
+	midSubHizbOne: 'Er is 1 vrij gedeelte aan jou toegewezen.',
 	membersTitle: 'Leden',
 	save: 'Opslaan',
 	close: 'Sluiten',

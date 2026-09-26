@@ -284,15 +284,19 @@ describe('hizbSeatColumns', () => {
 		expect(hizbSeatColumns(33)).toBe(11);
 	});
 
-	it('never runs wider than eleven, and balances the rows it needs', () => {
-		for (let spots = 11; spots <= 33; spots += 1) {
-			const columns = hizbSeatColumns(spots);
-			const rows = Math.ceil(spots / columns);
+	it('evens the rows out without going narrower than eight', () => {
+		expect(hizbSeatColumns(11)).toBe(11);
+		// Evened out alone these would be two rows of six and three rows of eight — the floor
+		// holds the first at eight rather than letting the cells double in size.
+		expect(hizbSeatColumns(12)).toBe(8);
+		expect(hizbSeatColumns(23)).toBe(8);
+		expect(hizbSeatColumns(17)).toBe(9);
+	});
 
-			expect(columns).toBeLessThanOrEqual(11);
-			// Balanced: fewer empty cells than rows, which a fixed eleven-wide lattice cannot
-			// promise — sixteen seats across eleven would leave six.
-			expect(rows * columns - spots).toBeLessThan(rows);
+	it('stays between eight and eleven columns for every size a Hizb group can have', () => {
+		for (let spots = 1; spots <= 33; spots += 1) {
+			expect(hizbSeatColumns(spots)).toBeGreaterThanOrEqual(8);
+			expect(hizbSeatColumns(spots)).toBeLessThanOrEqual(11);
 		}
 	});
 });
