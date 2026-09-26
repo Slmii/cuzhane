@@ -212,8 +212,12 @@ const areCellPropsEqual = (previous: CellProps, next: CellProps) =>
  * holds if `items` and `onPressCell` keep their identity between renders, so build them
  * with `useMemo` / `useCallback` rather than inline in the JSX — an inline `.map` hands
  * every cell a new object each render and quietly undoes this.
+ *
+ * Exported for the one board that is not a square lattice — the Hizb's, a row of cells per
+ * work (`HizbBoard`) — so its cells are these cells, with the same easing and the same
+ * rules about the hatch, rather than a second copy that could drift from them.
  */
-const Cell = memo(({ borderWidth, isReducedMotion, item, onPress, radius, size }: CellProps) => {
+export const Cell = memo(({ borderWidth, isReducedMotion, item, onPress, radius, size }: CellProps) => {
 	/*
 	 * Whether this cell has ever been hatched, which is what decides if it carries a `Hatch`
 	 * at all. Kept rather than read from `item` directly so that a cell losing its hatch —

@@ -6,7 +6,9 @@ import {
 	cycleLabelKey,
 	cycleOptionsFor,
 	emptyBabCells,
+	hizbBoardCells,
 	hizbSeatColumns,
+	hizbShareLabel,
 	movesEachRound,
 	partLabelKey,
 	partUnitKey,
@@ -298,5 +300,87 @@ describe('hizbSeatColumns', () => {
 			expect(hizbSeatColumns(spots)).toBeGreaterThanOrEqual(8);
 			expect(hizbSeatColumns(spots)).toBeLessThanOrEqual(11);
 		}
+	});
+});
+
+describe('hizbBoardCells', () => {
+	const group = (overrides: { myBabNumbers?: number[]; poolBabNumbers?: number[] } = {}) => ({
+		myBabNumbers: [],
+		poolBabNumbers: [],
+		...overrides
+	});
+
+	it('marks a read portion read, whoever read it', () => {
+		const cells = hizbBoardCells(
+			[bab({ number: 4, readAt: '2026-09-26T10:00:00Z', readByUserId: OTHER })],
+			group()
+		);
+
+		expect(cells).toEqual([{ isMine: false, number: 4, state: 'read' }]);
+	});
+
+	it("marks an unread portion of somebody's seat taken", () => {
+		expect(hizbBoardCells([bab({ number: 9 })], group())).toEqual([{ isMine: false, number: 9, state: 'taken' }]);
+	});
+
+	it('marks an unclaimed pool portion pool', () => {
+		expect(hizbBoardCells([bab({ number: 24 })], group({ poolBabNumbers: [24] }))).toEqual([
+			{ isMine: false, number: 24, state: 'pool' }
+		]);
+	});
+
+	it('rings a pool portion the viewer claimed, and counts it taken', () => {
+		// The server lists a claim in `myBabNumbers` and drops it from `poolBabNumbers`.
+		const cells = hizbBoardCells([bab({ assignedUserId: ME, number: 31 })], group({ myBabNumbers: [31] }));
+
+		expect(cells).toEqual([{ isMine: true, number: 31, state: 'taken' }]);
+	});
+
+	it('counts a pool portion somebody else claimed taken, without the ring', () => {
+		expect(hizbBoardCells([bab({ assignedUserId: OTHER, number: 31 })], group())).toEqual([
+			{ isMine: false, number: 31, state: 'taken' }
+		]);
+	});
+
+	it('takes a claim off the pool even before the pool list catches up', () => {
+		const cells = hizbBoardCells([bab({ assignedUserId: OTHER, number: 24 })], group({ poolBabNumbers: [24] }));
+
+		expect(cells).toEqual([{ isMine: false, number: 24, state: 'taken' }]);
+	});
+
+	it('rings my share whether or not it is read', () => {
+		const cells = hizbBoardCells(
+			[bab({ number: 15 }), bab({ number: 16, readAt: '2026-09-26T10:00:00Z', readByUserId: ME })],
+			group({ myBabNumbers: [15, 16] })
+		);
+
+		expect(cells).toEqual([
+			{ isMine: true, number: 15, state: 'taken' },
+			{ isMine: true, number: 16, state: 'read' }
+		]);
+	});
+
+	it('orders the cells by portion, whatever order the board arrives in', () => {
+		const cells = hizbBoardCells([bab({ number: 3 }), bab({ number: 1 }), bab({ number: 2 })], group());
+
+		expect(cells.map(cell => cell.number)).toEqual([1, 2, 3]);
+	});
+});
+
+describe('hizbShareLabel', () => {
+	it('names one or two portions by number, as HZ1 does', () => {
+		expect(hizbShareLabel([7], 'bölüm')).toBe('7');
+		expect(hizbShareLabel([15, 16], 'bölüm')).toBe('15 · 16');
+		// Not a range: two portions apart are still just their two numbers.
+		expect(hizbShareLabel([15, 24], 'bölüm')).toBe('15 · 24');
+	});
+
+	it('counts a share of more than two', () => {
+		expect(hizbShareLabel([14, 15, 16], 'bölüm')).toBe('3 bölüm');
+		expect(hizbShareLabel([1, 2, 3, 4, 5, 6, 7], 'portions')).toBe('7 portions');
+	});
+
+	it('draws a dash for no share at all', () => {
+		expect(hizbShareLabel([], 'bölüm')).toBe('—');
 	});
 });

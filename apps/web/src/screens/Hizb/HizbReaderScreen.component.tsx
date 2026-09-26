@@ -1,6 +1,7 @@
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CaptionText, EyebrowText, Typography } from '@/components/ui/Typography/Typography.component';
 import { READER_FONT_SIZE_DEFAULT } from '@/lib/content/cevsen';
+import { portion } from '@/lib/content/hizbPortions';
 import { firstBlockOfSection, HIZB_BLOCKS, HIZB_SECTIONS, pageRangeOf } from '@/lib/content/hizbulhakaik';
 import { useGetUserSettings, useUpdateUserSettings } from '@/lib/hooks/useUserSettings';
 import { useTranslation } from '@/lib/i18n/I18n.context';
@@ -27,6 +28,25 @@ const NOTHING: number[] = [];
 const CEVSEN_TITLE = 'Cevşen-ül Kebir';
 
 /**
+ * Where the cursor starts: a section from the list at its first block, a group's portion at
+ * the block it begins in.
+ *
+ * **A portion opens here as free reading, for now.** The group's own reader — the portion's
+ * text alone, and marking it read — is still to be built; until it is, "Oku" on the group
+ * screen lands on the right page of the whole text, and nothing here is counted, which is
+ * what this screen's footer already says.
+ */
+const initialCursor = (params: TabStackParamList['HizbReader']) => {
+	if ('sectionIndex' in params) {
+		return firstBlockOfSection(params.sectionIndex);
+	}
+
+	const { start } = portion(params.partNumber);
+
+	return firstBlockOfSection(start.section) + (start.block ?? 0);
+};
+
+/**
  * The Hizb-ül Hakaik, read the way `AllBabsScreen` reads the Cevşen: one block to a page, a
  * strip across the header to move within the section, Önceki / Sonraki underneath.
  *
@@ -47,7 +67,7 @@ export const HizbReaderScreen = ({ navigation, route }: Props) => {
 	const updateSettings = useUpdateUserSettings();
 	const textSize = textSizeSheet(navigation, route.params);
 
-	const [cursor, setCursor] = useState(() => firstBlockOfSection(route.params.sectionIndex));
+	const [cursor, setCursor] = useState(() => initialCursor(route.params));
 	const current = HIZB_BLOCKS[cursor] ?? HIZB_BLOCKS[0];
 	const section = HIZB_SECTIONS[current.sectionIndex];
 	const sectionStart = firstBlockOfSection(current.sectionIndex);

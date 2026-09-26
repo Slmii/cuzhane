@@ -1,3 +1,4 @@
+import { HizbBoardSkeleton } from '@/components/HizbBoard/HizbBoardSkeleton.component';
 import { MyProgressCardSkeleton } from '@/components/MyProgressCard/MyProgressCardSkeleton.component';
 import { SCREEN_TITLE_PADDING_UNDER_BAR } from '@/components/ScreenTitle/ScreenTitle.component';
 import { Bone } from '@/components/Skeleton/Skeleton.component';
@@ -6,11 +7,19 @@ import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { toAlphaColor } from '@/lib/theme/tokens';
+import type { GroupKind } from '@/lib/types/domain';
 import { StyleSheet, View } from 'react-native';
 
 /** `skCells` — a partial lattice, not the hundred: the pool card shows what is left. */
 const POOL_CELL_COUNT = 15;
 const POOL_COLUMNS = 10;
+/** HZ1's open panel shows a share of two; the bones do the same. */
+const HIZB_ROW_COUNT = 2;
+
+type Props = {
+	/** Which book's screen this stands in for — seeded from the shelf, the Cevşen's without one. */
+	kind?: GroupKind;
+};
 
 /**
  * D15 · Grup yükleniyor — üye görünümü.
@@ -20,10 +29,11 @@ const POOL_COLUMNS = 10;
  * placeholder there would have the page appear to change colour when the data lands rather
  * than simply fill in.
  */
-export const GroupDetailSkeleton = () => {
+export const GroupDetailSkeleton = ({ kind = 'CEVSEN' }: Props) => {
 	const { t } = useTranslation();
 	const { theme } = useThemeContext();
 	const divider = theme.colors.divider;
+	const isHizb = kind === 'HIZB';
 
 	return (
 		<View>
@@ -36,11 +46,28 @@ export const GroupDetailSkeleton = () => {
 			 * replaced them, so the page shifted as it arrived.
 			 */}
 			<View style={styles.header}>
-				<View style={styles.headerRow}>
-					<Bone height={20} radius={9} width={168} />
-					<Bone height={20} radius={6} tone='soft' width={62} />
-				</View>
-				<Bone height={9} radius={4.5} style={styles.headerCaption} tone='soft' width={132} />
+				{isHizb ? (
+					// HZ1's heading carries the book's mark at its right, beside the name and the
+					// round line together, where the Cevşen's has nothing.
+					<View style={styles.headerRow}>
+						<View>
+							<View style={styles.headerTitleRow}>
+								<Bone height={20} radius={9} width={150} />
+								<Bone height={20} radius={6} tone='soft' width={62} />
+							</View>
+							<Bone height={9} radius={4.5} style={styles.headerCaption} tone='soft' width={112} />
+						</View>
+						<Bone height={44} radius={22} width={44} />
+					</View>
+				) : (
+					<>
+						<View style={styles.headerRow}>
+							<Bone height={20} radius={9} width={168} />
+							<Bone height={20} radius={6} tone='soft' width={62} />
+						</View>
+						<Bone height={9} radius={4.5} style={styles.headerCaption} tone='soft' width={132} />
+					</>
+				)}
 			</View>
 
 			<CardSurface isFlush style={styles.statsCard}>
@@ -64,30 +91,80 @@ export const GroupDetailSkeleton = () => {
 			<MyProgressCardSkeleton />
 
 			{/* Matches the real panel's closed state, which keeps its sage fill rather than glass. */}
-			<CardSurface
-				hasGlassSurface={false}
-				isFlush
-				style={[styles.assignedPanel, { backgroundColor: theme.colors.accentSoft }]}
-			>
-				<View style={styles.assignedLeading}>
-					<View
-						style={[styles.assignedBadge, { backgroundColor: toAlphaColor(theme.colors.accent, 0.22) }]}
-					/>
-					<View style={[styles.assignedChip, { backgroundColor: toAlphaColor(theme.colors.accent, 0.14) }]} />
-				</View>
-				<View style={styles.assignedCopy}>
-					<View
-						style={[styles.assignedLineTop, { backgroundColor: toAlphaColor(theme.colors.accent, 0.18) }]}
-					/>
+			{isHizb ? (
+				// The Hizb's panel opens by default, so its bones are the open card: the sage header
+				// over a share of rows, each a checkbox, a title and its description, and "Oku".
+				<CardSurface isFlush style={styles.hizbPanel}>
 					<View
 						style={[
-							styles.assignedLineBottom,
-							{ backgroundColor: toAlphaColor(theme.colors.accent, 0.13) }
+							styles.hizbPanelHeader,
+							{ backgroundColor: theme.colors.accentSoft, borderBottomColor: divider }
 						]}
-					/>
-				</View>
-				<View style={[styles.assignedMeta, { backgroundColor: toAlphaColor(theme.colors.accent, 0.18) }]} />
-			</CardSurface>
+					>
+						<View
+							style={[styles.assignedBadge, { backgroundColor: toAlphaColor(theme.colors.accent, 0.22) }]}
+						/>
+						<View style={styles.assignedCopy}>
+							<View
+								style={[
+									styles.assignedLineTop,
+									{ backgroundColor: toAlphaColor(theme.colors.accent, 0.18) }
+								]}
+							/>
+							<View
+								style={[
+									styles.assignedLineBottom,
+									{ backgroundColor: toAlphaColor(theme.colors.accent, 0.13) }
+								]}
+							/>
+						</View>
+						<View
+							style={[styles.assignedMeta, { backgroundColor: toAlphaColor(theme.colors.accent, 0.18) }]}
+						/>
+					</View>
+					{Array.from({ length: HIZB_ROW_COUNT }, (_, index) => (
+						<View key={index} style={[styles.hizbRow, { borderBottomColor: divider }]}>
+							<Bone height={26} radius={9} width={26} />
+							<View style={styles.hizbRowCopy}>
+								<Bone height={9} radius={4.5} width='60%' />
+								<Bone height={8} radius={4} tone='soft' width='92%' />
+								<Bone height={8} radius={4} tone='soft' width='56%' />
+							</View>
+							<Bone height={30} radius={8} tone='soft' width={46} />
+						</View>
+					))}
+				</CardSurface>
+			) : (
+				<CardSurface
+					hasGlassSurface={false}
+					isFlush
+					style={[styles.assignedPanel, { backgroundColor: theme.colors.accentSoft }]}
+				>
+					<View style={styles.assignedLeading}>
+						<View
+							style={[styles.assignedBadge, { backgroundColor: toAlphaColor(theme.colors.accent, 0.22) }]}
+						/>
+						<View
+							style={[styles.assignedChip, { backgroundColor: toAlphaColor(theme.colors.accent, 0.14) }]}
+						/>
+					</View>
+					<View style={styles.assignedCopy}>
+						<View
+							style={[
+								styles.assignedLineTop,
+								{ backgroundColor: toAlphaColor(theme.colors.accent, 0.18) }
+							]}
+						/>
+						<View
+							style={[
+								styles.assignedLineBottom,
+								{ backgroundColor: toAlphaColor(theme.colors.accent, 0.13) }
+							]}
+						/>
+					</View>
+					<View style={[styles.assignedMeta, { backgroundColor: toAlphaColor(theme.colors.accent, 0.18) }]} />
+				</CardSurface>
+			)}
 
 			<CardSurface style={styles.lastRoundCard}>
 				<Bone height={40} radius={13} width={40} />
@@ -98,28 +175,33 @@ export const GroupDetailSkeleton = () => {
 				<Bone height={14} radius={3} tone='soft' width={8} />
 			</CardSurface>
 
-			<CardSurface isFlush style={styles.poolCard}>
-				<View style={[styles.poolHeader, { borderBottomColor: divider }]}>
-					<Bone height={14} radius={6} width={62} />
-					<Bone height={8} radius={4} tone='soft' width={70} />
-				</View>
-				<View style={styles.poolBody}>
-					<View style={styles.poolGrid}>
-						{Array.from({ length: POOL_CELL_COUNT }, (_, index) => (
-							<View key={index} style={styles.poolSlot}>
-								<Bone height={undefined} radius={4} style={styles.poolCell} />
-							</View>
-						))}
-						{/* Keeps the short last row's cells the width of a full one. */}
-						{Array.from(
-							{ length: (POOL_COLUMNS - (POOL_CELL_COUNT % POOL_COLUMNS)) % POOL_COLUMNS },
-							(_, index) => (
-								<View key={`spacer-${index}`} style={styles.poolSlot} />
-							)
-						)}
+			{isHizb ? (
+				// The board, in its own frame — the Cevşen's stand-in is the pool card's lattice.
+				<HizbBoardSkeleton style={styles.poolCard} />
+			) : (
+				<CardSurface isFlush style={styles.poolCard}>
+					<View style={[styles.poolHeader, { borderBottomColor: divider }]}>
+						<Bone height={14} radius={6} width={62} />
+						<Bone height={8} radius={4} tone='soft' width={70} />
 					</View>
-				</View>
-			</CardSurface>
+					<View style={styles.poolBody}>
+						<View style={styles.poolGrid}>
+							{Array.from({ length: POOL_CELL_COUNT }, (_, index) => (
+								<View key={index} style={styles.poolSlot}>
+									<Bone height={undefined} radius={4} style={styles.poolCell} />
+								</View>
+							))}
+							{/* Keeps the short last row's cells the width of a full one. */}
+							{Array.from(
+								{ length: (POOL_COLUMNS - (POOL_CELL_COUNT % POOL_COLUMNS)) % POOL_COLUMNS },
+								(_, index) => (
+									<View key={`spacer-${index}`} style={styles.poolSlot} />
+								)
+							)}
+						</View>
+					</View>
+				</CardSurface>
+			)}
 
 			<SkeletonStatusRow label={t('loadingGroup')} />
 		</View>
@@ -190,6 +272,35 @@ const styles = StyleSheet.create({
 		flexDirection: 'row',
 		gap: 12,
 		justifyContent: 'space-between'
+	},
+	headerTitleRow: {
+		flexDirection: 'row',
+		gap: 9
+	},
+	hizbPanel: {
+		marginBottom: 12,
+		marginTop: 12
+	},
+	hizbPanelHeader: {
+		alignItems: 'center',
+		borderBottomWidth: 1,
+		flexDirection: 'row',
+		gap: 13,
+		paddingHorizontal: 16,
+		paddingVertical: 14
+	},
+	hizbRow: {
+		alignItems: 'center',
+		borderBottomWidth: 1,
+		flexDirection: 'row',
+		gap: 13,
+		paddingHorizontal: 16,
+		paddingVertical: 13
+	},
+	hizbRowCopy: {
+		flex: 1,
+		gap: 6,
+		minWidth: 0
 	},
 	lastRoundCard: {
 		alignItems: 'center',

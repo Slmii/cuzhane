@@ -76,11 +76,15 @@ export type TabDetailParamList = {
 	ReleaseNotes: undefined;
 	/** The Hizb-ül Hakaik's table of contents, from a row on Profil; a row opens `HizbReader`. */
 	HizbSections: undefined;
-	/** One section of the Hizb-ül Hakaik, by its index in `HIZB_SECTIONS`. */
-	HizbReader: {
-		sectionIndex: number;
-		shouldOpenTextSize?: boolean;
-	};
+	/**
+	 * The Hizb-ül Hakaik. `sectionIndex` is free reading, one section of `HIZB_SECTIONS` from
+	 * the list on Profil. `groupId` + `partNumber` is a Hizb group's portion, opened from its
+	 * group screen; `roundIndex`, as on `BabReader`, would put it in cover mode for a closed
+	 * round. `shouldOpenTextSize` as on `BabReader`, in either shape.
+	 */
+	HizbReader:
+		| { sectionIndex: number; shouldOpenTextSize?: boolean }
+		| { groupId: string; partNumber: number; roundIndex?: number; shouldOpenTextSize?: boolean };
 	Profile: undefined;
 	/** Android only: search is pushed from the bar's magnifier rather than being a tab. */
 	Search: undefined;

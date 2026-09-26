@@ -2,7 +2,14 @@ import type { BabCellState } from '@/components/BabGrid/BabGrid.types';
 import type { ChipTone } from '@/components/ui/Chip/Chip.types';
 import type { IconName } from '@/components/ui/Icon/Icon.types';
 import type { StringKey } from '@/lib/i18n/strings';
-import type { GroupBab, GroupCycle, GroupKind, GroupSplitMode, GroupVisibility } from '@/lib/types/domain';
+import type {
+	GroupBab,
+	GroupCycle,
+	GroupKind,
+	GroupSplitMode,
+	GroupSummary,
+	GroupVisibility
+} from '@/lib/types/domain';
 import { babRuns, formatRun, rangeForRound, rangeForSlot } from '@/lib/utils/babs';
 import { CYCLES_FOR_KIND } from '@/lib/utils/groupKinds';
 
@@ -276,6 +283,63 @@ export const shareSlices = (babNumbers: number[], nextBabNumber: number | null):
 	return current === undefined
 		? { current: '—', moreCount: 0 }
 		: { current: formatRun(current), moreCount: runs.length - 1 };
+};
+
+/**
+ * A portion's state on the Hizb board (HZ1) — three, and a ring on top.
+ *
+ * The Cevşen board splits a read by *who* read it; this one asks only what the group has done
+ * with each portion this round: read, held by someone (a seat's block, or a pool portion
+ * somebody volunteered for), or still sitting in the pool with nobody on it. Whether it is the
+ * viewer's is a separate fact, because it is drawn as a separate mark — a ring over whichever of
+ * the three it is.
+ */
+export type HizbBoardCellState = 'read' | 'taken' | 'pool';
+
+export type HizbBoardCell = {
+	number: number;
+	state: HizbBoardCellState;
+	/** In the viewer's share this round, their own pool claims included — the ring. */
+	isMine: boolean;
+};
+
+/**
+ * The Hizb board's cells, in portion order.
+ *
+ * "Mine" is the server's `myBabNumbers`, which already carries the viewer's pool claims, so a
+ * claimed pool portion wears the ring as their own seat's do. The pool is `poolBabNumbers` —
+ * the unclaimed part, as on the Cevşen board — and a portion that arrives on the board with a
+ * name on it is taken whatever that list says: the two come from different queries, and a
+ * claim landing on the board before the group refetches must not keep wearing the hatch.
+ */
+export const hizbBoardCells = (
+	babs: GroupBab[],
+	group: Pick<GroupSummary, 'myBabNumbers' | 'poolBabNumbers'>
+): HizbBoardCell[] => {
+	const mine = new Set(group.myBabNumbers);
+	const pool = new Set(group.poolBabNumbers);
+
+	return [...babs]
+		.sort((a, b) => a.number - b.number)
+		.map(bab => ({
+			isMine: mine.has(bab.number),
+			number: bab.number,
+			state: bab.readAt !== null ? 'read' : pool.has(bab.number) && bab.assignedUserId === null ? 'pool' : 'taken'
+		}));
+};
+
+/**
+ * The accent tile on the Hizb's "Bu tur bölümün" panel, as HZ1 writes it: one or two portions
+ * by number — "7", "15 · 16" — and past two, how many. A Hizb share is short and often broken
+ * (a seat's block plus a pool portion or two), so "15 · 16 · 24" is spelled out nowhere; the
+ * rows under the tile name every one of them.
+ */
+export const hizbShareLabel = (partNumbers: number[], unit: string): string => {
+	if (partNumbers.length === 0) {
+		return '—';
+	}
+
+	return partNumbers.length <= 2 ? partNumbers.join(' · ') : `${partNumbers.length} ${unit}`;
 };
 
 /** Placeholder board for the loading state so the card doesn't jump when data lands — one cell per part. */
