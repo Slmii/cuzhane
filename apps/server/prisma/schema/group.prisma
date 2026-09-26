@@ -16,9 +16,15 @@ enum GroupStatus {
     RUNNING
 }
 
+enum GroupKind {
+    CEVSEN
+    HIZB
+}
+
 enum GroupCycle {
     DAILY
     WEEKLY
+    MONTHLY
 }
 
 model Group {
@@ -30,6 +36,7 @@ model Group {
     splitMode         GroupSplitMode  @default(ROTATION)
     status            GroupStatus     @default(GATHERING)
     cycle             GroupCycle      @default(WEEKLY)
+    kind              GroupKind       @default(CEVSEN)
     spots             Int             @default(20)
     inviteCode        String          @unique
     openToJoin        Boolean         @default(true)
