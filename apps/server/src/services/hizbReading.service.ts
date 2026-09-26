@@ -8,7 +8,8 @@ import {
 	hasSekine,
 	isPlanDays,
 	PLAN_VERSION,
-	portionForDay
+	portionForDay,
+	spansFor
 } from '@utils/hizbPlans';
 import { civilDayNumber, startOfCivilDay } from '@utils/rounds';
 import { normalizeUserId } from '@utils/normalizeUserId';
@@ -234,7 +235,32 @@ export async function getHizbState(userId: string, groupId: string, cursor?: str
 					where: { ...mine, day: { lt: today }, completedAt: null }
 				}),
 				completedTraversals,
+				personalProgress: assignment
+					? {
+							day: ((today - assignment.enrollment.joinedDay) % assignment.enrollment.planDays) + 1,
+							total: assignment.enrollment.planDays,
+							completed:
+								completeCycles.find(
+									c =>
+										c.enrollmentId === assignment.enrollmentId &&
+										c.traversal === assignment.traversal
+								)?._count._all ?? 0
+					  }
+					: null,
+				oldestMissedId:
+					(
+						await tx.hizbAssignment.findFirst({
+							where: { ...mine, day: { lt: today }, completedAt: null },
+							orderBy: [{ day: 'asc' }, { id: 'asc' }],
+							select: { id: true }
+						})
+					)?.id ?? null,
 				coverage: coverage(today),
+				coveredSpans: [
+					...new Set(
+						reads.filter(a => a.day === today).flatMap(a => spansFor(a.enrollment.planDays, a.portion))
+					)
+				].sort((a, b) => a - b),
 				date: dateOf(today),
 				nextDayAt: startOfCivilDay(today + 1, group.timezone).toISOString(),
 				dailyHistory: Array.from({ length: Math.min(30, today - anchor + 1) }, (_, i) => ({

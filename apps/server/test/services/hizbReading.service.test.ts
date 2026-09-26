@@ -3,6 +3,7 @@ import { CreateGroupBodySchema } from '@schemas/group.schema';
 import { createGroupForUser } from '@services/groups.service';
 import { joinGroupForUser, leaveGroupForUser } from '@services/groupMembership.service';
 import { enrollHizb, getHizbState, updateHizbAssignment } from '@services/hizbReading.service';
+import { spansFor } from '@utils/hizbPlans';
 import { civilDayNumber } from '@utils/rounds';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { assertIsTestDatabase, testDatabaseUrl } from '../support/testDatabase';
@@ -38,15 +39,33 @@ afterAll(async () => {
 });
 
 describe('Hizb personal assignments', () => {
+	it('returns exact daily coverage even after a reader leaves, without including past dates', async () => {
+		const group = await create(33);
+		await prisma.group.update({ where: { id: group.id }, data: { visibility: 'OPEN' } });
+		await joinGroupForUser('reader', 'Reader', group.id);
+		const state = await getHizbState('reader', group.id);
+		await updateHizbAssignment('reader', group.id, state.today!.id, { version: 0, read: true });
+		await leaveGroupForUser('reader', group.id);
+		const after = await getHizbState('owner', group.id);
+		expect(after.coveredSpans).toEqual(spansFor(33, 2));
+		expect(after.coveredSpans.length).toBe(after.coverage.covered);
+		vi.setSystemTime(day(1));
+		expect((await getHizbState('owner', group.id)).coveredSpans).toEqual([]);
+	});
+
 	it('starts immediately, advances through missed days and catches up without moving today', async () => {
 		const group = await create();
 		expect(group.status).toBe('RUNNING');
 		const first = await getHizbState('owner', group.id);
 		expect(first.today?.portion).toBe(1);
+		expect(first.personalProgress).toEqual({ day: 1, total: 7, completed: 0 });
+		expect(first.oldestMissedId).toBeNull();
 		vi.setSystemTime(day(2));
 		const next = await getHizbState('owner', group.id);
 		expect(next.today?.portion).toBe(3);
 		expect(next.missedCount).toBe(2);
+		expect(next.personalProgress).toEqual({ day: 3, total: 7, completed: 0 });
+		expect(next.oldestMissedId).toBe(first.today!.id);
 		await updateHizbAssignment('owner', group.id, first.today!.id, {
 			version: 0,
 			read: true,
@@ -55,7 +74,11 @@ describe('Hizb personal assignments', () => {
 		const caught = await getHizbState('owner', group.id);
 		expect(caught.today?.portion).toBe(3);
 		expect(caught.missedCount).toBe(1);
+		expect(caught.personalProgress).toEqual({ day: 3, total: 7, completed: 1 });
+		expect(caught.oldestMissedId).not.toBe(first.today!.id);
 		expect(caught.completedTraversals).toBe(0);
+		vi.setSystemTime(day(7));
+		expect((await getHizbState('owner', group.id)).personalProgress).toEqual({ day: 1, total: 7, completed: 0 });
 	});
 	it('allows unlimited members, preserves personal ownership, and appends after a departure', async () => {
 		const group = await create();

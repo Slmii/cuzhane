@@ -32,6 +32,10 @@ export type HizbReadingState = {
 	nextCursor: string | null;
 	missedCount: number;
 	completedTraversals: number;
+	personalProgress?: { day: number; total: number; completed: number } | null;
+	oldestMissedId?: string | null;
+	/** Optional while the API update rolls out; never infer coverage from active members alone. */
+	coveredSpans?: number[];
 	coverage: { covered: number; total: number; complete: boolean };
 	date: string;
 	nextDayAt: string;
