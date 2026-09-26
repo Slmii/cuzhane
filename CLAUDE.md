@@ -38,18 +38,33 @@ Per workspace (`--filter @cuzhane/server` or `@cuzhane/web`):
 
 ## Domain model — read this before touching group logic
 
-The Cevşen is **100 babs**. A group divides those 100 across its members.
+The Cevşen is **100 babs**. A group divides those 100 across its members — or, since a group has a
+**kind**, the Hizbü'l-Hakaik's **33 portions**.
 
--   `Group` owns exactly 100 `GroupBab` rows, created up front in the same transaction as the group.
+-   **`Group.kind` is `CEVSEN` or `HIZB`, and it is immutable.** Everything that differs by kind is derived
+    from it in `utils/groupKinds.ts`: the part count (`partCountFor` — 100 or 33), the parts one reader
+    must repeat (`requiredRepetitions` — Sekine, below) and the cycles it may be created with
+    (`CYCLES_FOR_KIND` — the Cevşen keeps DAILY/WEEKLY, the Hizb adds MONTHLY). It is mirrored in
+    `apps/web/src/lib/utils/groupKinds.ts` — **change both together**; `groupKinds.test.ts` holds the web
+    copy to the server's values. Sizes are a create-time rule per kind, enforced by both
+    `group.schema.ts` and the web's `SPOTS_FOR_KIND`: the Cevşen 5, 10 or 20 seats (each divides the
+    hundred, so nobody carries a leftover bab), the Hizb any of 1–33 (past 33 a seat would hold nothing).
+    **A Hizb group is this same machine over 33, not a second model** — the unreleased reading-groups
+    model that tried personal cycles was dropped by migration for it. What follows says "bab" and "100"
+    because it was written for the Cevşen; read them as "part" and "the group's part count".
+-   `Group` owns exactly one `GroupBab` row per part, created up front in the same transaction as the group.
 -   `GroupBab` is the single source of truth for BOTH assignment (`assignedUserId`) and progress
     (`readByUserId` / `readAt`). A member's displayed range is **derived** from the babs assigned to
     them — never store a range on the member, or the two will drift.
 -   `GroupMember.slotIndex` is a stable 0-based seat. It caps membership at `Group.spots` and determines
     the member's block. Leaving frees the seat; the next joiner takes the lowest free one.
--   Splitting 100 across `spots` seats: the first `100 % spots` seats get one extra bab. `rangeForSlot` /
+-   Splitting the parts across `spots` seats: the first `partCount % spots` seats get one extra. `rangeForSlot` /
     `babNumbersForSlot` in `utils/babs.ts` are the only place this math lives, and it is duplicated
     verbatim in `apps/web/src/lib/utils/babs.ts` — **change both together.** (`slotIndexForBab` is its
-    inverse; the rotation helpers below live in the same pair of files.)
+    inverse; the rotation helpers below live in the same pair of files.) **Every one of them takes the
+    part count as an argument** — `rangeForSlot(slotIndex, spots, partCount)` and so on down the file —
+    and `BAB_COUNT` survives only as the Cevşen's own number, which nothing in the seat math reads, so a
+    caller cannot quietly split the wrong book.
 -   **`splitMode` decides which block a seat reads on a given day, not which one it owns.**
     `ROTATION` (default) advances a seat by one whole seat per day — seat `s` reads seat
     `(s + dayIndex) % spots`. Advancing by a _block_ rather than a fixed bab offset is what keeps the
@@ -58,7 +73,7 @@ The Cevşen is **100 babs**. A group divides those 100 across its members.
     and `toSplitMode` reads such a row as `FIXED`.
 -   **Nothing stores who reads what.** A member's share is derived from their seat and the round —
     `shareBabNumbersToday` (server) or `GroupSummary.myBabNumbers` (client). Joining writes no bab rows
-    and creating a group writes 100 bare ones. Never try to work out ownership from a column.
+    and creating a group writes one bare one per part. Never try to work out ownership from a column.
 -   **`GroupBab.assignedUserId` means exactly one thing: "I volunteered for this bab out of the pool,
     this round."** It is _not_ seat ownership — it used to be both, and once the rotation moved the
     leftovers onto a member's old block the pool started reporting it as claimed by whoever had held
@@ -72,6 +87,12 @@ The Cevşen is **100 babs**. A group divides those 100 across its members.
     refused it as "not yours to mark today" while their share still listed it — and the joiner was handed
     the same babs, because a share is derived from seat + round and knows nothing about claims. **Reads
     already made are never touched**: they happened, and `BabRead` keeps them. Only the claim comes off.
+    A Hizb block can be held a portion at a time by several people, so the join reads the claims
+    before clearing them and files one `PoolClaimRelease` **per run per claimant** — a row is a start
+    and an end, and "16–18" for someone who held 16 and 18 would say they held 17 too. The join
+    transaction takes `lockGroup` (in `rounds.service`, beside the rollover it orders against) **first**,
+    like every board path: it reads the members and the round to find the block, and unlocked, a
+    portion taken between that read and the clear was cleared with no release recorded.
 -   **Lifecycle.** A group is `GATHERING` until the owner starts it: no `startedAt`, no day index, and
     nothing is counted. `startGroupForUser` stamps `startedAt` under a conditional `updateMany` guarded
     on `status: 'GATHERING'`, so a double tap can't rewind everyone's rotation. `autoStartIfFull` runs
@@ -80,8 +101,12 @@ The Cevşen is **100 babs**. A group divides those 100 across its members.
 -   **Shared pool.** The blocks nobody is reading this round, because their seat is empty. **The pool
     rotates too** — an empty seat `e` leaves uncovered the block it would have been reading,
     `(e + roundIndex) % spots`, not its own. Use `poolBlocks`; taking the standing block instead hands
-    one bab to two people and makes another unreachable, so 100/100 becomes impossible. A slot is taken
-    _whole_, sits on top of the taker's share, and **lasts one round**. A full group never has a pool.
+    one bab to two people and makes another unreachable, so 100/100 becomes impossible. A Cevşen slot is
+    taken _whole_. **A Hizb pool is claimed portion by portion** (`POST`/`DELETE`
+    `/api/groups/:groupId/pool/parts/:babNumber`, refused for a Cevşen group): a block there is a
+    portion or two and each portion is a du'a of its own, so one block can be split between several people.
+    Either way a claim sits on top of the taker's share and **lasts one round**. A full group never has
+    a pool.
 -   **A round boundary is a local midnight, in the group's own zone.** `Group.timezone` is the owner's
     IANA zone, captured at creation and immutable after it. All the zone-aware math lives in
     `utils/rounds.ts` and is **server-only** — the client is handed a `roundIndex` and never computes
@@ -94,10 +119,16 @@ The Cevşen is **100 babs**. A group divides those 100 across its members.
     counting as one day. Never reintroduce `Date.UTC(...getUTCDate())` bucketing — it put the reset at
     20:00 the previous evening in New York.
 -   **Rounds.** A group makes repeated passes at the hundred. `DAILY` rolls every day, `WEEKLY` every
-    seven (`ROUND_DAYS` in `utils/rounds.ts`). Those are the only two cycles — every one of them rolls,
-    so `ROUND_DAYS` is a `Record<CycleName, number>` with no null case, and `roundEndsAt` is always the
-    next boundary rather than an end date for the group. (`ONE_OFF` and `OPEN_ENDED` were both removed;
-    unlike `GroupSplitMode.FREE` these are gone from the DB enum too, each by its own migration.)
+    seven — `ROUND_DAYS` in `utils/rounds.ts`, a `Record<'DAILY' | 'WEEKLY', number>`, because the third
+    cycle is not a number of days. **`MONTHLY` (Hizb only) rolls on the start's day of the month,
+    clamped to the month**: a group started on Jan 31 rolls on Feb 28, then Mar 31. It is measured **from
+    the anchor every time**, never from the previous boundary, or one short February would pull every
+    later round back to the 28th — so `boundaryDayNumber` is the one place a boundary is computed, and
+    `roundEndsAt(startedAt, cycle, roundIndex, tz)` takes the anchor and an index rather than the
+    round's own start (a month after Feb 28 is Mar 28, but that group rolls on Mar 31). Every cycle
+    rolls, so `roundEndsAt` is always the next boundary rather than an end date for the group.
+    (`ONE_OFF` and `OPEN_ENDED` were both removed; unlike `GroupSplitMode.FREE` these are gone from the
+    DB enum too, each by its own migration.)
     **The board resets at the boundary whether or not it was finished** — the cycle is a promise about
     _when_, not about completing.
     `Group.roundIndex` is also the rotation index, so a WEEKLY group holds one range for the whole week.
@@ -120,9 +151,24 @@ The Cevşen is **100 babs**. A group divides those 100 across its members.
     heatmap — must read `BabRead`, which is append-only and never cleared. Its unique key
     `(groupId, roundIndex, babNumber)` says a bab is read once per round. Every read/unread path writes
     it through `recordRead`; a new one must too, or the reset will quietly eat that history.
--   `spots`, `splitMode` and `cycle` are immutable after creation.
+-   **Sekine is read nineteen times, and the count is the reader's own and the round's own.**
+    `GroupPartRepetition` (group, user, round, part — unique on all four) holds how far one reader has
+    got with a part `requiredRepetitions` says is repeated; today that is Hizb part 19 alone. Another
+    member's nineteen cannot stand in for mine, and last round's say nothing about this one, so counts
+    are never pooled and never reset — a new round simply has no row yet. `PUT`
+    `/api/babs/:groupId/:babNumber/repetitions` sets it **absolutely** (`GET` on the same path reads
+    it), not by increment, so a retried request writes the same number twice rather than counting one
+    recitation as two. A write for the
+    open round sends `isOpenRound` and gets **409 after a rollover**, rather than filing a tap under the
+    round that just closed or carrying its count into the new one. `assertRepetitionsMet` gates every
+    path that marks a part read: `setBabRead` (asked **after** the no-op branch, so re-marking a saved
+    read stays a no-op whatever the count now says), read-all (a share holding an unfinished Sekine is
+    refused **whole**, not marked around it) and covering (only the numbers the cover will actually
+    insert, against **that past round's** count). The part itself is still marked through the ordinary
+    read paths; undoing a read never looks at the count.
+-   `kind`, `spots`, `splitMode` and `cycle` are immutable after creation.
 
-Concurrency: claiming a bab and taking a pool slot both use a conditional `updateMany` guarded on
+Concurrency: claiming a bab and taking a pool slot (or portion) all use a conditional `updateMany` guarded on
 `assignedUserId: null` and check `count === 0` — two simultaneous claims cannot both win. Seat
 allocation relies on the `@@unique([groupId, slotIndex])` constraint as the final guard, and starting
 a hatim is guarded on `status: 'GATHERING'` the same way.
@@ -132,7 +178,7 @@ today's share may already have been read by whoever held that block yesterday, a
 must not be able to erase it.
 
 `completedAt` must always agree with the board. Every write that can change read state — single bab,
-bulk "read my whole share", releasing a pool slot, removing a member, and account deletion — runs
+bulk "read my whole share", releasing a pool slot or portion, removing a member, and account deletion — runs
 `syncCompletedAt` **in the same transaction**, and that helper decides from a live count rather than a
 previously-read value. Don't split the bab write from the sync, and don't pass it a stale `completedAt`.
 
@@ -627,15 +673,19 @@ defaultValues render={({ handleSubmit, watch, setValue }) => …} />`, which wir
     hard-coded on. `BottomSheetView.swift` branches on `if props.fitToContents`, a *structural* SwiftUI
     `if`: flipping it swaps `_ConditionalContent` arms, so SwiftUI tears down one arm and builds the
     other, **taking the hosted React Native surface with it**, and everything inside remounts.
-    Create-group learned this the expensive way — giving step 2 alone a detent re-presented the sheet
-    instead of resizing it and remounted the `Form`, so the name and dedication reverted to their
-    defaults entering step 2 and again on the way out, which then blocked creating the group at step 3.
--   **Create-group is therefore one fixed height for all three steps**, sized for step 2 (the tallest).
+    Create-group learned this the expensive way — giving the seats step alone a detent re-presented the
+    sheet instead of resizing it and remounted the `Form`, so the name and dedication reverted to their
+    defaults entering that step and again on the way out, which then blocked creating the group at the
+    last one.
+-   **Create-group is therefore one fixed height for all four steps** — kind → define → seats & plan →
+    cycle, for both kinds — sized for step 3, the tallest (the seat stepper, the lattice, the plan
+    options and their preview; a Hizb's 33-seat lattice makes it taller still, and the scroll view takes
+    the difference, never the sheet). A remount there would now also drop the book chosen at step 1.
     Not only to avoid that remount: a fitted sheet's detent is assigned outside any animation
     transaction, so a sheet that changes height between steps *jumps*, and nothing in JS reaches that
     (`withAnimation` from `@expo/ui` only covers `useNativeState`). A sheet that never resizes has no
-    transition to get wrong. Steps 1 and 3 carry some room below their last control; that is the accepted
-    cost, and the alternative was tried and is worse.
+    transition to get wrong. The other steps carry some room below their last control; that is the
+    accepted cost, and the alternative was tried and is worse.
 -   **Sheets cannot stack**: iOS refuses to present one over another, which is why member-removal is a
     native `Alert` and why switching sheets on the group screen goes through a route param and a delay.
 -   **The group screen's two whole-group actions are corner actions in its heading, and nothing else.**
@@ -712,12 +762,14 @@ defaultValues render={({ handleSubmit, watch, setValue }) => …} />`, which wir
     `shrink()` and `Stepper`'s `countPop()` are factories for exactly this reason.
 -   **Grid motion follows `design_handoff_cuzhane/pool-fill.html`**, which is deliberate about _which_
     channel moves. The **pool fill** (üstlen, on the havuz board and the Turlar grid) is **colour only** —
-    420ms a cell, no scale — because at forty cells a pop reads as noise while a colour sweep reads as
-    ownership. The **spots picker** is the opposite: the cell _count_ changes there, so entrance and exit
-    have to be legible, and it pops (380ms) and ghosts out (300ms) instead. Both stagger by a cell's index
-    **within its own run** — `staggerWithinRuns` in `utils/groups.ts`, 70ms a step for the fill, 26ms for
-    the seats. Timed from the start of the whole grid, a late block would still be filling seconds after
-    the tap. Both honour `useReducedMotion`.
+    no scale — because at forty cells a pop reads as noise while a colour change reads as ownership.
+    It is **160ms, every cell of the block at once**: `CellGrid`'s `COLOR_DURATION_MS` came down from the
+    prototype's 420 via 300, and `FILL_STEP_MS` in `utils/groups.ts` is 0, because a 13-bab block swept
+    at 70ms a step was still starting cells 840ms after the tap. `staggerWithinRuns` still runs (and
+    returns zeros), one constant away from sweeping again. The **spots picker** is the opposite: the cell
+    _count_ changes there, so entrance and exit have to be legible, and it pops (380ms) and ghosts out
+    (300ms) with its own 26ms cascade (`SpotsGrid`'s `CASCADE_STEP_MS`, deliberately not the fill's).
+    Both honour `useReducedMotion`.
 -   The square-lattice UI (100-bab board, spots picker, activity heatmap, pool board) all builds on the
     single `components/ui/CellGrid` primitive, which derives cell size from measured width. Don't
     reintroduce percentage-based grid sizing — it drifts a pixel per column.
@@ -761,18 +813,48 @@ defaultValues render={({ handleSubmit, watch, setValue }) => …} />`, which wir
     Two surfaces use the pair and must keep using it: H1's group rows (`isCompact`, just "+2", beside a
     name that already has to fit) and the group screen's "Sana atanan" heading. `babRuns`/`formatRun` underneath live in the **mirrored** `utils/babs.ts` pair, so
     they change on both sides together.
--   **Üstlen can be undone, but only in the session that did it.** A row you claimed on this visit keeps
-    an avatar _and_ a "Geri al" beside it, sub-lined "az önce üstlendin"; older claims don't, because by
-    then it is a commitment other people can see rather than a slip. The state is deliberately memory
-    (`takenHere` on the Havuz screen) and not a stored timestamp. The board **drains the block the way it
-    filled, reversed** — last bab first, same `FILL_STEP_MS` — via `staggerWithinRuns`'s `reversedKeys`
-    argument and `PoolGrid`'s `drainingSlotIndexes`. The draining slot is cleared on a timer sized to the
-    sweep, or a later claim would play backwards too. Both the take and the release are optimistic: the
-    sweep _is_ the confirmation, so it has to start on the tap, not on the response.
+-   **"Geri al" is for anything you hold; "az önce üstlendin" only for what you just took.** Two
+    questions that were one for a while. Every slot (Cevşen) or portion (Hizb) you hold offers "Geri al"
+    beside its avatar for as long as the round is open, because the server lets you release your own
+    claim until then — gating the button on the session made it vanish on every relaunch, so a block
+    taken yesterday had no way back at all. The sub-line "az önce üstlendin" is a statement about the
+    last minute, so only claims made in this app run carry it: `claimedThisSession`, module memory on each
+    Havuz screen seeded into `takenHere` — deliberately not a stored timestamp, and not the screen's own
+    state either, since stepping back to the group and returning is the ordinary thing to do. The undo
+    drains on the fill's own curve (`PoolGrid`'s `drainingSlotIndexes`, cleared on a timer sized to the
+    fade so a later claim can't inherit it); the reversed, last-bab-first order `staggerWithinRuns`'s
+    `reversedKeys` gives is a no-op while `FILL_STEP_MS` is 0. Both the take and the release are
+    optimistic: the colour change _is_ the confirmation, so it has to start on the tap, not on the response.
 -   The Havuz screen's header counts **free** babs and **free** slots — what you could still take on —
     while the group screen's card chip counts the **whole** pool. Two questions, deliberately two
     numbers; `GroupInvitePreview.poolBabNumbers` is the whole pool too, `GroupSummary.poolBabNumbers`
     only the unclaimed part (it feeds the board, where a claimed bab is someone's work).
+-   **A Hizb group is the Cevşen's screens with a Hizb body, not a second app** (design HC1–HC4,
+    HJ1–HJ3, HZ1–HZ5). The lobby, invite preview and joined-waiting screens, the group screen, Turlar
+    and Home's rows all branch on `kind` in place. HZ1 swaps the board for `HizbBoard` (the 33 as
+    11 × 3, with a "Fihrist ›" to `HizbIndex`, the portions work by work — registered in
+    `sharedTabScreens` like every pushed screen) and the share section for `HizbSharePanel`. The
+    Havuz route carries **`kind` as a param** and picks `HizbPoolScreen` (HZ3, a portion at a time)
+    from it — a kind never changes, so it can't go stale, and the right screen draws without waiting
+    on the group's query. A round's detail delegates to `HizbRoundDetail` (HZ4/HZ5). Those three
+    lattices are `CellGrid` too, coloured by one palette (`HizbBoard/hizbCellPalette.ts`) so the
+    board, the pool and a round cannot disagree about what a state looks like; `PoolGrid` stays the
+    Cevşen's. A portion is read in **`HizbReader`'s group mode** (`groupId` + `partNumber`, rendered by
+    `HizbPortionReader`): the Cevşen reader's E2 — the strip walks all 33, only the *marking* is
+    gated by the ownership chip, a pool portion is claimed as it is marked, and marking does **not**
+    carry you on, since the next portion is usually somebody else's. A `roundIndex` below the group's
+    is cover mode for that closed round, and Sekine carries `RepetitionCounter` above the action row,
+    the button disabled until the viewer's own count for the round shown is met (a server 409 still
+    rolls the read back). **Free Hizb reading is unchanged**: `HizbReader`'s `sectionIndex` shape,
+    from Profil, counts nothing — two components rather than one with a mode, because they share
+    the page and none of the group's queries, gates or counter may reach a free read. The two
+    books' marks are `ui/KindMark` — **filled emblems like `BrandMark`, not icon-set glyphs**, and the
+    star's ring and dot are real cut-outs (an even-odd clip) rather than paint in "the colour behind",
+    because a glass card has no one colour behind it. Deviations from the design, all deliberate:
+    **33 portions, not its 32** (the grids are 11 × 3; its 8 × 4 does not tile 33); the cycle keeps
+    **its own step** rather than sharing HC3's, so "Adım n / 4" holds for both kinds; create-group
+    stays **the platform sheet**, not the prototype's full pages; and HC1's **Hatim card is left
+    out** — only the Cevşen and the Hizb are offered.
 -   Environment: `EXPO_PUBLIC_API_URL` (localhost auto-resolves to the Metro host for devices) and
     `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`. Locally these come from `apps/web/.env`, which is gitignored
     and points at localhost; **release builds take them from EAS environment variables** on the
@@ -914,8 +996,27 @@ runs across them — the print closes one with `* * *` at the foot of a page onl
 break says nothing about where a unit ends — and three sections (Haşir, Tebareke, Nebe) begin partway down
 a page. A block is what the print closes with `* * *`: a bab of the Cevşen, a du'a, a prayer. `❁` lines
 carry `invocations` beside their `text`; one line (Evrâd-ı Kudsiyye, page 106) ends in a `❁` and yields no
-empty invocation for it. How a group would split this text is an open product question the file
-deliberately does not answer.
+empty invocation for it.
+
+**A Hizb group divides it into 33 portions, and `lib/content/hizbPortions.ts` is where they are
+drawn.** The thirty-three are the family's **revised** division, read off the numbered photographs of
+their book; the older 32-part calendar the design was drawn to is historical. They fall into ten works
+(`HIZB_WORKS`: the Kur'ân 1–3, the Cevşen 4–8, Evrâd 9–13, Delâil 14–18, Sekine 19, … Tazarru 31–33),
+and **the seventeen sections are the print's headings, not the division** — a portion can run across
+several sections or stop inside one, even inside a single line. So the manifest stores **only each
+portion's start** (`HizbAnchor`: section, block, line, invocation) and no text at all: each runs to the
+next one's start, so the 33 cover the whole without a gap or an overlap by construction, and moving a
+boundary is one edit rather than two that must agree. **A mid-line cut is made at the Nth ❁ of the
+line's own `text`, never rebuilt from `invocations`** — joining those back with ` ❁ ` is not the
+source, and thirteen lines would come back different — and the ❁ at a cut belongs to neither side, so
+it is dropped from both and the head, that mark and the tail concatenate back to the line byte for
+byte. `hizbPortions.test.ts` pins every portion's footprint (the blocks and lines it is cut from) and
+opening words long enough that no other block opens with them, so an anchor one block off, or a
+regenerated JSON that moves one, fails there rather than handing someone the wrong du'a. Two content
+questions are surfaced rather than resolved: **Âmenerresûlü is not in the digital text**, so portion 3
+has none; and the Cevşen portions are taken to start on the bab **after** each marked refrain — babs
+21, 42, 62 and 82, not the older table's 41/61/81 — a reading of the photographs' markers still to be
+confirmed (`docs/plans/2026-09-26-hizb-groups.md`).
 
 ## Notifications
 
@@ -981,14 +1082,15 @@ without tapping it keeps the time either way. It uses `confirm`, not `done` — 
 lowercase mid-sentence "3 / 5 tamam" on the group screen.
 
 **The reminder is about the day, not about one group.** `reminderTotals` in
-`utils/reminder.ts` sums what is still owed across every running group and is shared by the
-scheduler and the Reminders screen's preview, so the preview is the notification that will
-actually arrive rather than an illustration of one. It returns three numbers, and the
-difference between the last two is the whole point: `pendingGroups` (still owing) drives the
-copy — past one group the body names the count, because a bare "26 babın kaldı" over six
-groups reads as one group's — while `participatingGroups` (running, with a share, finished or
-not) decides whether there is anything to say at all. Nothing to remind about is not the same
-as having finished.
+`utils/reminder.ts` sums what is still owed across every running group, for the scheduler.
+(The Reminders screen used to show a preview built from it; its sample cards were dropped once
+the inbox one tap away could show the real thing.) Two of its numbers are the whole point:
+`pendingGroups` (still owing) drives the copy — past one group the body names the count, because
+a bare "26 babın kaldı" over six groups reads as one group's — while `participatingGroups`
+(running, with a share, finished or not) decides whether there is anything to say at all.
+Nothing to remind about is not the same as having finished. **Babs and portions are counted
+apart** (`unreadBabs`, `unreadPortions`) and never summed under one noun: each has its own lines,
+including one for a single part, and owing both says "okuman", a reading, which is true of either.
 
 `setNotificationHandler` is set at module scope in `AppRoot`, before any component mounts —
 without it a reminder arriving while the app is open is delivered silently.
@@ -1069,7 +1171,10 @@ for every other member, push to those who asked. The two above them are written 
     it dangling: an unawaited rejection would escape the request as an unhandled one.
 -   Copy lives in `utils/pushCopy.ts`, not the client's strings table — the phone is not involved
     in composing a notification it receives while closed. The language is resolved per send from
-    `UserSettings`. That makes it a second, smaller copy table to keep in step by hand.
+    `UserSettings`. That makes it a second, smaller copy table to keep in step by hand. Every
+    builder that names parts takes the group's `kind` and says babs or portions accordingly
+    (`PART_NOUNS`), singular for a range of one; the inbox does the same from `groupKind` on each
+    row — joined from the live group, and named so because `kind` is already what the *notification* is.
 -   `usePushTokenRegistration` (in `NotificationOrchestrator`) registers this device's Expo token
     on sign-in and **withdraws it on sign-out** — left behind, the account's next notification
     arrives on a phone somebody else is now using. It only registers a device that already has
