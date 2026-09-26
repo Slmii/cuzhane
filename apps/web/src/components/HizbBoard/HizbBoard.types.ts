@@ -17,5 +17,7 @@ export interface HizbBoardSkeletonProps {
 }
 
 export interface HizbLegendProps {
+	/** `board` (the default) keys the group board and the Havuz; `round` keys a closed round's lattice. */
+	variant?: 'board' | 'round';
 	style?: StyleProp<ViewStyle>;
 }

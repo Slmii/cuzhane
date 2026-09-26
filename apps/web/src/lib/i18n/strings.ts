@@ -830,6 +830,25 @@ const tr = {
 	poolPortionsHizbOne: 'sahipsiz bölüm',
 	poolLeftHizb: '{left} kaldı',
 	poolEmptyHizb: 'Bu tur havuz boş — her bölümün sahibi var.',
+	// The Hizb's Turlar (HZ4) and Tur detayı (HZ5). The Cevşen's lines above say "bab" and "5 bab ilerler".
+	roundsSubHizb: 'Her tur {count} bölümün tamamı hedeflenir. Tur kapanınca eksik kalan bölümler kayda geçer.',
+	roundMineHizb: 'Senin: {read}/{owed}',
+	roundCompleteHizb: 'tamam',
+	// "16, 24 ve 31 okunmadı" — `{parts}` is joined by `listAnd`, and counted past three.
+	roundMissedPartsHizb: '{parts} okunmadı',
+	roundMissedPartsHizbOne: '{parts} okunmadı',
+	roundMissedCountHizb: '{count} bölüm okunmadı',
+	roundMissedCountHizbOne: '1 bölüm okunmadı',
+	listAnd: 've',
+	missedPortions: 'eksik bölüm',
+	legendMineHizb: 'senin payın',
+	hizbRoundMissed: 'Atanan {assigned} · Eksik {missing}. bölüm',
+	// A set of portions with its noun — "15–16. bölüm", "Portions 15–16". Its own `One` so English
+	// and Dutch can say "Portion 19".
+	hizbParts: '{parts}. bölüm',
+	hizbPartsOne: '{parts}. bölüm',
+	markAsRead: 'Okundu işaretle',
+	portionTakenError: 'Bu bölüm başkası tarafından alındı.',
 
 	// App-specific copy the static design never has to spell out:
 	// validation, error/empty states and parameterised variants.
@@ -1673,6 +1692,22 @@ const en: Strings = {
 	poolPortionsHizbOne: 'unclaimed portion',
 	poolLeftHizb: '{left} left',
 	poolEmptyHizb: 'The pool is empty this round — every portion has someone.',
+	roundsSubHizb:
+		'Each round aims at all {count} portions. When it closes, whatever was left unread is recorded as missed.',
+	roundMineHizb: 'Yours: {read}/{owed}',
+	roundCompleteHizb: 'complete',
+	roundMissedPartsHizb: '{parts} went unread',
+	roundMissedPartsHizbOne: '{parts} went unread',
+	roundMissedCountHizb: '{count} portions went unread',
+	roundMissedCountHizbOne: '1 portion went unread',
+	listAnd: 'and',
+	missedPortions: 'missed portions',
+	legendMineHizb: 'yours',
+	hizbRoundMissed: 'Assigned {assigned} · Missing {missing}',
+	hizbParts: 'Portions {parts}',
+	hizbPartsOne: 'Portion {parts}',
+	markAsRead: 'Mark as read',
+	portionTakenError: 'Someone else claimed this portion.',
 
 	// App-specific copy the static design never has to spell out:
 	// validation, error/empty states and parameterised variants.
@@ -2483,6 +2518,22 @@ const nl: Strings = {
 	poolPortionsHizbOne: 'gedeelte zonder eigenaar',
 	poolLeftHizb: 'nog {left}',
 	poolEmptyHizb: 'De pool is deze ronde leeg — elk gedeelte heeft een eigenaar.',
+	roundsSubHizb:
+		'Elke ronde mikt op alle {count} gedeelten. Sluit de ronde, dan wordt wat ongelezen bleef als gemist vastgelegd.',
+	roundMineHizb: 'Van jou: {read}/{owed}',
+	roundCompleteHizb: 'compleet',
+	roundMissedPartsHizb: '{parts} bleven ongelezen',
+	roundMissedPartsHizbOne: '{parts} bleef ongelezen',
+	roundMissedCountHizb: '{count} gedeelten bleven ongelezen',
+	roundMissedCountHizbOne: '1 gedeelte bleef ongelezen',
+	listAnd: 'en',
+	missedPortions: 'gemiste gedeelten',
+	legendMineHizb: 'van jou',
+	hizbRoundMissed: 'Toegewezen {assigned} · Gemist {missing}',
+	hizbParts: 'Gedeelten {parts}',
+	hizbPartsOne: 'Gedeelte {parts}',
+	markAsRead: 'Markeer als gelezen',
+	portionTakenError: 'Dit gedeelte is door iemand anders genomen.',
 	membersTitle: 'Leden',
 	save: 'Opslaan',
 	close: 'Sluiten',

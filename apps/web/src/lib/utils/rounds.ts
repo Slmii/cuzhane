@@ -1,4 +1,6 @@
 import type { GroupMember, RoundBab, RoundDetail } from '@/lib/types/domain';
+import { formatBabRange } from '@/lib/utils/babs';
+import { requiredRepetitions } from '@/lib/utils/groupKinds';
 
 /**
  * How a bab in a closed round reads on the grid.
@@ -203,3 +205,185 @@ export const roundRows = (
 
 	return rows;
 };
+
+/**
+ * A round's dates as HZ4 writes them, in the group's zone and the app's language: "20–26 Eyl"
+ * inside one month, "30 Ağu – 5 Eyl" across two — which is every MONTHLY round, "20 Eyl – 19 Eki"
+ * — and a single date for a DAILY one.
+ *
+ * `endsAt` is the next round's first instant, so the last day is the moment before it, read in
+ * the zone. Subtracting a day instead would land on the wrong date across a DST change.
+ *
+ * Built from `formatToParts` rather than `formatRange`, which Hermes does not have: inside one
+ * month the day becomes the span and the month is said once, wherever the language puts it —
+ * "20–26 Eyl", "Sep 20–26".
+ */
+export const roundDateRange = (startedAt: string, endsAt: string, locale: string, timeZone: string): string => {
+	const format = new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', timeZone });
+	const first = new Date(startedAt);
+	const last = new Date(new Date(endsAt).getTime() - 1);
+	const firstParts = format.formatToParts(first);
+	const lastParts = format.formatToParts(last);
+	const valueOf = (parts: Intl.DateTimeFormatPart[], type: 'day' | 'month') =>
+		parts.find(part => part.type === type)?.value;
+	const lastDay = valueOf(lastParts, 'day');
+
+	if (valueOf(firstParts, 'month') !== valueOf(lastParts, 'month')) {
+		return `${format.format(first)} – ${format.format(last)}`;
+	}
+
+	if (valueOf(firstParts, 'day') === lastDay) {
+		return format.format(first);
+	}
+
+	return firstParts.map(part => (part.type === 'day' ? `${part.value}–${lastDay}` : part.value)).join('');
+};
+
+/**
+ * "16", "16 ve 24", "16, 24 ve 31" — commas, and the language's own word before the last. Not
+ * `Intl.ListFormat`, which Hermes does not have either.
+ */
+export const joinWithAnd = (items: (string | number)[], and: string): string => {
+	const words = items.map(String);
+
+	if (words.length <= 1) {
+		return words[0] ?? '';
+	}
+
+	return `${words.slice(0, -1).join(', ')} ${and} ${words[words.length - 1]}`;
+};
+
+/** Up to this many of a closed round's missed portions are named on its HZ4 card; past it, counted. */
+const MISSED_PORTIONS_NAMED = 3;
+
+type MissedNoteKey =
+	| 'listAnd'
+	| 'roundMissedPartsHizb'
+	| 'roundMissedPartsHizbOne'
+	| 'roundMissedCountHizb'
+	| 'roundMissedCountHizbOne';
+
+/**
+ * The clay line under a closed Hizb round on Turlar: "16, 24 ve 31 okunmadı", or "5 bölüm okunmadı"
+ * once there are more than three. Null for a round that missed nothing.
+ *
+ * `numbers` may be null, and on Turlar it is: `RoundSummary` carries how many were missed but not
+ * which, so the line counts until the list says more. Numbers that disagree with the count are
+ * treated the same way rather than naming the wrong ones.
+ */
+export const hizbMissedNote = (
+	{ count, numbers }: { count: number; numbers: number[] | null },
+	t: (key: MissedNoteKey, values?: Record<string, string | number>) => string
+): string | null => {
+	if (count <= 0) {
+		return null;
+	}
+
+	if (numbers !== null && numbers.length === count && count <= MISSED_PORTIONS_NAMED) {
+		const parts = joinWithAnd(
+			[...numbers].sort((a, b) => a - b),
+			t('listAnd')
+		);
+
+		return t(count === 1 ? 'roundMissedPartsHizbOne' : 'roundMissedPartsHizb', { parts });
+	}
+
+	return t(count === 1 ? 'roundMissedCountHizbOne' : 'roundMissedCountHizb', { count });
+};
+
+/**
+ * A portion of a closed Hizb round (HZ5). The Cevşen's five states fold the viewer into the fill;
+ * the Hizb's lattices draw "yours" as a ring over whatever the fill is, so here that is a flag and
+ * the fill answers one question — what became of the portion.
+ */
+export type HizbRoundCellState =
+	/** Read by whoever owed it. */
+	| 'read'
+	/** Owed, and nobody read it. */
+	| 'missed'
+	/** Read by somebody other than its owner — a cover, or a pool portion someone took. */
+	| 'taken'
+	/** An empty seat's portion that nobody took, so it was never anyone's to miss. */
+	| 'pool';
+
+export type HizbRoundCell = {
+	number: number;
+	state: HizbRoundCellState;
+	/** Owed by the viewer that round — the ring, over a read or a missed fill alike. */
+	isMine: boolean;
+};
+
+/** The round's portions in order, as HZ5's lattice draws them. */
+export const hizbRoundCells = (round: Pick<RoundDetail, 'babs'>, viewerUserId: string | null): HizbRoundCell[] =>
+	[...round.babs]
+		.sort((a, b) => a.number - b.number)
+		.map(bab => ({
+			isMine: viewerUserId !== null && bab.owedByUserId === viewerUserId,
+			number: bab.number,
+			state:
+				bab.readByUserId === null
+					? bab.isPool
+						? 'pool'
+						: 'missed'
+					: bab.readByUserId === bab.owedByUserId
+					? 'read'
+					: 'taken'
+		}));
+
+/**
+ * What a row's button does.
+ *
+ * `cover` is the Cevşen's one write — everything outstanding that can simply be marked, in one
+ * act. `read` is Sekine: a portion that counts only after its repetitions, which only the reader
+ * keeps, so its button opens the reader on that round rather than marking anything.
+ */
+export type HizbRoundAction = { kind: 'cover'; partNumbers: number[] } | { kind: 'read'; partNumber: number };
+
+export type HizbRoundRow = RoundRow & {
+	/** Every portion the row owed, as the design writes them — "15–16", "19", or "5, 31" for a pool of two seats. */
+	partsLabel: string;
+	action: HizbRoundAction | null;
+};
+
+/**
+ * The portions that can be covered in one write come first; a portion that must be repeated waits
+ * until they are done, so a block holding Sekine is two taps — the rest, then the reader — and
+ * neither tap does something the button did not say.
+ */
+export const hizbRoundAction = (outstanding: number[]): HizbRoundAction | null => {
+	const direct = outstanding.filter(number => requiredRepetitions('HIZB', number) <= 1);
+
+	if (direct.length > 0) {
+		return { kind: 'cover', partNumbers: direct };
+	}
+
+	const repeated = outstanding[0];
+
+	return repeated === undefined ? null : { kind: 'read', partNumber: repeated };
+};
+
+/**
+ * HZ5's "Eksik kalanlar": `roundRows`, narrowed to the rows with something still outstanding.
+ *
+ * Thirty-three seats can mean thirty-three rows, and the screen is titled for what was missed. A
+ * row the viewer settled on this visit stays (`keptKeys`) as its settled self: the list is in seat
+ * order so that acting on a row leaves the next one where it was, and a row vanishing under the
+ * finger would move them all.
+ */
+export const hizbRoundRows = (
+	round: Pick<RoundDetail, 'babs'>,
+	members: Pick<GroupMember, 'userId' | 'displayName' | 'imageUrl'>[],
+	viewerUserId: string | null,
+	keptKeys: ReadonlySet<string>
+): HizbRoundRow[] =>
+	roundRows(round, members, viewerUserId)
+		.filter(row => row.outstanding.length > 0 || keptKeys.has(row.key))
+		.map(row => ({
+			...row,
+			action: hizbRoundAction(row.outstanding),
+			partsLabel: formatBabRange(
+				round.babs
+					.filter(bab => (row.isPool ? bab.owedByUserId === null : bab.owedByUserId === row.key))
+					.map(bab => bab.number)
+			)
+		}));

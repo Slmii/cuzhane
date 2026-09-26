@@ -4,22 +4,33 @@ import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { StyleSheet, View } from 'react-native';
 import type { HizbLegendProps } from './HizbBoard.types';
-import { HIZB_LEGEND, HIZB_RING_WIDTH, hizbCellPalette } from './hizbCellPalette';
+import {
+	HIZB_LEGEND,
+	HIZB_RING_WIDTH,
+	HIZB_ROUND_LEGEND,
+	hizbCellPalette,
+	hizbRoundCellPalette
+} from './hizbCellPalette';
 
 const SWATCH_RADIUS = 3;
 
 /**
  * The Hizb board's key — Okundu, Alındı, Sahipsiz, Senin — under the group screen's board and
- * the Havuz lattice alike, each swatch drawn by the palette it explains.
+ * the Havuz lattice alike, each swatch drawn by the palette it explains. `variant='round'` is a
+ * closed round's five (HZ5): okundu, eksik, senin payın, devralındı, havuz.
  */
-export const HizbLegend = ({ style }: HizbLegendProps) => {
+export const HizbLegend = ({ style, variant = 'board' }: HizbLegendProps) => {
 	const { theme } = useThemeContext();
 	const { t } = useTranslation();
+	const entries =
+		variant === 'round'
+			? HIZB_ROUND_LEGEND.map(entry => ({ ...entry, palette: hizbRoundCellPalette(entry.cell, theme) }))
+			: HIZB_LEGEND.map(entry => ({ ...entry, palette: hizbCellPalette(entry.cell, theme) }));
 
 	return (
 		<View style={[hizbLegendLayout.legend, style]}>
-			{HIZB_LEGEND.map(entry => {
-				const palette = hizbCellPalette(entry.cell, theme);
+			{entries.map(entry => {
+				const { palette } = entry;
 
 				return (
 					<View key={entry.labelKey} style={hizbLegendLayout.legendEntry}>

@@ -27,7 +27,7 @@ import type { RoundCardProps } from './RoundCard.types';
  * it must not be given one for symmetry.
  */
 export const RoundCard = memo(
-	({ isComplete, label, missedLabel, onPress, percent, readLabel, whenText }: RoundCardProps) => {
+	({ isComplete, label, missedLabel, missedNote, onPress, percent, readLabel, whenText }: RoundCardProps) => {
 		const { theme } = useThemeContext();
 
 		return (
@@ -51,6 +51,7 @@ export const RoundCard = memo(
 						/>
 						<MonoText color={theme.colors.faintText}>{readLabel}</MonoText>
 					</View>
+					{missedNote ? <CaptionText color={theme.colors.missed}>{missedNote}</CaptionText> : null}
 				</View>
 				<Icon color={theme.colors.faintText} name='chevronRight' size={15} strokeWidth={1.8} />
 			</CardSurface>

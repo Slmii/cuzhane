@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import type { RoundBab } from '@/lib/types/domain';
-import { roundCellStates, roundRows } from './rounds';
+import {
+	hizbMissedNote,
+	hizbRoundAction,
+	hizbRoundCells,
+	hizbRoundRows,
+	joinWithAnd,
+	roundCellStates,
+	roundDateRange,
+	roundRows
+} from './rounds';
 
 const ME = 'user_me';
 const ALI = 'user_ali';
@@ -214,5 +223,192 @@ describe('roundRows', () => {
 	it('reports no settled phrasing while work is still outstanding', () => {
 		const round = { babs: [bab({ number: 1, owedByUserId: ALI })] };
 		expect(roundRows(round, members, ME)[0]?.settledKey).toBeNull();
+	});
+});
+
+// Stands in for the app's `t`: the key with its values, so a test asserts on what was chosen.
+const t = (key: string, values?: Record<string, string | number>) =>
+	values === undefined
+		? key
+		: `${key}(${Object.entries(values)
+				.map(([name, value]) => `${name}=${value}`)
+				.join(',')})`;
+
+describe('roundDateRange', () => {
+	// Rounds open at midnight in the group's zone — 21:00 UTC the evening before, in Istanbul.
+	const IST = 'Europe/Istanbul';
+
+	it('says the month once for a week inside it', () => {
+		expect(roundDateRange('2026-09-12T21:00:00.000Z', '2026-09-19T21:00:00.000Z', 'tr', IST)).toBe('13–19 Eyl');
+	});
+
+	it('keeps the language’s own order inside one month', () => {
+		expect(roundDateRange('2026-09-12T21:00:00.000Z', '2026-09-19T21:00:00.000Z', 'en', IST)).toBe('Sep 13–19');
+	});
+
+	it('names both months for a week that crosses one', () => {
+		expect(roundDateRange('2026-08-29T21:00:00.000Z', '2026-09-05T21:00:00.000Z', 'tr', IST)).toBe(
+			'30 Ağu – 5 Eyl'
+		);
+	});
+
+	it('writes a monthly round as a span across two months', () => {
+		expect(roundDateRange('2026-09-19T21:00:00.000Z', '2026-10-19T21:00:00.000Z', 'tr', IST)).toBe(
+			'20 Eyl – 19 Eki'
+		);
+		expect(roundDateRange('2026-09-19T21:00:00.000Z', '2026-10-19T21:00:00.000Z', 'nl', IST)).toBe(
+			'20 sep – 19 okt'
+		);
+	});
+
+	it('gives a daily round one date', () => {
+		expect(roundDateRange('2026-09-19T21:00:00.000Z', '2026-09-20T21:00:00.000Z', 'tr', IST)).toBe('20 Eyl');
+	});
+
+	it('reads the days in the group’s zone, not the device’s', () => {
+		// The same instants, read in New York, fall on the evening before each Istanbul midnight.
+		expect(roundDateRange('2026-09-12T21:00:00.000Z', '2026-09-19T21:00:00.000Z', 'en', 'America/New_York')).toBe(
+			'Sep 12–19'
+		);
+	});
+});
+
+describe('joinWithAnd', () => {
+	it('joins the last two with the word and the rest with commas', () => {
+		expect(joinWithAnd([16, 24, 31], 've')).toBe('16, 24 ve 31');
+		expect(joinWithAnd([16, 24], 'and')).toBe('16 and 24');
+	});
+
+	it('leaves a single item alone, and nothing as nothing', () => {
+		expect(joinWithAnd([19], 'en')).toBe('19');
+		expect(joinWithAnd([], 'en')).toBe('');
+	});
+});
+
+describe('hizbMissedNote', () => {
+	it('names up to three missed portions, in order', () => {
+		expect(hizbMissedNote({ count: 3, numbers: [31, 16, 24] }, t)).toBe(
+			'roundMissedPartsHizb(parts=16, 24 listAnd 31)'
+		);
+	});
+
+	it('uses the singular line for one', () => {
+		expect(hizbMissedNote({ count: 1, numbers: [19] }, t)).toBe('roundMissedPartsHizbOne(parts=19)');
+	});
+
+	it('counts once there are more than three', () => {
+		expect(hizbMissedNote({ count: 4, numbers: [1, 2, 3, 4] }, t)).toBe('roundMissedCountHizb(count=4)');
+	});
+
+	it('counts when the numbers are not known', () => {
+		// Turlar's case: `RoundSummary` carries the count alone.
+		expect(hizbMissedNote({ count: 2, numbers: null }, t)).toBe('roundMissedCountHizb(count=2)');
+		expect(hizbMissedNote({ count: 1, numbers: null }, t)).toBe('roundMissedCountHizbOne(count=1)');
+	});
+
+	it('does not name numbers that disagree with the count', () => {
+		expect(hizbMissedNote({ count: 2, numbers: [16] }, t)).toBe('roundMissedCountHizb(count=2)');
+	});
+
+	it('says nothing for a round that missed nothing', () => {
+		expect(hizbMissedNote({ count: 0, numbers: [] }, t)).toBeNull();
+	});
+});
+
+describe('hizbRoundCells', () => {
+	it('rings your portions whether they were read or missed', () => {
+		const round = {
+			babs: [bab({ number: 16, owedByUserId: ME }), bab({ number: 15, owedByUserId: ME, readByUserId: ME })]
+		};
+
+		expect(hizbRoundCells(round, ME)).toEqual([
+			{ isMine: true, number: 15, state: 'read' },
+			{ isMine: true, number: 16, state: 'missed' }
+		]);
+	});
+
+	it('calls a portion read by anyone but its owner taken, pool portions included', () => {
+		const round = {
+			babs: [
+				bab({ number: 23, owedByUserId: ALI, readByUserId: HASAN }),
+				bab({ number: 31, isPool: true, readByUserId: ME })
+			]
+		};
+
+		expect(hizbRoundCells(round, ME).map(cell => cell.state)).toEqual(['taken', 'taken']);
+	});
+
+	it('leaves an unread pool portion in the pool and an unread owed one missed', () => {
+		const round = { babs: [bab({ number: 24, owedByUserId: ALI }), bab({ number: 31, isPool: true })] };
+
+		expect(hizbRoundCells(round, ME)).toEqual([
+			{ isMine: false, number: 24, state: 'missed' },
+			{ isMine: false, number: 31, state: 'pool' }
+		]);
+	});
+
+	it('rings nothing without a viewer', () => {
+		const round = { babs: [bab({ number: 1, owedByUserId: ME })] };
+
+		expect(hizbRoundCells(round, null)[0]?.isMine).toBe(false);
+	});
+});
+
+describe('hizbRoundAction', () => {
+	it('covers every ordinary portion in one write', () => {
+		expect(hizbRoundAction([23, 24])).toEqual({ kind: 'cover', partNumbers: [23, 24] });
+	});
+
+	it('sends Sekine to the reader rather than marking it', () => {
+		expect(hizbRoundAction([19])).toEqual({ kind: 'read', partNumber: 19 });
+	});
+
+	it('covers the rest of a block first, and leaves Sekine for the reader', () => {
+		expect(hizbRoundAction([18, 19])).toEqual({ kind: 'cover', partNumbers: [18] });
+	});
+
+	it('has nothing to do once nothing is outstanding', () => {
+		expect(hizbRoundAction([])).toBeNull();
+	});
+});
+
+describe('hizbRoundRows', () => {
+	const round = {
+		babs: [
+			bab({ number: 15, owedByUserId: ME, readByUserId: ME }),
+			bab({ number: 16, owedByUserId: ME }),
+			bab({ number: 23, owedByUserId: ALI, readByUserId: ALI }),
+			bab({ number: 24, owedByUserId: ALI }),
+			bab({ number: 25, owedByUserId: HASAN, readByUserId: HASAN }),
+			bab({ number: 5, isPool: true, readByUserId: HASAN }),
+			bab({ number: 31, isPool: true })
+		]
+	};
+
+	it('lists only the rows with something outstanding, in seat order, pool last', () => {
+		expect(hizbRoundRows(round, members, ME, new Set()).map(row => row.key)).toEqual([ME, ALI, 'pool']);
+	});
+
+	it('keeps a row the viewer settled on this visit, with nothing left to do', () => {
+		const rows = hizbRoundRows(round, members, ME, new Set([HASAN]));
+		const hasan = rows.find(row => row.key === HASAN);
+
+		expect(hasan?.action).toBeNull();
+		expect(hasan?.detailKind).toBe('settled');
+	});
+
+	it('writes each row’s portions as a set, not a span', () => {
+		const rows = hizbRoundRows(round, members, ME, new Set());
+
+		expect(rows.find(row => row.key === ME)?.partsLabel).toBe('15–16');
+		// Two empty seats' portions, far apart: "5–31" would claim the twenty-five between.
+		expect(rows.find(row => row.isPool)?.partsLabel).toBe('5, 31');
+	});
+
+	it('gives each row the action its outstanding portions call for', () => {
+		const rows = hizbRoundRows(round, members, ME, new Set());
+
+		expect(rows.find(row => row.key === ALI)?.action).toEqual({ kind: 'cover', partNumbers: [24] });
+		expect(rows.find(row => row.isPool)?.action).toEqual({ kind: 'cover', partNumbers: [31] });
 	});
 });
