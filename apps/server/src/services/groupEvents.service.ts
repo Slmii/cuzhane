@@ -2,6 +2,7 @@ import prisma from '@db/prisma';
 import type { Prisma } from '../generated/prisma/client';
 import { sendPushToUser } from '@services/push.service';
 import { recordNotification, type NotificationPayload } from '@services/notifications.service';
+import type { GroupKindName } from '@utils/groupKinds';
 import { toPushLanguage, type PushLanguage } from '@utils/pushCopy';
 import { FALLBACK_DISPLAY_NAME, getMemberProfiles } from '@utils/memberProfiles';
 
@@ -69,9 +70,16 @@ type GroupEventInput = {
 	pushKind: string;
 	/**
 	 * Built from what the group looks like *now*, after the write — the member count in
-	 * particular, which is the whole news in two of the three.
+	 * particular, which is the whole news in two of the three. `kind` is there for the copy
+	 * that names what the group reads: a pool block is babs in one group and portions in another.
 	 */
-	build: (context: { actorName: string; groupName: string; memberCount: number; spots: number }) => {
+	build: (context: {
+		actorName: string;
+		groupName: string;
+		kind: GroupKindName;
+		memberCount: number;
+		spots: number;
+	}) => {
 		payload: NotificationPayload;
 		push: (language: PushLanguage) => { body: string; title: string };
 	};
@@ -89,7 +97,7 @@ export const notifyGroupMembers = async ({
 	try {
 		const group = await prisma.group.findUnique({
 			where: { id: groupId },
-			select: { name: true, spots: true, members: { select: { displayName: true, userId: true } } }
+			select: { kind: true, name: true, spots: true, members: { select: { displayName: true, userId: true } } }
 		});
 
 		if (group === null) {
@@ -112,6 +120,7 @@ export const notifyGroupMembers = async ({
 		const { payload, push } = build({
 			actorName,
 			groupName: group.name,
+			kind: group.kind,
 			memberCount: group.members.length,
 			spots: group.spots
 		});

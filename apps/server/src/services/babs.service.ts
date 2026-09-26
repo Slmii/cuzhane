@@ -2,7 +2,7 @@ import { BAD_REQUEST, CONFLICT } from '@config/httpCodes';
 import { HttpError } from '@config/httpError';
 import prisma from '@db/prisma';
 import { babRuns, formatRun } from '@utils/babs';
-import { partCountFor } from '@utils/groupKinds';
+import { partCountFor, type GroupKindName } from '@utils/groupKinds';
 import { FALLBACK_DISPLAY_NAME, getMemberProfiles } from '@utils/memberProfiles';
 import { normalizeUserId } from '@utils/normalizeUserId';
 import { groupReadPush, roundCompletePush, toPushLanguage } from '@utils/pushCopy';
@@ -258,7 +258,7 @@ const notifyGroupOfShareRead = async (input: { groupId: string; range: string; r
 	try {
 		const group = await prisma.group.findUnique({
 			where: { id: groupId },
-			select: { name: true, members: { select: { displayName: true, userId: true } } }
+			select: { kind: true, name: true, members: { select: { displayName: true, userId: true } } }
 		});
 
 		if (group === null) {
@@ -304,6 +304,7 @@ const notifyGroupOfShareRead = async (input: { groupId: string; range: string; r
 				sendPushToUser(recipient.userId, {
 					...groupReadPush(toPushLanguage(recipient.language), {
 						groupName: group.name,
+						kind: group.kind,
 						range,
 						readerName
 					}),
@@ -342,11 +343,12 @@ const shareRange = (babNumbers: number[]): string => babRuns(babNumbers).map(for
 const notifyGroupOfRoundComplete = async (input: {
 	finisherId: string;
 	groupId: string;
+	groupKind: GroupKindName;
 	groupName: string;
 	memberIds: string[];
 	roundIndex: number;
 }): Promise<void> => {
-	const { finisherId, groupId, groupName, memberIds, roundIndex } = input;
+	const { finisherId, groupId, groupKind, groupName, memberIds, roundIndex } = input;
 
 	try {
 		/*
@@ -389,6 +391,7 @@ const notifyGroupOfRoundComplete = async (input: {
 				sendPushToUser(recipient.userId, {
 					...roundCompletePush(toPushLanguage(recipient.language), {
 						groupName,
+						kind: groupKind,
 						// Stored from zero; the group screen and Turlar both count from one.
 						roundNumber: roundIndex + 1
 					}),
@@ -478,6 +481,7 @@ export const setBabReadForUser = async (
 			return {
 				bab: current,
 				didCompleteRound: false,
+				groupKind: group.kind,
 				groupName: group.name,
 				isShareRead: false,
 				memberIds: group.members.map(member => member.userId),
@@ -514,6 +518,7 @@ export const setBabReadForUser = async (
 		return {
 			bab: await tx.groupBab.findUniqueOrThrow({ where: { groupId_number: { groupId, number: babNumber } } }),
 			didCompleteRound,
+			groupKind: group.kind,
 			groupName: group.name,
 			memberIds: group.members.map(member => member.userId),
 			roundIndex: group.roundIndex,
@@ -541,6 +546,7 @@ export const setBabReadForUser = async (
 		await notifyGroupOfRoundComplete({
 			finisherId: normalizedUserId,
 			groupId,
+			groupKind: outcome.groupKind,
 			groupName: outcome.groupName,
 			memberIds: outcome.memberIds,
 			roundIndex: outcome.roundIndex
@@ -646,6 +652,7 @@ export const setAssignedBabsReadForUser = async (
 		return {
 			babs: await tx.groupBab.findMany({ where: { groupId }, orderBy: { number: 'asc' } }),
 			didCompleteRound,
+			groupKind: group.kind,
 			groupName: group.name,
 			memberIds: group.members.map(member => member.userId),
 			roundIndex: group.roundIndex,
@@ -675,6 +682,7 @@ export const setAssignedBabsReadForUser = async (
 		await notifyGroupOfRoundComplete({
 			finisherId: normalizedUserId,
 			groupId,
+			groupKind: result.groupKind,
 			groupName: result.groupName,
 			memberIds: result.memberIds,
 			roundIndex: result.roundIndex

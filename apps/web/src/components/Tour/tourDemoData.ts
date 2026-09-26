@@ -401,6 +401,7 @@ export const TOUR_DEMO_NOTIFICATIONS: AppNotification[] = [
 	{
 		createdAt: minutesAgo(12),
 		groupId: 'tour-demo-group-2',
+		groupKind: 'CEVSEN',
 		groupName: 'Silsile Hatmi',
 		id: 'tour-demo-notification-1',
 		isRead: false,
@@ -410,6 +411,7 @@ export const TOUR_DEMO_NOTIFICATIONS: AppNotification[] = [
 	{
 		createdAt: minutesAgo(95),
 		groupId: 'tour-demo-group-1',
+		groupKind: 'CEVSEN',
 		groupName: 'Aile Hatmi',
 		id: 'tour-demo-notification-2',
 		isRead: false,
@@ -419,6 +421,7 @@ export const TOUR_DEMO_NOTIFICATIONS: AppNotification[] = [
 	{
 		createdAt: minutesAgo(60 * 20),
 		groupId: 'tour-demo-group-3',
+		groupKind: 'CEVSEN',
 		groupName: 'Şükür Hatmi',
 		id: 'tour-demo-notification-3',
 		isRead: true,
@@ -428,6 +431,7 @@ export const TOUR_DEMO_NOTIFICATIONS: AppNotification[] = [
 	{
 		createdAt: minutesAgo(60 * 30),
 		groupId: 'tour-demo-group-1',
+		groupKind: 'CEVSEN',
 		groupName: 'Aile Hatmi',
 		id: 'tour-demo-notification-4',
 		isRead: true,

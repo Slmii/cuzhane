@@ -1,4 +1,5 @@
 import prisma from '@db/prisma';
+import type { GroupKindName } from '@utils/groupKinds';
 import { normalizeUserId } from '@utils/normalizeUserId';
 import type { NotificationKind, Prisma } from '../generated/prisma/client';
 
@@ -85,6 +86,15 @@ export type NotificationRow = {
 	kind: NotificationKind;
 	groupId: string | null;
 	groupName: string;
+	/**
+	 * What the group reads, so the row can say "bab" or "bölüm". Named `groupKind` because
+	 * `kind` is already what the *notification* is.
+	 *
+	 * Joined from the live group rather than stored on the row, unlike `groupName`. Once the
+	 * group is deleted `groupId` goes null and there is nothing left to join, so such a row
+	 * reads as a Cevşen one — the kind every group had before there was a second.
+	 */
+	groupKind: GroupKindName;
 	payload: Record<string, unknown>;
 	isRead: boolean;
 	createdAt: string;
@@ -95,12 +105,14 @@ const serializeNotification = (row: {
 	kind: NotificationKind;
 	groupId: string | null;
 	groupName: string;
+	group: { kind: GroupKindName } | null;
 	payload: Prisma.JsonValue;
 	readAt: Date | null;
 	createdAt: Date;
 }): NotificationRow => ({
 	createdAt: row.createdAt.toISOString(),
 	groupId: row.groupId,
+	groupKind: row.group?.kind ?? 'CEVSEN',
 	groupName: row.groupName,
 	id: row.id,
 	isRead: row.readAt !== null,
@@ -121,7 +133,8 @@ export const listNotificationsForUser = async (userId: string): Promise<Notifica
 	const rows = await prisma.notification.findMany({
 		where: { userId: normalizeUserId(userId) },
 		orderBy: { createdAt: 'desc' },
-		take: INBOX_LIMIT
+		take: INBOX_LIMIT,
+		include: { group: { select: { kind: true } } }
 	});
 
 	return rows.map(serializeNotification);

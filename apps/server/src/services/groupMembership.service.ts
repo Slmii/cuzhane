@@ -14,6 +14,7 @@ import { notifyGroupMembers } from './groupEvents.service';
 import { memberJoinedPush, memberLeftPush } from '@utils/pushCopy';
 import { sendPushToUser } from './push.service';
 import { poolClaimReleasedPush, pushLanguageFor } from '@utils/pushCopy';
+import type { GroupKindName } from '@utils/groupKinds';
 import type { GroupDetail, GroupInvitePreview, GroupMember } from './groupSerializers';
 
 const loadDetail = async (groupId: string, viewerUserId: string): Promise<GroupDetail> => {
@@ -92,7 +93,7 @@ const attemptJoin = async (
 	 * but told to them outside it. A push is a courtesy; the join is the point, and Expo
 	 * being slow or unreachable must never roll one back or hold the response open.
 	 */
-	let released: { userId: string; range: string } | null = null;
+	let released: { userId: string; range: string; kind: GroupKindName } | null = null;
 
 	await prisma.$transaction(async tx => {
 		const group = await tx.group.findUnique({
@@ -187,7 +188,7 @@ const attemptJoin = async (
 					data: { groupId, userId: claim.assignedUserId, roundIndex: group.roundIndex, startBab, endBab }
 				});
 
-				released = { userId: claim.assignedUserId, range: `${startBab}–${endBab}` };
+				released = { userId: claim.assignedUserId, range: `${startBab}–${endBab}`, kind: group.kind };
 			}
 		}
 
@@ -206,7 +207,7 @@ const attemptJoin = async (
 	 * never throws, so awaiting it costs the join nothing and cannot fail it.
 	 */
 	if (released !== null) {
-		const { userId: volunteerId, range } = released as { userId: string; range: string };
+		const { userId: volunteerId, range, kind } = released as { userId: string; range: string; kind: GroupKindName };
 		const language = await pushLanguageFor(volunteerId);
 		const [startBab, endBab] = range.split('–').map(Number);
 
@@ -227,7 +228,7 @@ const attemptJoin = async (
 		}
 
 		await sendPushToUser(volunteerId, {
-			...poolClaimReleasedPush(language, range),
+			...poolClaimReleasedPush(language, { kind, range }),
 			data: { groupId, kind: 'pool-claim-released' }
 		});
 	}

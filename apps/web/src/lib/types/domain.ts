@@ -207,6 +207,11 @@ export type AppNotification = {
 	/** Null once the group is gone; the row survives so the history has no gap. */
 	groupId: string | null;
 	groupName: string;
+	/**
+	 * What the group reads, so the row can say "bab" or "bölüm" — `groupKind` because `kind`
+	 * is what the notification is. `CEVSEN` once the group is gone.
+	 */
+	groupKind: GroupKind;
 	payload: Record<string, unknown>;
 	isRead: boolean;
 	createdAt: string;

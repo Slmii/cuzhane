@@ -167,9 +167,9 @@ export const takePoolSlotForUser = async (
 			actorUserId: normalizedUserId,
 			// The lookup used to be here; it lives in the helper now, so all three events resolve
 			// a name the same way rather than one of them doing it properly and two not.
-			build: ({ actorName, groupName: name }) => ({
+			build: ({ actorName, groupName: name, kind }) => ({
 				payload: { kind: 'POOL_BAB_CLAIMED', range, takerName: actorName },
-				push: language => poolClaimPush(language, { groupName: name, range, takerName: actorName })
+				push: language => poolClaimPush(language, { groupName: name, kind, range, takerName: actorName })
 			}),
 			excludeUserIds: [normalizedUserId],
 			groupId,
