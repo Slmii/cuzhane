@@ -279,9 +279,10 @@ export const poolBlocks = (
 	}));
 
 /**
- * Flattened `poolBlocks`. Write paths use this to tell a *pool* claim apart from a
- * member's standing seat: both are recorded as `assignedUserId`, but only the pool one
- * grants the right to read outside this round's rotated share.
+ * Flattened `poolBlocks`. Write paths check a claim against it: `assignedUserId` is only ever
+ * "volunteered for this bab out of the pool, this round", and requiring the bab to sit in this
+ * round's pool as well means a claim that somehow outlived its seat being empty can never
+ * grant a read outside the rotated share.
  */
 export const poolBabNumbers = (
 	group: PlanShape,

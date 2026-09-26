@@ -4,6 +4,22 @@ import type { Prisma } from '../generated/prisma/client';
 import type { Group } from '../generated/prisma/client';
 
 /**
+ * Takes the group row's write lock for the rest of the caller's transaction.
+ *
+ * Every path that mutates a group's board takes this FIRST, before touching any bab. The
+ * rollover locks the group and then the babs, so a path that grabbed babs first would
+ * deadlock against it — this keeps one lock order everywhere. Re-taking it inside the same
+ * transaction is free, which is why `syncCompletedAt` can call it unconditionally.
+ *
+ * It lives here, beside the rollover it orders against, rather than in `babs.service`: the
+ * services that take it import this file already, so none of them has to import another
+ * service — and `babs.service` itself imports one that takes it.
+ */
+export const lockGroup = async (tx: Prisma.TransactionClient, groupId: string): Promise<void> => {
+	await tx.$queryRaw`SELECT id FROM "Group" WHERE id = ${groupId} FOR UPDATE`;
+};
+
+/**
  * Which round the calendar says a group should be on right now.
  *
  * "The calendar" means the group's own — boundaries are local midnights in `group.timezone`,

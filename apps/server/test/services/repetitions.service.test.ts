@@ -198,6 +198,21 @@ describe('marking Sekine read', () => {
 		expect(await readerOf(group.id, 20)).toBe(OWNER);
 	});
 
+	it('treats marking it again as the no-op it is, whatever the count says now', async () => {
+		const group = await createGroup();
+		await setPartRepetitionsForUser(OWNER, group.id, SEKINE, { count: 19 });
+		await setBabReadForUser(OWNER, group.id, SEKINE, true);
+		await setPartRepetitionsForUser(OWNER, group.id, SEKINE, { count: 0 });
+
+		// A retry of a read that is already saved must not come back as a refusal.
+		const bab = await setBabReadForUser(OWNER, group.id, SEKINE, true);
+
+		expect(bab.readByUserId).toBe(OWNER);
+		expect(await readerOf(group.id, SEKINE)).toBe(OWNER);
+		expect(await prisma.babRead.count({ where: { groupId: group.id, babNumber: SEKINE, userId: OWNER } })).toBe(1);
+		expect(await getPartRepetitionsForUser(OWNER, group.id, SEKINE)).toEqual({ count: 0, required: 19 });
+	});
+
 	it('keeps the count when the read is undone', async () => {
 		const group = await createGroup();
 		await setPartRepetitionsForUser(OWNER, group.id, SEKINE, { count: 19 });
@@ -280,6 +295,45 @@ describe('covering Sekine in a closed round', () => {
 		const detail = await coverMissedBabsForUser(OWNER, group.id, closedRound, [SEKINE]);
 
 		expect(detail.babs.find(bab => bab.number === SEKINE)?.readByUserId).toBe(OWNER);
+	});
+
+	it('does not hold the rest of a block to a Sekine somebody else already covered', async () => {
+		const group = await createGroup({ startedDaysAgo: 1 });
+		const closedRound = group.roundIndex - 1;
+		await setPartRepetitionsForUser(OTHER, group.id, SEKINE, { count: 19, roundIndex: closedRound });
+		await coverMissedBabsForUser(OTHER, group.id, closedRound, [SEKINE]);
+
+		// The owner has no count of their own for that round, and is not writing Sekine anyway.
+		const detail = await coverMissedBabsForUser(OWNER, group.id, closedRound, OWNER_SHARE);
+		const readerByNumber = new Map(detail.babs.map(bab => [bab.number, bab.readByUserId]));
+
+		expect(readerByNumber.get(SEKINE)).toBe(OTHER);
+		expect(readerByNumber.get(20)).toBe(OWNER);
+		expect(readerByNumber.get(21)).toBe(OWNER);
+	});
+
+	it('still answers a fully covered request as already read', async () => {
+		const group = await createGroup({ startedDaysAgo: 1 });
+		const closedRound = group.roundIndex - 1;
+		await setPartRepetitionsForUser(OTHER, group.id, SEKINE, { count: 19, roundIndex: closedRound });
+		await coverMissedBabsForUser(OTHER, group.id, closedRound, [SEKINE]);
+
+		await expect(coverMissedBabsForUser(OWNER, group.id, closedRound, [SEKINE])).rejects.toMatchObject({
+			statusCode: 409,
+			message: 'These babs have already been read'
+		});
+	});
+});
+
+describe('setting a count on a group behind the calendar', () => {
+	it('rolls first, so the count lands in the round that is open', async () => {
+		const group = await createGroup({ startedDaysAgo: 1, isBehind: true });
+
+		await setPartRepetitionsForUser(OWNER, group.id, SEKINE, { count: 7 });
+
+		const row = await prisma.groupPartRepetition.findFirstOrThrow({ where: { groupId: group.id } });
+
+		expect(row.roundIndex).toBe(group.roundIndex + 1);
 	});
 });
 

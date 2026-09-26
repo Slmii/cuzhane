@@ -258,8 +258,27 @@ export const coverMissedBabsForUser = async (
 		throw new HttpError(NOT_FOUND, 'Bab not found');
 	}
 
-	// Against the round being covered, not the one open now: nineteen recited today are today's.
-	await assertRepetitionsMet(prisma, { group, userId: normalizedUserId, roundIndex, babNumbers: wanted });
+	/*
+	 * Held to the count only for what this request will actually write. A Sekine somebody else
+	 * already covered is theirs, and `skipDuplicates` below leaves it alone — refusing the rest
+	 * of the block over it would turn a generous act away for a part it never touches. A race
+	 * that covers one in between only means the insert skips it; a request with nothing left
+	 * still gets the "already read" 409 below.
+	 *
+	 * Against the round being covered, not the one open now: nineteen recited today are today's.
+	 */
+	const covered = await prisma.babRead.findMany({
+		where: { groupId, roundIndex, babNumber: { in: wanted } },
+		select: { babNumber: true }
+	});
+	const coveredNumbers = new Set(covered.map(read => read.babNumber));
+
+	await assertRepetitionsMet(prisma, {
+		group,
+		userId: normalizedUserId,
+		roundIndex,
+		babNumbers: wanted.filter(babNumber => !coveredNumbers.has(babNumber))
+	});
 
 	// `skipDuplicates` rather than a transaction that fails on the first clash: taking on
 	// someone's whole block is a generous act, and having it rejected outright because one

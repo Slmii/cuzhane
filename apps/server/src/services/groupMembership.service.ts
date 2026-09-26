@@ -10,6 +10,7 @@ import { requireMembership, requireOwner } from './groupAccess.service';
 import { getMemberProfiles } from '@utils/memberProfiles';
 import { toGroupDetail, toGroupMember, toInvitePreview } from './groupSerializers';
 import { poolBlockFor } from './pool.service';
+import { lockGroup } from './rounds.service';
 import { recordNotification } from './notifications.service';
 import { notifyGroupMembers } from './groupEvents.service';
 import { memberJoinedPush, memberLeftPush } from '@utils/pushCopy';
@@ -104,6 +105,17 @@ const attemptJoin = async (
 	const released: ReleasedClaim[] = [];
 
 	await prisma.$transaction(async tx => {
+		/*
+		 * The group row first, as on every path that touches the board. This join reads the
+		 * members and the round to work out which pool block the seat was offering, then clears
+		 * the claims on it — and without the lock its only wait was the foreign key's share lock
+		 * at the seat insert, *after* those reads. A portion taken in between was cleared with no
+		 * release recorded, or landed after the clear and was stranded on a block that was no
+		 * longer pool. Locked, a concurrent claim or rollover either finishes first or waits for
+		 * this one; nothing below takes a bab before the group, so the order matches everywhere.
+		 */
+		await lockGroup(tx, groupId);
+
 		const group = await tx.group.findUnique({
 			where: { id: groupId },
 			include: { members: true }

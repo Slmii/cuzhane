@@ -5,7 +5,7 @@ import { partCountFor, requiredRepetitions } from '@utils/groupKinds';
 import { normalizeUserId } from '@utils/normalizeUserId';
 import type { Group, Prisma } from '../generated/prisma/client';
 import { requireMembership } from './groupAccess.service';
-import { ensureCurrentRoundFor } from './rounds.service';
+import { ensureCurrentRound, ensureCurrentRoundFor, lockGroup } from './rounds.service';
 
 /**
  * A part that has to be read more than once before it counts — Sekine, nineteen times from its
@@ -23,24 +23,18 @@ import { ensureCurrentRoundFor } from './rounds.service';
 export type PartRepetitions = { count: number; required: number };
 
 /**
- * Loads the group on its current round and checks the part is one that is repeated at all.
+ * Checks the part is one that is repeated at all, and resolves which round is meant.
  *
- * `ensureCurrentRoundFor` comes first so that "the current round" — what a request without a
+ * The caller has already rolled the group, so "the current round" — what a request without a
  * `roundIndex` means — is the one the calendar is on, not one the rollover is about to close.
  * A round the group has not reached is refused: a count for it would be waiting for somebody
  * the day the round opened, having been recited before it did.
  */
-const loadRepeatedPart = async (
-	userId: string,
-	groupId: string,
+const resolveRepeatedPart = (
+	group: Pick<Group, 'kind' | 'roundIndex'>,
 	partNumber: number,
 	roundIndex: number | undefined
 ) => {
-	const normalizedUserId = normalizeUserId(userId);
-	await requireMembership(normalizedUserId, groupId);
-	await ensureCurrentRoundFor(groupId);
-
-	const group = await prisma.group.findUniqueOrThrow({ where: { id: groupId } });
 	const isPart = Number.isInteger(partNumber) && partNumber >= 1 && partNumber <= partCountFor(group.kind);
 	const required = isPart ? requiredRepetitions(group.kind, partNumber) : 0;
 
@@ -54,16 +48,22 @@ const loadRepeatedPart = async (
 		throw new HttpError(BAD_REQUEST, 'That round has not started');
 	}
 
-	return { group, normalizedUserId, required, round };
+	return { required, round };
 };
 
+/** Rolls first, like every read path, and needs no lock: a read that races a rollover is only a moment stale. */
 export const getPartRepetitionsForUser = async (
 	userId: string,
 	groupId: string,
 	partNumber: number,
 	roundIndex?: number
 ): Promise<PartRepetitions> => {
-	const { normalizedUserId, required, round } = await loadRepeatedPart(userId, groupId, partNumber, roundIndex);
+	const normalizedUserId = normalizeUserId(userId);
+	await requireMembership(normalizedUserId, groupId);
+	await ensureCurrentRoundFor(groupId);
+
+	const group = await prisma.group.findUniqueOrThrow({ where: { id: groupId } });
+	const { required, round } = resolveRepeatedPart(group, partNumber, roundIndex);
 
 	const row = await prisma.groupPartRepetition.findUnique({
 		where: {
@@ -83,6 +83,10 @@ export const getPartRepetitionsForUser = async (
  * they are; a request retried after a dropped response then writes the same number twice rather
  * than counting one recitation as two.
  *
+ * **One transaction, group lock first**, the order every write path uses. Rolling in a
+ * transaction of its own and writing after it left a window at midnight: a boundary passing
+ * between the two filed a tap made in the new round under the one just closed.
+ *
  * Refused before the hatim starts, for the same reason a read is: nothing is counted while a
  * group is still gathering, and a count written then would be waiting in the first round.
  */
@@ -92,31 +96,41 @@ export const setPartRepetitionsForUser = async (
 	partNumber: number,
 	input: { count: number; roundIndex?: number | undefined }
 ): Promise<PartRepetitions> => {
-	const { group, normalizedUserId, required, round } = await loadRepeatedPart(
-		userId,
-		groupId,
-		partNumber,
-		input.roundIndex
-	);
+	const normalizedUserId = normalizeUserId(userId);
+	await requireMembership(normalizedUserId, groupId);
 
-	if (group.status !== 'RUNNING') {
-		throw new HttpError(BAD_REQUEST, 'This hatim has not started yet');
-	}
+	return prisma.$transaction(async tx => {
+		await lockGroup(tx, groupId);
+		await ensureCurrentRound(tx, groupId);
 
-	if (!Number.isInteger(input.count) || input.count < 0 || input.count > required) {
-		throw new HttpError(BAD_REQUEST, `The count must be between 0 and ${required}`);
-	}
+		const group = await tx.group.findUniqueOrThrow({ where: { id: groupId } });
+		const { required, round } = resolveRepeatedPart(group, partNumber, input.roundIndex);
 
-	const row = await prisma.groupPartRepetition.upsert({
-		where: {
-			groupId_userId_roundIndex_partNumber: { groupId, userId: normalizedUserId, roundIndex: round, partNumber }
-		},
-		create: { groupId, userId: normalizedUserId, roundIndex: round, partNumber, count: input.count },
-		update: { count: input.count },
-		select: { count: true }
+		if (group.status !== 'RUNNING') {
+			throw new HttpError(BAD_REQUEST, 'This hatim has not started yet');
+		}
+
+		// The schema already holds it to a whole number from zero; only the ceiling is the part's own.
+		if (input.count > required) {
+			throw new HttpError(BAD_REQUEST, `The count must be between 0 and ${required}`);
+		}
+
+		const row = await tx.groupPartRepetition.upsert({
+			where: {
+				groupId_userId_roundIndex_partNumber: {
+					groupId,
+					userId: normalizedUserId,
+					roundIndex: round,
+					partNumber
+				}
+			},
+			create: { groupId, userId: normalizedUserId, roundIndex: round, partNumber, count: input.count },
+			update: { count: input.count },
+			select: { count: true }
+		});
+
+		return { count: row.count, required };
 	});
-
-	return { count: row.count, required };
 };
 
 /**

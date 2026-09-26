@@ -2,7 +2,7 @@ import { BAD_REQUEST, CONFLICT } from '@config/httpCodes';
 import { HttpError } from '@config/httpError';
 import prisma from '@db/prisma';
 import { normalizeUserId } from '@utils/normalizeUserId';
-import { lockGroup, syncCompletedAt } from './babs.service';
+import { syncCompletedAt } from './babs.service';
 import { getMemberProfiles } from '@utils/memberProfiles';
 import { notifyGroupMembers } from './groupEvents.service';
 import { poolClaimPush } from '@utils/pushCopy';
@@ -10,7 +10,7 @@ import { babRuns, formatRun } from '@utils/babs';
 import { partCountFor } from '@utils/groupKinds';
 import { requireMembership } from './groupAccess.service';
 import { poolBabNumbers, poolBlocks } from './groupSerializers';
-import { ensureCurrentRound, ensureCurrentRoundFor } from './rounds.service';
+import { ensureCurrentRound, ensureCurrentRoundFor, lockGroup } from './rounds.service';
 import type { Group } from '../generated/prisma/client';
 
 /**

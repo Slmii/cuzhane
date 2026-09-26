@@ -12,7 +12,7 @@ import { recordNotification } from './notifications.service';
 import { assertRepetitionsMet } from './repetitions.service';
 import { sendPushToUser } from './push.service';
 import { poolBabNumbers, serializeBab, shareBabNumbersToday } from './groupSerializers';
-import { ensureCurrentRound, ensureCurrentRoundFor } from './rounds.service';
+import { ensureCurrentRound, ensureCurrentRoundFor, lockGroup } from './rounds.service';
 import type { GroupBab, GroupStatus } from './groupSerializers';
 
 /**
@@ -83,18 +83,6 @@ const recordRead = async (
 		data: babNumbers.map(babNumber => ({ babNumber, groupId, roundIndex, userId })),
 		skipDuplicates: true
 	});
-};
-
-/**
- * Takes the group row's write lock for the rest of the caller's transaction.
- *
- * Every path that mutates a group's board takes this FIRST, before touching any bab. The
- * rollover locks the group and then the babs, so a path that grabbed babs first would
- * deadlock against it — this keeps one lock order everywhere. Re-taking it inside the same
- * transaction is free, which is why `syncCompletedAt` can call it unconditionally.
- */
-export const lockGroup = async (tx: Prisma.TransactionClient, groupId: string): Promise<void> => {
-	await tx.$queryRaw`SELECT id FROM "Group" WHERE id = ${groupId} FOR UPDATE`;
 };
 
 /**
@@ -432,28 +420,18 @@ export const setBabReadForUser = async (
 		requireRunning(group);
 
 		// Under ROTATION the babs a member may mark this round are their seat's *rotated*
-		// block, not the ones carrying their `assignedUserId` — those coincide only in round 0.
+		// block — derived from the seat and the round, never read off a column.
 		//
-		// The one thing they may also mark is a pool slot they took, which sits outside the
-		// rotation. That has to be checked against the pool specifically, not against
-		// `assignedUserId` alone: a member's own standing seat carries their id too, and in
-		// any later round that block belongs to whoever the rotation handed it to.
+		// The one thing they may also mark is a pool bab they took, which sits outside the
+		// rotation. `assignedUserId` means exactly that — volunteered for out of the pool, this
+		// round — and it is checked against this round's pool as well, so a claim that somehow
+		// outlived its seat being empty can never authorise a block the rotation has handed on.
 		const share = shareBabNumbersToday(group, group.members, normalizedUserId);
 		const isMine = share.includes(babNumber);
 		const isPool = poolBabNumbers(group, group.members, group.roundIndex).includes(babNumber);
 
 		if (!isMine && !isPool) {
 			throw new HttpError(CONFLICT, 'This bab is not yours to mark today');
-		}
-
-		// Sekine counts only after the reader's own nineteen this round. Undoing never asks.
-		if (read) {
-			await assertRepetitionsMet(tx, {
-				group,
-				userId: normalizedUserId,
-				roundIndex: group.roundIndex,
-				babNumbers: [babNumber]
-			});
 		}
 
 		const where: Prisma.GroupBabWhereInput = isMine
@@ -470,9 +448,8 @@ export const setBabReadForUser = async (
 		// A repeated mark is then a no-op rather than a conflict.
 		const result = await tx.groupBab.updateMany({
 			where: read ? { ...where, readAt: null } : undoWhere,
-			// Reading never rewrites `assignedUserId`: that field records which seat owns the
-			// bab, and under ROTATION the reader is holding a different seat today. Taking
-			// ownership is what the pool's "Üstlen" is for.
+			// Reading never writes `assignedUserId`: it means only "volunteered for this bab out
+			// of the pool, this round", and the pool's "Üstlen" is the one thing that sets it.
 			data: read ? { readByUserId: normalizedUserId, readAt: new Date() } : { readByUserId: null, readAt: null }
 		});
 
@@ -499,6 +476,21 @@ export const setBabReadForUser = async (
 				roundIndex: group.roundIndex,
 				share
 			};
+		}
+
+		/*
+		 * Sekine counts only after the reader's own nineteen this round. Asked here, after the
+		 * no-op branch, so a re-mark of a read already saved stays the no-op it is whatever the
+		 * count says now — a client retrying it must not be told no and roll its update back.
+		 * Throwing rolls the write above back with the transaction. Undoing never asks.
+		 */
+		if (read) {
+			await assertRepetitionsMet(tx, {
+				group,
+				userId: normalizedUserId,
+				roundIndex: group.roundIndex,
+				babNumbers: [babNumber]
+			});
 		}
 
 		await recordRead(tx, {

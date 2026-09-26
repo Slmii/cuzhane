@@ -326,6 +326,35 @@ describe('joining a seat whose block several members took portions of', () => {
 	});
 });
 
+describe('a portion taken while somebody joins that seat', () => {
+	/*
+	 * Both paths take the group lock first, so one runs wholly before the other: either the
+	 * take lands and the join releases it with a record, or the join lands and the take finds
+	 * the seat filled. What must never happen is a claim left on a block that is no longer
+	 * pool, or a claim cleared with no record that it existed.
+	 */
+	it('either releases the claim with a record, or refuses it', async () => {
+		for (let attempt = 0; attempt < 5; attempt++) {
+			await prisma.$executeRawUnsafe('TRUNCATE TABLE "Group" RESTART IDENTITY CASCADE');
+			const group = await createGroup();
+
+			const [, take] = await Promise.allSettled([
+				joinGroupForUser(JOINER, 'Joiner', group.id),
+				takePoolPartForUser(ALI, group.id, FIRST)
+			]);
+
+			expect((await babAt(group.id, FIRST)).assignedUserId).toBeNull();
+			expect(await prisma.poolClaimRelease.count({ where: { groupId: group.id, userId: ALI } })).toBe(
+				take.status === 'fulfilled' ? 1 : 0
+			);
+
+			if (take.status === 'rejected') {
+				expect(take.reason).toMatchObject({ statusCode: 400 });
+			}
+		}
+	});
+});
+
 describe('releasePoolPartForUser', () => {
 	/** A finished round in which Ali and Ayşe each took and read one portion of the pool block. */
 	const createFinishedRound = async () => {
