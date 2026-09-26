@@ -69,4 +69,12 @@ describe('toInvitePreview', () => {
 		expect(preview.startedAt).toBeNull();
 		expect(preview.roundEndsAt).toBeNull();
 	});
+
+	it('says whether the group starts itself once it fills', () => {
+		const autoStarting = toInvitePreview(group(), [], [owner], 'test_viewer');
+		const ownerStarted = toInvitePreview(group({ autoStartWhenFull: false }), [], [owner], 'test_viewer');
+
+		expect(autoStarting.autoStartWhenFull).toBe(true);
+		expect(ownerStarted.autoStartWhenFull).toBe(false);
+	});
 });

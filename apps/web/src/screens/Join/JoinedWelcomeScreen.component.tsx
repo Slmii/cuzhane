@@ -12,6 +12,7 @@ import {
 	Header1,
 	Typography
 } from '@/components/ui/Typography/Typography.component';
+import { worksForParts } from '@/lib/content/hizbPortions';
 import { useGetGroupById } from '@/lib/hooks/useGroup';
 import { useRoundReset } from '@/lib/hooks/useRoundReset';
 import { useGetUserSettings } from '@/lib/hooks/useUserSettings';
@@ -59,6 +60,19 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 	const rangeValue = formatBabRange(babNumbers);
 	// Nothing is counted until the owner opens day 1, so the range is only a reservation.
 	const isProvisional = detail.status === 'GATHERING';
+	/*
+	 * HJ3 — the Hizb's wait. The same screen with its own noun, and one line more: which of
+	 * the book's works the reserved portions sit in, since "15–16" alone says nothing to
+	 * someone who hasn't learnt the division by number. Nothing is recomputed for it:
+	 * while the group gathers the server derives `myBabNumbers` from the seat alone, which is
+	 * exactly round 0's share — `babNumbersForRound(slot, spots, 0, partCount)`.
+	 */
+	const isHizb = detail.kind === 'HIZB';
+	const worksLine = isHizb
+		? worksForParts(babNumbers)
+				.map(work => t(work.titleKey))
+				.join(' · ')
+		: '';
 	// While settings are still loading we don't know either way, so fall back to the unset
 	// (ghost button) state rather than flashing the soft-green row and then swapping it out.
 	//
@@ -124,7 +138,9 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 					{t(isProvisional ? 'lobbyTitle' : 'midTitle')}
 				</Header1>
 				<BodyText color={theme.colors.subtext} style={styles.sub} textAlign='center'>
-					{isProvisional ? t('lobbySub') : t('midSub', { count: babNumbers.length })}
+					{isProvisional
+						? t(isHizb ? 'lobbySubHizb' : 'lobbySub')
+						: t('midSub', { count: babNumbers.length })}
 				</BodyText>
 
 				{isProvisional ? (
@@ -134,7 +150,7 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 						<CardSurface style={styles.rangeCard}>
 							<Hatch radius={theme.radius.lg} />
 							<EyebrowText color={theme.colors.subtext} textAlign='center'>
-								{t('yourRange')}
+								{t(isHizb ? 'yourPortions' : 'yourRange')}
 							</EyebrowText>
 							<Typography
 								color={theme.colors.faintText}
@@ -144,6 +160,11 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 							>
 								{rangeValue}
 							</Typography>
+							{worksLine ? (
+								<CaptionText color={theme.colors.subtext} style={styles.works} textAlign='center'>
+									{worksLine}
+								</CaptionText>
+							) : null}
 							<View style={styles.lockPillRow}>
 								<View style={[styles.lockPill, { backgroundColor: theme.colors.secondary }]}>
 									<Icon color={theme.colors.subtext} name='lock' size={12} strokeWidth={1.9} />
@@ -163,7 +184,7 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 									{t('membersJoined', { count: detail.memberCount, spots: detail.spots })}
 								</CaptionText>
 								<CaptionText color={theme.colors.accent} weight='semibold'>
-									{t('spotsToFill', { count: spotsToFill })}
+									{t(isHizb ? 'morePeople' : 'spotsToFill', { count: spotsToFill })}
 								</CaptionText>
 							</View>
 						</CardSurface>
@@ -379,5 +400,8 @@ const styles = StyleSheet.create({
 	title: {
 		fontSize: 29,
 		lineHeight: 33
+	},
+	works: {
+		marginTop: 8
 	}
 });

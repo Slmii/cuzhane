@@ -304,6 +304,21 @@ export type PlanPreviewRow = {
  */
 export const movesEachRound = (splitMode: GroupSplitMode, spots: number) => splitMode === 'ROTATION' && spots > 1;
 
+/** The widest a Hizb lobby's seat row gets — a third of the 33 seats it can hold. */
+const HIZB_SEAT_COLUMNS_MAX = 11;
+
+/**
+ * How many columns the Hizb lobby's seat lattice (HC4) lays its seats out in.
+ *
+ * Up to ten seats keep the ten-wide row the Cevşen's lobby always has. Past that the rows are
+ * **balanced**, at most eleven wide: HC4 draws sixteen as two rows of eight, and the full 33
+ * comes out as three of eleven. A fixed width would leave a ragged last row — sixteen across
+ * eleven is a row and a stub of five — and an empty stretch of lattice reads as seats that
+ * are missing rather than seats that were never there.
+ */
+export const hizbSeatColumns = (spots: number) =>
+	spots <= 10 ? 10 : Math.ceil(spots / Math.ceil(spots / HIZB_SEAT_COLUMNS_MAX));
+
 /**
  * What `PlanPreview` draws. Under ROTATION, the first `maxRounds` rounds of one seat — never more
  * rounds than there are seats, because after `spots` of them the seat is back where it began.

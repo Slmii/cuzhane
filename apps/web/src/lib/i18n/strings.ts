@@ -761,6 +761,30 @@ const tr = {
 	nextRound: 'Sonraki tur',
 	notCounting: 'Sayım henüz başlamadı',
 
+	// Hizbü'l-Hakaik — the lobby (HC4), the invite preview (HJ1/HJ2) and joined-waiting (HJ3).
+	// The Cevşen's own copy above says "bab" and "Gün 1"; these are the Hizb's, with its noun.
+	hizbSeatsNoteRotation: 'Bölümler başlatınca sırayla dağıtılır ve her tur bir ileri kayar.',
+	hizbSeatsNoteFixed: 'Bölümler başlatınca sırayla dağıtılır ve bir daha yer değiştirmez.',
+	peopleJoined: '{count} kişi katıldı',
+	autoStartFullHizb: '{spots} kişi dolunca otomatik başlat',
+	autoStartHintHizb: 'Son kişi katıldığı an ilk tur başlar.',
+	startNowHizb: 'Şimdi başlat',
+	startHintHizb: 'Tur 1 bu an başlar. Sayım o ana kadar açılmaz.',
+	hizbPerPerson: 'kişi başı {count} bölüm',
+	// Its own line so English and Dutch can say "1 portion" — see `perPersonHizbOne`.
+	hizbPerPersonOne: 'kişi başı 1 bölüm',
+	spotsRemaining: '{count} yer kaldı',
+	// A group that waits for its creator alone — `startsNote` promises the full-group start too.
+	startsNoteManual: 'Kurucu başlattığında başlar.',
+	// The Ritim row's second half for a MONTHLY group: "Aylık · ayın 1. günü".
+	cadenceMonthDay: 'ayın {day}. günü',
+	portionsFixed: 'sabit bölümler',
+	portionsRotating: 'dönüşümlü bölümler',
+	allClaimedPortions: '{count} bölümün hepsinin sahibi var',
+	yourPortions: 'Bölümlerin',
+	lobbySubHizb: 'Bölümlerin hazır. Grup başlayınca açılır.',
+	morePeople: '{count} kişi daha',
+
 	// App-specific copy the static design never has to spell out:
 	// validation, error/empty states and parameterised variants.
 	membersTitle: 'Üyeler',
@@ -1546,6 +1570,25 @@ const en: Strings = {
 	nextRound: 'Next round',
 	notCounting: "Counting hasn't started",
 
+	hizbSeatsNoteRotation: 'Portions are handed out in order at the start and move on by one each round.',
+	hizbSeatsNoteFixed: 'Portions are handed out in order at the start and stay where they are after that.',
+	peopleJoined: '{count} joined',
+	autoStartFullHizb: 'Start automatically at {spots} members',
+	autoStartHintHizb: 'Round 1 begins the moment the last person joins.',
+	startNowHizb: 'Start now',
+	startHintHizb: 'Round 1 begins the moment you tap. Nothing is counted before that.',
+	hizbPerPerson: '{count} portions each',
+	hizbPerPersonOne: '1 portion each',
+	spotsRemaining: '{count} left',
+	startsNoteManual: 'It starts when the creator starts it.',
+	cadenceMonthDay: 'day {day} of the month',
+	portionsFixed: 'fixed portions',
+	portionsRotating: 'rotating portions',
+	allClaimedPortions: 'All {count} portions have an owner',
+	yourPortions: 'Your portions',
+	lobbySubHizb: 'Your portions are ready. They unlock when the group starts.',
+	morePeople: '{count} more to go',
+
 	// App-specific copy the static design never has to spell out:
 	// validation, error/empty states and parameterised variants.
 	membersTitle: 'Members',
@@ -2296,6 +2339,25 @@ const nl: Strings = {
 	thisRound: 'Deze ronde',
 	nextRound: 'Volgende ronde',
 	notCounting: 'Telling is nog niet begonnen',
+	hizbSeatsNoteRotation:
+		'Bij de start worden de gedeelten op volgorde verdeeld en ze schuiven elke ronde één plek op.',
+	hizbSeatsNoteFixed: 'Bij de start worden de gedeelten op volgorde verdeeld en daarna blijven ze op hun plek.',
+	peopleJoined: '{count} meegedaan',
+	autoStartFullHizb: 'Automatisch starten bij {spots} leden',
+	autoStartHintHizb: 'Ronde 1 begint zodra de laatste persoon meedoet.',
+	startNowHizb: 'Nu starten',
+	startHintHizb: 'Ronde 1 begint op dit moment. Er wordt pas dan geteld.',
+	hizbPerPerson: '{count} gedeelten per persoon',
+	hizbPerPersonOne: '1 gedeelte per persoon',
+	spotsRemaining: 'nog {count} vrij',
+	startsNoteManual: 'Hij start zodra de oprichter hem start.',
+	cadenceMonthDay: 'dag {day} van de maand',
+	portionsFixed: 'vaste gedeelten',
+	portionsRotating: 'roterende gedeelten',
+	allClaimedPortions: 'Alle {count} gedeelten hebben een eigenaar',
+	yourPortions: 'Jouw gedeelten',
+	lobbySubHizb: 'Je gedeelten staan klaar. Ze gaan open zodra de groep start.',
+	morePeople: 'nog {count} te gaan',
 	membersTitle: 'Leden',
 	save: 'Opslaan',
 	close: 'Sluiten',

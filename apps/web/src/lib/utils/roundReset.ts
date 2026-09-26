@@ -185,6 +185,43 @@ export const roundResetLabels = (
 	};
 };
 
+const CADENCE_CYCLE_KEYS = { DAILY: 'daily', WEEKLY: 'weekly', MONTHLY: 'monthly' } as const;
+
+/**
+ * The Ritim row of a Hizb preview (HJ1/HJ2): the cycle, and the day it turns on —
+ * "Haftalık · Pazartesi", "Aylık · ayın 1. günü", plain "Günlük".
+ *
+ * **The day is the start's, so a group that hasn't started has none.** A round boundary is
+ * anchored on `startedAt`, which the owner stamps when they start the hatim — until then a
+ * WEEKLY group has no weekday to name and a MONTHLY one no day of the month, and the row says
+ * only the cycle rather than guess one. (`startsAt` is no stand-in: it is the creation time.)
+ *
+ * Both read in the group's zone, where its midnight falls. The weekday keeps `Intl`'s own
+ * casing — it stands after a separator here, not mid-sentence as in `resetWeekly`, so Turkish
+ * capitalises it and Dutch, correctly, does not.
+ */
+export const cadenceLabel = (
+	cycle: GroupCycle,
+	startedAt: string | null,
+	timezone: string,
+	locale: string,
+	t: (key: 'daily' | 'weekly' | 'monthly' | 'cadenceMonthDay', values: Record<string, string>) => string
+): string => {
+	const cycleLabel = t(CADENCE_CYCLE_KEYS[cycle], {});
+	const start = startedAt ? new Date(startedAt) : null;
+
+	if (cycle === 'DAILY' || !start || Number.isNaN(start.getTime())) {
+		return cycleLabel;
+	}
+
+	const day =
+		cycle === 'WEEKLY'
+			? new Intl.DateTimeFormat(locale, { timeZone: timezone, weekday: 'long' }).format(start)
+			: t('cadenceMonthDay', { day: dayOfMonthIn(start, timezone) });
+
+	return `${cycleLabel} · ${day}`;
+};
+
 /** Whole hours and minutes until the round rolls, for the DAILY screen's countdown. */
 export const timeUntilReset = (roundEndsAt: string | null, now = new Date()): { hours: number; minutes: number } => {
 	if (!roundEndsAt) {

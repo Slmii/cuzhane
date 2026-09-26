@@ -19,6 +19,7 @@ import {
 import { useJoinGroupByCode, useLookupGroupByCode } from '@/lib/hooks/useMembership';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
+import { formatRun } from '@/lib/utils/babs';
 import { cycleLabelKey, partUnitKey } from '@/lib/utils/groups';
 import { formatInviteCode } from '@/lib/utils/inviteCode';
 import type { TabStackParamList } from '@/navigation/types';
@@ -318,12 +319,13 @@ export const JoinByCodeSheet = ({ initialCode, isVisible, onClose }: JoinByCodeS
 						</View>
 
 						{/* The promise the code is making. Only when there is a seat to promise —
-						    a group can fill between the code being shared and typed. */}
+						    a group can fill between the code being shared and typed. `formatRun`,
+						    since a Hizb seat can hold a single portion: "7", not "7–7". */}
 						{data.nextRange ? (
 							<AssignmentBanner
 								description={t('autoAssign')}
 								label={t('youllGet')}
-								range={`${data.nextRange.start}–${data.nextRange.end}`}
+								range={formatRun(data.nextRange)}
 								style={styles.assignment}
 							/>
 						) : null}

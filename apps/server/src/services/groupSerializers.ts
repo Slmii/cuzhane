@@ -160,6 +160,11 @@ export type GroupInvitePreview = {
 	daysLeft: number | null;
 	isMember: boolean;
 	status: GroupStatus;
+	/**
+	 * Whether the group starts itself the moment its last seat fills. A gathering Hizb preview
+	 * (HJ1) promises that start only when it is true — otherwise the creator is the only way in.
+	 */
+	autoStartWhenFull: boolean;
 	nextRange: BabRange | null;
 	/** Babs no member is reading this round — what a joiner would pick up immediately. */
 	poolBabNumbers: number[];
@@ -567,6 +572,7 @@ export const toInvitePreview = (
 		daysLeft: daysLeftFrom(group.endsAt),
 		isMember: members.some(member => member.userId === viewerUserId),
 		status: group.status,
+		autoStartWhenFull: group.autoStartWhenFull,
 		/**
 		 * **The whole pool here, unlike `GroupSummary.poolBabNumbers`** — every bab belonging
 		 * to a seat nobody is sitting in, whether or not a member has volunteered to cover it.

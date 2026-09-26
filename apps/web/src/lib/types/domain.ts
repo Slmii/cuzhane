@@ -148,6 +148,8 @@ export type GroupInvitePreview = {
 	daysLeft: number | null;
 	isMember: boolean;
 	status: GroupStatus;
+	/** Whether filling the last seat starts the group — see the server's `GroupInvitePreview`. */
+	autoStartWhenFull: boolean;
 	nextRange: BabRange | null;
 	/**
 	 * Every bab belonging to an empty seat, volunteered-for ones included — the app's

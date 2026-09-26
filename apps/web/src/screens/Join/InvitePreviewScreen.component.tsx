@@ -6,6 +6,7 @@ import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Chip } from '@/components/ui/Chip/Chip.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
+import { KindMark } from '@/components/ui/KindMark/KindMark.component';
 import { ProgressBar } from '@/components/ui/ProgressBar/ProgressBar.component';
 import { SeatStack } from '@/components/ui/SeatStack/SeatStack.component';
 import { CaptionText, EyebrowText, Header2, TitleText } from '@/components/ui/Typography/Typography.component';
@@ -14,10 +15,12 @@ import { useGroupPreviewById, useJoinGroup } from '@/lib/hooks/useMembership';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useRoundReset } from '@/lib/hooks/useRoundReset';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import { cycleLabelKey, splitModeLabelKey } from '@/lib/utils/groups';
+import { babsPerPerson } from '@/lib/utils/babs';
+import { cycleLabelKey, planLabelKey, splitModeLabelKey } from '@/lib/utils/groups';
+import { cadenceLabel } from '@/lib/utils/roundReset';
 import type { TabStackParamList } from '@/navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 type Props = NativeStackScreenProps<TabStackParamList, 'InvitePreview'>;
@@ -27,6 +30,8 @@ type Props = NativeStackScreenProps<TabStackParamList, 'InvitePreview'>;
  * never so long that the rows outgrow the card — 100 babs over the smallest group is 20.
  */
 const BAB_COLUMNS = 8;
+/** HJ1 and HJ2 draw the Hizb's mark at 44 beside the name. */
+const KIND_MARK_SIZE = 44;
 
 const chunk = (numbers: number[], size: number): number[][] => {
 	const rows: number[][] = [];
@@ -41,7 +46,7 @@ const chunk = (numbers: number[], size: number): number[][] => {
 export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 	const { groupId } = route.params;
 	const { theme } = useThemeContext();
-	const { t } = useTranslation();
+	const { language, t } = useTranslation();
 
 	const preview = useGroupPreviewById(groupId);
 	const joinByGroupId = useJoinGroup();
@@ -69,6 +74,29 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 	}
 
 	const data = preview.data;
+	// HJ1/HJ2 — the Hizb's preview. Its branches below are what those frames change: the
+	// mark beside the name, the subtitles, the details rows and the counts' wording.
+	const isHizb = data.kind === 'HIZB';
+	/**
+	 * A Hizb heading carries the book's mark at its right, level with the chip row. The mark
+	 * clears the navigator's bar the way the chip row beside it does. The Cevşen's heading is
+	 * handed back untouched.
+	 */
+	const withKindMark = (heading: ReactNode) =>
+		isHizb ? (
+			<View style={styles.headingRow}>
+				<View style={styles.headingCopy}>{heading}</View>
+				<View style={styles.headingMark}>
+					<KindMark kind='HIZB' size={KIND_MARK_SIZE} />
+				</View>
+			</View>
+		) : (
+			heading
+		);
+	/** "Haftalık · Pazartesi" — the Hizb's Ritim row; the Cevşen's names the cycle alone. */
+	const cadenceValue = isHizb
+		? cadenceLabel(data.cycle, data.startedAt, data.timezone, language, t)
+		: t(cycleLabelKey(data.cycle));
 	const handleDiscover = () => {
 		// Reached from Keşfet, this screen sits *on* the Discover stack, so switching to the
 		// Discover tab is a no-op and the button did nothing. Popping the tab's own stack is
@@ -79,20 +107,31 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 	};
 
 	if (data.isFull) {
+		// HJ2 names the plan by what it does to the portions: "Aylık · sabit bölümler".
+		const fullPlanKey = isHizb
+			? data.splitMode === 'FIXED'
+				? 'portionsFixed'
+				: 'portionsRotating'
+			: splitModeLabelKey(data.splitMode);
+
 		return (
 			<ScreenContainer contentContainerStyle={styles.content} isScrollable pullToRefresh={pullToRefresh}>
 				<View>
-					{/* Clears the navigator's back button, which this screen draws no link of
-					    its own beside. Same band every pushed screen's heading starts below. */}
-					<View style={[styles.chipRow, styles.chipRowUnderBar]}>
-						<Chip label={`${t('full')} · ${data.memberCount}/${data.spots}`} tone='neutral' />
-						<Chip label={t(cycleLabelKey(data.cycle))} tone='accent' />
-					</View>
+					{withKindMark(
+						<>
+							{/* Clears the navigator's back button, which this screen draws no link of
+							    its own beside. Same band every pushed screen's heading starts below. */}
+							<View style={[styles.chipRow, styles.chipRowUnderBar]}>
+								<Chip label={`${t('full')} · ${data.memberCount}/${data.spots}`} tone='neutral' />
+								<Chip label={t(cycleLabelKey(data.cycle))} tone='accent' />
+							</View>
 
-					<Header2 style={styles.previewName}>{data.name}</Header2>
-					<CaptionText color={theme.colors.subtext} style={styles.dedication}>
-						{`${t(cycleLabelKey(data.cycle))} · ${t(splitModeLabelKey(data.splitMode))}`}
-					</CaptionText>
+							<Header2 style={styles.previewName}>{data.name}</Header2>
+							<CaptionText color={theme.colors.subtext} style={styles.dedication}>
+								{`${t(cycleLabelKey(data.cycle))} · ${t(fullPlanKey)}`}
+							</CaptionText>
+						</>
+					)}
 
 					{/* Why you can't join, stated plainly and centred — this is the whole reason
 					    the screen exists, so it leads rather than sitting under the stats. */}
@@ -110,23 +149,29 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 						</CaptionText>
 					</CardSurface>
 
-					{/* The round still shows: you can see how it is going, you just can't join it. */}
-					<CardSurface style={styles.sectionCard}>
-						<View style={styles.sectionHead}>
-							<EyebrowText color={theme.colors.faintText}>{t('roundNow')}</EyebrowText>
-							<CaptionText
-								color={theme.colors.subtext}
-							>{`${data.readCount} / ${data.partCount}`}</CaptionText>
-						</View>
-						<ProgressBar percent={data.percent} style={styles.sectionBar} />
-						<CaptionText color={theme.colors.subtext}>{t('allClaimed')}</CaptionText>
-					</CardSurface>
+					{/* The round still shows: you can see how it is going, you just can't join it.
+					    A Hizb group full but not yet started has no round to show, so HJ2 drops it. */}
+					{!isHizb || data.status === 'RUNNING' ? (
+						<CardSurface style={styles.sectionCard}>
+							<View style={styles.sectionHead}>
+								<EyebrowText color={theme.colors.faintText}>{t('roundNow')}</EyebrowText>
+								<CaptionText
+									color={theme.colors.subtext}
+								>{`${data.readCount} / ${data.partCount}`}</CaptionText>
+							</View>
+							<ProgressBar percent={data.percent} style={styles.sectionBar} />
+							<CaptionText color={theme.colors.subtext}>
+								{isHizb ? t('allClaimedPortions', { count: data.partCount }) : t('allClaimed')}
+							</CaptionText>
+						</CardSurface>
+					) : null}
 
 					{/* No "round ends" row here, unlike 03b — it only matters to someone who is
 					    about to start reading. */}
 					<CardSurface isFlush style={styles.metaCard}>
 						{[
-							{ label: t('cadence'), value: t(cycleLabelKey(data.cycle)) },
+							{ label: t('cadence'), value: cadenceValue },
+							...(isHizb ? [{ label: t('readingPlan'), value: t(planLabelKey(data.splitMode)) }] : []),
 							{ label: t('groupSize'), value: `${data.memberCount} / ${data.spots}` },
 							{ label: t('createdBy'), value: data.createdByName }
 						].map((row, index, rows) => (
@@ -158,12 +203,17 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 
 	const isRunning = data.status === 'RUNNING';
 	const spotsToFill = Math.max(0, data.spots - data.memberCount);
+	// HJ1's "kişi başı 2 bölüm" — the same rounded share the create sheet quotes.
+	const perPart = babsPerPerson(data.spots, data.partCount);
+	const hizbPerPerson = t(perPart === 1 ? 'hizbPerPersonOne' : 'hizbPerPerson', { count: perPart });
 	// A running group is joined for its intention; a gathering one is judged on how it will
 	// be read, so 03c names the split mode alongside it.
 	const subtitle = isRunning
 		? data.dedication
 			? t('forName', { dedication: data.dedication })
 			: ''
+		: isHizb
+		? [data.dedication, t(planLabelKey(data.splitMode)), hizbPerPerson].filter(Boolean).join(' · ')
 		: [data.dedication, t(splitModeLabelKey(data.splitMode))].filter(Boolean).join(' · ');
 	// What a joiner would actually be handed: their seat's share, capped by what's unclaimed.
 	const shareSize = data.nextRange ? data.nextRange.end - data.nextRange.start + 1 : 0;
@@ -211,7 +261,7 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 	 * and drops the round row entirely — "when it starts" is the card above.
 	 */
 	const metaRows: { label: string; value: string; secondary?: string }[] = [
-		{ label: t('cadence'), value: t(cycleLabelKey(data.cycle)) },
+		{ label: t('cadence'), value: cadenceValue },
 		/*
 		 * Both clocks, as everywhere else the reset is stated. Someone deciding whether to join
 		 * is exactly who needs the local one — the group's zone is the creator's and they may
@@ -230,6 +280,7 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 					}
 			  ]
 			: []),
+		...(isHizb ? [{ label: t('readingPlan'), value: t(planLabelKey(data.splitMode)) }] : []),
 		{
 			label: t('groupSize'),
 			value: isRunning ? `${data.memberCount} / ${data.spots}` : `${data.spots}`
@@ -247,20 +298,27 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 	return (
 		<ScreenContainer contentContainerStyle={styles.content} isScrollable pullToRefresh={pullToRefresh}>
 			<View>
-				{/* Status first, then cadence. The status chip takes the tone that says
-				    something — sage for running, sand for waiting — and the cadence chip
-				    takes whichever is left, so the two never carry the same weight. */}
-				<View style={[styles.chipRow, styles.chipRowUnderBar]}>
-					<Chip label={t(isRunning ? 'running' : 'notStarted')} tone={isRunning ? 'accent' : 'sand'} />
-					<Chip label={t(cycleLabelKey(data.cycle))} tone={isRunning ? 'sand' : 'accent'} />
-				</View>
+				{withKindMark(
+					<>
+						{/* Status first, then cadence. The status chip takes the tone that says
+						    something — sage for running, sand for waiting — and the cadence chip
+						    takes whichever is left, so the two never carry the same weight. */}
+						<View style={[styles.chipRow, styles.chipRowUnderBar]}>
+							<Chip
+								label={t(isRunning ? 'running' : 'notStarted')}
+								tone={isRunning ? 'accent' : 'sand'}
+							/>
+							<Chip label={t(cycleLabelKey(data.cycle))} tone={isRunning ? 'sand' : 'accent'} />
+						</View>
 
-				<Header2 style={styles.previewName}>{data.name}</Header2>
-				{subtitle ? (
-					<CaptionText color={theme.colors.subtext} style={styles.dedication}>
-						{subtitle}
-					</CaptionText>
-				) : null}
+						<Header2 style={styles.previewName}>{data.name}</Header2>
+						{subtitle ? (
+							<CaptionText color={theme.colors.subtext} style={styles.dedication}>
+								{subtitle}
+							</CaptionText>
+						) : null}
+					</>
+				)}
 
 				{isRunning ? (
 					<>
@@ -359,17 +417,21 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 									</View>
 									<CaptionText weight='semibold'>{t('startsManual')}</CaptionText>
 								</View>
-								<View style={styles.startRow}>
-									<View style={[styles.startIcon, { backgroundColor: theme.colors.accentSoft }]}>
-										<Icon
-											color={theme.colors.accent}
-											name='memberCheck'
-											size={13}
-											strokeWidth={1.9}
-										/>
+								{/* The Hizb promises the full-group start only when the group will
+								    keep it; the Cevşen's card has always shown both ways in. */}
+								{!isHizb || data.autoStartWhenFull ? (
+									<View style={styles.startRow}>
+										<View style={[styles.startIcon, { backgroundColor: theme.colors.accentSoft }]}>
+											<Icon
+												color={theme.colors.accent}
+												name='memberCheck'
+												size={13}
+												strokeWidth={1.9}
+											/>
+										</View>
+										<CaptionText weight='semibold'>{t('startsFull')}</CaptionText>
 									</View>
-									<CaptionText weight='semibold'>{t('startsFull')}</CaptionText>
-								</View>
+								) : null}
 							</View>
 							<ProgressBar
 								percent={Math.round((data.memberCount / data.spots) * 100)}
@@ -377,17 +439,19 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 							/>
 							<View style={styles.sectionHead}>
 								<CaptionText color={theme.colors.subtext}>
-									{t('membersJoined', { count: data.memberCount, spots: data.spots })}
+									{isHizb
+										? t('peopleJoined', { count: data.memberCount })
+										: t('membersJoined', { count: data.memberCount, spots: data.spots })}
 								</CaptionText>
 								<CaptionText color={theme.colors.accent} weight='semibold'>
-									{t('spotsToFill', { count: spotsToFill })}
+									{t(isHizb ? 'spotsRemaining' : 'spotsToFill', { count: spotsToFill })}
 								</CaptionText>
 							</View>
 						</CardSurface>
 
 						{/* Outside the card: it explains the card above rather than belonging to it. */}
 						<CaptionText color={theme.colors.subtext} style={styles.startsNote}>
-							{t('startsNote')}
+							{t(isHizb && !data.autoStartWhenFull ? 'startsNoteManual' : 'startsNote')}
 						</CaptionText>
 					</>
 				)}
@@ -518,6 +582,18 @@ const styles = StyleSheet.create({
 	// gap between two stacked cards.
 	firstCard: {
 		marginTop: 20
+	},
+	headingCopy: {
+		flex: 1,
+		minWidth: 0
+	},
+	headingMark: {
+		paddingTop: SCREEN_TITLE_PADDING_UNDER_BAR
+	},
+	headingRow: {
+		alignItems: 'flex-start',
+		flexDirection: 'row',
+		gap: 12
 	},
 	membersRow: {
 		alignItems: 'center',

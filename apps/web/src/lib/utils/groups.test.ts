@@ -6,6 +6,7 @@ import {
 	cycleLabelKey,
 	cycleOptionsFor,
 	emptyBabCells,
+	hizbSeatColumns,
 	movesEachRound,
 	partLabelKey,
 	partUnitKey,
@@ -265,5 +266,33 @@ describe('planPreviewRows', () => {
 		expect(ranges(rows)).toEqual(['1–5', '6–10', '11–15', '16–20']);
 		expect(rows.map(row => row.offset)).toEqual([0, 5, 10, 15]);
 		expect(rows.map(row => row.width)).toEqual([5, 5, 5, 5]);
+	});
+});
+
+describe('hizbSeatColumns', () => {
+	it('keeps the ten-wide row for a small group', () => {
+		expect(hizbSeatColumns(1)).toBe(10);
+		expect(hizbSeatColumns(5)).toBe(10);
+		expect(hizbSeatColumns(10)).toBe(10);
+	});
+
+	it('lays sixteen out as HC4 does, two rows of eight', () => {
+		expect(hizbSeatColumns(16)).toBe(8);
+	});
+
+	it('lays the full 33 out as three rows of eleven', () => {
+		expect(hizbSeatColumns(33)).toBe(11);
+	});
+
+	it('never runs wider than eleven, and balances the rows it needs', () => {
+		for (let spots = 11; spots <= 33; spots += 1) {
+			const columns = hizbSeatColumns(spots);
+			const rows = Math.ceil(spots / columns);
+
+			expect(columns).toBeLessThanOrEqual(11);
+			// Balanced: fewer empty cells than rows, which a fixed eleven-wide lattice cannot
+			// promise — sixteen seats across eleven would leave six.
+			expect(rows * columns - spots).toBeLessThan(rows);
+		}
 	});
 });

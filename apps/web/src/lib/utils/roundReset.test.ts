@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { roundResetLabels, timeUntilReset } from './roundReset';
+import { cadenceLabel, roundResetLabels, timeUntilReset } from './roundReset';
 
 // Stands in for the app's `t`: renders the key with its values substituted, so a test can
 // assert on the pieces that were passed in rather than on Turkish copy.
@@ -140,5 +140,42 @@ describe('timeUntilReset', () => {
 
 	it('is zero for a group with no round', () => {
 		expect(timeUntilReset(null)).toEqual({ hours: 0, minutes: 0 });
+	});
+});
+
+describe('cadenceLabel', () => {
+	// 01:00 on Monday 5 January in Istanbul — still Sunday the 4th in UTC.
+	const STARTED_MONDAY_IN_ISTANBUL = '2026-01-04T22:00:00.000Z';
+
+	it('names a daily group by its cycle alone', () => {
+		expect(cadenceLabel('DAILY', STARTED_MONDAY_IN_ISTANBUL, 'Europe/Istanbul', 'tr', t)).toBe('daily()');
+	});
+
+	it('names a weekly group’s weekday, read in the group’s zone', () => {
+		expect(cadenceLabel('WEEKLY', STARTED_MONDAY_IN_ISTANBUL, 'Europe/Istanbul', 'en', t)).toBe(
+			'weekly() · Monday'
+		);
+		expect(cadenceLabel('WEEKLY', STARTED_MONDAY_IN_ISTANBUL, 'UTC', 'en', t)).toBe('weekly() · Sunday');
+	});
+
+	it('keeps the Turkish weekday capitalised, since it follows a separator', () => {
+		expect(cadenceLabel('WEEKLY', STARTED_MONDAY_IN_ISTANBUL, 'Europe/Istanbul', 'tr', t)).toBe(
+			'weekly() · Pazartesi'
+		);
+	});
+
+	it('names a monthly group’s day of the month, read in the group’s zone', () => {
+		expect(cadenceLabel('MONTHLY', STARTED_MONDAY_IN_ISTANBUL, 'Europe/Istanbul', 'tr', t)).toBe(
+			'monthly() · cadenceMonthDay(day=5)'
+		);
+		expect(cadenceLabel('MONTHLY', STARTED_MONDAY_IN_ISTANBUL, 'UTC', 'tr', t)).toBe(
+			'monthly() · cadenceMonthDay(day=4)'
+		);
+	});
+
+	it('names only the cycle before the group has started, when no day is decided', () => {
+		expect(cadenceLabel('WEEKLY', null, 'Europe/Istanbul', 'tr', t)).toBe('weekly()');
+		expect(cadenceLabel('MONTHLY', null, 'Europe/Istanbul', 'tr', t)).toBe('monthly()');
+		expect(cadenceLabel('MONTHLY', 'not-a-date', 'Europe/Istanbul', 'tr', t)).toBe('monthly()');
 	});
 });
