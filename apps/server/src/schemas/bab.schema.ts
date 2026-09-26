@@ -19,10 +19,12 @@ export const PartRepetitionsQuerySchema = z.object({
 /**
  * An absolute count, so a retried request cannot count a recitation twice. The service bounds
  * it by the part's own required number and refuses a round the group has not reached.
+ * `isOpenRound` says the named round is meant to be the one in progress, and a 409 if it is not.
  */
 export const SetPartRepetitionsBodySchema = z.object({
 	count: z.number().int().min(0),
-	roundIndex: z.number().int().min(0).optional()
+	roundIndex: z.number().int().min(0).optional(),
+	isOpenRound: z.boolean().optional()
 });
 
 export type BabParams = z.infer<typeof BabParamsSchema>;

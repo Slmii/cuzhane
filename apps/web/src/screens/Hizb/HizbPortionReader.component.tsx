@@ -177,18 +177,6 @@ export const HizbPortionReader = ({ navigation, params }: Props) => {
 	// The round every count and cover here is about. Null only until the group says, or while it gathers.
 	const shownRoundIndex = coveredRoundIndex ?? openRoundIndex;
 
-	const required = requiredRepetitions('HIZB', partNumber);
-	const isRepeated = required > 1;
-	const isRepetitionsEnabled = isRepeated && shownRoundIndex !== null && group?.status === 'RUNNING';
-	const repetitionsQuery = useGetRepetitions(groupId, partNumber, shownRoundIndex ?? 0, isRepetitionsEnabled);
-
-	// The state the pull refreshes: the group, and the board or the closed round it is reading.
-	const pullToRefresh = usePullToRefresh(
-		groupQuery,
-		isCovering ? roundQuery : babsQuery,
-		...(isRepetitionsEnabled ? [repetitionsQuery] : [])
-	);
-
 	/** Mine, pool and read, for the round shown — null until both halves of that round are in. */
 	const shares = useMemo(() => {
 		if (!group) {
@@ -201,6 +189,31 @@ export const HizbPortionReader = ({ navigation, params }: Props) => {
 
 		return babsQuery.data ? openRoundShares(group, babsQuery.data) : null;
 	}, [babsQuery.data, group, isCovering, round, viewerUserId]);
+	/*
+	 * Whose portion this is. Decided here rather than beside the button because the count query
+	 * below waits on it — see there. Null until the round shown has arrived.
+	 */
+	const ownership = shares ? portionOwnership(partNumber, shares) : null;
+
+	const required = requiredRepetitions('HIZB', partNumber);
+	const isRepeated = required > 1;
+	/*
+	 * **Asked for only where it gates something**: a closed round's gap, which anyone may cover,
+	 * or an open-round portion that is yours or the pool's. Another member's Sekine is theirs to
+	 * count, and a failed fetch of a count nobody here needs would turn their disabled button into
+	 * "Tekrar dene". Asked for while ownership is still unknown, since the portion a reader opens
+	 * is almost always their own.
+	 */
+	const isRepetitionsEnabled =
+		isRepeated && shownRoundIndex !== null && group?.status === 'RUNNING' && (isCovering || ownership !== 'other');
+	const repetitionsQuery = useGetRepetitions(groupId, partNumber, shownRoundIndex ?? 0, isRepetitionsEnabled);
+
+	// The state the pull refreshes: the group, and the board or the closed round it is reading.
+	const pullToRefresh = usePullToRefresh(
+		groupQuery,
+		isCovering ? roundQuery : babsQuery,
+		...(isRepetitionsEnabled ? [repetitionsQuery] : [])
+	);
 
 	// The page: the route's portion, and the block of it this screen is on.
 	const blocks = blocksOf(partNumber);
@@ -243,14 +256,23 @@ export const HizbPortionReader = ({ navigation, params }: Props) => {
 	const [scrubPart, setScrubPart] = useState<number | null>(null);
 	const displayPart = scrubPart ?? partNumber;
 
-	// A jump opens the portion at its first page, even one visited — and left mid-way — before.
+	/*
+	 * A jump opens the portion at its first page, even one visited — and left mid-way — before.
+	 * **Landing where it started is not a jump**: a stray tap on the current tick, or a pull that
+	 * begins on the strip, would otherwise send the reader back to the top of what they are reading.
+	 */
 	const commitScrub = useCallback(
 		(next: number) => {
 			setScrubPart(null);
+
+			if (next === partNumber) {
+				return;
+			}
+
 			setPage({ blockIndex: 0, partNumber: next });
 			navigation.setParams({ partNumber: next });
 		},
-		[navigation]
+		[navigation, partNumber]
 	);
 
 	const trackScrub = (x: number) => {
@@ -332,7 +354,6 @@ export const HizbPortionReader = ({ navigation, params }: Props) => {
 	 * no decision, and the button waits disabled in its usual place, so nothing reflows when it
 	 * wakes.
 	 */
-	const ownership = shares ? portionOwnership(partNumber, shares) : null;
 	const currentBab = babsQuery.data?.find(bab => bab.number === partNumber);
 	const roundBab = round?.babs.find(bab => bab.number === partNumber);
 	const count = isRepetitionsEnabled ? repetitionsQuery.data?.count : undefined;
@@ -387,6 +408,15 @@ export const HizbPortionReader = ({ navigation, params }: Props) => {
 		if (kind === 'repetitions') {
 			void queryClient.invalidateQueries({ queryKey: groupQueryKeys.repetitions(groupId) });
 		}
+
+		/*
+		 * The round this screen was counting in has closed. Everything about the group is a round
+		 * behind — its index, the board, the pool — so all of it is asked for again, and the
+		 * reader moves into the round that is open with that round's own count.
+		 */
+		if (kind === 'roundMoved') {
+			void queryClient.invalidateQueries({ queryKey: groupQueryKeys.root() });
+		}
 	};
 
 	const clearFailureFor = (forPart: number) => () =>
@@ -396,12 +426,17 @@ export const HizbPortionReader = ({ navigation, params }: Props) => {
 	 * Shown under the portion it is about, in the round it was about. A failure that the refetch
 	 * has since settled as read says nothing useful any more — except that somebody else got
 	 * there first, which is worth knowing even after the button has turned into "Okundu".
+	 *
+	 * A round that moved on is the exception to "the round it was about": it is filed against the
+	 * round that closed, and it is exactly once the reader has moved into the new one that the
+	 * count dropping to zero needs saying. It stays until the next write on the portion succeeds.
 	 */
 	const visibleFailure =
 		failure !== null &&
 		failure.partNumber === partNumber &&
-		failure.roundIndex === shownRoundIndex &&
-		(failure.kind === 'taken' || decision?.reason !== 'alreadyRead')
+		(failure.kind === 'roundMoved' ||
+			(failure.roundIndex === shownRoundIndex &&
+				(failure.kind === 'taken' || decision?.reason !== 'alreadyRead')))
 			? failure
 			: null;
 
@@ -461,7 +496,16 @@ export const HizbPortionReader = ({ navigation, params }: Props) => {
 		tapBack();
 	};
 
-	// Absolute, and against the round shown — a closed round's Sekine is counted in that round.
+	/*
+	 * Absolute, and against the round shown — a closed round's Sekine is counted in that round.
+	 *
+	 * **In the open round the round shown is a precondition** (`isOpenRound`). This screen learns
+	 * that midnight has passed only when the group is next fetched, so for a moment it still names
+	 * the round that just closed. The server refuses those writes (409, `roundMoved`) instead of
+	 * filing them under the closed round, and the refusal is what sends the reader after the new
+	 * one. Leaving the round off for the server to fill in was the other way, and a worse one: the
+	 * count is absolute, so the number worked out against yesterday's would be written into today's.
+	 */
 	const setCount = (next: number) => {
 		if (shownRoundIndex === null) {
 			return;
@@ -470,7 +514,7 @@ export const HizbPortionReader = ({ navigation, params }: Props) => {
 		const forPart = partNumber;
 
 		setRepetitions.mutate(
-			{ babNumber: forPart, count: next, groupId, roundIndex: shownRoundIndex },
+			{ babNumber: forPart, count: next, groupId, isOpenRound: !isCovering, roundIndex: shownRoundIndex },
 			{ onError: failWith('count', forPart), onSuccess: clearFailureFor(forPart) }
 		);
 	};
@@ -494,10 +538,18 @@ export const HizbPortionReader = ({ navigation, params }: Props) => {
 		}
 	};
 
+	/*
+	 * Held while a write it started is still out, so a second tap cannot send it twice. A cover
+	 * is optimistic, but the tap after it could land before the cache says it is read; and the
+	 * pool's claim is followed by a read, during which the portion still reads as the pool's —
+	 * a read pending on a pool portion can only be that chain's.
+	 */
 	const isActionDisabled =
 		!isReady ||
 		decision.isDisabled ||
+		coverBabs.isPending ||
 		takePoolPart.isPending ||
+		(ownership === 'pool' && setBabRead.isPending) ||
 		// The count is still on its way, and the read would race it to the server and lose.
 		(isRepeated && setRepetitions.isPending && decision.action !== 'unread');
 
@@ -517,6 +569,8 @@ export const HizbPortionReader = ({ navigation, params }: Props) => {
 						? t('coverTakenAt', { bab: portionLabel })
 						: visibleFailure.kind === 'repetitions'
 						? t('hizbRepetitionsShort', { required })
+						: visibleFailure.kind === 'roundMoved'
+						? t('hizbRoundMoved')
 						: t('coverFailedAt', { bab: portionLabel })
 			};
 		}

@@ -8,7 +8,7 @@ import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import * as Haptics from 'expo-haptics';
 import { useCallback, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, Pressable, StyleSheet, View } from 'react-native';
 import type { RepetitionCounterProps } from './RepetitionCounter.types';
 
 /** Five across, so nineteen and the zero come out as four full rows of thumb-sized cells. */
@@ -26,10 +26,14 @@ const countTap = () => {
  * The count for a portion read more than once before it counts — Sekine, nineteen times from
  * its Besmele — as the bar above the reader's action row.
  *
- * **Three ways to move one number**: "+1" per recitation, which is the whole of it for someone
- * reading from the screen; the undo beside it for a tap too many; and the number itself, which
- * opens a lattice of every value to pick from — for repetitions already recited from the book,
- * which would otherwise mean tapping "+1" a dozen times to catch up.
+ * **Three ways to move one number**: "Bir tekrar" per recitation, which is the whole of it for
+ * someone reading from the screen; the undo beside it for a tap too many; and the number itself,
+ * which opens a lattice of every value to pick from — for repetitions already recited from the
+ * book, which would otherwise mean a dozen taps to catch up.
+ *
+ * **Every change is spoken.** The number is the whole point of the bar and it moves without the
+ * focus moving, so a screen reader would otherwise say nothing after a tap. Announced as the
+ * change is made rather than when the query settles, which would also speak on every refetch.
  *
  * **A lattice, not a text field.** Picking is one tap and cannot be out of range, where typing
  * is a keyboard, two digits and a confirm, with a validation message for the values it has to
@@ -44,6 +48,14 @@ export const RepetitionCounter = ({ count, isDisabled = false, onChange, require
 	const [isPickerOpen, setIsPickerOpen] = useState(false);
 	const isKnown = count !== undefined && !isDisabled;
 	const isComplete = count !== undefined && count >= required;
+
+	const change = useCallback(
+		(next: number) => {
+			onChange(next);
+			AccessibilityInfo.announceForAccessibility(t('hizbRepetitions', { count: next, required }));
+		},
+		[onChange, required, t]
+	);
 
 	const items = useMemo<CellGridItem[]>(
 		() =>
@@ -76,10 +88,10 @@ export const RepetitionCounter = ({ count, isDisabled = false, onChange, require
 			setIsPickerOpen(false);
 
 			if (key !== count) {
-				onChange(Number(key));
+				change(Number(key));
 			}
 		},
-		[count, onChange]
+		[change, count]
 	);
 
 	return (
@@ -105,23 +117,25 @@ export const RepetitionCounter = ({ count, isDisabled = false, onChange, require
 					</View>
 				</Pressable>
 				<AppButton
-					accessibilityLabel={t('markUnread')}
+					accessibilityLabel={t('hizbRepetitionRemoveLabel')}
 					disabled={!isKnown || count === 0}
 					fullWidth={false}
 					icon='undo'
-					onPress={() => count !== undefined && onChange(count - 1)}
+					onPress={() => count !== undefined && change(count - 1)}
 					variant='surface'
 				/>
 				<AppButton
+					accessibilityLabel={t('hizbRepetitionAddLabel')}
 					disabled={!isKnown || isComplete}
 					fullWidth={false}
+					icon='plus'
 					onPress={() => {
 						if (count === undefined) {
 							return;
 						}
 
 						countTap();
-						onChange(count + 1);
+						change(count + 1);
 					}}
 					title={t('hizbRepetitionAdd')}
 					variant='primary'

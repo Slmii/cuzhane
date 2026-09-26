@@ -223,9 +223,13 @@ describe('markFailureKind', () => {
 		expect(markFailureKind(409, { isRepeated: true, step: 'cover' })).toBe('repetitions');
 	});
 
+	it('reads a refused count as the round having moved on', () => {
+		expect(markFailureKind(409, { isRepeated: true, step: 'count' })).toBe('roundMoved');
+	});
+
 	it('calls everything else a failed save', () => {
 		expect(markFailureKind(409, { isRepeated: false, step: 'read' })).toBe('failed');
-		expect(markFailureKind(409, { isRepeated: true, step: 'count' })).toBe('failed');
+		expect(markFailureKind(400, { isRepeated: true, step: 'count' })).toBe('failed');
 		expect(markFailureKind(500, { isRepeated: true, step: 'read' })).toBe('failed');
 		expect(markFailureKind(null, { isRepeated: false, step: 'cover' })).toBe('failed');
 	});

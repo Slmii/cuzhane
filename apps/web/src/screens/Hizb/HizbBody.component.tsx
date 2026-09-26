@@ -4,7 +4,7 @@ import type { HizbLine } from '@/lib/content/hizbulhakaik';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { ReaderNumerals } from '@/lib/types/domain';
 import { readerFaces, withDivineName } from '@/screens/Reader/ReaderBody.component';
-import { Fragment, type ReactNode } from 'react';
+import { Fragment, memo, type ReactNode } from 'react';
 import { StyleSheet } from 'react-native';
 import type { HizbBodyProps } from './HizbBody.types';
 
@@ -69,8 +69,14 @@ const setArabic = (text: string, faces: Faces, color: string, ornamentColor: str
  * numerals, and nothing about where in the Hizb it sits. The paragraph flows to this screen's
  * measure rather than to the print's line breaks, for the reason `ReaderBody` gives about the
  * du'a after the hundredth: those breaks belong to the page's width and type, not to ours.
+ *
+ * **`memo`'d, because the group's reader re-renders around it all the time** — every counter
+ * tap, every poll of the group, every frame of a scrub across the strip — and each of those
+ * would otherwise re-split the whole block and rebuild its runs of Arabic. Every prop is a
+ * primitive or a block both readers hand over with a stable identity, so the shallow compare
+ * holds until the page or the typography actually changes.
  */
-export const HizbBody = ({ block, font, fontSize: chosenSize, isCevsenBab, numerals }: HizbBodyProps) => {
+export const HizbBody = memo(({ block, font, fontSize: chosenSize, isCevsenBab, numerals }: HizbBodyProps) => {
 	const { theme } = useThemeContext();
 	const faces = readerFaces(font, chosenSize);
 	const arabic = {
@@ -123,7 +129,9 @@ export const HizbBody = ({ block, font, fontSize: chosenSize, isCevsenBab, numer
 			) : null}
 		</>
 	);
-};
+});
+
+HizbBody.displayName = 'HizbBody';
 
 const styles = StyleSheet.create({
 	arabic: {

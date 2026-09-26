@@ -188,6 +188,9 @@ export type PortionMarkStep = 'read' | 'take' | 'cover' | 'count';
  *   covered. Not a failure of theirs, and not worth retrying.
  * - `repetitions`: the server's count is short of what the screen showed — a write still on its
  *   way, or one that never arrived. Only a repeated portion can be refused for it.
+ * - `roundMoved`: a count meant for the open round arrived after that round had closed. The only
+ *   409 a count write has: the server refuses it rather than file it under a round nobody is
+ *   reading any more, and the screen has to fetch the group to learn which round is open now.
  * - `failed`: anything else, a dropped connection most likely.
  *
  * A 409 on a repeated portion's cover is ambiguous — short of nineteen, or already covered —
@@ -197,16 +200,20 @@ export type PortionMarkStep = 'read' | 'take' | 'cover' | 'count';
 export const markFailureKind = (
 	status: number | null,
 	{ isRepeated, step }: { isRepeated: boolean; step: PortionMarkStep }
-): 'taken' | 'repetitions' | 'failed' => {
+): 'taken' | 'repetitions' | 'roundMoved' | 'failed' => {
 	if (status !== 409) {
 		return 'failed';
+	}
+
+	if (step === 'count') {
+		return 'roundMoved';
 	}
 
 	if (step === 'take') {
 		return 'taken';
 	}
 
-	if (isRepeated && step !== 'count') {
+	if (isRepeated) {
 		return 'repetitions';
 	}
 

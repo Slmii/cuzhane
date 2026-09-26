@@ -20,7 +20,11 @@ import { ensureCurrentRound, ensureCurrentRoundFor, lockGroup } from './rounds.s
  * read paths, which keep `GroupBab`, `BabRead` and `completedAt` in step; this only decides
  * whether they may. Undoing a read never looks at it, and leaves the count where it was.
  */
-export type PartRepetitions = { count: number; required: number };
+/**
+ * `roundIndex` is the round the count belongs to — the one asked about, or the current one when
+ * nothing was named. A client counting in the open round learns from it which round that is.
+ */
+export type PartRepetitions = { count: number; required: number; roundIndex: number };
 
 /**
  * Checks the part is one that is repeated at all, and resolves which round is meant.
@@ -73,7 +77,7 @@ export const getPartRepetitionsForUser = async (
 	});
 
 	// No row is the ordinary state of a round nobody has started counting in.
-	return { count: row?.count ?? 0, required };
+	return { count: row?.count ?? 0, required, roundIndex: round };
 };
 
 /**
@@ -89,12 +93,22 @@ export const getPartRepetitionsForUser = async (
  *
  * Refused before the hatim starts, for the same reason a read is: nothing is counted while a
  * group is still gathering, and a count written then would be waiting in the first round.
+ *
+ * **`isOpenRound` makes the named round a precondition.** The reader counting in the open round
+ * names the round it is showing, and learns that the group has rolled only when it next asks —
+ * so for a moment after a boundary it still names the round that just closed. Without the flag
+ * those taps are filed under the closed round and the read that follows is refused for a count
+ * the open round never got. Omitting the round instead is no better: the count is absolute, so
+ * the number computed against the closed round would be written into the new one, carrying
+ * yesterday's recitations over. Refusing (409) writes nothing wrong anywhere, and tells the
+ * client to fetch the group and count again in the round that is actually open. A count for a
+ * closed round on purpose — covering it — leaves the flag off.
  */
 export const setPartRepetitionsForUser = async (
 	userId: string,
 	groupId: string,
 	partNumber: number,
-	input: { count: number; roundIndex?: number | undefined }
+	input: { count: number; roundIndex?: number | undefined; isOpenRound?: boolean | undefined }
 ): Promise<PartRepetitions> => {
 	const normalizedUserId = normalizeUserId(userId);
 	await requireMembership(normalizedUserId, groupId);
@@ -115,6 +129,10 @@ export const setPartRepetitionsForUser = async (
 			throw new HttpError(BAD_REQUEST, `The count must be between 0 and ${required}`);
 		}
 
+		if (input.isOpenRound && round !== group.roundIndex) {
+			throw new HttpError(CONFLICT, 'That round has closed');
+		}
+
 		const row = await tx.groupPartRepetition.upsert({
 			where: {
 				groupId_userId_roundIndex_partNumber: {
@@ -129,7 +147,7 @@ export const setPartRepetitionsForUser = async (
 			select: { count: true }
 		});
 
-		return { count: row.count, required };
+		return { count: row.count, required, roundIndex: round };
 	});
 };
 

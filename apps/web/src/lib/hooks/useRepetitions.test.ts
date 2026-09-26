@@ -20,7 +20,7 @@ afterEach(() => client.clear());
 /** A client holding the reader's count as the screen last fetched it. */
 const clientAt = (count: number) => {
 	client = new QueryClient();
-	client.setQueryData<PartRepetitions>(KEY, { count, required: 19 });
+	client.setQueryData<PartRepetitions>(KEY, { count, required: 19, roundIndex: ROUND });
 
 	return client;
 };
@@ -32,7 +32,7 @@ const serverRefusing = (...refused: number[]) =>
 			throw new Error('refused');
 		}
 
-		return { count, required: 19 };
+		return { count, required: 19, roundIndex: ROUND };
 	});
 
 /** Taps once per count, all before the first answer arrives — nineteen taps in quick succession. */
@@ -93,8 +93,8 @@ describe('setRepetitionsOptions', () => {
 		const otherRound = groupQueryKeys.partRepetitions(GROUP, SEKINE, ROUND - 1);
 		const otherGroup = groupQueryKeys.partRepetitions('group_2', SEKINE, ROUND);
 
-		queryClient.setQueryData<PartRepetitions>(otherRound, { count: 19, required: 19 });
-		queryClient.setQueryData<PartRepetitions>(otherGroup, { count: 3, required: 19 });
+		queryClient.setQueryData<PartRepetitions>(otherRound, { count: 19, required: 19, roundIndex: ROUND - 1 });
+		queryClient.setQueryData<PartRepetitions>(otherGroup, { count: 3, required: 19, roundIndex: ROUND });
 
 		await tapAll(queryClient, [6, 7]);
 

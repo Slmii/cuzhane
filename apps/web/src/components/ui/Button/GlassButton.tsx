@@ -82,6 +82,12 @@ const GLYPH_BY_ICON: Partial<Record<IconName, GlyphSource>> = {
 	// heavier than the tick.
 	delete: { assetName: 'sil-delete' },
 	leave: { assetName: 'ayril-leave' },
+	/*
+	 * Ours, already converted for Gruplarım's "+" menu, rather than Apple's `plus`: the Sekine
+	 * counter sets it beside `undo`, and a stock glyph drawn to the full box would come out heavier
+	 * than the converted one next to it — the `trash`-beside-`check` lesson above.
+	 */
+	plus: { assetName: 'yeni-new' },
 	search: { assetName: 'ara-search' },
 	/*
 	 * **Converted because its own other half already was.** The pool's one button says

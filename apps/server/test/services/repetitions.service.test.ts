@@ -99,7 +99,11 @@ describe('setPartRepetitionsForUser / getPartRepetitionsForUser', () => {
 	it('starts at zero, out of nineteen', async () => {
 		const group = await createGroup();
 
-		expect(await getPartRepetitionsForUser(OWNER, group.id, SEKINE)).toEqual({ count: 0, required: 19 });
+		expect(await getPartRepetitionsForUser(OWNER, group.id, SEKINE)).toEqual({
+			count: 0,
+			required: 19,
+			roundIndex: group.roundIndex
+		});
 	});
 
 	it('stores an absolute count, so a retried PUT changes nothing', async () => {
@@ -108,7 +112,11 @@ describe('setPartRepetitionsForUser / getPartRepetitionsForUser', () => {
 		await setPartRepetitionsForUser(OWNER, group.id, SEKINE, { count: 5 });
 		await setPartRepetitionsForUser(OWNER, group.id, SEKINE, { count: 5 });
 
-		expect(await getPartRepetitionsForUser(OWNER, group.id, SEKINE)).toEqual({ count: 5, required: 19 });
+		expect(await getPartRepetitionsForUser(OWNER, group.id, SEKINE)).toEqual({
+			count: 5,
+			required: 19,
+			roundIndex: group.roundIndex
+		});
 	});
 
 	it('refuses more than the part asks for', async () => {
@@ -162,6 +170,67 @@ describe('setPartRepetitionsForUser / getPartRepetitionsForUser', () => {
 			statusCode: 404
 		});
 	});
+
+	it('says which round a count belongs to, named or not', async () => {
+		const group = await createGroup({ startedDaysAgo: 2 });
+		const closedRound = group.roundIndex - 1;
+
+		expect(await setPartRepetitionsForUser(OWNER, group.id, SEKINE, { count: 3 })).toEqual({
+			count: 3,
+			required: 19,
+			roundIndex: group.roundIndex
+		});
+		expect(await setPartRepetitionsForUser(OWNER, group.id, SEKINE, { count: 8, roundIndex: closedRound })).toEqual(
+			{
+				count: 8,
+				required: 19,
+				roundIndex: closedRound
+			}
+		);
+		expect(await getPartRepetitionsForUser(OWNER, group.id, SEKINE, closedRound)).toEqual({
+			count: 8,
+			required: 19,
+			roundIndex: closedRound
+		});
+	});
+});
+
+describe('counting in the open round across a boundary', () => {
+	it('refuses a count meant for the open round once that round has closed', async () => {
+		const group = await createGroup({ startedDaysAgo: 1, isBehind: true });
+		const leftRound = group.roundIndex;
+
+		// The reader still shows the round the group is about to leave; the request rolls it first.
+		await expect(
+			setPartRepetitionsForUser(OWNER, group.id, SEKINE, { count: 6, isOpenRound: true, roundIndex: leftRound })
+		).rejects.toMatchObject({ statusCode: 409 });
+
+		// Nothing was filed under either round.
+		expect(await prisma.groupPartRepetition.count({ where: { groupId: group.id } })).toBe(0);
+	});
+
+	it('accepts it while the named round is still the open one', async () => {
+		const group = await createGroup();
+
+		expect(
+			await setPartRepetitionsForUser(OWNER, group.id, SEKINE, {
+				count: 6,
+				isOpenRound: true,
+				roundIndex: group.roundIndex
+			})
+		).toEqual({ count: 6, required: 19, roundIndex: group.roundIndex });
+	});
+
+	it('still lets a closed round be counted on purpose, for covering it', async () => {
+		const group = await createGroup({ startedDaysAgo: 1, isBehind: true });
+		const leftRound = group.roundIndex;
+
+		expect(await setPartRepetitionsForUser(OWNER, group.id, SEKINE, { count: 6, roundIndex: leftRound })).toEqual({
+			count: 6,
+			required: 19,
+			roundIndex: leftRound
+		});
+	});
 });
 
 describe('marking Sekine read', () => {
@@ -210,7 +279,7 @@ describe('marking Sekine read', () => {
 		expect(bab.readByUserId).toBe(OWNER);
 		expect(await readerOf(group.id, SEKINE)).toBe(OWNER);
 		expect(await prisma.babRead.count({ where: { groupId: group.id, babNumber: SEKINE, userId: OWNER } })).toBe(1);
-		expect(await getPartRepetitionsForUser(OWNER, group.id, SEKINE)).toEqual({ count: 0, required: 19 });
+		expect(await getPartRepetitionsForUser(OWNER, group.id, SEKINE)).toMatchObject({ count: 0 });
 	});
 
 	it('keeps the count when the read is undone', async () => {
@@ -221,7 +290,7 @@ describe('marking Sekine read', () => {
 		await setBabReadForUser(OWNER, group.id, SEKINE, false);
 
 		expect(await readerOf(group.id, SEKINE)).toBeNull();
-		expect(await getPartRepetitionsForUser(OWNER, group.id, SEKINE)).toEqual({ count: 19, required: 19 });
+		expect(await getPartRepetitionsForUser(OWNER, group.id, SEKINE)).toMatchObject({ count: 19 });
 	});
 
 	it('starts the count again in a new round', async () => {
@@ -236,12 +305,17 @@ describe('marking Sekine read', () => {
 		});
 
 		// The first request after the boundary rolls, and the new round has no count of its own.
-		expect(await getPartRepetitionsForUser(OWNER, group.id, SEKINE)).toEqual({ count: 0, required: 19 });
+		expect(await getPartRepetitionsForUser(OWNER, group.id, SEKINE)).toEqual({
+			count: 0,
+			required: 19,
+			roundIndex: leftRound + 1
+		});
 		expect((await prisma.group.findUniqueOrThrow({ where: { id: group.id } })).roundIndex).toBe(leftRound + 1);
 		// The round that closed keeps its own.
 		expect(await getPartRepetitionsForUser(OWNER, group.id, SEKINE, leftRound)).toEqual({
 			count: 19,
-			required: 19
+			required: 19,
+			roundIndex: leftRound
 		});
 		await expect(setBabReadForUser(OWNER, group.id, SEKINE, true)).rejects.toMatchObject({ statusCode: 409 });
 

@@ -209,9 +209,10 @@ export type PoolSlotPart = {
 
 /**
  * How far one reader has got with a part that must be repeated before it counts — Sekine's
- * nineteen. The reader's own and the round's own. Mirrors the server's `PartRepetitions`.
+ * nineteen. The reader's own and the round's own — `roundIndex` says which round, the one named
+ * or the current one when none was. Mirrors the server's `PartRepetitions`.
  */
-export type PartRepetitions = { count: number; required: number };
+export type PartRepetitions = { count: number; required: number; roundIndex: number };
 
 /** What an inbox row is about. Mirrors the server's `NotificationKind` enum. */
 export type NotificationKind =

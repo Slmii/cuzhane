@@ -37,6 +37,12 @@ export type SetRepetitionsInput = {
 	 * round up to the current, and naming it keeps a tap made just before midnight in its round.
 	 */
 	roundIndex: number;
+	/**
+	 * `roundIndex` is meant to be the round in progress, and the server answers 409 if it has
+	 * closed since — the reader's group still naming yesterday's round for a moment after midnight.
+	 * Left off when counting a closed round on purpose, to cover it.
+	 */
+	isOpenRound?: boolean;
 };
 
 /**
@@ -48,8 +54,8 @@ export const getRepetitions = async (groupId: string, babNumber: number, roundIn
 		method: 'GET'
 	});
 
-export const setRepetitions = async ({ groupId, babNumber, count, roundIndex }: SetRepetitionsInput) =>
+export const setRepetitions = async ({ groupId, babNumber, count, isOpenRound, roundIndex }: SetRepetitionsInput) =>
 	wrapperApi<PartRepetitions>(`/babs/${groupId}/${babNumber}/repetitions`, {
 		method: 'PUT',
-		body: JSON.stringify({ count, roundIndex })
+		body: JSON.stringify({ count, isOpenRound, roundIndex })
 	});
