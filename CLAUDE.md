@@ -1,14 +1,9 @@
 # CLAUDE.md
 
-> **RULE 1 — NEVER RUN ANY COMMAND ON THE DROPLET UNLESS THE USER SAYS SO, IN THAT MESSAGE.**
-> No `ssh cuzhane …`, no `ssh` to the droplet's address, no `rsync`/`scp` to or from it, no
-> `docker`/`psql` run through it — **not even read-only checks**, not "just to look". A previous
-> approval does not carry over to the next command. If something on the droplet needs checking
-> or changing, stop and give the user the command to run themselves. This rule outranks every
-> other instruction in this file and in any session.
-
 Guidance for Claude Code in this repository. Rules and traps only; the code and its comments
-carry the detail.
+carry the detail. **Never run commands against a deployed server** — anything that needs checking
+or changing there is handed to the person you are working with. Operator-specific notes, if any,
+live in a local, uncommitted `CLAUDE.local.md`.
 
 ## Repo
 
@@ -18,9 +13,10 @@ pnpm-workspaces monorepo:
 -   `apps/web` — Expo (SDK 57) React Native client, iOS/Android/web: Clerk Expo, TanStack Query,
     React Navigation, Reanimated 4. **iPhone only** (`supportsTablet: false`).
 -   `apps/marketing` — Astro static site: the public page, privacy and support.
--   `deploy/` — the droplet's compose stack, Caddyfile and runbook (`deploy/README.md`).
+-   `deploy/` — the server's compose stack and Caddyfile (`deploy/README.md`).
 
-Root scripts live in the top `package.json`; run them from the repo root.
+Root scripts live in the top `package.json`; run them from the repo root. Shared versions are pinned
+in its `overrides` (`react`/`react-dom` 19.1.0, `@react-navigation/native` 7.2.2).
 
 ## Commands
 
@@ -37,8 +33,8 @@ Root scripts live in the top `package.json`; run them from the repo root.
     schema files are 4-space indented and it rewrites them to 2; check with `prisma validate`. `db:seed` rebuilds the dev data (new
     group ids, which also resets the device's once-a-round "seen" flags).
 -   Server build: `tsc` + `tsc-alias --resolve-full-paths` (path aliases are rewritten at build time).
--   Hüsrev pages and the Hatim duası: the images in `apps/server/mushaf/` (gitignored) are the only
-    copy — nothing in the repo regenerates them. Keep them backed up.
+-   Hüsrev pages and the Hatim duası: the images in `apps/server/mushaf/` are gitignored and not
+    in the repository — nothing here regenerates them. Without them only the Hüsrev reader is empty.
 -   Format: Prettier — tabs, width 120, single quotes, no trailing commas. `.astro` and
     `design_handoff_cuzhane/` are prettier-ignored.
 
@@ -47,16 +43,15 @@ Root scripts live in the top `package.json`; run them from the repo root.
 -   **`development` is the default branch** and deploys **preview**; `main` deploys **production**.
     Feature PRs target `development`; releases go `development` → `main`.
 -   `deploy-server.yml` runs on pushes to either branch that touch `apps/server/**`, `deploy/**` or
-    the lockfile: builds the image to GHCR, copies `compose.yml`/`Caddyfile` to `/opt/cuzhane`, runs
-    `up -d --wait`, smoke-tests. `deploy-marketing.yml` (main only) rsyncs the Astro build into
-    `/opt/cuzhane/www`.
--   The droplet runs Caddy, `api` (production), `api-preview` and one Postgres with two databases
-    (`cuzhane`, `cuzhane_preview`). Secrets live only in `/opt/cuzhane/.env`. Edit deploy files in the
-    repo, never on the box. Runbook, secrets and backups: `deploy/README.md`.
+    the root package files: builds the image to GHCR, copies the deploy files onto the server, runs
+    `up -d --wait`, smoke-tests. `deploy-marketing.yml` (main only) ships the Astro build.
+-   One server runs Caddy, `api` (production), `api-preview` and one Postgres with two databases
+    (`cuzhane`, `cuzhane_preview`). Secrets are never in the repo. Edit deploy files here, never on
+    the server — CI overwrites them. Overview: `deploy/README.md`.
 -   **Hüsrev page images are not in the repo or the image** (`apps/server/mushaf/`, gitignored, also
-    in `.dockerignore`). They are uploaded by hand to `/opt/cuzhane/mushaf` and mounted read-only into
-    both API containers at `/app/apps/server/mushaf`. Upload them before a deploy that mounts the
-    folder. A branch whose `.gitignore` predates them shows them as untracked — never discard them.
+    in `.dockerignore`); the server mounts them read-only into both API containers at
+    `/app/apps/server/mushaf`. A branch whose `.gitignore` predates them shows them as untracked —
+    never discard them.
 -   **Claude review workflow** (`claude-code-review.yml`, Opus 5.5): the action skips unless the PR's
     copy of the workflow file is byte-identical to the default branch's. Change it on `development`
     first, then bring the identical file onto the feature branch. It also skips a PR it already
@@ -90,8 +85,9 @@ round machinery. `unitCountFor(group)` answers "how many" — never write a lite
 -   Who holds a cüz is **stored**: `CuzHolding` (one holder per `(groupId, roundIndex, cuzNumber)`).
     Seat maths means nothing for a hatim — any "who owes/holds cüz N" must read `CuzHolding`
     (`holdingsFor`, `resolveUnitPlan` in `services/unitPlan.ts`). This was the source of real bugs.
--   `distribution` (`FREE_PICK` / `EQUAL` / `JOIN_ORDER`) is used once, at start. `maxPerMember` caps
-    holdings and is the one mutable plan field. `boundaryPolicy`: `KEEP` copies non-loan holdings
+-   `distribution` is `FREE_PICK` in practice: the owner picks at creation and joiners pick from the
+    map. `EQUAL` / `JOIN_ORDER` survive in the enum only — nothing creates or implements them.
+    `maxPerMember` caps holdings (server-side; no UI changes it after creation). `boundaryPolicy`: `KEEP` copies non-loan holdings
     forward at the boundary, `REPICK` resets the map.
 -   `isLoan` = taken from the havuz mid-round; it lasts one round whatever the policy.
 -   A member of a running hatim must hold a cüz to open the group (the round-start screen gates it);
@@ -174,7 +170,7 @@ round machinery. `unitCountFor(group)` answers "how many" — never write a lite
 -   **`SafeAreaProvider` must stay at the app root** (`initialMetrics={initialWindowMetrics}`).
     Anything rendered outside a navigator (the settings gate's skeleton/error) crashes the release
     build without it. An "abort() called" crash on `expo.controller.errorRecoveryQueue` is a
-    swallowed JS error — read it from the device log (`memory/expo-crash-js-error-from-device.md`).
+    swallowed JS error — read the real exception from the device log.
 -   Navigation (`navigation/AppNavigator.tsx`): native stack (`Onboarding`, `Tabs`, sheet routes) over
     a 5-tab native bottom navigator — Home, Groups, Discover, Notifications (inbox), and Search on iOS
     / Profil on Android. The account/search corner swaps by platform (`TrailingCornerAction`).
@@ -361,11 +357,3 @@ on foreground, comparing signatures (`triggerSig`, `contentSig`) rather than res
     scroll-driven ones). `.section` uses padding longhand.
 -   Store buttons are not links until the URLs in `src/config.ts` are set. Share cards are generated
     by `pnpm --filter @cuzhane/marketing og` and committed. Fonts self-hosted via `@fontsource`.
-
-## Design references
-
--   `design-reference.html` (repo root) is the original spec. `design_handoff_cuzhane/` holds the
-    designer's `.dc.html` exports, byte for byte (read as source; they need the design tool's runtime).
-    Newer exports arrive as zips in `~/Downloads`; port them one to one.
--   Shared versions pinned in root `package.json` `overrides` (`react`/`react-dom` 19.1.0,
-    `@react-navigation/native` 7.2.2).
