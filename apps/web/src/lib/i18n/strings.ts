@@ -812,6 +812,13 @@ const tr = {
 	hizbLegendTaken: 'Alındı',
 	hizbLegendPool: 'Sahipsiz',
 	hizbLegendMine: 'Senin',
+	// The Fihrist (HZ2): every portion, work by work, and who holds it this round. Its title is
+	// `hizbIndexLink`, the word the group screen's link already opens it with.
+	hizbIndexSub: '{parts} bölüm · {works} eser · Tur {round}',
+	hizbWorkSpan: '{a}–{b}. bölüm',
+	hizbWorkSpanOne: '{a}. bölüm',
+	hizbIndexYou: 'Sen',
+	hizbStatusReading: 'Okunuyor',
 
 	// App-specific copy the static design never has to spell out:
 	// validation, error/empty states and parameterised variants.
@@ -1642,6 +1649,11 @@ const en: Strings = {
 	hizbLegendTaken: 'Taken',
 	hizbLegendPool: 'Unclaimed',
 	hizbLegendMine: 'Yours',
+	hizbIndexSub: '{parts} portions · {works} works · Round {round}',
+	hizbWorkSpan: 'Portions {a}–{b}',
+	hizbWorkSpanOne: 'Portion {a}',
+	hizbIndexYou: 'You',
+	hizbStatusReading: 'Being read',
 
 	// App-specific copy the static design never has to spell out:
 	// validation, error/empty states and parameterised variants.
@@ -2438,6 +2450,11 @@ const nl: Strings = {
 	hizbLegendTaken: 'Genomen',
 	hizbLegendPool: 'Zonder eigenaar',
 	hizbLegendMine: 'Van jou',
+	hizbIndexSub: '{parts} gedeelten · {works} werken · Ronde {round}',
+	hizbWorkSpan: 'Gedeelten {a}–{b}',
+	hizbWorkSpanOne: 'Gedeelte {a}',
+	hizbIndexYou: 'Jij',
+	hizbStatusReading: 'Wordt gelezen',
 	membersTitle: 'Leden',
 	save: 'Opslaan',
 	close: 'Sluiten',

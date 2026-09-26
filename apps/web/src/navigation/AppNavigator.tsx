@@ -24,6 +24,7 @@ import { GroupDetailToolbar } from '@/screens/Groups/GroupDetailToolbar.componen
 import { GroupsScreen } from '@/screens/Groups/GroupsScreen.component';
 import { GroupBrowseProvider } from '@/components/GroupBrowseBar/GroupBrowse.context';
 import { GroupsToolbar } from '@/screens/Groups/GroupsToolbar.component';
+import { HizbIndexScreen } from '@/screens/Groups/HizbIndexScreen.component';
 import { LobbyScreen } from '@/screens/Groups/LobbyScreen.component';
 import { PoolScreen } from '@/screens/Groups/PoolScreen.component';
 import { RoundDetailScreen } from '@/screens/Groups/RoundDetailScreen.component';
@@ -413,6 +414,7 @@ const sharedTabScreens = ({ isProfileRoot = false }: { isProfileRoot?: boolean }
 		/>
 		<TabStack.Screen name='Lobby' component={LobbyScreen} options={pushedScreenOptions} />
 		<TabStack.Screen name='Pool' component={PoolScreen} options={pushedScreenOptions} />
+		<TabStack.Screen name='HizbIndex' component={HizbIndexScreen} options={pushedScreenOptions} />
 		<TabStack.Screen name='Rounds' component={RoundsScreen} options={pushedScreenOptions} />
 		<TabStack.Screen name='MyProgress' component={MyProgressScreen} options={pushedScreenOptions} />
 		<TabStack.Screen name='RoundDetail' component={RoundDetailScreen} options={pushedScreenOptions} />

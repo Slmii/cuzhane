@@ -52,6 +52,8 @@ export type TabDetailParamList = {
 	/** Shown once, right after the owner opens day 1. */
 	/** The share of the seats nobody took. */
 	Pool: { groupId: string };
+	/** HZ2 — a Hizb group's portions, work by work, from the board's "Fihrist ›"; a row opens `HizbReader`. */
+	HizbIndex: { groupId: string };
 	/**
 	 * B7 — the whole cevşen, read outside any group. **No params**: the bab is screen state,
 	 * because a free read is a place you are rather than one you are sent to, and nothing —

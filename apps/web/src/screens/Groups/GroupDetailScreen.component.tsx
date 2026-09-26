@@ -246,6 +246,8 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 				: NO_HIZB_CELLS,
 		[babs, groupQuery.data?.poolBabNumbers, isHizbGroup, myBabNumbers]
 	);
+	// The board's "Fihrist ›". Held for the same reason as the cells: `HizbBoard` is memoised.
+	const handleOpenHizbIndex = useCallback(() => navigation.navigate('HizbIndex', { groupId }), [groupId, navigation]);
 
 	const status = groupQuery.data?.status;
 	const isOwnerOfGroup = groupQuery.data?.isOwner === true;
@@ -883,7 +885,7 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 					babsQuery.isPending ? (
 						<HizbBoardSkeleton />
 					) : (
-						<HizbBoard cells={hizbCells} />
+						<HizbBoard cells={hizbCells} onPressIndex={handleOpenHizbIndex} />
 					)
 				) : babsQuery.isPending ? (
 					/*

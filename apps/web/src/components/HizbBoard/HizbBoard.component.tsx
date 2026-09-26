@@ -7,12 +7,11 @@ import { CaptionText, TitleText, Typography } from '@/components/ui/Typography/T
 import { HIZB_WORKS } from '@/lib/content/hizbPortions';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import type { AppTheme } from '@/lib/theme/tokens';
-import type { HizbBoardCell } from '@/lib/utils/groups';
 import { memo, useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 import type { HizbBoardProps } from './HizbBoard.types';
+import { HIZB_LEGEND, hizbCellItem, hizbCellPalette } from './hizbCellPalette';
 
 /**
  * The cell the Cevşen's board comes out at on a phone, rather than HZ1's 24: the two boards are
@@ -25,42 +24,6 @@ export const HIZB_CELL_RADIUS = 6;
 /** The ring on a portion of yours — the same 1.5 on every cell, so none changes size. */
 const RING_WIDTH = 1.5;
 const SWATCH_RADIUS = 3;
-
-/**
- * At module scope, taking the theme, so the rows below can be memoised on `[cells, theme]`.
- *
- * The tokens are the pool board's: `poolFree` and the hatch for a portion nobody holds,
- * `poolTaken` for one somebody does, the accent for read. Yours is a `text` ring over whichever
- * of those it is — the design's outer shadow, drawn as the border because a cell clips.
- */
-const paletteFor = ({ isMine, state }: Pick<HizbBoardCell, 'isMine' | 'state'>, theme: AppTheme) => {
-	const fill =
-		state === 'read'
-			? { backgroundColor: theme.colors.accent, labelColor: theme.colors.onAccent }
-			: state === 'pool'
-			? { backgroundColor: theme.colors.poolFree, labelColor: theme.colors.sandText }
-			: { backgroundColor: theme.colors.poolTaken, labelColor: theme.colors.poolTakenText };
-
-	return { ...fill, borderColor: isMine ? theme.colors.text : fill.backgroundColor };
-};
-
-/**
- * A cell's state as a word, for its accessibility label — the legend's own, so a screen reader
- * hears the same key the sighted reader reads under the board.
- */
-const STATE_LABEL_KEYS = {
-	pool: 'hizbLegendPool',
-	read: 'hizbLegendRead',
-	taken: 'hizbLegendTaken'
-} as const;
-
-/** The legend's four keys, each drawn by the palette it explains. */
-const LEGEND = [
-	{ cell: { isMine: false, state: 'read' }, labelKey: 'hizbLegendRead' },
-	{ cell: { isMine: false, state: 'taken' }, labelKey: 'hizbLegendTaken' },
-	{ cell: { isMine: false, state: 'pool' }, labelKey: 'hizbLegendPool' },
-	{ cell: { isMine: true, state: 'taken' }, labelKey: 'hizbLegendMine' }
-] as const;
 
 /**
  * "Grubun ilerlemesi" for a Hizb group (HZ1): a row per work, its portions at the right.
@@ -91,19 +54,7 @@ const HizbBoardComponent = ({ cells, onPressIndex, style }: HizbBoardProps) => {
 				const cell = byNumber.get(number);
 
 				if (cell) {
-					items.push({
-						...paletteFor(cell, theme),
-						// "Bölüm 4, Okundu" — and "Senin" after it for one of yours, which is what the
-						// ring says to a reader who can see it.
-						accessibilityLabel: [
-							`${t('portion')} ${number}`,
-							t(STATE_LABEL_KEYS[cell.state]),
-							...(cell.isMine ? [t('hizbLegendMine')] : [])
-						].join(', '),
-						isHatched: cell.state === 'pool',
-						key: number,
-						label: number
-					});
+					items.push(hizbCellItem(cell, theme, t));
 				}
 			}
 
@@ -153,8 +104,8 @@ const HizbBoardComponent = ({ cells, onPressIndex, style }: HizbBoardProps) => {
 					</View>
 				))}
 				<View style={hizbBoardLayout.legend}>
-					{LEGEND.map(entry => {
-						const palette = paletteFor(entry.cell, theme);
+					{HIZB_LEGEND.map(entry => {
+						const palette = hizbCellPalette(entry.cell, theme);
 
 						return (
 							<View key={entry.labelKey} style={hizbBoardLayout.legendEntry}>
