@@ -360,7 +360,9 @@ export const searchQuran = (query: string, language: AppLanguage, pagination: Cu
 
 	if (parsed.kind === 'name') {
 		return matchSuras(parsed.text, language, pagination).flatMap(entry => {
-			const place = placeOfPage(entry.startPage, pagination);
+			// By its first ayah, not its page: a page two cüz share opens in the first of them, which
+			// for Ahkâf (typeset p. 502) is the part it is not on.
+			const place = placeOfVerse({ ayah: 1, chapter: entry.chapter }, pagination);
 
 			return place ? [{ entry, kind: 'sura' as const, place }] : [];
 		});

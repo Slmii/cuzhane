@@ -137,6 +137,13 @@ describe('the search page’s Kur’an section', () => {
 		expect(searchQuran('440', 'tr', 'text')).toMatchObject([{ first: { ayah: 45, chapter: 35 }, kind: 'page' }]);
 	});
 
+	it('opens a sura in the cüz its first ayah is in, even on a page two cüz share', () => {
+		// Ahkâf 1 is on p. 502, which opens in cüz 25 — its own part of the page is cüz 26's.
+		expect(searchQuran('ahkaf', 'tr', 'text')).toMatchObject([
+			{ entry: { chapter: 46 }, place: { cuzNumber: 26 } }
+		]);
+	});
+
 	it('finds nothing for an ayah or a page that does not exist', () => {
 		expect(searchQuran('34:99', 'tr', 'text')).toEqual([]);
 		expect(searchQuran('700', 'tr', 'husrev')).toEqual([]);

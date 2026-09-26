@@ -242,6 +242,8 @@ const rowLength = (metrics: RowMetrics, entry: SuraEntry, isOpen: boolean) =>
 
 /** How long a sura's ayahs take to open or close. */
 const PANEL_TRANSITION_MS = 220;
+/** An ayah cell's one screen-reader action: going there. */
+const ACTIVATE = [{ name: 'activate' as const }];
 const OPEN_BORDER = 1.5;
 const CLOSED_BORDER = StyleSheet.hairlineWidth;
 
@@ -581,17 +583,19 @@ const AyahGrid = memo(function AyahGrid({ chapter, count, currentAyah, metrics, 
 	const { theme } = useThemeContext();
 	const [rowWidth, setRowWidth] = useState(0);
 
-	const pressRow = (firstAyah: number, locationX: number) => {
-		if (rowWidth <= 0) {
-			return;
-		}
-
-		const column = Math.min(AYAH_COLUMNS - 1, Math.max(0, Math.floor(locationX / (rowWidth / AYAH_COLUMNS))));
-		const ayah = firstAyah + column;
+	const goToAyah = (ayah: number) => {
 		const place = ayah <= count ? placeOfVerse({ ayah, chapter }, pagination) : undefined;
 
 		if (place) {
 			onGo(place, { ayah, chapter });
+		}
+	};
+
+	const pressRow = (firstAyah: number, locationX: number) => {
+		if (rowWidth > 0) {
+			goToAyah(
+				firstAyah + Math.min(AYAH_COLUMNS - 1, Math.max(0, Math.floor(locationX / (rowWidth / AYAH_COLUMNS))))
+			);
 		}
 	};
 
@@ -606,6 +610,9 @@ const AyahGrid = memo(function AyahGrid({ chapter, count, currentAyah, metrics, 
 
 					return (
 						<Pressable
+							// Not an element of its own: a screen reader would stop at the row and never
+							// reach its ayahs, which carry their own label and activation below.
+							accessible={false}
 							key={row}
 							onLayout={row === 0 ? event => setRowWidth(event.nativeEvent.layout.width) : undefined}
 							onPress={event => pressRow(firstAyah, event.nativeEvent.locationX)}
@@ -622,10 +629,12 @@ const AyahGrid = memo(function AyahGrid({ chapter, count, currentAyah, metrics, 
 
 								return (
 									<View
+										accessibilityActions={ACTIVATE}
 										accessibilityLabel={`${t('qAyah')} ${ayah}`}
 										accessibilityRole='button'
 										accessible
 										key={column}
+										onAccessibilityAction={() => goToAyah(ayah)}
 										// The row takes the touch, so `locationX` is measured from the row, not
 										// from the cell the finger landed on — which put every tap in column one.
 										pointerEvents='none'
