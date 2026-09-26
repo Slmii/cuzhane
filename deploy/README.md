@@ -26,10 +26,13 @@ run against.
 
 | File                  | Holds                                               | Shipped from           |
 | --------------------- | --------------------------------------------------- | ---------------------- |
-| `compose.yml`         | Caddy, Postgres, production's `api`                 | `main`, always         |
+| `compose.yml`         | Caddy, Postgres, production's `api`                 | `main`, always ¹       |
 | `Caddyfile`           | The edge for all three sites                        | `main`, always         |
 | `backup.sh`           | The nightly dump root's cron runs                   | `main`, always         |
 | `compose.preview.yml` | Preview's `api-preview`, and nothing else           | the branch deploying   |
+
+¹ With any `api-preview` in it removed on the way up, so `development`'s preview file never
+merges over a second copy — a no-op once `main` has this split.
 
 So a new environment variable for preview is added to `compose.preview.yml` on `development` and
 reaches preview with its next deploy; for production it is added to `compose.yml` on `main`. The

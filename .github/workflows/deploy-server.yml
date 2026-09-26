@@ -5,13 +5,13 @@ on:
     push:
         branches: [main, development]
         paths:
-            - 'apps/server/**'
-            - 'deploy/**'
-            - 'package.json'
-            - 'pnpm-lock.yaml'
-            - 'pnpm-workspace.yaml'
-            - '.npmrc'
-            - '.github/workflows/deploy-server.yml'
+            - "apps/server/**"
+            - "deploy/**"
+            - "package.json"
+            - "pnpm-lock.yaml"
+            - "pnpm-workspace.yaml"
+            - ".npmrc"
+            - ".github/workflows/deploy-server.yml"
     workflow_dispatch:
 
 # Two pushes in quick succession must not race for the droplet: the second `up -d` could
@@ -160,8 +160,15 @@ jobs:
                   USER_NAME: ${{ secrets.DROPLET_USER }}
                   IS_PRODUCTION: ${{ github.ref == 'refs/heads/main' }}
               run: |
-                  scp -i ~/.ssh/id_deploy \
-                    main-infra/deploy/compose.yml main-infra/deploy/Caddyfile main-infra/deploy/backup.sh \
+                  # **`main`'s compose file with any `api-preview` taken out** — a no-op once `main`
+                  # has the split, and what lets `development` run its preview file before then:
+                  # merged over a second `api-preview`, compose concatenates list fields
+                  # (`security_opt` twice is invalid). Only that service and Caddy's start-up order
+                  # on it are removed; production's `api`, Postgres and Caddy stay `main`'s exactly.
+                  yq -I4 'del(.services."api-preview") | del(.services.caddy.depends_on[] | select(. == "api-preview"))' \
+                    main-infra/deploy/compose.yml > compose.shared.yml
+                  scp -i ~/.ssh/id_deploy compose.shared.yml "$USER_NAME@$HOST:/opt/cuzhane/compose.yml"
+                  scp -i ~/.ssh/id_deploy main-infra/deploy/Caddyfile main-infra/deploy/backup.sh \
                     "$USER_NAME@$HOST:/opt/cuzhane/"
                   scp -i ~/.ssh/id_deploy deploy/compose.preview.yml \
                     "$USER_NAME@$HOST:/opt/cuzhane/compose.preview.yml.next"
@@ -219,17 +226,7 @@ jobs:
                   # **Both files, for every compose command on the box** — this script and anyone
                   # at a shell (`backup.sh` names `compose.yml` itself). Written here rather than by
                   # hand so the split cannot be half-applied.
-                  #
-                  # **Unless `main` has not had the split yet.** Its `compose.yml` then still defines
-                  # `api-preview`, and merging this file over it concatenates list fields —
-                  # `security_opt` twice is invalid, so every compose command would fail. Such a
-                  # deploy runs on `compose.yml` alone, exactly as before the split, and says so.
-                  if docker compose -f compose.yml config --services < /dev/null | grep -qx api-preview; then
-                    echo "compose.yml still defines api-preview — main predates the split; using it alone"
-                    set_env COMPOSE_FILE compose.yml
-                  else
-                    set_env COMPOSE_FILE compose.yml:compose.preview.yml
-                  fi
+                  set_env COMPOSE_FILE compose.yml:compose.preview.yml
 
                   # The only copy of the data from before this release's migrations. A
                   # destructive migration is not recoverable without it.
