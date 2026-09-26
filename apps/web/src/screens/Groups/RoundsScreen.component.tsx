@@ -8,6 +8,7 @@ import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { ProgressBar } from '@/components/ui/ProgressBar/ProgressBar.component';
 import { CaptionText, NumericText, TitleText } from '@/components/ui/Typography/Typography.component';
 import { useGetGroupById } from '@/lib/hooks/useGroup';
+import { cycleLabelKey } from '@/lib/utils/groups';
 import { unitCountFor, unitLabelKey } from '@/lib/utils/units';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useGetRounds } from '@/lib/hooks/useRounds';
@@ -63,13 +64,17 @@ export const RoundsScreen = ({ navigation, route }: Props) => {
 	// round is "dün", a weekly one's is "geçen hafta".
 	const whenLabel = useCallback(
 		(round: RoundSummary, isOpenRound: boolean) => {
-			if (isOpenRound) {
+			// Only a day and a week have words of their own; a monthly or one-off round is dated,
+			// or its open round read "bu hafta".
+			const hasCadenceWords = cycle === 'DAILY' || cycle === 'WEEKLY';
+
+			if (isOpenRound && hasCadenceWords) {
 				return cycle === 'DAILY' ? t('todayLabel') : t('thisWeekLabel');
 			}
 
 			const isPrevious = openRound !== undefined && round.roundIndex === openRound.roundIndex - 1;
 
-			if (!isPrevious) {
+			if (isOpenRound || !isPrevious || !hasCadenceWords) {
 				// Anything older than one round back is dated — "4 turdan önce" would make the
 				// reader count backwards.
 				return new Date(round.startedAt).toLocaleDateString(undefined, {
@@ -116,9 +121,10 @@ export const RoundsScreen = ({ navigation, route }: Props) => {
 		<>
 			<ScreenHeader
 				hasBackButton
-				subtitle={t('roundsSub')}
+				// A hatim's cüz don't advance by five the way a Cevşen range does.
+				subtitle={t(groupQuery.data?.kind === 'HATIM' ? 'roundsSubCuz' : 'roundsSub')}
 				title={t('rounds')}
-				titleTrailing={<Chip label={t(cycle === 'DAILY' ? 'daily' : 'weekly')} tone='accent' />}
+				titleTrailing={<Chip label={t(cycleLabelKey(cycle))} tone='accent' />}
 			/>
 			{openRound ? (
 				<CardSurface style={[styles.openCard, { borderColor: theme.colors.accent }]}>

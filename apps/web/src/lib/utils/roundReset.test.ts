@@ -107,6 +107,16 @@ describe('roundResetLabels — a one-off is not a cadence', () => {
 		expect(roundResetLabels(ISTANBUL_MIDNIGHT, 'CUSTOM', 15, 'Europe/Istanbul', 'tr', t)?.local).toBe('');
 	});
 
+	it('counts a monthly round in days and dates the next reset, never "every day"', () => {
+		const labels = roundResetLabels(ISTANBUL_MIDNIGHT, 'MONTHLY', 30, 'Europe/Istanbul', 'en', t);
+
+		expect(labels?.group).toContain('resetEveryNDays(n=30');
+		expect(labels?.group).not.toContain('resetDaily');
+		// Midnight in Istanbul is still the 26th for a reader there — the date travels with it.
+		expect(labels?.local).toContain('yourTimeAtDate(');
+		expect(labels?.local).toContain('date=');
+	});
+
 	it('still uses the weekday phrasing at exactly seven days', () => {
 		expect(roundResetLabels(ISTANBUL_MIDNIGHT, 'WEEKLY', 7, 'Europe/Istanbul', 'tr', t)?.group).toContain(
 			'resetWeekly'

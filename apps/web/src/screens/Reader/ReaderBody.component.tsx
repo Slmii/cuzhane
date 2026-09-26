@@ -68,8 +68,17 @@ export const isDivineName = (token: string) => DIVINE_NAME.test(token);
  * The spans re-declare the face and size because a nested `Typography` otherwise applies
  * its own variant's `fontSize` and drops the Arabic back to body size — the same reason
  * the verse ornaments below set theirs explicitly.
+ *
+ * **And the line height — every nested span in this body does.** A nested `Typography` brings
+ * its variant's 21pt line, and Android measured the whole paragraph by it while drawing the
+ * paragraph's own 46: the du'a after the hundredth was laid out as 36 lines of 21pt, drawn
+ * at 46, and everything past the first sixteen was clipped — the text simply stopped, at every
+ * face and size. The spans now carry the paragraph's line, so there is only one to measure by.
  */
-const withDivineName = (text: string, style: { color: string; fontFamily: string; fontSize: number }) => {
+const withDivineName = (
+	text: string,
+	style: { color: string; fontFamily: string; fontSize: number; lineHeight: number }
+) => {
 	const runs: ReactNode[] = [];
 	let plain = '';
 
@@ -88,7 +97,7 @@ const withDivineName = (text: string, style: { color: string; fontFamily: string
 			<Typography
 				color={style.color}
 				key={`name-${index}`}
-				style={{ fontFamily: style.fontFamily, fontSize: style.fontSize }}
+				style={{ fontFamily: style.fontFamily, fontSize: style.fontSize, lineHeight: style.lineHeight }}
 			>
 				{token}
 			</Typography>
@@ -172,13 +181,14 @@ export const ReaderBody = ({
 
 		// Re-derived in here rather than closed over: the faces come out of a call, and the
 		// React Compiler will not preserve a manual memo whose deps it can't prove stable.
-		const { arabicFont: face, arabicFontSize: size } = readerFaces(font, chosenSize);
+		const { arabicFont: face, arabicFontSize: size, baseFontSize: base } = readerFaces(font, chosenSize);
 
 		for (const invocation of cevsenBab?.invocations ?? []) {
 			runs[invocation.n] = withDivineName(invocation.text, {
 				color: theme.colors.danger,
 				fontFamily: face,
-				fontSize: size
+				fontSize: size,
+				lineHeight: base * 2
 			});
 		}
 
@@ -284,7 +294,11 @@ export const ReaderBody = ({
 						<Typography
 							color={theme.colors.accent}
 							onLongPress={() => onLongPressInvocation(invocation)}
-							style={{ fontFamily: ornamentFont, fontSize: ornamentFontSize }}
+							style={{
+								fontFamily: ornamentFont,
+								fontSize: ornamentFontSize,
+								lineHeight: baseFontSize * 2
+							}}
 							suppressHighlighting
 						>
 							{ayahMark(invocation.n, numerals)}
@@ -324,7 +338,7 @@ export const ReaderBody = ({
 				 */}
 				<Typography
 					color={theme.colors.danger}
-					style={{ fontFamily: ornamentFont, fontSize: ornamentFontSize }}
+					style={{ fontFamily: ornamentFont, fontSize: ornamentFontSize, lineHeight: baseFontSize * 2 }}
 				>
 					{ayahMark(cevsenBab.closing.n, numerals)}
 				</Typography>
@@ -373,7 +387,11 @@ export const ReaderBody = ({
 							part === RUB_EL_HIZB ? (
 								<Typography
 									key={`orn-${index}`}
-									style={{ fontFamily: ornamentFont, fontSize: ornamentFontSize }}
+									style={{
+										fontFamily: ornamentFont,
+										fontSize: ornamentFontSize,
+										lineHeight: baseFontSize * 2
+									}}
 								>
 									{part}
 								</Typography>
@@ -382,7 +400,8 @@ export const ReaderBody = ({
 									{withDivineName(part, {
 										color: theme.colors.danger,
 										fontFamily: arabicFont,
-										fontSize
+										fontSize,
+										lineHeight: baseFontSize * 2
 									})}
 								</Fragment>
 							)

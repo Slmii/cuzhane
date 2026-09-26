@@ -116,6 +116,17 @@ export type GroupSummary = {
 	 */
 	myNextBabNumber: number | null;
 	/**
+	 * When the viewer's share for this round was finished — the last of its reads — or null
+	 * while any of it is unread, or when they have none. Ana sayfa's "Bugün okunanlar" shows it.
+	 */
+	myShareDoneAt: string | null;
+	/**
+	 * A running hatim this member holds no cüz in for the round in progress, and has not chosen
+	 * to sit out — they must pick before they can read (QR1). Always false for Cevşen, and for a
+	 * viewer who is not a member.
+	 */
+	mustPickCuz: boolean;
+	/**
 	 * What the viewer reads this round and the next. Not "today/tomorrow": rotation moves
 	 * per round, so a WEEKLY group holds one range all week.
 	 */

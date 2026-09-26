@@ -2,6 +2,7 @@ import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
 import { CaptionText } from '@/components/ui/Typography/Typography.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
+import { pluralKey } from '@/lib/i18n/plural';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { toAlphaColor } from '@/lib/theme/tokens';
 import { StyleSheet, View } from 'react-native';
@@ -33,7 +34,7 @@ import type { MyProgressCardProps } from './MyProgressCard.types';
  * `TrailingCornerAction isOnHeaderSurface` exists to avoid on Ana sayfa.
  */
 export const MyProgressCard = ({ isHatim = false, onPress, progress }: MyProgressCardProps) => {
-	const { t } = useTranslation();
+	const { language, t } = useTranslation();
 	const { theme } = useThemeContext();
 
 	/** The quieter half of the line — everything that is a label rather than a number. */
@@ -59,7 +60,11 @@ export const MyProgressCard = ({ isHatim = false, onPress, progress }: MyProgres
 				<CaptionText color={theme.colors.onHeaderSurface} weight='semibold'>
 					{`${progress.ratePercent}%`}
 				</CaptionText>
-				{isHatim ? ` · ${t('qThisHatim', { n: progress.periods.length })}` : ` ${t('mpRate')}`}
+				{isHatim
+					? ` · ${t(pluralKey(language, progress.periods.length, 'qThisHatimOne', 'qThisHatim'), {
+							n: progress.periods.length
+					  })}`
+					: ` ${t('mpRate')}`}
 			</CaptionText>
 			<Icon color={theme.colors.onHeaderSurface} name='chevronRight' size={15} strokeWidth={1.8} />
 		</CardSurface>

@@ -39,6 +39,7 @@ import { HatimCompleteScreen } from '@/screens/Groups/HatimCompleteScreen.compon
 import { RoundStartScreen } from '@/screens/Groups/RoundStartScreen.component';
 import { CuzDetailScreen } from '@/screens/Groups/CuzDetailScreen.component';
 import { CuzReaderScreen } from '@/screens/Reader/CuzReaderScreen.component';
+import { MushafScreen } from '@/screens/Reader/MushafScreen.component';
 import { OnboardingScreen } from '@/screens/Onboarding/OnboardingScreen.component';
 import { ProfileScreen } from '@/screens/Profile/ProfileScreen.component';
 import { NotificationsScreen } from '@/screens/Notifications/NotificationsScreen.component';
@@ -452,6 +453,12 @@ const sharedTabScreens = ({ isProfileRoot = false }: { isProfileRoot?: boolean }
 			component={CuzReaderScreen}
 			options={{ ...nativeBackScreenOptions, headerRight: () => <ReaderToolbar /> }}
 		/>
+		{/* The free Mushaf, Ana sayfa's "Mushaf" — Q5 outside any group, with the same bar. */}
+		<TabStack.Screen
+			name='Mushaf'
+			component={MushafScreen}
+			options={{ ...nativeBackScreenOptions, headerRight: () => <ReaderToolbar /> }}
+		/>
 		{/*
 		 * **It needs the back button like any other pushed screen.** Gruplarım navigates here for
 		 * a member whose group is still gathering, and that is a push onto the shelf — with no
@@ -535,7 +542,6 @@ const HomeTabStack = () => (
 			options={{
 				...rootToolbarScreenOptions,
 				// The one bar that is not over the page: the glyphs follow H1's layer, not the theme.
-				// The bell rides along inside `TrailingCornerAction`, as it does on every bar.
 				headerRight: () => <TrailingCornerAction isOnHeaderSurface />
 			}}
 		/>

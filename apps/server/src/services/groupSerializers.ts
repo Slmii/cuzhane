@@ -115,6 +115,17 @@ export type GroupSummary = {
 	 */
 	myNextBabNumber: number | null;
 	/**
+	 * When the viewer's share for this round was finished — the last of its reads — or null
+	 * while any of it is unread, or when they have none. Ana sayfa's "Bugün okunanlar" shows it.
+	 */
+	myShareDoneAt: string | null;
+	/**
+	 * A running hatim this member holds no cüz in for the round in progress, and has not chosen
+	 * to sit out — they must pick before they can read (QR1). Always false for Cevşen, and for a
+	 * viewer who is not a member.
+	 */
+	mustPickCuz: boolean;
+	/**
 	 * What the viewer reads this round and the next. Not "today/tomorrow": rotation moves
 	 * per round, so a WEEKLY group holds one range all week.
 	 */
@@ -308,7 +319,12 @@ export const toGroupSummary = (
 	 * holding anything and every cüz free, which is wrong in a way nothing would raise.
 	 * `holdingsFor` is the scoped read; the compiler is what makes every caller do it.
 	 */
-	holdings: PlanHolding[]
+	holdings: PlanHolding[],
+	/**
+	 * Whether the viewer chose "Bu turu atla" for the round in progress. Only the viewer's own
+	 * list and detail know it; anywhere else they are not a member, and `mustPickCuz` is false.
+	 */
+	hasSkippedRound = false
 ): GroupSummary => {
 	const readCount = babs.filter(bab => bab.readAt !== null).length;
 	const memberCount = members.length;
@@ -354,6 +370,21 @@ export const toGroupSummary = (
 	// send the reader to a bab they had already finished.
 	const readNumbers = new Set(babs.filter(bab => bab.readAt !== null).map(bab => bab.number));
 	const myNextBabNumber = myBabNumbers.find(number => !readNumbers.has(number)) ?? null;
+	/*
+	 * When the share was finished: its latest read, once every unit of it is read — over the
+	 * same babs `myReadCount` counts, and from the same round's board. Nothing to report while
+	 * any of it is open, or for a member with no share.
+	 */
+	const myReadTimes = babs.filter(bab => myBabNumberSet.has(bab.number)).map(bab => bab.readAt?.getTime() ?? null);
+	const myShareDoneAt =
+		myBabNumbers.length > 0 &&
+		myReadTimes.length === myBabNumbers.length &&
+		myReadTimes.every(time => time !== null)
+			? new Date(Math.max(...(myReadTimes as number[]))).toISOString()
+			: null;
+	// Holding nothing in a running hatim, and not sitting the round out: Ana sayfa's "Cüz seç".
+	const mustPickCuz =
+		isHatim && group.status === 'RUNNING' && viewerMember !== undefined && myShare.length === 0 && !hasSkippedRound;
 
 	return {
 		id: group.id,
@@ -396,6 +427,8 @@ export const toGroupSummary = (
 		myBabNumbers,
 		myReadCount,
 		myNextBabNumber,
+		myShareDoneAt,
+		mustPickCuz,
 		/*
 		 * **Null for a hatim, and it has to be.** A range is the shape of a seat's block —
 		 * "1–13". Held cüz are `7 · 22`: not contiguous, so no start-and-end can describe
@@ -508,7 +541,14 @@ export const toGroupDetail = (
 	/** Rounds the viewer skipped in this group — only the one in progress counts. */
 	skippedRoundIndexes: number[] = []
 ): GroupDetail => {
-	const summary = toGroupSummary(group, babs, members, viewerUserId, holdings);
+	const summary = toGroupSummary(
+		group,
+		babs,
+		members,
+		viewerUserId,
+		holdings,
+		skippedRoundIndexes.includes(group.roundIndex)
+	);
 	const roundIndex = roundIndexFor(group) ?? 0;
 	/*
 	 * **Only a hatim's board is resolved through the plan.** For a Cevşen group `holderOf`

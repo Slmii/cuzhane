@@ -5,7 +5,8 @@ import { useMushafPage } from '@/lib/hooks/useMushafPage';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { useState } from 'react';
-import { ActivityIndicator, Image, StyleSheet, View } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
+import { MushafPageSkeleton } from './MushafPageSkeleton.component';
 
 type MushafImagePageProps = {
 	/** The page on screen, by its served path — `mushafPagePath(page)` or one of `MUSHAF_DUA_PATHS`. */
@@ -106,6 +107,12 @@ export const MushafImagePage = ({ accessibilityLabel, nextPath, onShown, path }:
 			) : pageQuery.data || leaving ? (
 				// The page's exact shape, so a position read in fractions of the page lands on it.
 				<View style={styles.frame}>
+					{/* The first page, downloaded but still decoding: the bones stay under it until it
+					    draws, rather than giving way to a frame of bare paper. Never under a turn —
+					    there the page being left covers the wait. */}
+					{leaving || isCurrentShown ? null : (
+						<MushafPageSkeleton accessibilityLabel={accessibilityLabel} style={styles.leaving} />
+					)}
 					{leaving ? (
 						<Image
 							accessibilityIgnoresInvertColors
@@ -132,7 +139,7 @@ export const MushafImagePage = ({ accessibilityLabel, nextPath, onShown, path }:
 					) : null}
 				</View>
 			) : (
-				<ActivityIndicator color={theme.colors.codeInk} />
+				<MushafPageSkeleton accessibilityLabel={accessibilityLabel} />
 			)}
 		</View>
 	);

@@ -12,6 +12,7 @@ import {
 import { useGetGroupById } from '@/lib/hooks/useGroup';
 import { useGetRoundDetail } from '@/lib/hooks/useRounds';
 import { useTranslation } from '@/lib/i18n/I18n.context';
+import { pluralKey } from '@/lib/i18n/plural';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { hatimCompletePalette as palette, toAlphaColor } from '@/lib/theme/tokens';
 import { isRepeatingCycle } from '@/lib/types/domain';
@@ -65,7 +66,7 @@ const RING_POP = {
  */
 export const HatimCompleteScreen = ({ navigation, route }: Props) => {
 	const { groupId, roundIndex, then } = route.params;
-	const { t } = useTranslation();
+	const { language, t } = useTranslation();
 	const { theme } = useThemeContext();
 	const insets = useSafeAreaInsets();
 	const tabBarOffset = useContext(TabBarOffsetContext);
@@ -157,7 +158,7 @@ export const HatimCompleteScreen = ({ navigation, route }: Props) => {
 	const stats = [
 		{ label: t('cuz'), value: CUZ_COUNT },
 		{ label: t('qReaders'), value: round ? readers : '–' },
-		{ label: t('qDays'), value: days ?? '–' }
+		{ label: t(pluralKey(language, days ?? 0, 'qDaysOne', 'qDays')), value: days ?? '–' }
 	];
 
 	return (

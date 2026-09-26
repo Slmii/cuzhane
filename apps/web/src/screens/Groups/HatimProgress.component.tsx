@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/Typography/Typography.component';
 import { cuzSuraRange } from '@/lib/content/cuz';
 import { useTranslation } from '@/lib/i18n/I18n.context';
+import { pluralKey } from '@/lib/i18n/plural';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { isRepeatingCycle, type GroupCycle, type MyProgress } from '@/lib/types/domain';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -75,10 +76,18 @@ export const HatimProgress = ({ cycle, onOpenPool, onReadCuz, progress, roundDay
 			</View>
 
 			<View style={styles.sectionHead}>
-				<TitleText>{t('qThisHatim', { n: progress.periods.length })}</TitleText>
+				<TitleText>
+					{t(pluralKey(language, progress.periods.length, 'qThisHatimOne', 'qThisHatim'), {
+						n: progress.periods.length
+					})}
+				</TitleText>
 				<CaptionText color={theme.colors.subtext}>
 					{/* A one-off has one round and no rhythm: it says how long, not how often. */}
-					{isRepeatingCycle(cycle) ? t('qEveryNDays', { n: roundDays }) : `${roundDays} ${t('qDaysTotal')}`}
+					{isRepeatingCycle(cycle)
+						? roundDays === 1
+							? t('daily')
+							: t('qEveryNDays', { n: roundDays })
+						: `${roundDays} ${t('qDaysTotal')}`}
 				</CaptionText>
 			</View>
 

@@ -128,7 +128,14 @@ export const roundResetLabels = (
 	timezone: string,
 	locale: string,
 	t: (
-		key: 'resetDaily' | 'resetWeekly' | 'endsOn' | 'yourTimeAt' | 'yourTimeAtDay',
+		key:
+			| 'resetDaily'
+			| 'resetWeekly'
+			| 'resetEveryNDays'
+			| 'endsOn'
+			| 'yourTimeAt'
+			| 'yourTimeAtDay'
+			| 'yourTimeAtDate',
 		values: Record<string, string | number>
 	) => string
 ): RoundResetLabels | null => {
@@ -175,19 +182,21 @@ export const roundResetLabels = (
 	}
 
 	/*
-	 * Any other length: counted in days, and **no weekday on either side**. Only a seven-day
-	 * round returns to the same weekday, so naming one here would describe this round rather
-	 * than the rhythm — and the reader's line has no day to disambiguate for the same reason.
-	 */
-	/*
-	 * A repeating length with no weekday to name — MONTHLY, or a future preset. Counted in
-	 * days on both sides, because only a seven-day round returns to the same weekday.
+	 * Any other repeating length — MONTHLY, or a future preset: **counted in days**, and no
+	 * weekday, since only a seven-day round returns to the same one. It used to fall through
+	 * to the daily wording, so a thirty-day hatim announced "Her gün 00:00". The reader's line
+	 * names the next reset's date instead of a weekday, because "sende 00:00" alone reads as
+	 * tonight.
 	 */
 	return {
-		group: t('resetDaily', { time: groupTime, zone }),
-		local: t('yourTimeAt', { time: localTime })
+		group: t('resetEveryNDays', { n: roundDays, time: groupTime, zone }),
+		local: t('yourTimeAtDate', { date: shortDateIn(instant, locale), time: localTime })
 	};
 };
+
+/** "26 Ağu" — the next reset's day in the reader's own zone, for a round with no weekday. */
+const shortDateIn = (instant: Date, locale: string) =>
+	new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short' }).format(instant);
 
 /** The date a one-off ends, written out in the group's own zone. */
 const dateIn = (instant: Date, locale: string, timeZone: string) =>

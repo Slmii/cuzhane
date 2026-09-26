@@ -42,9 +42,9 @@ export type TourStep = {
 };
 
 /**
- * Fifteen stops. The welcome card and the closing card are not steps — they carry their own
- * actions and the overlay handles them directly, which is why `TOUR_STEPS.length` is 15 and the
- * counter reads "1 / 15" rather than "2 / 17".
+ * Sixteen stops. The welcome card and the closing card are not steps — they carry their own
+ * actions and the overlay handles them directly, which is why `TOUR_STEPS.length` is 16 and the
+ * counter reads "1 / 16" rather than "2 / 18".
  *
  * **One of section O's stops is gone and seven are new.** The design's own list is
  * `streak · groups · tabs · mine · pool · rd · settings`; the bottom bar went because it names

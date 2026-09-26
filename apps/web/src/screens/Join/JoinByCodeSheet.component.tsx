@@ -204,6 +204,10 @@ export const JoinByCodeSheet = ({ initialCode, isVisible, onClose }: JoinByCodeS
 	// below them left React Compiler inferring the seat grid's memo depended on the whole
 	// lookup rather than on `spots`.
 	const data = lookup.data;
+	const isHatimPreview = data?.kind === 'HATIM';
+	const unitCount = unitCountFor(data?.kind ?? 'CEVSEN');
+	// A hatim preview's `poolBabNumbers` are the cüz nobody holds; the rest are taken.
+	const takenCuz = unitCount - (data?.poolBabNumbers.length ?? 0);
 
 	const handleJoin = async () => {
 		/*
@@ -217,7 +221,8 @@ export const JoinByCodeSheet = ({ initialCode, isVisible, onClose }: JoinByCodeS
 		 */
 		if (data?.kind === 'HATIM') {
 			handleClose();
-			navigation.navigate('PickCuz', { groupId: data.id });
+			// The code goes along: a private group is previewed and joined by it, never by id.
+			navigation.navigate('PickCuz', { groupId: data.id, inviteCode: code });
 
 			return;
 		}
@@ -309,15 +314,20 @@ export const JoinByCodeSheet = ({ initialCode, isVisible, onClose }: JoinByCodeS
 								<Chip label={t(data.visibility === 'OPEN' ? 'open' : 'private')} tone='accent' />
 							</View>
 
+							{/* A hatim is joined by taking cüz, so what it shows is how many are taken —
+							    "0 / 30" read on a group whose cüz are half gone read as all free. */}
 							<View style={styles.countRow}>
 								<Typography color={theme.colors.accent} style={styles.count} variant='numeric'>
-									{data.readCount}
+									{isHatimPreview ? takenCuz : data.readCount}
 								</Typography>
-								<CaptionText color={theme.colors.faintText}>{`/ ${unitCountFor(data.kind)} ${t(
-									unitLabelKey(data.kind)
+								<CaptionText color={theme.colors.faintText}>{`/ ${unitCount} ${t(
+									isHatimPreview ? 'qCuzTaken' : unitLabelKey(data.kind)
 								)}`}</CaptionText>
 							</View>
-							<ProgressBar percent={data.percent} style={styles.bar} />
+							<ProgressBar
+								percent={isHatimPreview ? Math.round((takenCuz / unitCount) * 100) : data.percent}
+								style={styles.bar}
+							/>
 
 							{/* Two facts, not four: who is in it and how often it turns over. The
 							    stats the standalone screen carried belong to Keşfet, where you

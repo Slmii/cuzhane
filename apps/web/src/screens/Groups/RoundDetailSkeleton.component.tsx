@@ -2,7 +2,7 @@ import { Bone } from '@/components/Skeleton/Skeleton.component';
 import { SkeletonStatusRow } from '@/components/Skeleton/SkeletonStatusRow.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
-import { BAB_COUNT } from '@/lib/utils/babs';
+import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { StyleSheet, View } from 'react-native';
 
 const GRID_COLUMNS = 10;
@@ -20,15 +20,18 @@ const STATS = [
 /**
  * F4 · Tur detayı yükleniyor.
  *
- * The stat trio, the whole hundred, the legend and the rows naming who was short.
+ * The stat trio, the whole board, the legend and the rows naming who was short. The board is
+ * the group's own size — a hundred babs or thirty cüz — which the caller passes in, since a
+ * Kur'an round drawn over a hundred bones would lose two thirds of its height on arrival.
  *
  * The board is drawn here rather than delegated to `GridSkeleton`: this frame lays the
  * hundred out at a 6pt radius with a 4pt gap directly on the card, where the pool card's
  * lattice is smaller and carries a header. Sharing one component would have meant
  * parameterising it until it described neither.
  */
-export const RoundDetailSkeleton = () => {
+export const RoundDetailSkeleton = ({ cellCount }: { cellCount: number }) => {
 	const { t } = useTranslation();
+	const { theme } = useThemeContext();
 
 	/*
 	 * No header bones: the screen renders its real `ScreenHeader` above this one, because the
@@ -48,9 +51,10 @@ export const RoundDetailSkeleton = () => {
 
 			<CardSurface style={styles.boardCard}>
 				<View style={styles.grid}>
-					{Array.from({ length: BAB_COUNT }, (_, index) => (
+					{Array.from({ length: cellCount }, (_, index) => (
 						<View key={index} style={styles.cellSlot}>
-							<Bone height={undefined} radius={6} style={styles.cell} />
+							{/* A plain view, not a `Bone`: its default height would override `aspectRatio`. */}
+							<View style={[styles.cell, { backgroundColor: theme.colors.secondary }]} />
 						</View>
 					))}
 				</View>
@@ -94,6 +98,7 @@ const styles = StyleSheet.create({
 	},
 	cell: {
 		aspectRatio: 1,
+		borderRadius: 6,
 		width: '100%'
 	},
 	// Percentage slots with the gap as padding inside them — ten cells at `10%` plus a row

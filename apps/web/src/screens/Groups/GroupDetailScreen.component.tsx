@@ -24,6 +24,7 @@ import {
 	Typography
 } from '@/components/ui/Typography/Typography.component';
 import { useGetBabs, useSetBabRead } from '@/lib/hooks/useBab';
+import { useCachedGroup } from '@/lib/hooks/useCachedGroup';
 import { useCurrentUserId } from '@/lib/hooks/useCurrentUserId';
 import { useGetGroupById, useMarkPoolReleasesSeen } from '@/lib/hooks/useGroup';
 import { useHatimRoundGate } from '@/lib/hooks/useHatimRoundGate';
@@ -43,11 +44,14 @@ import { LeaveGroupButton } from '@/screens/Groups/LeaveGroupButton.component';
 import { ManageSheet } from '@/screens/Groups/ManageSheet.component';
 import { MembersSheet } from '@/screens/Groups/MembersSheet.component';
 import { ShareSheet } from '@/screens/Groups/ShareSheet.component';
+import { JoinedWelcomeSkeleton } from '@/screens/Join/JoinedWelcomeSkeleton.component';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, withTiming } from 'react-native-reanimated';
 import { GroupDetailSkeleton } from './GroupDetailSkeleton.component';
+import { HatimGroupSkeleton } from './HatimGroupSkeleton.component';
+import { HatimLobbySkeleton } from './HatimLobbySkeleton.component';
 import { LobbySkeleton } from './LobbySkeleton.component';
 
 type Sheet = 'share' | 'manage' | 'members' | null;
@@ -165,6 +169,13 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 	};
 
 	const groupQuery = useGetGroupById(groupId);
+	/*
+	 * Which skeleton to hold while the group loads: its own kind once known, else whatever the
+	 * list it was opened from said. Up here with the hooks — the loading branch below is one of
+	 * the early returns.
+	 */
+	const cached = useCachedGroup(groupId);
+	const loadingKind = groupQuery.data?.kind ?? cached?.kind;
 
 	const babsQuery = useGetBabs(groupId);
 	// Both read from the query data rather than the narrowed `detail` below, so they sit with
@@ -248,7 +259,7 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 	if (groupQuery.isPending || (groupQuery.data !== undefined && !roundGate.isOpen)) {
 		return (
 			<ScreenContainer>
-				<GroupDetailSkeleton />
+				{loadingKind === 'HATIM' ? <HatimGroupSkeleton /> : <GroupDetailSkeleton />}
 			</ScreenContainer>
 		);
 	}
@@ -260,12 +271,18 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 	const detail = groupQuery.data;
 
 	// The redirect above has already fired; hold rather than render a board for a group that
-	// has no progress yet. It shows the *lobby's* skeleton, because that is where the redirect
-	// is going — holding this screen's own shape would flash a layout that never arrives.
+	// has no progress yet. It shows the skeleton of where the redirect is going — the owner's
+	// lobby, or the waiting screen for everyone else — since holding this screen's own shape
+	// would flash a layout that never arrives.
 	if (detail.status === 'GATHERING') {
-		return (
-			<ScreenContainer>
-				<LobbySkeleton />
+		return detail.isOwner ? (
+			<ScreenContainer isScrollable={false}>
+				{detail.kind === 'HATIM' ? <HatimLobbySkeleton /> : <LobbySkeleton />}
+			</ScreenContainer>
+		) : (
+			// The waiting screen is the same shape for both kinds; only its words differ.
+			<ScreenContainer isScrollable={false}>
+				<JoinedWelcomeSkeleton />
 			</ScreenContainer>
 		);
 	}
@@ -697,7 +714,7 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 									{`${t('lastRound')} · ${t('roundN')} ${lastClosedRound.roundIndex + 1}`}
 								</CaptionText>
 								<CaptionText color={theme.colors.subtext} style={styles.lastRoundSub}>
-									{`${lastClosedRound.missedCount} ${t('missedBabs')}`}
+									{`${lastClosedRound.missedCount} ${t(isHatim ? 'missedCuz' : 'missedBabs')}`}
 								</CaptionText>
 							</View>
 							<Icon color={theme.colors.faintText} name='chevronRight' size={15} strokeWidth={1.8} />
@@ -815,10 +832,12 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 						<View style={[styles.sectionHeader, { borderBottomColor: theme.colors.divider }]}>
 							<TitleText>{t('groupProgress')}</TitleText>
 							{/* The count is the group's own, so the heading is real either way. */}
-							<CaptionText color={theme.colors.faintText}>{`${detail.readCount} / 100`}</CaptionText>
+							<CaptionText
+								color={theme.colors.faintText}
+							>{`${detail.readCount} / ${unitCount}`}</CaptionText>
 						</View>
 						<View style={styles.sectionBody}>
-							<BabGrid cells={babCells} onPressBab={handlePressBab} />
+							<BabGrid cells={babCells} kind={detail.kind} onPressBab={handlePressBab} />
 							<BabLegend kind={detail.kind} />
 						</View>
 					</CardSurface>
@@ -836,7 +855,7 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 				 */}
 				{/* No margin of its own: `ScreenContainer` already spaces this column, and adding to
 			    that put 30pt above the button where every card sits 12 apart. */}
-				{detail.isOwner ? null : <LeaveGroupButton groupId={groupId} />}
+				{detail.isOwner ? null : <LeaveGroupButton groupId={groupId} kind={detail.kind} />}
 			</ScreenContainer>
 
 			<ShareSheet group={detail} isVisible={openSheet === 'share'} onClose={closeSheet} />

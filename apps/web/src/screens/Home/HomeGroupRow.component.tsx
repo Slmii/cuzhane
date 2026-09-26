@@ -1,63 +1,64 @@
 import { SliceChip } from '@/components/SliceChip/SliceChip.component';
-import { TourTarget } from '@/components/Tour/TourTarget.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
-import { ProgressBar } from '@/components/ui/ProgressBar/ProgressBar.component';
-import { BodyStrongText, Typography } from '@/components/ui/Typography/Typography.component';
-import { useTranslation } from '@/lib/i18n/I18n.context';
+import { ReadingTypeMark } from '@/components/ui/ReadingTypeMark/ReadingTypeMark.component';
+import { Typography } from '@/components/ui/Typography/Typography.component';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
+import { toAlphaColor } from '@/lib/theme/tokens';
 import { StyleSheet, View } from 'react-native';
 import type { HomeGroupRowProps } from './HomeGroupRow.types';
+import { PortionBar } from './PortionBar.component';
+
+const MARK_SIZE = 22;
 
 /**
- * One group on H1: the stretch the reader is in, the group's name, how much of their own
- * share is done, and the way in.
+ * One share under "Sonra" (B8) — **one row style for both kinds.** The kind's mark, the place
+ * in the heading face, the group, how far along, the portion bar, and the way in. Cevşen counts
+ * babs ("2/5", a segment each); a cüz counts pages and says how long its round has left
+ * ("0/20 s · 6 gün"), since a hatim's round runs for days.
  *
- * **The row and its button go to two different places.** The row opens the group, which is
- * what a row of a list of groups should do; the button opens the reader at the bab the reader
- * left off on. It says "Oku" while anything is owed and "Tamam" once nothing is, and it opens
- * the reader either way — a finished share is a thing to look at, not a thing to undo.
- * Nothing here marks babs read; that happens where the text is.
+ * The whole row opens the reading, as the button does: nothing here marks anything read, and
+ * the group itself is a tab away.
  */
-export const HomeGroupRow = ({ group, isTourTarget = false, onOpenReader, onPress }: HomeGroupRowProps) => {
+export const HomeGroupRow = ({
+	actionLabel,
+	fraction,
+	heading,
+	kind,
+	meta,
+	moreCount,
+	name,
+	onPress,
+	segments
+}: HomeGroupRowProps) => {
 	const { theme } = useThemeContext();
-	const { t } = useTranslation();
-	const isDone = group.done >= group.total;
-	const percent = group.total === 0 ? 0 : Math.round((group.done / group.total) * 100);
-
-	const button = (
-		<AppButton
-			accessibilityLabel={`${group.name} · ${isDone ? t('commitShareDone') : t('read')}`}
-			fullWidth={false}
-			onPress={onOpenReader}
-			size='sm'
-			title={isDone ? t('commitShareDone') : t('read')}
-			variant={isDone ? 'surface' : 'primary'}
-		/>
-	);
 
 	return (
 		<CardSurface onPress={onPress} style={styles.card}>
+			<ReadingTypeMark color={toAlphaColor(theme.colors.accent, 0.75)} kind={kind} size={MARK_SIZE} />
 			<View style={styles.body}>
 				<View style={styles.titleRow}>
-					{/* The range in the heading face, as the design sets it — it is the one number
-					    on the row somebody reads as a place rather than a measure. */}
-					<Typography color={theme.colors.accent} style={styles.range} variant='title' weight='regular'>
-						{group.range}
+					<Typography color={theme.colors.accent} style={styles.heading} variant='title' weight='regular'>
+						{heading}
 					</Typography>
-					<BodyStrongText numberOfLines={1} style={styles.name}>
-						{group.name}
-					</BodyStrongText>
-					{group.moreCount > 0 ? <SliceChip count={group.moreCount} isCompact tone='wash' /> : null}
+					<SliceChip count={moreCount} isCompact tone='wash' />
+					<Typography numberOfLines={1} style={styles.name} weight='semibold'>
+						{name}
+					</Typography>
+					<Typography color={theme.colors.faintText} style={styles.meta}>
+						{meta}
+					</Typography>
 				</View>
-				<ProgressBar percent={percent} />
+				<PortionBar {...(segments ? { segments } : { fraction: fraction ?? 0 })} />
 			</View>
-			{/*
-			 * The wrapper is only mounted for the row the tour points at. `TourTarget` renders a
-			 * plain `View` around its child, and this button sizes itself to its label — so
-			 * wrapping every row would put a measured box around nine controls for the sake of one.
-			 */}
-			{isTourTarget ? <TourTarget id='read'>{button}</TourTarget> : button}
+			<AppButton
+				accessibilityLabel={`${name} · ${actionLabel}`}
+				fullWidth={false}
+				onPress={onPress}
+				size='sm'
+				title={actionLabel}
+				variant='accent'
+			/>
 		</CardSurface>
 	);
 };
@@ -65,29 +66,30 @@ export const HomeGroupRow = ({ group, isTourTarget = false, onOpenReader, onPres
 const styles = StyleSheet.create({
 	body: {
 		flex: 1,
-		gap: 9,
+		gap: 7,
 		minWidth: 0
 	},
 	card: {
 		alignItems: 'center',
 		flexDirection: 'row',
-		gap: 13,
-		paddingHorizontal: 15,
-		paddingVertical: 13
+		gap: 12,
+		paddingHorizontal: 14,
+		paddingVertical: 12
+	},
+	heading: {
+		fontSize: 15,
+		lineHeight: 17
+	},
+	meta: {
+		fontSize: 10.5,
+		lineHeight: 14
 	},
 	name: {
 		flex: 1,
 		fontSize: 12.5,
-		minWidth: 0
-	},
-	range: {
-		fontSize: 15,
-		lineHeight: 17
+		lineHeight: 16
 	},
 	titleRow: {
-		// Baselines, not boxes. The range is Newsreader and the name is Manrope at a smaller
-		// size; centring their boxes left the two sitting on different lines, which is what the
-		// design's own `align-items: baseline` avoids.
 		alignItems: 'baseline',
 		flexDirection: 'row',
 		gap: 8,

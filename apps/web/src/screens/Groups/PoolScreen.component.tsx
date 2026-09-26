@@ -11,6 +11,7 @@ import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { Hatch } from '@/components/ui/Hatch/Hatch.component';
 import { BodyStrongText, CaptionText, NumericText, Typography } from '@/components/ui/Typography/Typography.component';
+import { useCachedGroup } from '@/lib/hooks/useCachedGroup';
 import { useGetGroupById, useGetPoolSlots, useReleasePoolSlot, useTakePoolSlot } from '@/lib/hooks/useGroup';
 import { CuzPoolScreen } from './CuzPoolScreen.component';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
@@ -94,9 +95,19 @@ export const PoolScreen = ({ navigation, route }: Props) => {
 	 * costs no extra wait and the right screen is drawn on the first frame.
 	 */
 	const group = useGetGroupById(groupId);
+	// Before the group answers — opened cold, from a push — a list may still know the kind, so a
+	// hatim holds the havuz's own skeleton rather than this screen's.
+	const cachedKind = useCachedGroup(groupId)?.kind;
+	const isHatim = (group.data?.kind ?? cachedKind) === 'HATIM';
 	const { theme } = useThemeContext();
 	const { t } = useTranslation();
-	const pool = useGetPoolSlots(groupId);
+	/*
+	 * Dormant for a hatim, which `CuzPoolScreen` below serves. This hook still runs for one — it
+	 * sits above that early return — and on the live interval it polled the seat pool the whole
+	 * time the cüz havuz was open. An unknown kind still asks, so a Cevşen pool opened cold
+	 * never waits on the group first.
+	 */
+	const pool = useGetPoolSlots(groupId, { isEnabled: !isHatim });
 	// Your own name and photo: a row you just claimed can draw your avatar before the server
 	// echoes the name back, and it draws the picture you actually set rather than a generated
 	// face — see `useViewerIdentity`.
@@ -206,7 +217,7 @@ export const PoolScreen = ({ navigation, route }: Props) => {
 	 */
 	const drainingSlotIndexes = useMemo(() => (drainingSlot === null ? [] : [drainingSlot]), [drainingSlot]);
 
-	if (group.data?.kind === 'HATIM') {
+	if (isHatim) {
 		return <CuzPoolScreen groupId={groupId} />;
 	}
 

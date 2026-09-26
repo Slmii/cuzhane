@@ -1,9 +1,7 @@
 import { CuzMap, CuzMapLegend } from '@/components/CuzMap/CuzMap.component';
 import type { CuzCellState } from '@/components/CuzMap/CuzMap.types';
-import { GridSkeleton } from '@/components/GridSkeleton/GridSkeleton.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
-import { SkeletonStatusRow } from '@/components/Skeleton/SkeletonStatusRow.component';
 import { Avatar } from '@/components/ui/Avatar/Avatar.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
@@ -12,7 +10,7 @@ import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { Hatch } from '@/components/ui/Hatch/Hatch.component';
 import { BodyStrongText, CaptionText, NumericText, Typography } from '@/components/ui/Typography/Typography.component';
 import { cuzSuraRange } from '@/lib/content/cuz';
-import { useGetPoolCuz, useReleasePoolCuz, useTakePoolCuz } from '@/lib/hooks/useGroup';
+import { useGetGroupById, useGetPoolCuz, useReleasePoolCuz, useTakePoolCuz } from '@/lib/hooks/useGroup';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useViewerIdentity } from '@/lib/hooks/useViewerIdentity';
 import { useTranslation } from '@/lib/i18n/I18n.context';
@@ -20,13 +18,12 @@ import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { PoolCuz } from '@/lib/types/domain';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { CuzPoolSkeleton } from './CuzPoolSkeleton.component';
 
 /** The design's 44pt badge, as on the Cevşen pool's range. */
 const BADGE_SIZE = 44;
 /** The design's 31pt owner mark on a taken row. */
 const AVATAR_SIZE = 31;
-/** A middling guess at the pool's size, so the card lands near its final height. */
-const SKELETON_CELL_COUNT = 15;
 
 /**
  * **Q3 — the hatim's havuz.** The Cevşen pool screen, one unit apart.
@@ -44,6 +41,9 @@ export const CuzPoolScreen = ({ groupId }: { groupId: string }) => {
 	const { language, t } = useTranslation();
 	const { theme } = useThemeContext();
 	const pool = useGetPoolCuz(groupId);
+	// Your own cüz and the group's cap: the pool list only carries the havuz, so what you
+	// already hold — and whether you may take more — comes from the group.
+	const group = useGetGroupById(groupId);
 	// Your own name and photo: a row you just took can draw your avatar before the server
 	// echoes the name back, and it draws the picture you actually set rather than a generated
 	// face — see `useViewerIdentity`.
@@ -75,8 +75,7 @@ export const CuzPoolScreen = ({ groupId }: { groupId: string }) => {
 		return (
 			<ScreenContainer shouldIncludeTabBarOffset>
 				<ScreenHeader eyebrow={t('pool')} hasBackButton subtitle={t('poolSubCuz')} title={t('poolTitleCuz')} />
-				<GridSkeleton cellCount={SKELETON_CELL_COUNT} />
-				<SkeletonStatusRow label={t('loadingPoolCuz')} />
+				<CuzPoolSkeleton />
 			</ScreenContainer>
 		);
 	}
@@ -91,11 +90,20 @@ export const CuzPoolScreen = ({ groupId }: { groupId: string }) => {
 	// where its holder is named.
 	const free = cuz.filter(entry => entry.takenByUserId === null);
 	const takenByNumber = new Map(cuz.map(entry => [entry.cuzNumber, entry]));
+	const myCuz = group.data?.myBabNumbers ?? [];
+	const maxPerMember = group.data?.maxPerMember ?? null;
+	/*
+	 * At the cap a take can only be refused, so the free rows stop offering one. Counted with
+	 * the takes still in flight — the pool list marks those at once, the group only after the
+	 * refetch — so a quick second tap is held back too.
+	 */
+	const heldCount = new Set([...myCuz, ...cuz.filter(entry => entry.takenByMe).map(entry => entry.cuzNumber)]).size;
+	const isAtCap = maxPerMember !== null && heldCount >= maxPerMember;
 
 	/*
 	 * The board draws all thirty, not just the havuz: a map with holes where the group's own
 	 * cüz are would be a different picture from every other map in the app. A cüz that is not
-	 * in this list is simply somebody's — `taken`.
+	 * in this list is somebody's — `taken`, or `mine` when it is one you joined with.
 	 *
 	 * **Three states, not four.** This map first drew a borrowed cüz that had been read as
 	 * `read`, and its legend then showed "okundu" and "senin" as the same swatch: the export
@@ -108,7 +116,7 @@ export const CuzPoolScreen = ({ groupId }: { groupId: string }) => {
 		const entry = takenByNumber.get(cuzNumber);
 
 		if (entry === undefined) {
-			return 'taken';
+			return myCuz.includes(cuzNumber) ? 'mine' : 'taken';
 		}
 
 		if (entry.takenByMe) {
@@ -130,7 +138,7 @@ export const CuzPoolScreen = ({ groupId }: { groupId: string }) => {
 		const isJustTaken = canUndo && takenHere.includes(entry.cuzNumber);
 		// A sentence, to sit beside "Ali üstlendi" — not the legend's one-word `legendMine`.
 		const takerLabel = entry.takenByMe
-			? t('poolTakenByYou')
+			? t('poolTakenByYouCuz')
 			: `${entry.takenByDisplayName ?? ''} ${t('takenBy')}`.trim();
 		/*
 		 * Matched against the cüz actually in flight. Both mutations belong to the whole screen,
@@ -206,7 +214,7 @@ export const CuzPoolScreen = ({ groupId }: { groupId: string }) => {
 				 */}
 				{canUndo || !isTaken ? (
 					<AppButton
-						disabled={isPending}
+						disabled={isPending || (!canUndo && isAtCap)}
 						fullWidth={false}
 						icon={canUndo ? 'undo' : 'claim'}
 						onPress={() => (canUndo ? handleUndo(entry.cuzNumber) : handleTake(entry.cuzNumber))}
@@ -239,6 +247,11 @@ export const CuzPoolScreen = ({ groupId }: { groupId: string }) => {
 							mineLabel={t('legendMine')}
 							states={['taken', 'free', 'mine']}
 						/>
+						{isAtCap && free.length > 0 ? (
+							<CaptionText color={theme.colors.subtext}>
+								{t('poolAtCap', { count: maxPerMember ?? 0 })}
+							</CaptionText>
+						) : null}
 					</CardSurface>
 					<View style={styles.cuzList}>{cuz.map(renderCuz)}</View>
 				</>

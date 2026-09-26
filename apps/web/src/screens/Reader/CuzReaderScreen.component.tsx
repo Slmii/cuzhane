@@ -8,12 +8,24 @@ import { mushafCuzPages, mushafPagePath, mushafPageSecde, mushafPageSpan } from 
 import { cuzPages } from '@/lib/content/quran';
 import { textFontFor } from '@/lib/types/domain';
 import { MushafImagePage, mushafPaperGeometry } from '@/screens/Reader/MushafImagePage.component';
-import { SECDE_ORNAMENT_OVERHANG, SecdeOrnament } from '@/screens/Reader/SecdeOrnament.component';
+import { SecdeOrnament } from '@/screens/Reader/SecdeOrnament.component';
+import {
+	BODY_BOTTOM,
+	CUZ_TURN_EASING,
+	type CuzTurn,
+	cuzReaderStyles as styles,
+	cuzTurnStyle,
+	IMAGE_BODY_SIDE,
+	IMAGE_BODY_TOP,
+	SECDE_SCROLL_MARGIN,
+	SEGMENT_TRANSITION_MS
+} from '@/screens/Reader/cuzReaderShell';
 import { useCurrentUserId } from '@/lib/hooks/useCurrentUserId';
 import { useGetUserSettings, useUpdateUserSettings } from '@/lib/hooks/useUserSettings';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { readCuzBookmark, writeCuzBookmark } from '@/lib/utils/cuzBookmark';
+import { type CuzPagination, recordCuzPagesRead } from '@/lib/utils/cuzPagesRead';
 import { TabBarOffsetContext } from '@/navigation/TabBarOffsetContext';
 import type { TabStackParamList } from '@/navigation/types';
 import { MushafPage } from '@/screens/Reader/MushafPage.component';
@@ -24,48 +36,11 @@ import { textSizeSheet } from '@/screens/Reader/textSizeSheet';
 import { tapBack, tapLight } from '@/lib/utils/haptics';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useContext, useEffect, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
-import Animated, { cubicBezier, useReducedMotion } from 'react-native-reanimated';
+import { ScrollView, View } from 'react-native';
+import Animated, { useReducedMotion } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type Props = NativeStackScreenProps<TabStackParamList, 'CuzReader'>;
-
-type CuzTurn = 'next' | 'previous';
-
-/**
- * Crossing into another cüz slides the new one in **from the side of the arrow** — from the
- * right for ›, the left for ‹ — with a short fade. CSS keyframes on a view keyed by the cüz,
- * as `MenuAction`'s levels do, rather than `entering`: see that component for why.
- */
-const CUZ_TURN_EASING = cubicBezier(0.2, 0.9, 0.3, 1);
-const CUZ_TURN_OFFSET = 28;
-/** How long a page-strip segment takes to ease into its new colour. */
-const SEGMENT_TRANSITION_MS = 240;
-/**
- * Room above a Hüsrev page, and it is the sajdah mark's: the mark hangs 22 over the paper's top
- * edge, and at 16 its top slid under the header.
- */
-const IMAGE_BODY_TOP = SECDE_ORNAMENT_OVERHANG + 4;
-const IMAGE_BODY_SIDE = 12;
-/** `styles.body`'s foot, which is where the paper ends once the page is scrolled to the bottom. */
-const BODY_BOTTOM = 26;
-/** Where the sajdah mark's tap leaves the verse's green: this far below the header. */
-const SECDE_SCROLL_MARGIN = 32;
-
-const cuzTurnStyle = (direction: CuzTurn) => {
-	const keyframes = {
-		'0%': { opacity: 0, transform: [{ translateX: direction === 'next' ? CUZ_TURN_OFFSET : -CUZ_TURN_OFFSET }] },
-		'100%': { opacity: 1, transform: [{ translateX: 0 }] }
-	};
-
-	return {
-		...keyframes['0%'],
-		animationDuration: 260,
-		animationFillMode: 'both' as const,
-		animationName: keyframes,
-		animationTimingFunction: CUZ_TURN_EASING
-	};
-};
 
 /**
  * Q5 — a cüz, read page by page in the app. The Cevşen reader's shell — a fixed header,
@@ -126,14 +101,17 @@ export const CuzReaderScreen = ({ navigation, route }: Props) => {
 	/** Set the moment the reader turns a page, so a bookmark arriving late cannot turn it back. */
 	const hasTurnedRef = useRef(route.params.page !== undefined);
 
+	// The round the bookmark belongs to — see `cuzBookmark`. Null until the group has answered.
+	const roundIndex = groupQuery.data?.roundIndex ?? null;
+
 	useEffect(() => {
-		if (!userId) {
+		if (!userId || roundIndex === null) {
 			return;
 		}
 
 		let isCurrent = true;
 
-		void readCuzBookmark(userId, groupId, cuzNumber).then(page => {
+		void readCuzBookmark(userId, groupId, cuzNumber, roundIndex).then(page => {
 			if (!isCurrent || page === null) {
 				return;
 			}
@@ -148,7 +126,20 @@ export const CuzReaderScreen = ({ navigation, route }: Props) => {
 		return () => {
 			isCurrent = false;
 		};
-	}, [cuzNumber, groupId, pageCount, userId]);
+	}, [cuzNumber, groupId, pageCount, roundIndex, userId]);
+
+	/*
+	 * Pages read, for Ana sayfa's "4/20 s" — **counted on a forward turn only**, as the page
+	 * turned past. Recording whatever page was on screen counted the last page of the previous
+	 * cüz as 19 of 20 read the moment ‹ stepped back into it. Kept as the furthest so far, so
+	 * paging back takes nothing away; see `cuzPagesRead`.
+	 */
+	const pagination: CuzPagination = isHusrev ? 'husrev' : 'text';
+	const recordPagesRead = (pages: number) => {
+		if (userId && roundIndex !== null) {
+			void recordCuzPagesRead(userId, groupId, cuzNumber, roundIndex, pagination, pages);
+		}
+	};
 
 	const readerSettings = {
 		readerArabicFont: readerFace,
@@ -220,6 +211,12 @@ export const CuzReaderScreen = ({ navigation, route }: Props) => {
 
 	const crossInto = (targetCuz: number, targetPage: number, direction: CuzTurn) => {
 		hasTurnedRef.current = true;
+
+		// Carrying on past the last page means that one was read too — the cüz is read to its end.
+		if (direction === 'next') {
+			recordPagesRead(pageCount);
+		}
+
 		// The bookmark belongs to the cüz being left; the effect reads the new one's.
 		setBookmarkedPage(null);
 		setCuzTurn(direction);
@@ -269,6 +266,7 @@ export const CuzReaderScreen = ({ navigation, route }: Props) => {
 
 	const handleNext = () => {
 		if (!isLastPage) {
+			recordPagesRead(pageIndex + 1);
 			turnTo(pageIndex + 1);
 
 			return;
@@ -292,8 +290,9 @@ export const CuzReaderScreen = ({ navigation, route }: Props) => {
 
 		setBookmarkedPage(pageNumber);
 
-		if (userId) {
-			void writeCuzBookmark(userId, groupId, cuzNumber, pageNumber);
+		// Kept on screen either way; stored only once the round it belongs to is known.
+		if (userId && roundIndex !== null) {
+			void writeCuzBookmark(userId, groupId, cuzNumber, roundIndex, pageNumber);
 		}
 	};
 
@@ -429,7 +428,7 @@ export const CuzReaderScreen = ({ navigation, route }: Props) => {
 
 			<View style={[styles.footer, { borderTopColor: theme.colors.readerRule }]}>
 				<AppButton
-					accessibilityLabel={t('previousBab')}
+					accessibilityLabel={t('previousPage')}
 					disabled={isFirstPage && previousHeldCuz === undefined}
 					fullWidth={false}
 					icon='chevronLeft'
@@ -449,7 +448,7 @@ export const CuzReaderScreen = ({ navigation, route }: Props) => {
 					variant={isPlaceMarked ? 'surface' : 'accent'}
 				/>
 				<AppButton
-					accessibilityLabel={t('nextBab')}
+					accessibilityLabel={t('nextPage')}
 					disabled={isLastPage && nextHeldCuz === undefined}
 					fullWidth={false}
 					icon='chevronRight'
@@ -476,93 +475,3 @@ export const CuzReaderScreen = ({ navigation, route }: Props) => {
 		</SafeAreaView>
 	);
 };
-
-const styles = StyleSheet.create({
-	body: {
-		paddingBottom: BODY_BOTTOM,
-		paddingHorizontal: 22,
-		paddingTop: 26
-	},
-	footer: {
-		alignItems: 'center',
-		borderTopWidth: StyleSheet.hairlineWidth,
-		flexDirection: 'row',
-		gap: 9,
-		paddingBottom: 12,
-		paddingHorizontal: 20,
-		paddingTop: 12
-	},
-	// The Cevşen reader's slot for Okudum: it takes the room between the arrows, which keep
-	// their own width — set to stretch, it pushed both of them off the edge of the screen.
-	markButtonSlot: {
-		flex: 1,
-		minWidth: 0
-	},
-	header: {
-		borderBottomWidth: StyleSheet.hairlineWidth,
-		gap: 10,
-		overflow: 'hidden',
-		paddingBottom: 12,
-		paddingHorizontal: 20,
-		paddingTop: 8
-	},
-	headerBottomRow: {
-		alignItems: 'center',
-		flexDirection: 'row',
-		gap: 10
-	},
-	// Natural width, never shrunk: the two side slots split what is left, which is what
-	// centres it. Stretched to `flex: 1` between two equal sides it had a third of the row
-	// and "20. Cüz · Sayfa 1 / 20" wrapped.
-	headerCenter: {
-		alignItems: 'center',
-		flexShrink: 0
-	},
-	headerSide: {
-		alignItems: 'flex-start',
-		flex: 1
-	},
-	headerSideEnd: {
-		alignItems: 'flex-end'
-	},
-	// A page image carries its own margins, so it takes more of the width than the typeset text.
-	imageBody: {
-		paddingHorizontal: IMAGE_BODY_SIDE,
-		paddingTop: IMAGE_BODY_TOP
-	},
-	// The paper's width and its unscrolled top, so the mark's corner offsets are the paper's.
-	secdeTrack: {
-		left: IMAGE_BODY_SIDE,
-		position: 'absolute',
-		right: IMAGE_BODY_SIDE
-	},
-	headerTopRow: {
-		alignItems: 'center',
-		flexDirection: 'row',
-		justifyContent: 'space-between',
-		// Shares its band with the navigator's back button — see `BabReaderScreen`.
-		minHeight: 44
-	},
-	page: {
-		flexGrow: 1
-	},
-	// The scroll view and the sajdah mark fixed over it, so the mark's offsets start under the inset.
-	viewport: {
-		flex: 1
-	},
-	safeArea: {
-		flex: 1
-	},
-	segment: {
-		borderRadius: 2,
-		flex: 1,
-		height: 5
-	},
-	strip: {
-		flexDirection: 'row',
-		gap: 2
-	},
-	suraTitle: {
-		flexShrink: 1
-	}
-});

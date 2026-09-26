@@ -15,10 +15,11 @@ import { useGetMyProgress } from '@/lib/hooks/useRounds';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { TabStackParamList } from '@/navigation/types';
+import { useIsFocused } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { GroupDetailSkeleton } from './GroupDetailSkeleton.component';
+import { RoundStartSkeleton } from './RoundStartSkeleton.component';
 
 type Props = NativeStackScreenProps<TabStackParamList, 'RoundStart'>;
 
@@ -61,17 +62,25 @@ export const RoundStartScreen = ({ navigation, route }: Props) => {
 	 * **Answered is answered, however it happened** — a pick here, the map's own pick on the
 	 * screen pushed from here, or a skip. The group opens in this screen's place, so back from
 	 * it leaves the group rather than returning to a question already answered.
+	 *
+	 * **Only once this screen is on top.** A screen's `replace` acts on the top of the stack, not
+	 * on the screen that calls it: answered from the map, the refetch landed while the map was
+	 * still up, the group replaced the *map*, and the map's own `goBack` then popped the group —
+	 * leaving this question on screen with the cüz already held, and the map showing it taken.
 	 */
+	const isFocused = useIsFocused();
+
 	useEffect(() => {
-		if (isPick && hasAnswered) {
+		if (isPick && hasAnswered && isFocused) {
 			navigation.replace('GroupDetail', { groupId });
 		}
-	}, [groupId, hasAnswered, isPick, navigation]);
+	}, [groupId, hasAnswered, isFocused, isPick, navigation]);
 
 	if (groupQuery.isPending || progressQuery.isPending || (isPick && poolQuery.isPending)) {
 		return (
-			<ScreenContainer>
-				<GroupDetailSkeleton />
+			// Laid out as the screen is, so the skeleton's button sits at the foot where the real one will.
+			<ScreenContainer contentContainerStyle={styles.content} isScrollable>
+				<RoundStartSkeleton isPick={isPick} />
 			</ScreenContainer>
 		);
 	}
@@ -158,7 +167,10 @@ export const RoundStartScreen = ({ navigation, route }: Props) => {
 				<ScreenHeader
 					eyebrow={t('qRoundN', { n: roundIndex + 1 })}
 					hasBackButton
-					subtitle={t(isPick ? 'qNewRoundSubPick' : 'qNewRoundSubCarried')}
+					// With nothing free there is nothing to pick — the one way on is sitting it out.
+					subtitle={t(
+						isPick ? (hasNoFreeCuz ? 'qNewRoundSubNoFree' : 'qNewRoundSubPick') : 'qNewRoundSubCarried'
+					)}
 					title={t('qNewRoundTitle')}
 				/>
 

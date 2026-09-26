@@ -12,10 +12,11 @@ export const previewGroupByCode = async (code: string) =>
 export const previewGroupById = async (groupId: string) =>
 	wrapperApi<GroupInvitePreview>(`/memberships/preview/group/${groupId}`, { method: 'GET' });
 
-export const joinGroupByCode = async (code: string) =>
+/** `cuzNumbers` as for `joinGroup` — a hatim is joined with the cüz it takes. */
+export const joinGroupByCode = async (code: string, cuzNumbers?: number[]) =>
 	wrapperApi<GroupDetail>('/memberships/join/code', {
 		method: 'POST',
-		body: JSON.stringify({ code })
+		body: JSON.stringify(cuzNumbers ? { code, cuzNumbers } : { code })
 	});
 
 /**

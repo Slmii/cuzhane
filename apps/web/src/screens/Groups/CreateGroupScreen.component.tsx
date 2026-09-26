@@ -16,6 +16,7 @@ import { SpotsGrid } from '@/components/ui/SpotsGrid/SpotsGrid.component';
 import { BodyStrongText, CaptionText, FieldLabelText } from '@/components/ui/Typography/Typography.component';
 import { useCreateGroup } from '@/lib/hooks/useGroup';
 import { useTranslation } from '@/lib/i18n/I18n.context';
+import { pluralKey } from '@/lib/i18n/plural';
 import {
 	createGroupSchema,
 	CUZ_COUNT,
@@ -556,7 +557,9 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 										<View style={styles.durationRow}>
 											{ROUND_DAYS_PRESETS.map(preset => (
 												<CreateGroupDurationCard
-													hint={`${preset} ${t('qDays')}`}
+													hint={`${preset} ${t(
+														pluralKey(language, preset, 'qDaysOne', 'qDays')
+													)}`}
 													isSelected={roundDays === preset}
 													key={preset}
 													onPress={() =>

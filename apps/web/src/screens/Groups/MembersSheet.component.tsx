@@ -79,12 +79,15 @@ export const MembersSheet = ({ groupId, isVisible, onClose }: MembersSheetProps)
 			confirmDestructive({
 				cancelLabel: t('cancel'),
 				confirmLabel: t('removeConfirm'),
-				message: `${member.displayName} ${t('removeBody')}`,
+				// A hatim member's cüz go back to the pool; a Cevşen member's range frees up.
+				message: `${member.displayName} ${t(
+					groupQuery.data?.kind === 'HATIM' ? 'removeBodyCuz' : 'removeBody'
+				)}`,
 				onConfirm: () => removeGroupMember.mutate({ groupId, memberUserId: member.userId }),
 				title: t('removeTitle')
 			});
 		},
-		[groupId, removeGroupMember, t]
+		[groupId, groupQuery.data?.kind, removeGroupMember, t]
 	);
 
 	const rows = useMemo(

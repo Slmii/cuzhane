@@ -117,8 +117,7 @@ export const EARLIER_RELEASES = RELEASES.slice(1).filter(
  * "20 Eylül 2026" — the release's day, in the reader's language.
  *
  * **Parsed field by field, not handed to `new Date('2026-09-20')`.** That form is treated as
- * UTC, so for anybody west of Greenwich it formats as the day before — the same trap
- * `StreakCard` records for its own `YYYY-MM-DD` keys.
+ * UTC, so for anybody west of Greenwich it formats as the day before.
  */
 export const releaseDateLabel = (releasedOn: string, language: string): string => {
 	const [year, month, day] = releasedOn.split('-').map(Number);

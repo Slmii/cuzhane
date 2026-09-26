@@ -164,8 +164,12 @@ export const useHatimRoundGate = (groupId: string, navigation: Navigation): { is
  * The shorter guard for the screens under a group — a cüz, the reader, progress, the havuz —
  * which a notification or a link can open without passing the group screen. Only the required
  * pick applies there: the once-a-round screens belong to opening the group itself.
+ *
+ * Only while focused: `replace` acts on the top of the stack, so from under a pushed screen it
+ * would take that screen's place instead — see `RoundStartScreen`.
  */
 export const useRequireRoundCuz = (groupId: string, navigation: Navigation): void => {
+	const isFocused = useIsFocused();
 	const detail = useGetGroupById(groupId).data;
 	const mustPick =
 		detail?.kind === 'HATIM' &&
@@ -174,8 +178,8 @@ export const useRequireRoundCuz = (groupId: string, navigation: Navigation): voi
 		!detail.hasSkippedRound;
 
 	useEffect(() => {
-		if (mustPick) {
+		if (mustPick && isFocused) {
 			navigation.replace('RoundStart', { groupId, reason: 'pick' });
 		}
-	}, [groupId, mustPick, navigation]);
+	}, [groupId, isFocused, mustPick, navigation]);
 };

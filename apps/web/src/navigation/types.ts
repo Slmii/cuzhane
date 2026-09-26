@@ -32,7 +32,7 @@ export type TabDetailParamList = {
 	 * `isRoundPick` reuses the same map for a member choosing again at a new round (QR1's
 	 * "Farklı cüz seç"): it takes cüz for the round rather than joining.
 	 */
-	PickCuz: { groupId: string; isRoundPick?: boolean };
+	PickCuz: { groupId: string; isRoundPick?: boolean; inviteCode?: string };
 	/**
 	 * Q7 — the hatim of `roundIndex` is complete. `then` is set when a completed round is only
 	 * seen after its boundary: the celebration comes first, then the new round's screen.
@@ -92,6 +92,11 @@ export type TabDetailParamList = {
 	 * place you are sent to. It only seeds the cursor; the screen owns it from there.
 	 */
 	AllBabs: { shouldOpenTextSize?: boolean; babNumber?: number } | undefined;
+	/**
+	 * The free Mushaf — the Kur'an read outside any group, as `AllBabs` is the Cevşen. The same
+	 * "no params" rule: the cüz and page are screen state, and `cuzNumber` only seeds the cursor.
+	 */
+	Mushaf: { shouldOpenTextSize?: boolean; cuzNumber?: number } | undefined;
 	/**
 	 * The account screen lost its tab to search (K2) and is pushed from the avatar at the right
 	 * end of every tab root's bar — inside that tab, so back returns to where it was opened.

@@ -17,6 +17,7 @@ import { CUZ_COUNT } from '@/lib/utils/units';
 import type { TabStackParamList } from '@/navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { StyleSheet, View } from 'react-native';
+import { CuzDetailSkeleton } from './CuzDetailSkeleton.component';
 
 type Props = NativeStackScreenProps<TabStackParamList, 'CuzDetail'>;
 
@@ -69,14 +70,21 @@ export const CuzDetailScreen = ({ navigation, route }: Props) => {
 	const setBabRead = useSetBabRead();
 	const pullToRefresh = usePullToRefresh(group, babs);
 
+	// Bundled rather than fetched, so the heading's span and the contents' length are known
+	// before either query answers.
+	const entry = cuzByNumber(cuzNumber);
+	const subtitle = `${cuzSuraRange(cuzNumber, language)} · ${entry?.pageCount ?? 0} ${t('qPages')}`;
+
 	if (group.isLoading || babs.isLoading) {
 		return (
 			<ScreenContainer shouldIncludeTabBarOffset>
 				<ScreenHeader
 					eyebrow={t('qCuzOf', { n: cuzNumber, total: CUZ_COUNT })}
 					hasBackButton
+					subtitle={subtitle}
 					title={t('cuzOrdinal', { n: cuzNumber })}
 				/>
+				<CuzDetailSkeleton suraCount={entry?.suras.length ?? 0} />
 			</ScreenContainer>
 		);
 	}
@@ -86,7 +94,6 @@ export const CuzDetailScreen = ({ navigation, route }: Props) => {
 	}
 
 	const detail = group.data;
-	const entry = cuzByNumber(cuzNumber);
 	const bab = babs.data.find(candidate => candidate.number === cuzNumber);
 	const isRead = bab?.readAt != null;
 	// Whether it is yours to mark this round — the cüz you joined with or one you borrowed
@@ -112,7 +119,7 @@ export const CuzDetailScreen = ({ navigation, route }: Props) => {
 			<ScreenHeader
 				eyebrow={t('qCuzOf', { n: cuzNumber, total: CUZ_COUNT })}
 				hasBackButton
-				subtitle={`${cuzSuraRange(cuzNumber, language)} · ${entry?.pageCount ?? 0} ${t('qPages')}`}
+				subtitle={subtitle}
 				title={t('cuzOrdinal', { n: cuzNumber })}
 				// "senin" beside the title, as the frame sets it — only on a cüz that is yours.
 				titleTrailing={isMine ? <Chip label={t('qMine')} tone='accent' /> : null}

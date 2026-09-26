@@ -190,13 +190,17 @@ export const useStartGroup = () => {
 	});
 };
 
-export const useGetPoolSlots = (groupId: string) => {
+export const useGetPoolSlots = (
+	groupId: string,
+	// `isEnabled: false` keeps it dormant — a hatim's havuz is cüz, and has no seat slots to ask for.
+	{ isEnabled = true }: { isEnabled?: boolean } = {}
+) => {
 	const refetchInterval = useLiveRefetchInterval();
 
 	return useQuery({
 		queryKey: groupQueryKeys.pool(groupId),
 		queryFn: () => getPoolSlots(groupId),
-		enabled: !!groupId,
+		enabled: !!groupId && isEnabled,
 		refetchInterval
 	});
 };
@@ -311,6 +315,7 @@ export const useGetPoolCuz = (groupId: string) => {
  */
 export const useTakePoolCuz = () => {
 	const queryClient = useQueryClient();
+	const { t } = useTranslation();
 
 	return useMutation({
 		mutationFn: (input: PoolCuzInput) => takePoolCuz(input),
@@ -330,10 +335,19 @@ export const useTakePoolCuz = () => {
 
 			return { previousCuz };
 		},
-		onError: (_error, { groupId }, context) => {
+		/*
+		 * The rollback, **and a reason**: a refused take used to put the cell back and say
+		 * nothing, which read as the button ignoring the tap. 409 is somebody else getting there
+		 * first; 400 is the group's per-member cap.
+		 */
+		onError: (error, { groupId }, context) => {
 			if (context?.previousCuz) {
 				queryClient.setQueryData(groupQueryKeys.poolCuz(groupId), context.previousCuz);
 			}
+
+			const status = error instanceof WrapperApiError ? error.status : null;
+
+			Alert.alert(t(status === 409 ? 'poolCuzGone' : status === 400 ? 'poolTakeRefused' : 'genericError'));
 		},
 		onSettled: async () => {
 			await queryClient.invalidateQueries({ queryKey: groupQueryKeys.root() });

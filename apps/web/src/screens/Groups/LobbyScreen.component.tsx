@@ -17,6 +17,7 @@ import {
 	NumericText,
 	Typography
 } from '@/components/ui/Typography/Typography.component';
+import { useCachedGroup } from '@/lib/hooks/useCachedGroup';
 import { useGetGroupById, useStartGroup, useUpdateGroup } from '@/lib/hooks/useGroup';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useTranslation } from '@/lib/i18n/I18n.context';
@@ -27,7 +28,8 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Clipboard from 'expo-clipboard';
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { GroupDetailSkeleton } from './GroupDetailSkeleton.component';
+import { JoinedWelcomeSkeleton } from '@/screens/Join/JoinedWelcomeSkeleton.component';
+import { HatimLobbySkeleton } from './HatimLobbySkeleton.component';
 import { LobbySkeleton } from './LobbySkeleton.component';
 
 type Props = NativeStackScreenProps<TabStackParamList, 'Lobby'>;
@@ -47,6 +49,9 @@ export const LobbyScreen = ({ navigation, route }: Props) => {
 	const { theme } = useThemeContext();
 	const { t } = useTranslation();
 	const group = useGetGroupById(groupId);
+	// Chooses the skeleton below: the group's kind once known, else what the list it came from said.
+	const cached = useCachedGroup(groupId);
+	const isHatimLoading = (group.data?.kind ?? cached?.kind) === 'HATIM';
 	const startGroup = useStartGroup();
 	const pullToRefresh = usePullToRefresh(group);
 
@@ -67,7 +72,7 @@ export const LobbyScreen = ({ navigation, route }: Props) => {
 	if (group.isLoading) {
 		return (
 			<ScreenContainer isScrollable={false}>
-				<LobbySkeleton />
+				{isHatimLoading ? <HatimLobbySkeleton /> : <LobbySkeleton />}
 			</ScreenContainer>
 		);
 	}
@@ -162,11 +167,12 @@ export const LobbyScreen = ({ navigation, route }: Props) => {
 	);
 
 	// The redirect above has already fired; hold rather than flash the creator's lobby. It
-	// shows the *group* screen's skeleton, since that is where a non-owner is being sent.
+	// shows the *waiting* screen's skeleton, since `JoinedWelcome` is where a non-owner is sent —
+	// the gathering state of it, which is the same shape for both kinds.
 	if (!detail.isOwner) {
 		return (
-			<ScreenContainer>
-				<GroupDetailSkeleton />
+			<ScreenContainer isScrollable={false}>
+				<JoinedWelcomeSkeleton />
 			</ScreenContainer>
 		);
 	}

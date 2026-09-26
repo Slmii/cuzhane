@@ -94,7 +94,7 @@ const goToTourTab = (tab: (typeof TAB_BY_PLACE)[keyof typeof TAB_BY_PLACE]) => {
 /**
  * Walks the app while the tour walks its stops.
  *
- * Eleven of the fourteen stops are on a group's screen, in the reader, on Hatırlatma or on Profil, so the tour has to
+ * Twelve of the sixteen stops are on a group's screen, in the reader, on Hatırlatma or on Profil, so the tour has to
  * take the reader there. It drives `navigationRef` rather than a screen's own `navigation`
  * because the overlay deliberately lives outside every navigator — the same reason the
  * rectangles live in a context.
@@ -132,7 +132,7 @@ export const useTourNavigation = () => {
 		if (!isActive) {
 			/*
 			 * **Ending the tour has to bring the reader back, not just stop drawing.** "Atla" is
-			 * reachable from every card, and six of the fourteen stops stand on a screen belonging
+			 * reachable from every card, and six of the sixteen stops stand on a screen belonging
 			 * to a **stand-in** group — so skipping from stop 4 left someone on `GroupDetail` for
 			 * `tour-demo-group-1`, whose queries flip to the real keys the instant `isActive`
 			 * drops, are refused by the server, and land on `ErrorState` with a "Tekrar dene" that

@@ -316,6 +316,7 @@ export const GlassButton = ({
 		accent: { style: 'glassProminent', tintColor: theme.colors.accent },
 		dangerFilled: { style: 'glassProminent', tintColor: theme.colors.danger },
 		accentOutline: { style: 'glass', tintColor: theme.colors.accent },
+		outline: { style: 'glass', tintColor: undefined },
 		danger: { style: 'glass', tintColor: theme.colors.danger },
 		surface: { style: 'glass', tintColor: undefined },
 		ghost: { style: 'glass', tintColor: undefined }

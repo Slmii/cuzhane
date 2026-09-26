@@ -174,9 +174,29 @@ export const listGroupsForUser = async (userId: string): Promise<GroupSummary[]>
 	// One query for the whole shelf, not one per group — and none at all when it holds no
 	// hatim. See `holdingsByGroupFor`.
 	const holdingsByGroupId = await holdingsByGroupFor(prisma, groups);
+	// Which hatims the viewer is sitting out this round — what tells "must pick" from "skipped".
+	const hatims = groups.filter(group => group.kind === 'HATIM');
+	const skips =
+		hatims.length === 0
+			? []
+			: await prisma.cuzRoundSkip.findMany({
+					select: { groupId: true },
+					where: {
+						OR: hatims.map(group => ({ groupId: group.id, roundIndex: group.roundIndex })),
+						userId: normalizedUserId
+					}
+			  });
+	const skippedGroupIds = new Set(skips.map(skip => skip.groupId));
 
 	return groups.map(group =>
-		toGroupSummary(group, group.babs, group.members, normalizedUserId, holdingsByGroupId.get(group.id) ?? [])
+		toGroupSummary(
+			group,
+			group.babs,
+			group.members,
+			normalizedUserId,
+			holdingsByGroupId.get(group.id) ?? [],
+			skippedGroupIds.has(group.id)
+		)
 	);
 };
 

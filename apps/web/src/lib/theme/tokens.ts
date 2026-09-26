@@ -67,6 +67,9 @@ export type AppTheme = {
 		accentOutline: string;
 		sand: string;
 		sandText: string;
+		/** Ana sayfa's "2 sa 30 dk kaldı" — how long the next reading has left, warmer than `sand`. */
+		deadline: string;
+		deadlineText: string;
 		text: string;
 		subtext: string;
 		faintText: string;
@@ -271,6 +274,8 @@ export const lightTheme: AppTheme = {
 		accentOutline: 'rgba(62,107,92,0.42)',
 		sand: '#F0EBE2',
 		sandText: '#6E5B3E',
+		deadline: '#F6ECE1',
+		deadlineText: '#8A4F24',
 		text: '#1C1D1A',
 		subtext: '#6C6D68',
 		faintText: '#9A9B95',
@@ -364,6 +369,9 @@ export const darkTheme: AppTheme = {
 		accentOutline: 'rgba(143,184,166,0.42)',
 		sand: '#3A342A',
 		sandText: '#D8C9A9',
+		// No dark frame draws the badge; the light pair carried over the way `sand` is.
+		deadline: '#3D2E22',
+		deadlineText: '#E3AE84',
 		text: '#F2F0EA',
 		subtext: 'rgba(242,240,234,0.52)',
 		faintText: 'rgba(242,240,234,0.42)',

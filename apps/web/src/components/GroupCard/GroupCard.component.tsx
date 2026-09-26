@@ -1,4 +1,5 @@
 import { GroupProgressSummary } from '@/components/GroupProgressSummary/GroupProgressSummary.component';
+import { SliceChip } from '@/components/SliceChip/SliceChip.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Chip } from '@/components/ui/Chip/Chip.component';
@@ -24,6 +25,7 @@ export const GroupCard = ({
 	footerCaption,
 	footerLabel,
 	footerLeading,
+	footerMoreCount = 0,
 	isActionDisabled = false,
 	isActionPrimary = true,
 	kind,
@@ -115,7 +117,14 @@ export const GroupCard = ({
 					    cards stack a label over a caption. */}
 					<View style={[styles.footerCopy, footerLeading ? styles.footerCopyInline : null]}>
 						{footerLeading}
-						{footerLabel ? <BodyStrongText>{footerLabel}</BodyStrongText> : null}
+						{footerLabel ? (
+							<View style={styles.footerLabelRow}>
+								<BodyStrongText numberOfLines={1} style={styles.footerLabel}>
+									{footerLabel}
+								</BodyStrongText>
+								<SliceChip count={footerMoreCount} isCompact tone='wash' />
+							</View>
+						) : null}
 						{footerCaption ? (
 							<CaptionText color={theme.colors.subtext} style={styles.footerCaption}>
 								{footerCaption}
@@ -154,6 +163,14 @@ const styles = StyleSheet.create({
 	footerCopy: {
 		flex: 1,
 		gap: 3
+	},
+	footerLabel: {
+		flexShrink: 1
+	},
+	footerLabelRow: {
+		alignItems: 'center',
+		flexDirection: 'row',
+		gap: 6
 	},
 	footerCopyInline: {
 		alignItems: 'center',

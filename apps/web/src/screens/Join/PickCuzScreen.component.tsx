@@ -1,3 +1,4 @@
+import { WrapperApiError } from '@/api/wrapper.api';
 import { CuzMap, CuzMapLegend } from '@/components/CuzMap/CuzMap.component';
 import type { CuzCellState } from '@/components/CuzMap/CuzMap.types';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
@@ -17,8 +18,8 @@ import { markRoundScreenSeen } from '@/lib/utils/roundScreensSeen';
 import type { TabStackParamList } from '@/navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
-import { InvitePreviewSkeleton } from './InvitePreviewSkeleton.component';
+import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { PickCuzSkeleton } from './PickCuzSkeleton.component';
 
 type Props = NativeStackScreenProps<TabStackParamList, 'PickCuz'>;
 
@@ -35,7 +36,7 @@ type Props = NativeStackScreenProps<TabStackParamList, 'PickCuz'>;
  * it is the one thing on this screen that could only ever produce that refusal.
  */
 export const PickCuzScreen = ({ navigation, route }: Props) => {
-	const { groupId, isRoundPick = false } = route.params;
+	const { groupId, inviteCode, isRoundPick = false } = route.params;
 	const { language, t } = useTranslation();
 	const { theme } = useThemeContext();
 
@@ -45,7 +46,7 @@ export const PickCuzScreen = ({ navigation, route }: Props) => {
 	 * group's preview is not theirs to fetch, and the havuz is what says which cüz are free this
 	 * round. An empty id is what switches a query off, so only one pair is ever fetched.
 	 */
-	const preview = useGroupPreviewById(isRoundPick ? '' : groupId);
+	const preview = useGroupPreviewById(isRoundPick ? '' : groupId, inviteCode);
 	const group = useGetGroupById(isRoundPick ? groupId : '');
 	const pool = useGetPoolCuz(isRoundPick ? groupId : '');
 	const join = useJoinGroup();
@@ -54,9 +55,10 @@ export const PickCuzScreen = ({ navigation, route }: Props) => {
 	const [selected, setSelected] = useState<number[]>([]);
 
 	if (isRoundPick ? group.isLoading || pool.isLoading : preview.isLoading) {
+		// Laid out as the screen is, so the skeleton's button sits at the foot where the real one will.
 		return (
-			<ScreenContainer>
-				<InvitePreviewSkeleton />
+			<ScreenContainer contentContainerStyle={styles.content} isScrollable>
+				<PickCuzSkeleton />
 			</ScreenContainer>
 		);
 	}
@@ -114,9 +116,31 @@ export const PickCuzScreen = ({ navigation, route }: Props) => {
 			return;
 		}
 
-		const joined = await join.mutateAsync({ cuzNumbers: selected, groupId });
+		/*
+		 * A refused join says why, the way the round pick does. A 409 is somebody taking one of
+		 * these cüz first: the preview refetches, and the picks no longer free are dropped so the
+		 * next tap does not post the same refusal again.
+		 */
+		try {
+			const joined = await join.mutateAsync({
+				cuzNumbers: selected,
+				groupId,
+				...(inviteCode ? { inviteCode } : {})
+			});
 
-		navigation.replace('JoinedWelcome', { groupId: joined.id });
+			navigation.replace('JoinedWelcome', { groupId: joined.id });
+		} catch (error) {
+			const isTaken = error instanceof WrapperApiError && error.status === 409;
+
+			Alert.alert(t(isTaken ? 'qCuzJustTaken' : 'genericError'));
+
+			if (isTaken) {
+				const refreshed = await preview.refetch();
+				const stillFree = new Set(refreshed.data?.poolBabNumbers ?? []);
+
+				setSelected(current => current.filter(number => stillFree.has(number)));
+			}
+		}
 	};
 
 	return (

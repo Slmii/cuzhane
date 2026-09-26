@@ -15,7 +15,7 @@ import type {
  * Stand-in data for the first-use tour, and the reason it exists: **the tour opens on an account
  * that has nothing.**
  *
- * It runs straight after onboarding, when Ana sayfa is `HomeEmptyState`, the group screen cannot
+ * It runs straight after onboarding, when Ana sayfa is "İlk adım", the group screen cannot
  * be reached at all and Profil reads zero babs over an empty month. Ten of the thirteen stops
  * describe things that are not on screen, so the walkthrough would be a tour of a blank app —
  * and the rest would pause on a spinner each time it navigated.
@@ -27,11 +27,11 @@ import type {
  * The cost is that a reader with groups of their own sees these three and these numbers for the
  * minute it lasts, and their own are one tap away the moment it ends.
  *
- * **Three groups, because one is not a shelf.** Stop 2 says "each row is a group" and stop 3 says
- * Read resumes — both need a list to be pointing at. The three differ in the ways the rows
+ * **Three groups, because one is not a day.** Stop 2 points at "Sıradaki" and stop 3 at its
+ * button, and both read better with more behind them. The three differ in the ways shares
  * actually differ: one owned and mid-share, one joined and nearly done, one finished, which is
- * the row that sinks to the bottom and reads "Tamam". Everything is deliberately unremarkable,
- * because it is a demonstration rather than a brag.
+ * the one under "Bugün okunanlar". Everything is deliberately unremarkable, because it is a
+ * demonstration rather than a brag.
  *
  * **Each group is built by one factory**, so its share, its board, its counts and its rounds
  * cannot disagree with each other — the group screen derives the assigned panel's progress from
@@ -179,11 +179,14 @@ const summaryOf = (spec: DemoGroupSpec): GroupSummary => {
 		isOwner: spec.isOwner,
 		memberCount: spec.memberCount,
 		myBabNumbers: share,
-		// Null once the share is done, which is what turns Ana sayfa's button into "Tamam".
+		// Null once the share is done, which moves it to Ana sayfa's "Bugün okunanlar".
 		myNextBabNumber: share[spec.readInShare] ?? null,
+		mustPickCuz: false,
 		myNextRoundRange: { end: nextRoundStart + SHARE_LENGTH - 1, start: nextRoundStart },
 		myPoolBabNumbers: [],
 		myReadCount: spec.readInShare,
+		// A finished demo share reads as finished just now; an open one has no time yet.
+		myShareDoneAt: spec.readInShare >= share.length ? new Date().toISOString() : null,
 		myRoundRange: { end: spec.shareStart + SHARE_LENGTH - 1, start: spec.shareStart },
 		mySlotIndex: 3,
 		name: spec.name,

@@ -91,6 +91,19 @@ const OWNER_USER_ID = process.env.SEED_USER_ID ?? 'dev_user';
 const SEED_NAMESPACE = process.env.SEED_NAMESPACE;
 
 /**
+ * **One Ana sayfa state on its own, for an account that shows nothing else.** Most of Ana
+ * sayfa's states hold in the full set — something owed, something read today — but B9b ("Hepsi
+ * okundu") only shows when *every* share an account has this round is finished and none of it
+ * today, which fifteen groups with work still in them never are. So a scenario seeds its own
+ * groups and nothing else, meant for an account that is in no other group:
+ *
+ *   SEED_USER_ID=user_zzz SEED_SCENARIO=all-read pnpm --filter @cuzhane/server db:seed
+ *
+ * `all-read` is the only scenario; with none set, the full set is seeded as always.
+ */
+const SEED_SCENARIO = process.env.SEED_SCENARIO;
+
+/**
  * The code this run should use for a fixture. Unnamespaced runs get the literal code, so the
  * default fixtures keep the codes they have always had and a plain re-seed still replaces them
  * in place.
@@ -162,6 +175,10 @@ type GroupSeed = {
 	poolClaims?: PoolClaim[];
 	/** Closed rounds to backfill, so the Turlar screens have history to show. */
 	pastRounds?: PastRoundSeed[];
+	/** When this round's reads happened, as "HH:mm" today — see `readTimeToday`. Now if absent. */
+	readAtToday?: string;
+	/** Moves those reads this many days back, still inside the round — see `readTimeToday`. */
+	readDaysAgo?: number;
 };
 
 /**
@@ -659,8 +676,97 @@ const GROUPS: GroupSeed[] = [
 			{ slotIndex: 5, byMemberIndex: 1, babsRead: 5 },
 			{ slotIndex: 6, byMemberIndex: 3, babsRead: 9 }
 		]
+	},
+	/*
+	 * ── Bugün okunanlar (B8c) ─────────────────────────────────────────────────────────────
+	 *
+	 * Two groups whose share the signed-in user has already finished today, at different
+	 * times, so Ana sayfa has a "Bugün okunanlar" list to show beside what is still owed.
+	 */
+	{
+		// Your own seat 0 — babs 1–4 — read this morning.
+		name: 'Sabah Halkası',
+		dedication: 'Sabah namazından sonra',
+		inviteCode: 'SBHL4K7M',
+		ownerUserId: OWNER_USER_ID,
+		memberIdPrefix: 'dev_sabah',
+		spots: 25,
+		cycle: 'DAILY',
+		reminderTime: '06:30',
+		splitMode: 'FIXED',
+		visibility: 'PRIVATE',
+		status: 'RUNNING',
+		startedDaysAgo: 5,
+		autoStartWhenFull: false,
+		members: [
+			['Sen', 4],
+			['Zehra Uçar', 2],
+			['Orhan Tekin', 4],
+			['Dilek Sarı', 0],
+			['Levent Işık', 1]
+		],
+		readAtToday: '07:12'
+	},
+	{
+		// Seat 12 is yours — babs 61–65, the frame's own range — read after noon.
+		name: 'Her Gün Bir Bab',
+		dedication: 'Her gün biraz',
+		inviteCode: 'HGBB6R2T',
+		ownerUserId: 'dev_hgbb_owner',
+		memberIdPrefix: 'dev_hgbb',
+		slotUserIds: { 12: OWNER_USER_ID },
+		spots: 20,
+		cycle: 'DAILY',
+		reminderTime: '12:30',
+		splitMode: 'FIXED',
+		visibility: 'OPEN',
+		status: 'RUNNING',
+		startedDaysAgo: 9,
+		autoStartWhenFull: false,
+		members: [
+			['Kübra Aslan', 5],
+			['Serkan Uysal', 3],
+			null,
+			['Gül Ekinci', 5],
+			null,
+			['Tarık Soylu', 2],
+			null,
+			null,
+			['Pınar Kaya', 5],
+			null,
+			null,
+			null,
+			['Sen', 5]
+		],
+		readAtToday: '13:40'
 	}
 ];
+
+/**
+ * The moment a fixture's current-round reads are stamped: `clock` ("07:12") today in the
+ * seeding machine's zone — the device's, which is the zone Ana sayfa's "Bugün okunanlar" reads
+ * its times in — so finished shares list at different times rather than all at the seed's run.
+ * Never later than now, and never before the round began, which would file the read under a
+ * round the board no longer shows.
+ *
+ * `daysAgo` moves it back — a share finished earlier in a longer round, which Ana sayfa counts
+ * as done this round but not as read today (B9b).
+ */
+const readTimeToday = (clock: string | undefined, now: Date, roundStartedAt: Date | null, daysAgo = 0): Date => {
+	if (!clock && daysAgo === 0) {
+		return now;
+	}
+
+	const [hours = now.getHours(), minutes = now.getMinutes()] = clock ? clock.split(':').map(Number) : [];
+	const at = new Date(now);
+
+	at.setDate(at.getDate() - daysAgo);
+	at.setHours(hours, minutes, 0, 0);
+
+	const earliest = roundStartedAt && roundStartedAt > at ? roundStartedAt : at;
+
+	return earliest > now ? now : earliest;
+};
 
 const userIdForSlot = (spec: GroupSeed, slotIndex: number) =>
 	spec.slotUserIds?.[slotIndex] ?? (slotIndex === 0 ? spec.ownerUserId : `${spec.memberIdPrefix}_${slotIndex}`);
@@ -748,7 +854,7 @@ const seedGroup = async (spec: GroupSeed) => {
 		}
 	});
 
-	const readAt = new Date();
+	const readAt = readTimeToday(spec.readAtToday, now, roundStartedAt, spec.readDaysAgo);
 	// Bab -> who reads it and whether it's read, for the group's *current* round — rotated
 	// per seat for ROTATION groups, standing for FIXED — so an uneven `spots` (12 doesn't
 	// divide 100) lands exactly where `rangeForSlot` says it does.
@@ -936,6 +1042,10 @@ type HatimSeed = {
 	 * so they count as having been there — a member who joined this round has no last round.
 	 */
 	previousRound?: HatimMemberSeed[];
+	/** When this round's reads happened, as "HH:mm" today — see `readTimeToday`. Now if absent. */
+	readAtToday?: string;
+	/** Moves those reads this many days back, still inside the round — see `readTimeToday`. */
+	readDaysAgo?: number;
 };
 
 /**
@@ -1049,6 +1159,28 @@ const HATIM_GROUPS: HatimSeed[] = [
 			{ name: 'Rabia Şen', cuz: [1], readCuz: [1] },
 			{ name: 'Ömer Kılıç', cuz: [2] }
 		]
+	},
+	{
+		// "Bugün okunanlar" (B8c) for a Kur'an share: your one cüz, already read this morning.
+		name: 'Gün Sonu Hatmi',
+		dedication: 'Günün bereketi için',
+		inviteCode: codeFor('QURN7D3S'),
+		ownerUserId: OWNER_USER_ID,
+		memberIdPrefix: 'dev_hatim_gs',
+		roundDays: 1,
+		repeats: true,
+		maxPerMember: null,
+		boundaryPolicy: 'KEEP',
+		visibility: 'PRIVATE',
+		status: 'RUNNING',
+		startedDaysAgo: 2,
+		autoStartWhenFull: false,
+		members: [
+			{ name: 'Sen', cuz: [14], readCuz: [14] },
+			{ name: 'Yasin Er', cuz: [1, 2], readCuz: [1] },
+			{ name: 'Selin Koç', cuz: [3] }
+		],
+		readAtToday: '10:05'
 	},
 	{
 		name: 'Tamamlanan Hatim',
@@ -1598,7 +1730,7 @@ const seedHatim = async (spec: HatimSeed) => {
 		}
 	});
 
-	const readAt = new Date();
+	const readAt = readTimeToday(spec.readAtToday, now, roundStartedAt, spec.readDaysAgo);
 	const readerByCuz = new Map<number, string>();
 
 	spec.members.forEach((member, slotIndex) => {
@@ -1695,14 +1827,101 @@ const seedHatim = async (spec: HatimSeed) => {
 	);
 };
 
+/*
+ * ── Scenario `all-read` (B9b) ───────────────────────────────────────────────────────────
+ *
+ * Three groups on longer rounds, each with the signed-in user's share finished on an earlier
+ * day of the round in progress: nothing owed, nothing read today, "3 / 3 hatim bitti".
+ */
+const ALL_READ_GROUPS: GroupSeed[] = [
+	{
+		name: 'Haftalık Halka',
+		dedication: 'Haftanın payı',
+		inviteCode: 'HFTL6P2M',
+		ownerUserId: OWNER_USER_ID,
+		memberIdPrefix: 'dev_haftalik',
+		spots: 10,
+		cycle: 'WEEKLY',
+		reminderTime: '20:00',
+		splitMode: 'FIXED',
+		visibility: 'PRIVATE',
+		status: 'RUNNING',
+		startedDaysAgo: 3,
+		autoStartWhenFull: false,
+		members: [
+			['Sen', 10],
+			['Hüseyin Ak', 6],
+			['Ebru Tan', 10],
+			['Murat Eren', 2]
+		],
+		readAtToday: '20:15',
+		readDaysAgo: 2
+	},
+	{
+		name: 'Bitirenler Hatmi',
+		dedication: 'Erken bitirenler için',
+		inviteCode: 'BTTN3R7K',
+		ownerUserId: 'dev_bitiren_owner',
+		memberIdPrefix: 'dev_bitiren',
+		slotUserIds: { 2: OWNER_USER_ID },
+		spots: 20,
+		cycle: 'WEEKLY',
+		reminderTime: '07:00',
+		splitMode: 'FIXED',
+		visibility: 'OPEN',
+		status: 'RUNNING',
+		startedDaysAgo: 4,
+		autoStartWhenFull: false,
+		members: [
+			['Kenan Işık', 5],
+			['Aslı Bora', 1],
+			['Sen', 5],
+			['Rıza Tok', 3]
+		],
+		readAtToday: '07:40',
+		readDaysAgo: 1
+	}
+];
+
+const ALL_READ_HATIMS: HatimSeed[] = [
+	{
+		name: 'Haftalık Hatim',
+		dedication: 'Her hafta bir hatim',
+		inviteCode: codeFor('QURN8B4T'),
+		ownerUserId: OWNER_USER_ID,
+		memberIdPrefix: 'dev_hatim_hf',
+		roundDays: 7,
+		repeats: true,
+		maxPerMember: null,
+		boundaryPolicy: 'KEEP',
+		visibility: 'PRIVATE',
+		status: 'RUNNING',
+		startedDaysAgo: 3,
+		autoStartWhenFull: false,
+		members: [
+			{ name: 'Sen', cuz: [5, 6], readCuz: [5, 6] },
+			{ name: 'Sevda Kurt', cuz: [1, 2], readCuz: [1] },
+			{ name: 'Cemil Aras', cuz: [3, 4] }
+		],
+		readAtToday: '21:30',
+		readDaysAgo: 1
+	}
+];
+
 const seed = async () => {
 	assertNamespaceIsUsable();
 
-	for (const spec of GROUPS) {
+	if (SEED_SCENARIO && SEED_SCENARIO !== 'all-read') {
+		throw new Error(`SEED_SCENARIO=${SEED_SCENARIO} is not a scenario; the only one is "all-read".`);
+	}
+
+	const isAllRead = SEED_SCENARIO === 'all-read';
+
+	for (const spec of isAllRead ? ALL_READ_GROUPS : GROUPS) {
 		await seedGroup(spec);
 	}
 
-	for (const spec of HATIM_GROUPS) {
+	for (const spec of isAllRead ? ALL_READ_HATIMS : HATIM_GROUPS) {
 		await seedHatim(spec);
 	}
 

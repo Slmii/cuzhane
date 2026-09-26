@@ -251,6 +251,8 @@ sheet via `@expo/ui/community/bottom-sheet`; no gorhom, no close button):
 -   **Cevşen reader** (`BabReader`, free reader `AllBabs`): walks all 100; only marking is gated by
     ownership. A verse mark in running Arabic is the character `۝` + number — **never an inline
     `View`** (RN misplaces views in RTL text). `ui/Ornament` is the drawn rosette for standalone use.
+    Every nested span in `ReaderBody` re-declares the paragraph's `lineHeight`: Android measured the
+    du'a by a span's 21pt `Typography` line and clipped everything past it.
 -   **Kur'an reader** (`CuzReader`): two modes by the saved `readerArabicFont`.
     -   Typeset (`MushafPage`): Madinah text from the Quran Foundation, bundled; sajdah verses from the
         text's own `۩`; band positions computed (`rowBands`), not measured. A nested text span must
@@ -269,12 +271,27 @@ sheet via `@expo/ui/community/bottom-sheet`; no gorhom, no close button):
 
 **Other screens with non-obvious rules**
 
--   Ana sayfa (H1): two layers; lists every group; nothing on Home marks a bab read. Its error state
-    renders inside the sheet (status bar reasons). `weekStrip` takes "today" from the payload.
+-   Ana sayfa (B8): two layers; the greeting band is fixed and **the card and the paper scroll
+    together**; no pull-to-refresh. The scroll view is paper and its content green (the tab bar's
+    fade shows what is behind the scroll view). Nothing may scroll under the transparent bar: iOS 26 fades it, and
+    `scrollEdgeEffects: { top: 'hidden' }` does not reach Home's scroll view. The day as tasks (`utils/homeTasks.ts`) — "Sıradaki" card, "Sonra"
+    by deadline, "Bugün okunanlar" (from `myShareDoneAt`); B8b day done, B9b every share done,
+    B9 no group. A hatim member with no holding and no skip is a pick task (`mustPickCuz`, server);
+    it opens `GroupDetail`, whose gate routes to the pick (after Q7 when due), never `RoundStart` directly.
+-   **A screen's `replace`/`goBack` act on the top of its stack, not on the calling screen.** A
+    screen that may be covered (`RoundStart` under the cüz map) replaces itself only when focused.
+    Cüz progress is pages read, stored on the device per round (`utils/cuzPagesRead.ts`). Nothing
+    on Home marks a bab read. The error state (inside the sheet) shows only when there is no data
+    and nothing is fetching — a failed background refetch keeps the last list. A refetch is timed
+    to the next round boundary (`nextBoundaryAfter`). `weekStrip` takes "today" from the payload.
+    Footer links open `AllBabs` and the group-less `Mushaf` reader.
 -   Group screen: whole-group actions are the heading's corner actions only; members is a sheet.
     Yönet edits only name, intention and visibility.
 -   Sign-in errors: one generic banner plus offline (`utils/signInErrors.ts`); no per-cause messages.
--   Invite preview (non-members): shows counts, never member names.
+-   Invite preview (non-members): shows counts, never member names; a hatim's count is cüz taken
+    (`30 − poolBabNumbers`), as on its gathering card. **A private group answers preview and join
+    by id to members only** — anything reached with an invite code (`PickCuz` from the code sheet)
+    previews and joins by the code (`inviteCode` param).
 -   Onboarding (A1): five slides, each draws its own container; slide copy covers Cevşen and Kur'an.
 
 **Tour (section O)** — `components/Tour`, opens once from Ana sayfa (`hasSeenTour`):

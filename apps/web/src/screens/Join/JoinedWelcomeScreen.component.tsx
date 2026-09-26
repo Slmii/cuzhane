@@ -12,11 +12,13 @@ import {
 	Header1,
 	Typography
 } from '@/components/ui/Typography/Typography.component';
+import { useCachedGroup } from '@/lib/hooks/useCachedGroup';
 import { useGetGroupById } from '@/lib/hooks/useGroup';
 import { useRoundReset } from '@/lib/hooks/useRoundReset';
 import { useGetUserSettings } from '@/lib/hooks/useUserSettings';
 import { cuzSuraRange } from '@/lib/content/cuz';
 import { useTranslation } from '@/lib/i18n/I18n.context';
+import { pluralKey } from '@/lib/i18n/plural';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { formatBabRange } from '@/lib/utils/babs';
 import { CUZ_COUNT } from '@/lib/utils/units';
@@ -24,6 +26,7 @@ import type { TabStackParamList } from '@/navigation/types';
 import { LeaveGroupButton } from '@/screens/Groups/LeaveGroupButton.component';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { HatimJoinedSkeleton } from './HatimJoinedSkeleton.component';
 import { JoinedWelcomeSkeleton } from './JoinedWelcomeSkeleton.component';
 
 type Props = NativeStackScreenProps<TabStackParamList, 'JoinedWelcome'>;
@@ -33,6 +36,13 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 	const { theme } = useThemeContext();
 	const { t, language } = useTranslation();
 	const group = useGetGroupById(groupId);
+	/*
+	 * Which skeleton to hold while the group loads, from the preview or list that led here. Only a
+	 * running hatim has a shape of its own — its cüz rows; the waiting state is one shape for both
+	 * kinds, and an unknown group falls back to the same.
+	 */
+	const cached = useCachedGroup(groupId);
+	const isRunningHatim = cached?.kind === 'HATIM' && cached.status === 'RUNNING';
 	const userSettings = useGetUserSettings();
 	// With the other hooks: the loading branch below returns before the body runs.
 	const reset = useRoundReset({
@@ -45,7 +55,7 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 	if (group.isLoading) {
 		return (
 			<ScreenContainer isScrollable={false}>
-				<JoinedWelcomeSkeleton />
+				{isRunningHatim ? <HatimJoinedSkeleton /> : <JoinedWelcomeSkeleton />}
 			</ScreenContainer>
 		);
 	}
@@ -138,7 +148,12 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 				<BodyText color={theme.colors.subtext} style={styles.sub} textAlign='center'>
 					{isProvisional
 						? t(isHatim ? 'qLobbyWaitSub' : 'lobbySub')
-						: t(isHatim ? 'qJoinedSub2' : 'midSub', { count: babNumbers.length })}
+						: t(
+								isHatim
+									? pluralKey(language, babNumbers.length, 'qJoinedSub2One', 'qJoinedSub2')
+									: 'midSub',
+								{ count: babNumbers.length }
+						  )}
 				</BodyText>
 
 				{isProvisional ? (
@@ -317,7 +332,7 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 						 * its hint would otherwise read as a footnote to that button.
 						 */}
 						<AppButton onPress={handleBackToGroups} title={t('backToGroups')} variant='primary' />
-						<LeaveGroupButton groupId={groupId} />
+						<LeaveGroupButton groupId={groupId} kind={detail.kind} />
 					</>
 				) : (
 					<>

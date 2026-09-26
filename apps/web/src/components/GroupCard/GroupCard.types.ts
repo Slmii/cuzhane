@@ -29,6 +29,8 @@ export interface GroupCardProps {
 	resetRow?: ReactNode;
 	/** Footer: label + caption on the left, an action on the right. */
 	footerLabel?: string;
+	/** The share's other slices or cüz, as a chip beside `footerLabel` — one slice plus a count. */
+	footerMoreCount?: number;
 	footerCaption?: string;
 	footerLeading?: ReactNode;
 	actionLabel?: string;

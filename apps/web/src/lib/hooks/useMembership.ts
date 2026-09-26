@@ -26,10 +26,15 @@ import { groupOwnedQueryKeys, groupQueryKeys } from './queryKeys';
  */
 export const useLookupGroupByCode = () => useMutation({ mutationFn: (code: string) => previewGroupByCode(code) });
 
-export const useGroupPreviewById = (groupId: string) => {
+/**
+ * The preview of a group about to be joined. **By the invite code when there is one:** the
+ * server answers a private group's preview by id to members only, so a private hatim reached
+ * with its code 404'd here and could not be joined at all.
+ */
+export const useGroupPreviewById = (groupId: string, inviteCode?: string) => {
 	return useQuery({
 		queryKey: groupQueryKeys.previewByGroup(groupId),
-		queryFn: () => previewGroupById(groupId),
+		queryFn: () => (inviteCode ? previewGroupByCode(inviteCode) : previewGroupById(groupId)),
 		enabled: !!groupId
 	});
 };
@@ -49,9 +54,17 @@ export const useJoinGroup = () => {
 	const queryClient = useQueryClient();
 
 	return useMutation({
-		// A bare group id still joins a Cevşen group; a hatim passes the cüz it is taking.
-		mutationFn: ({ cuzNumbers, groupId }: { cuzNumbers?: number[]; groupId: string }) =>
-			joinGroup(groupId, cuzNumbers),
+		// A bare group id still joins a Cevşen group; a hatim passes the cüz it is taking. With
+		// an invite code the join goes by the code, the only way into a private group.
+		mutationFn: ({
+			cuzNumbers,
+			groupId,
+			inviteCode
+		}: {
+			cuzNumbers?: number[];
+			groupId: string;
+			inviteCode?: string;
+		}) => (inviteCode ? joinGroupByCode(inviteCode, cuzNumbers) : joinGroup(groupId, cuzNumbers)),
 		onSettled: async () => {
 			await queryClient.invalidateQueries({ queryKey: groupQueryKeys.root() });
 		}

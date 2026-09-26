@@ -12,16 +12,17 @@ import { useGetGroups } from '@/lib/hooks/useGroup';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import { formatBabRange } from '@/lib/utils/babs';
 import { applyGroupBrowse, emptyGroupBrowseState, isGroupBrowseNarrowed } from '@/lib/utils/groupBrowse';
 import {
 	cycleLabelKey,
 	planLabelKey,
+	shareSlices,
 	visibilityChipTone,
 	visibilityIcon,
 	visibilityLabelKey
 } from '@/lib/utils/groups';
 import { roundResetLabels } from '@/lib/utils/roundReset';
+import { unitCountFor } from '@/lib/utils/units';
 import { GroupsScreenParams, TabStackParamList } from '@/navigation/types';
 import { JoinByCodeSheet } from '@/screens/Join/JoinByCodeSheet.component';
 import { useGroupBrowse } from '@/components/GroupBrowseBar/GroupBrowse.context';
@@ -112,7 +113,10 @@ export const GroupsScreen = () => {
 				// below it rather than behind them.
 				isUnderNavigationBar
 				label={t('myGroups')}
-				secondaryLabel={t('greet', { name: user?.firstName ?? '' })}
+				// "Selâm" alone without a first name, rather than "Selâm, " — as on Ana sayfa.
+				secondaryLabel={
+					user?.firstName?.trim() ? t('greet', { name: user.firstName.trim() }) : t('greetNoName')
+				}
 			/>
 			{/* No search box: searching is the Ara tab's job. Filter and sort are the navigator's pull-down. */}
 		</View>
@@ -127,6 +131,20 @@ export const GroupsScreen = () => {
 			// A gathering group has no progress to show — the card counts seats instead, and
 			// its action is the owner's "start" rather than "continue".
 			const isGathering = item.status === 'GATHERING';
+			/*
+			 * The share as **one slice plus a count**, never a list — on both cards, reserved or
+			 * running. A hatim's next cüz and how many others it holds; a Cevşen share's current
+			 * block and how many more blocks sit on top of it.
+			 */
+			const hatimCurrent = item.myNextBabNumber ?? item.myBabNumbers[0];
+			const share =
+				item.kind === 'HATIM'
+					? {
+							current: hatimCurrent === undefined ? '—' : String(hatimCurrent),
+							moreCount: Math.max(0, item.myBabNumbers.length - 1)
+					  }
+					: shareSlices(item.myBabNumbers, item.myNextBabNumber);
+			const shareLabelKey = item.kind === 'HATIM' ? 'qMyCuz' : 'yourRange';
 
 			/*
 			 * `layout` only. `entering`/`exiting` used to sit here as well, so a filter change
@@ -136,6 +154,13 @@ export const GroupsScreen = () => {
 			 */
 			if (isGathering) {
 				const openSpots = item.spots - item.memberCount;
+				/*
+				 * The count sits beside "/ 30 cüz" or "/ 100 bab", so it counts units, not people: a
+				 * hatim member can hold several cüz, and a Cevşen seat reserves a block. Whatever is
+				 * not in the pool — cüz nobody holds, blocks of empty seats — is taken.
+				 */
+				const unitCount = unitCountFor(item.kind);
+				const gathered = unitCount - item.poolBabNumbers.length;
 
 				return (
 					<Animated.View layout={cardLayout}>
@@ -150,15 +175,20 @@ export const GroupsScreen = () => {
 							// The same ghost "Kurucu" tag the running card carries, so a group
 							// doesn't stop saying it is yours while it gathers.
 							{...(item.isOwner ? { extraBadges: [{ label: t('creator') }] } : {})}
-							footerCaption={
-								item.isOwner ? `${openSpots} ${t('openSpots')}` : formatBabRange(item.myBabNumbers)
+							// A joiner's reservation reads like the running card's share — "Cüzlerin · 9"
+							// with a chip — and the caption says it isn't final yet.
+							footerCaption={item.isOwner ? `${openSpots} ${t('openSpots')}` : t('provisional')}
+							footerLabel={
+								item.isOwner
+									? `${t('creator')} · ${t('you')}`
+									: `${t(shareLabelKey)} · ${share.current}`
 							}
-							footerLabel={item.isOwner ? `${t('creator')} · ${t('you')}` : t('provisional')}
+							footerMoreCount={item.isOwner ? 0 : share.moreCount}
 							name={item.name}
 							onAction={() => goToGathering(item.id, item.isOwner)}
 							onPress={() => goToGathering(item.id, item.isOwner)}
-							percent={Math.round((item.memberCount / item.spots) * 100)}
-							readCount={item.memberCount}
+							percent={Math.round((gathered / unitCount) * 100)}
+							readCount={gathered}
 							subtitle={t('notCounting')}
 						/>
 					</Animated.View>
@@ -179,18 +209,24 @@ export const GroupsScreen = () => {
 						badgeIcon={visibilityIcon(item.visibility)}
 						badgeLabel={t(visibilityLabelKey(item.visibility))}
 						badgeTone={visibilityChipTone(item.visibility)}
-						footerCaption={`${t('todayLabel')} · ${item.myReadCount}/${item.myBabNumbers.length}`}
+						// The round's cadence, not "Bugün": a weekly share's 3/3 is this week's.
+						footerCaption={`${t(cycleLabelKey(item.cycle))} · ${item.myReadCount}/${
+							item.myBabNumbers.length
+						}`}
 						/*
 						 * **A hatim has no reading plan to name.** `splitMode` decides which block a
 						 * seat rotates onto, and a hatim has neither — it stores `FIXED` because the
 						 * column cannot be empty, so the Cevşen label would read "Sabit · 7, 22" and
 						 * describe nothing. The design's own footer names the holding instead:
-						 * "Cüzlerin · 7, 22". The numbers themselves need no special case —
-						 * `formatBabRange` already renders scattered ones as a list.
+						 * "Cüzlerin · 7, 22".
+						 *
+						 * **One slice plus a count**, never the list: "Cüzlerin · 7" with a +1 chip, and
+						 * a Cevşen share with pool blocks on top as its current block plus a chip.
 						 */
-						footerLabel={`${
-							item.kind === 'HATIM' ? t('qMyCuz') : t(planLabelKey(item.splitMode))
-						} · ${formatBabRange(item.myBabNumbers)}`}
+						footerLabel={`${item.kind === 'HATIM' ? t('qMyCuz') : t(planLabelKey(item.splitMode))} · ${
+							share.current
+						}`}
+						footerMoreCount={share.moreCount}
 						// Filled even when the round is finished: the hatim itself is ongoing, so a
 						// de-emphasised button would read as "this group is done". Only the label
 						// softens — there is nothing left to continue today.

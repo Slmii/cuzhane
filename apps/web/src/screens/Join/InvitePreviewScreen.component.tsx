@@ -1,6 +1,7 @@
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { CuzMap, CuzMapLegend } from '@/components/CuzMap/CuzMap.component';
 import type { CuzCellState } from '@/components/CuzMap/CuzMap.types';
+import { HatimPreviewSkeleton } from './HatimPreviewSkeleton.component';
 import { InvitePreviewSkeleton } from './InvitePreviewSkeleton.component';
 import { SCREEN_TITLE_PADDING_UNDER_BAR } from '@/components/ScreenTitle/ScreenTitle.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
@@ -18,6 +19,7 @@ import {
 	TitleText
 } from '@/components/ui/Typography/Typography.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
+import { useCachedGroup } from '@/lib/hooks/useCachedGroup';
 import { useGroupPreviewById, useJoinGroup } from '@/lib/hooks/useMembership';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useRoundReset } from '@/lib/hooks/useRoundReset';
@@ -53,6 +55,8 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 	const { t } = useTranslation();
 
 	const preview = useGroupPreviewById(groupId);
+	// Which skeleton to hold while the preview loads: Keşfet's rows already know the kind.
+	const cachedKind = useCachedGroup(groupId)?.kind;
 	const joinByGroupId = useJoinGroup();
 	const pullToRefresh = usePullToRefresh(preview);
 	/** Set on press — see `shownRows` below, which explains why the card has to stop updating. */
@@ -66,7 +70,13 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 	});
 
 	if (preview.isLoading) {
-		return (
+		// A hatim previews with a map and rules rather than a progress bar and seats, so it
+		// holds its own shape — with the button at the foot, laid out as the screen lays it.
+		return cachedKind === 'HATIM' ? (
+			<ScreenContainer contentContainerStyle={styles.content} isScrollable>
+				<HatimPreviewSkeleton />
+			</ScreenContainer>
+		) : (
 			<ScreenContainer>
 				<InvitePreviewSkeleton />
 			</ScreenContainer>
