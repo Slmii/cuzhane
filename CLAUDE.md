@@ -114,7 +114,9 @@ The Cevşen is **100 babs**. A group divides those 100 across its members — or
     deliberately absent from its web mirror. The zone belongs to the group, not the member: a shared
     board needs one shared day or two members disagree about whose reads the rollover may wipe. Personal
     stats are the opposite case — `profile.service.ts` buckets the streak and heatmap in the **viewer's**
-    zone, sent per request. Day arithmetic goes through `civilDayNumber`/`startOfCivilDay`, which read
+    zone, sent per request. The same file keeps the **bab total Cevşen-only** on purpose: `babsRead`
+    is labelled in babs, so a Hizb portion must not swell it, while the streak, the heatmap and
+    `roundsCompleted` count reading of either kind. Don't "fix" the asymmetry. Day arithmetic goes through `civilDayNumber`/`startOfCivilDay`, which read
     the wall-clock date via `Intl` rather than adding hours; that is what keeps a 23- or 25-hour DST day
     counting as one day. Never reintroduce `Date.UTC(...getUTCDate())` bucketing — it put the reset at
     20:00 the previous evening in New York.
@@ -138,7 +140,7 @@ The Cevşen is **100 babs**. A group divides those 100 across its members — or
     It is guarded on the round being left, so two simultaneous requests can't both roll. A group nobody
     opens rolls when someone opens it — nothing observes a group except through these paths.
 -   **A closed round can still be covered, and covering it is append-only.** "Üstlen" (someone
-    else's block or the pool) and "Okudum" (your own) are one write: `coverMissedBabForUser` inserts the
+    else's block or the pool) and "Okudum" (your own) are one write: `coverMissedBabsForUser` inserts the
     `BabRead` row that round never had. It does **not** reopen the round, touch `GroupBab`, or move the
     read into the round now open — the unique key `(groupId, roundIndex, babNumber)` means a cover can
     only fill a gap, never displace whoever read it first (that returns 409). Covering the _open_ round
@@ -702,8 +704,9 @@ defaultValues render={({ handleSubmit, watch, setValue }) => …} />`, which wir
     `accent`), above the sheet's own "Yönet" heading, so the sheet passes no `title` and draws that
     heading itself. Under it, "Grup bilgileri" is a `Form` over `editGroupSchema` — name, intention,
     visibility — and those are the **only** three things a group can still be told: `spots`, `splitMode`
-    and `cycle` divide the hundred and the server rejects them (`UpdateGroupBodySchema` has no such
-    fields). "Katılım" below is the open-to-join switch and the members row, which save on the touch
+    and `cycle` divide the parts, and `kind` decides which text, so the server never applies them
+    (`UpdateGroupBodySchema` has no such fields; it is not strict, so they are silently dropped
+    rather than refused). "Katılım" below is the open-to-join switch and the members row, which save on the touch
     rather than waiting for the tick, because a name being typed is not an answer until it is finished.
     Three details are load-bearing: **the form wraps the whole sheet**, or the tick in the corner would
     have no `handleSubmit` to call; the sheet carries a `heightRatio` with the body in a `flex: 1`

@@ -80,8 +80,17 @@ export const MyProgressScreen = ({ navigation, route }: Props) => {
 	}
 
 	const group = groupQuery.data;
+	const isHizb = group.kind === 'HIZB';
 	const periodCopy = PERIOD_COPY[progress.cycle];
 	const openPeriod = progress.periods.at(-1);
+
+	// A Hizb share is counted in portions; the Cevşen's lines keep their bab wording as they were.
+	const missedCountLabel = (count: number) =>
+		isHizb
+			? count === 1
+				? t('missedPortionsHizbOne')
+				: t('missedPortionsHizb', { count })
+			: t('mpBabCount', { n: count });
 
 	/**
 	 * The day itself, beside the relative label.
@@ -132,7 +141,7 @@ export const MyProgressScreen = ({ navigation, route }: Props) => {
 				<TitleText>{t(periodCopy.heading)}</TitleText>
 				{openPeriod ? (
 					<CaptionText color={theme.colors.subtext}>
-						{`${t('myBabs')} ${openPeriod.readCount}/${openPeriod.owedCount}`}
+						{`${t(isHizb ? 'yourPortions' : 'myBabs')} ${openPeriod.readCount}/${openPeriod.owedCount}`}
 					</CaptionText>
 				) : null}
 			</View>
@@ -183,9 +192,9 @@ export const MyProgressScreen = ({ navigation, route }: Props) => {
 									<View style={styles.missedHead}>
 										<CaptionText weight='semibold'>{dateLabel(period)}</CaptionText>
 										<CaptionText color={theme.colors.subtext}>
-											{`· ${agoLabel(period)} · ${t('mpBabCount', {
-												n: period.missedBabs.length
-											})}${isWholeShare ? ` · ${t('mpAllMissed')}` : ''}`}
+											{`· ${agoLabel(period)} · ${missedCountLabel(period.missedBabs.length)}${
+												isWholeShare ? ` · ${t('mpAllMissed')}` : ''
+											}`}
 										</CaptionText>
 									</View>
 									{/*

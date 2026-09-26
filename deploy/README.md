@@ -138,6 +138,13 @@ changed the schema in a way the old code cannot read, the old image will fail to
 migrations should be expand/contract: add a column and deploy, backfill, and only drop the old
 one in a later release, so that at every point the previous image still runs.
 
+**Roll forward only, once Hizb groups exist.** The release that added `Group.kind` and the
+`MONTHLY` cycle cannot be backed out after anyone has used them: an older image's Prisma client
+cannot read the `MONTHLY` enum value, and it sizes every group at 100 parts, a Hizb group included.
+Fix forward instead. Deploy that release server first, then `eas update` on both channels with
+`--environment`. The other order lets the new app create a Hizb group against the old server,
+whose schema drops the unknown `kind` and silently creates a Cevşen group.
+
 ## When a migration fails
 
 This is the failure mode worth knowing before it happens. Prisma records the attempt in
