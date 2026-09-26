@@ -226,6 +226,8 @@ sheet via `@expo/ui/community/bottom-sheet`; no gorhom, no close button):
 -   **Never let `enableDynamicSizing` change on a live sheet** (it remounts the content). Create-group
     is one fixed height for all steps for that reason.
 -   Sheets cannot stack on iOS — switch via a route param and a delay; member removal is an `Alert`.
+-   A `heightRatio` sheet is capped to the room above the iOS keyboard (`AppBottomSheet`); without
+    it iOS centres a too-tall sheet and cuts off its top.
 -   A sheet that must be a route registers under `sheetRouteOptions` (`transparentModal`,
     `animation: 'none'`).
 
@@ -261,6 +263,14 @@ sheet via `@expo/ui/community/bottom-sheet`; no gorhom, no close button):
         reader scrolls to top (`onShown`). The header sits above the scroll view, not sticky.
         `SecdeOrnament` floats fixed over the scroll view on sajdah pages (drag vertical, tap scrolls
         to the green). Hüsrev's cüz are its own 20 pages (cüz 1 is 21, cüz 30 is 24).
+    -   **Git** (`MushafGoSheet`, Q5n/j/p) is the free `Mushaf`'s only — the group reader stays on
+        your share. Opened from the header's `git-go-to` button (custom SF Symbol + `ui/Icon` `goTo`).
+        A place is a cüz + page in the reader's own pagination; every lookup in
+        `lib/content/mushafPlaces.ts` is a cached table or a binary search — keep it that way, and
+        keep the sura list virtualised with exact `getItemLayout` heights (it mounted in 790 ms
+        before, 73 ms after, on the Android emulator). Page entry is the system number pad.
+    -   A pause mark sits on the text's own space: Uthman Taha has no U+00A0, and Android drew the
+        mark from a fallback font. Never swap it for a no-break space.
 -   Hatim duası (`HatimDuaScreen`): the edition's four Hüsrev pages only, no Aa. Opened from Q7 and from a
     Kur'an group's screen once its round is complete. From Q7 the stack is rebuilt so back lands on
     the group.

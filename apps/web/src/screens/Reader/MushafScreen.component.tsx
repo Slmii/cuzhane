@@ -3,6 +3,8 @@ import { CaptionText, EyebrowText, TitleText } from '@/components/ui/Typography/
 import { READER_FONT_SIZE_DEFAULT } from '@/lib/content/cevsen';
 import { suraNameFor } from '@/lib/content/cuz';
 import { mushafCuzPages, mushafPagePath, mushafPageSecde, mushafPageSpan } from '@/lib/content/mushaf';
+import type { MushafVerse } from '@/lib/content/mushaf';
+import type { MushafPlace } from '@/lib/content/mushafPlaces';
 import { cuzPages } from '@/lib/content/quran';
 import { useGetUserSettings, useUpdateUserSettings } from '@/lib/hooks/useUserSettings';
 import { useTranslation } from '@/lib/i18n/I18n.context';
@@ -23,6 +25,7 @@ import {
 	SECDE_SCROLL_MARGIN,
 	SEGMENT_TRANSITION_MS
 } from '@/screens/Reader/cuzReaderShell';
+import { MushafGoButton, MushafGoSheet } from '@/screens/Reader/MushafGoSheet.component';
 import { MushafImagePage, mushafPaperGeometry } from '@/screens/Reader/MushafImagePage.component';
 import { MushafPage } from '@/screens/Reader/MushafPage.component';
 import { readerFaces } from '@/screens/Reader/ReaderBody.component';
@@ -31,12 +34,15 @@ import { TextSizeSheet } from '@/screens/Reader/TextSizeSheet.component';
 import { textSizeSheet } from '@/screens/Reader/textSizeSheet';
 import { VerseMealSheet } from '@/screens/Reader/VerseMealSheet.component';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useContext, useRef, useState } from 'react';
+import { useCallback, useContext, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { useReducedMotion } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type Props = NativeStackScreenProps<TabStackParamList, 'Mushaf'>;
+
+/** Where a picked ayah's row comes to rest: this far below the header. */
+const TARGET_SCROLL_MARGIN = 24;
 
 /**
  * The free Mushaf — the Kur'an read for its own sake, as `AllBabs` (B7) is the Cevşen.
@@ -63,7 +69,7 @@ export const MushafScreen = ({ navigation, route }: Props) => {
 	const scrollRef = useRef<ScrollView>(null);
 	// What the sajdah mark needs to scroll to its verse: where the page body starts in the
 	// content, and how far the content can scroll at all.
-	const layoutRef = useRef({ bodyY: 0, contentHeight: 0 });
+	const layoutRef = useRef({ bodyY: 0, contentHeight: 0, textTop: 0 });
 	// The scroll view's height: the sajdah mark is fixed over it.
 	const [viewportHeight, setViewportHeight] = useState(0);
 
@@ -72,13 +78,33 @@ export const MushafScreen = ({ navigation, route }: Props) => {
 	const textPages = cuzPages(cuzNumber);
 	const imagePages = mushafCuzPages(cuzNumber);
 	const pageCount = isHusrev ? imagePages.length : textPages.length;
-	const [chosenPageIndex, setPageIndex] = useState(0);
+	// The page it was sent to — search opens a sura, an ayah or a page here (1-based, within the cüz).
+	const [chosenPageIndex, setPageIndex] = useState(() => Math.max((route.params?.page ?? 1) - 1, 0));
 	// Held inside the cüz when the pagination changes under it — Hüsrev has more pages than some.
 	const pageIndex = Math.min(chosenPageIndex, pageCount - 1);
 	/** Which way the last cüz crossing went — `null` until there has been one. */
 	const [cuzTurn, setCuzTurn] = useState<CuzTurn | null>(null);
 	/** The verse whose meal is open — set by a long press on the typeset page, `null` when closed. */
 	const [mealVerse, setMealVerse] = useState<string | null>(null);
+	/** Whether the Git sheet (Q5n) is open — from the button beside the sura name. */
+	const [isGoOpen, setIsGoOpen] = useState(false);
+	/**
+	 * The ayah Git last sent the reader to, and where: banded and scrolled to while its page shows,
+	 * and what the sheet calls "Şu an" — not the page's first ayah, which is what a jump to 2:58
+	 * otherwise reported (2:49). A new object per pick, so picking it again scrolls again.
+	 */
+	const [goVerse, setGoVerse] = useState<{ verse: MushafVerse; cuzNumber: number; pageIndex: number } | null>(() => {
+		// An ayah search sent the reader to is marked and scrolled to, as a Git pick is.
+		const [chapter, ayah] = (route.params?.verseKey ?? '').split(':').map(Number);
+
+		return chapter && ayah
+			? {
+					cuzNumber: Math.min(Math.max(route.params?.cuzNumber ?? 1, 1), CUZ_COUNT),
+					pageIndex: Math.max((route.params?.page ?? 1) - 1, 0),
+					verse: { ayah, chapter }
+			  }
+			: null;
+	});
 	const isReducedMotion = useReducedMotion();
 
 	const readerSettings = {
@@ -139,6 +165,40 @@ export const MushafScreen = ({ navigation, route }: Props) => {
 		}
 	};
 
+	// The Git sheet's pick: any page of any cüz, in place — a cüz crossing slides as the arrows' does.
+	const goTo = (place: MushafPlace, verse?: MushafVerse) => {
+		setIsGoOpen(false);
+		setGoVerse(verse ? { cuzNumber: place.cuzNumber, pageIndex: place.pageIndex, verse } : null);
+
+		if (place.cuzNumber === cuzNumber) {
+			turnTo(place.pageIndex);
+
+			return;
+		}
+
+		crossInto(place.cuzNumber, place.pageIndex, place.cuzNumber > cuzNumber ? 'next' : 'previous');
+	};
+
+	const targetVerse =
+		goVerse && goVerse.cuzNumber === cuzNumber && goVerse.pageIndex === pageIndex ? goVerse.verse : undefined;
+
+	/*
+	 * The picked ayah's row, brought up under the header once the page has laid it out — after the
+	 * turn's own jump to the top. Typeset only: Hüsrev's pages are images, and nothing records
+	 * where on one an ayah is.
+	 */
+	const scrollToTarget = useCallback(
+		(y: number) => {
+			if (goVerse) {
+				scrollRef.current?.scrollTo({
+					animated: !isReducedMotion,
+					y: Math.max(0, layoutRef.current.textTop + y - TARGET_SCROLL_MARGIN)
+				});
+			}
+		},
+		[goVerse, isReducedMotion]
+	);
+
 	const isFirstPage = pageIndex === 0;
 	const isLastPage = pageIndex >= pageCount - 1;
 	// Every cüz is the reader's here, so the neighbours are simply the next and previous numbers.
@@ -146,6 +206,8 @@ export const MushafScreen = ({ navigation, route }: Props) => {
 	const nextCuz = cuzNumber < CUZ_COUNT ? cuzNumber + 1 : undefined;
 
 	const handlePrevious = () => {
+		setGoVerse(null);
+
 		if (!isFirstPage) {
 			turnTo(pageIndex - 1);
 
@@ -160,6 +222,8 @@ export const MushafScreen = ({ navigation, route }: Props) => {
 	};
 
 	const handleNext = () => {
+		setGoVerse(null);
+
 		if (!isLastPage) {
 			turnTo(pageIndex + 1);
 
@@ -217,12 +281,16 @@ export const MushafScreen = ({ navigation, route }: Props) => {
 					<View style={[cuzReaderStyles.headerSide, cuzReaderStyles.headerSideEnd]} />
 				</View>
 				{/* Keyed on the cüz, so crossing into another one remounts it and the slide plays. */}
-				<Animated.View key={`title-${cuzNumber}`} style={[cuzReaderStyles.headerBottomRow, cuzTurnAnimation]}>
-					<TitleText numberOfLines={1} style={cuzReaderStyles.suraTitle}>
-						{pageSuraLabel}
-					</TitleText>
-					<CaptionText color={theme.colors.faintText}>{pageAyahLabel}</CaptionText>
-				</Animated.View>
+				<View style={cuzReaderStyles.headerBottomRow}>
+					<Animated.View key={`title-${cuzNumber}`} style={[cuzReaderStyles.titleGroup, cuzTurnAnimation]}>
+						<TitleText numberOfLines={1} style={cuzReaderStyles.suraTitle}>
+							{pageSuraLabel}
+						</TitleText>
+						<CaptionText color={theme.colors.faintText}>{pageAyahLabel}</CaptionText>
+					</Animated.View>
+					{/* Q5's Git — to a sura, an ayah, a cüz or a page. Outside the keyed title, so a cüz turn leaves it still. */}
+					<MushafGoButton onPress={() => setIsGoOpen(true)} />
+				</View>
 				{/* One segment a page: the pages behind in accent, this one in ink, the rest bare. */}
 				<View style={cuzReaderStyles.strip}>
 					{Array.from({ length: pageCount }, (_, index) => (
@@ -277,15 +345,26 @@ export const MushafScreen = ({ navigation, route }: Props) => {
 					) : (
 						<Animated.View key={`page-${cuzNumber}`} style={[cuzReaderStyles.body, cuzTurnAnimation]}>
 							{page ? (
-								<MushafPage
-									faces={faces}
-									font={textFace}
-									numerals={readerSettings.readerNumerals}
-									page={page}
-									onLongPressVerse={setMealVerse}
-									selectedVerseKey={mealVerse}
-									suraName={suraName}
-								/>
+								// Where the page starts in the scroll content, for the scroll to a picked ayah.
+								<View
+									onLayout={event => {
+										layoutRef.current.textTop = event.nativeEvent.layout.y;
+									}}
+								>
+									<MushafPage
+										faces={faces}
+										font={textFace}
+										numerals={readerSettings.readerNumerals}
+										onLongPressVerse={setMealVerse}
+										onTargetLayout={scrollToTarget}
+										page={page}
+										selectedVerseKey={mealVerse}
+										suraName={suraName}
+										targetVerseKey={
+											targetVerse ? `${targetVerse.chapter}:${targetVerse.ayah}` : null
+										}
+									/>
+								</View>
 							) : null}
 						</Animated.View>
 					)}
@@ -340,6 +419,15 @@ export const MushafScreen = ({ navigation, route }: Props) => {
 				numerals={readerSettings.readerNumerals}
 				onClose={() => setMealVerse(null)}
 				verseKey={mealVerse}
+			/>
+			<MushafGoSheet
+				cuzNumber={cuzNumber}
+				{...(targetVerse ? { currentVerse: targetVerse } : {})}
+				isVisible={isGoOpen}
+				onClose={() => setIsGoOpen(false)}
+				onGo={goTo}
+				pageIndex={pageIndex}
+				pagination={isHusrev ? 'husrev' : 'text'}
 			/>
 			<TextSizeSheet
 				hasMushafPages

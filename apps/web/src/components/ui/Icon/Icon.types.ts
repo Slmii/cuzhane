@@ -25,6 +25,7 @@ export type IconName =
 	| 'minus'
 	| 'search'
 	| 'searchOff'
+	| 'goTo'
 	| 'filter'
 	| 'sort'
 	| 'edit'

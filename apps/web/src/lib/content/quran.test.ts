@@ -109,9 +109,10 @@ describe('the bundled Kuran text', () => {
 				expect(word.t.trim().length).toBeGreaterThan(0);
 				// The Complex's own encoding went with the face that needed it.
 				expect(word).not.toHaveProperty('q');
-				// No *breakable* space inside a word: the one before a pause sign is turned into
-				// a no-break space, so the sign can never wrap away from its word.
-				expect(wordText(word)).not.toMatch(/[ \t\n]/);
+				// Spaces inside a word are the text's own — the one a pause sign or ۩ sits on, and a
+				// handful of the source's joined words. A word is one single-line text on the page,
+				// so none of them can wrap; see `wordText`.
+				expect(wordText(word)).not.toMatch(/[\t\n]/);
 			}
 		}
 	});
@@ -171,9 +172,9 @@ describe('the bundled Kuran text', () => {
 	});
 
 	it('gathers a verse’s words for the meal sheet, across a page break too', () => {
-		// Necm 62, the sajdah verse: فَٱسْجُدُوا۟ لِلَّهِ وَٱعْبُدُوا۟ — three words, the ۩ on the last.
-		expect(verseText('53:62').split(' ')).toHaveLength(3);
-		expect(verseText('53:62').endsWith(' ۩')).toBe(true);
+		// Necm 62, the sajdah verse: فَٱسْجُدُوا۟ لِلَّهِ وَٱعْبُدُوا۟ — three words, and the ۩ after the last.
+		expect(verseText('53:62').split(' ')).toHaveLength(4);
+		expect(verseText('53:62').endsWith(' ۩')).toBe(true);
 		// 84:21 — whose end mark the fetch script had to put back after its last word.
 		expect(verseText('84:21').split(' ')).toEqual([
 			'وَإِذَا',
@@ -181,7 +182,8 @@ describe('the bundled Kuran text', () => {
 			'عَلَيْهِمُ',
 			'ٱلْقُرْءَانُ',
 			'لَا',
-			'يَسْجُدُونَ ۩'
+			'يَسْجُدُونَ',
+			'۩'
 		]);
 		expect(verseText('115:1')).toBe('');
 	});

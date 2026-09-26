@@ -19,7 +19,7 @@ import { suraInfo } from '@/lib/content/sura';
 import { fitsOnLines, flowRows, type RowAlignment, rowBands } from '@/screens/Reader/mushafLayout';
 import { isDivineName, readerFaces } from '@/screens/Reader/ReaderBody.component';
 import { SuraHeader } from '@/screens/Reader/SuraHeader.component';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { type LayoutChangeEvent, StyleSheet, View } from 'react-native';
 
 type Faces = ReturnType<typeof readerFaces>;
@@ -35,6 +35,12 @@ type MushafPageProps = {
 	onLongPressVerse?: (verseKey: string) => void;
 	/** The verse whose meal is open, banded in `verseSelection` until the sheet closes. */
 	selectedVerseKey?: string | null;
+	/**
+	 * The verse the reader was sent to from Git — banded like a selected one, and its first row's
+	 * top reported through `onTargetLayout` once the page is laid out, for the reader to scroll to.
+	 */
+	targetVerseKey?: string | null;
+	onTargetLayout?: (y: number) => void;
 };
 
 /**
@@ -83,8 +89,8 @@ const BASMALA: QuranWordItem[] = (() => {
  * name ("ٱللَّهِ ۖ") has the name coloured and the mark left as it is.
  */
 const BASMALA_WORDS = new Set<QuranWord>(BASMALA);
-/** Where a pause mark is joined to its word — see `wordText`. */
-const NO_BREAK_SPACE = '\u00A0';
+/** What stands between a word and its pause mark — see `wordText`. */
+const PAUSE_MARK_SPACE = ' ';
 
 const opensSura = (line: QuranLine): number | undefined =>
 	line.w.find((word): word is QuranWordItem => !isVerseEnd(word) && word.s !== undefined)?.s;
@@ -118,12 +124,17 @@ export const MushafPage = ({
 	font,
 	numerals,
 	onLongPressVerse,
+	onTargetLayout,
 	page,
 	selectedVerseKey,
-	suraName
+	suraName,
+	targetVerseKey
 }: MushafPageProps) => {
 	const { theme } = useThemeContext();
 	const [width, setWidth] = useState(0);
+	const rootRef = useRef<View>(null);
+	// The first row holding the target verse, found while the rows render.
+	const targetRowRef = useRef<View>(null);
 	const [measured, setMeasured] = useState<{ key: string; widths: Map<string, number> } | null>(null);
 	const widthsRef = useRef<{ key: string; widths: Map<string, number> }>({ key: '', widths: new Map() });
 
@@ -139,6 +150,34 @@ export const MushafPage = ({
 		})
 	);
 	const itemCount = lines.reduce((count, line) => count + line.length, 0);
+	// The target verse's first word: the row that holds it is the one measured for the scroll.
+	const targetFirstItem = targetVerseKey
+		? lines.flat().find(item => item.verseKey === targetVerseKey)?.key
+		: undefined;
+
+	const isLaidOut = measured?.key === key && width > 0;
+
+	/*
+	 * Measured after the rows commit, and again whenever the target, the page or its size changes
+	 * — a jump to another ayah on the page already showing lays nothing out anew, so waiting for an
+	 * `onLayout` would never hear of it.
+	 */
+	useEffect(() => {
+		if (!targetVerseKey || !isLaidOut || !onTargetLayout) {
+			return;
+		}
+
+		const frame = requestAnimationFrame(() => {
+			const row = targetRowRef.current;
+			const root = rootRef.current;
+
+			if (row && root) {
+				row.measureLayout(root, (_x, y) => onTargetLayout(y));
+			}
+		});
+
+		return () => cancelAnimationFrame(frame);
+	}, [isLaidOut, key, onTargetLayout, targetVerseKey, width]);
 
 	const handleMeasure = (itemKey: string, event: LayoutChangeEvent) => {
 		if (widthsRef.current.key !== key) {
@@ -180,7 +219,7 @@ export const MushafPage = ({
 			};
 		}
 
-		const markAt = text.indexOf(NO_BREAK_SPACE);
+		const markAt = text.indexOf(PAUSE_MARK_SPACE);
 		const name = markAt === -1 ? text : text.slice(0, markAt);
 
 		if (BASMALA_WORDS.has(word) || (markAt === -1 && isDivineName(text))) {
@@ -297,12 +336,22 @@ export const MushafPage = ({
 				  ))
 				: null;
 
+		// Only the row the target begins on is measured; the rest of the verse follows it down.
+		const isTargetRow = targetFirstItem !== undefined && items.some(item => item.key === targetFirstItem);
+
 		return (
-			<View key={reactKey} style={[styles.row, ALIGNMENT_STYLES[alignment], { gap }]}>
+			<View
+				key={reactKey}
+				{...(isTargetRow ? { collapsable: false, ref: targetRowRef } : {})}
+				style={[styles.row, ALIGNMENT_STYLES[alignment], { gap }]}
+			>
 				{bandsFor(item => item.isSajdah, theme.colors.giltSoft, 'sajdah')}
 				{/* The long-pressed verse, over the gilt when it is a sajdah verse so both still show. */}
 				{selectedVerseKey
 					? bandsFor(item => item.verseKey === selectedVerseKey, theme.colors.verseSelection, 'selected')
+					: null}
+				{targetVerseKey && targetVerseKey !== selectedVerseKey
+					? bandsFor(item => item.verseKey === targetVerseKey, theme.colors.verseSelection, 'target')
 					: null}
 				{items.map(item =>
 					renderWord(
@@ -371,7 +420,7 @@ export const MushafPage = ({
 	};
 
 	return (
-		<View onLayout={event => setWidth(event.nativeEvent.layout.width)}>
+		<View collapsable={false} onLayout={event => setWidth(event.nativeEvent.layout.width)} ref={rootRef}>
 			{/* The measuring pass: every word at the chosen size, natural width, unseen and unread. */}
 			<View
 				accessibilityElementsHidden

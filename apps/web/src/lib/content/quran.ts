@@ -117,18 +117,17 @@ export const cuzPages = (cuzNumber: number): QuranPage[] => FILES[cuzNumber - 1]
  */
 const RUB_EL_HIZB = /۞\s*/g;
 
-/** Written as an escape: pasted literally, it is indistinguishable from a space and gets "fixed". */
-const NO_BREAK_SPACE = '\u00A0';
-
 /**
  * A word as the reader draws it.
  *
- * **The space before a pause mark becomes a no-break space.** Unicode's Uthmani writes a waqf
- * sign after a space ("مِنْهُمْ ۖ" — 4,381 words). A mark on a breakable space could be wrapped
- * away from its word onto the next line alone; on a no-break space — Unicode's own base for a
- * standalone mark — it cannot, and it still sits just after the word it belongs to.
+ * **The space before a pause mark stays the text's own space.** Unicode's Uthmani writes a waqf
+ * sign after a space ("مِنْهُمْ ۖ" — 4,381 words), and the faces draw the sign over that space.
+ * It was swapped for a no-break space so the sign could not wrap away from its word, but KFGQPC
+ * Uthman Taha has no glyph for one: Android took the space from a system font and the sign with
+ * it — 2:7's ۖ came out as a large, detached ص. A word is one single-line text on the page, so
+ * nothing there can wrap; only the meal sheet's running verse could, and only rarely.
  */
-export const wordText = (word: QuranWordItem): string => word.t.replace(RUB_EL_HIZB, '').replace(/ /g, NO_BREAK_SPACE);
+export const wordText = (word: QuranWordItem): string => word.t.replace(RUB_EL_HIZB, '');
 
 /**
  * Each word's verse on a page, line by line — `"16:50"` for every word of it, and for the mark

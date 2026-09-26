@@ -96,7 +96,7 @@ export type TabDetailParamList = {
 	 * The free Mushaf — the Kur'an read outside any group, as `AllBabs` is the Cevşen. The same
 	 * "no params" rule: the cüz and page are screen state, and `cuzNumber` only seeds the cursor.
 	 */
-	Mushaf: { shouldOpenTextSize?: boolean; cuzNumber?: number } | undefined;
+	Mushaf: { shouldOpenTextSize?: boolean; cuzNumber?: number; page?: number; verseKey?: string } | undefined;
 	/**
 	 * The account screen lost its tab to search (K2) and is pushed from the avatar at the right
 	 * end of every tab root's bar — inside that tab, so back returns to where it was opened.

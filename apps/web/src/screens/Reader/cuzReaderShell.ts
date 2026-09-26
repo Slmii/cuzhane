@@ -84,6 +84,14 @@ export const cuzReaderStyles = StyleSheet.create({
 		flexDirection: 'row',
 		gap: 10
 	},
+	// The sura's name and its ayahs, which take the row up to the Git button.
+	titleGroup: {
+		alignItems: 'center',
+		flex: 1,
+		flexDirection: 'row',
+		gap: 10,
+		minWidth: 0
+	},
 	// Natural width, never shrunk: the two side slots split what is left, which is what
 	// centres it. Stretched to `flex: 1` between two equal sides it had a third of the row
 	// and "20. Cüz · Sayfa 1 / 20" wrapped.
