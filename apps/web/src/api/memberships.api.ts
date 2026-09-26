@@ -6,11 +6,26 @@ export type RemoveGroupMemberInput = {
 	memberUserId: string;
 };
 
+type GroupInvitePreviewResponse = Omit<GroupInvitePreview, 'memberNames'> & { memberNames?: string[] | null };
+
+// Some deployed APIs omit memberNames. Normalize before caching so every preview
+// consumer can safely count/join the names without inventing identities.
+const normalizePreview = (preview: GroupInvitePreviewResponse): GroupInvitePreview => ({
+	...preview,
+	memberNames: preview.memberNames ?? []
+});
+
 export const previewGroupByCode = async (code: string) =>
-	wrapperApi<GroupInvitePreview>(`/memberships/preview/code/${encodeURIComponent(code)}`, { method: 'GET' });
+	normalizePreview(
+		await wrapperApi<GroupInvitePreviewResponse>(`/memberships/preview/code/${encodeURIComponent(code)}`, {
+			method: 'GET'
+		})
+	);
 
 export const previewGroupById = async (groupId: string) =>
-	wrapperApi<GroupInvitePreview>(`/memberships/preview/group/${groupId}`, { method: 'GET' });
+	normalizePreview(
+		await wrapperApi<GroupInvitePreviewResponse>(`/memberships/preview/group/${groupId}`, { method: 'GET' })
+	);
 
 export const joinGroupByCode = async (code: string) =>
 	wrapperApi<GroupDetail>('/memberships/join/code', {
