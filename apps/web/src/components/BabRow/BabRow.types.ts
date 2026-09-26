@@ -15,6 +15,11 @@ export interface BabRowProps {
 	 */
 	isReadByOthers?: boolean;
 	onToggle: () => void;
+	/**
+	 * Read out after the checkbox's label — for a row whose box does something other than tick,
+	 * such as the Hizb's Sekine opening the reader until its repetitions are in.
+	 */
+	accessibilityHint?: string;
 	onOpen: () => void;
 	openLabel: string;
 	style?: StyleProp<ViewStyle>;

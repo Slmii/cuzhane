@@ -190,6 +190,9 @@ export const HizbSharePanel = ({
 
 								return (
 									<BabRow
+										accessibilityHint={
+											isCountOutstanding ? t('hizbRepetitionsHint', { required }) : undefined
+										}
 										isRead={isRead}
 										isReadByOthers={isReadByOthers}
 										key={number}
@@ -214,8 +217,10 @@ export const HizbSharePanel = ({
 												? bab?.readByDisplayName
 													? t('readBeforeYoursBy', { name: bab.readByDisplayName })
 													: t('readBeforeYours')
-												: count !== undefined
-												? t('hizbRepetitions', { count, required })
+												: // The count's line from the first frame, a dash until it lands:
+												// swapping in from the two-line description jumped the row.
+												required > 1
+												? t('hizbRepetitions', { count: count ?? '—', required })
 												: t(portion(number).descriptionKey)
 										}
 										title={t('hizbPartRowTitle', { n: number, work: t(workOf(number).titleKey) })}

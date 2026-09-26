@@ -31,10 +31,12 @@ const CEVSEN_TITLE = 'Cevşen-ül Kebir';
  * Where the cursor starts: a section from the list at its first block, a group's portion at
  * the block it begins in.
  *
- * **A portion opens here as free reading, for now.** The group's own reader — the portion's
- * text alone, and marking it read — is still to be built; until it is, "Oku" on the group
- * screen lands on the right page of the whole text, and nothing here is counted, which is
- * what this screen's footer already says.
+ * **A portion opens here as free reading, for now, and only approximately.** The cursor walks
+ * whole blocks, so a portion opens at the first block it touches — and a portion that begins
+ * partway through a block (10–13 inside the Evrâd, 31–33 inside Tazarru ve Niyaz) opens on
+ * the previous portion's text, with its own further down the page. Nothing here is counted,
+ * which is what this screen's footer already says. Task 5.1 replaces this with the group's own
+ * reader: the portion's text alone, and marking it read.
  */
 const initialCursor = (params: TabStackParamList['HizbReader']) => {
 	if ('sectionIndex' in params) {

@@ -7,7 +7,7 @@ import { CaptionText, TitleText, Typography } from '@/components/ui/Typography/T
 import { HIZB_WORKS } from '@/lib/content/hizbPortions';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import { toAlphaColor, type AppTheme } from '@/lib/theme/tokens';
+import type { AppTheme } from '@/lib/theme/tokens';
 import type { HizbBoardCell } from '@/lib/utils/groups';
 import { memo, useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -39,11 +39,20 @@ const paletteFor = ({ isMine, state }: Pick<HizbBoardCell, 'isMine' | 'state'>, 
 			? { backgroundColor: theme.colors.accent, labelColor: theme.colors.onAccent }
 			: state === 'pool'
 			? { backgroundColor: theme.colors.poolFree, labelColor: theme.colors.sandText }
-			: // HZ1's numeral on a held portion is the accent at three quarters, not a grey.
-			  { backgroundColor: theme.colors.poolTaken, labelColor: toAlphaColor(theme.colors.accent, 0.75) };
+			: { backgroundColor: theme.colors.poolTaken, labelColor: theme.colors.poolTakenText };
 
 	return { ...fill, borderColor: isMine ? theme.colors.text : fill.backgroundColor };
 };
+
+/**
+ * A cell's state as a word, for its accessibility label — the legend's own, so a screen reader
+ * hears the same key the sighted reader reads under the board.
+ */
+const STATE_LABEL_KEYS = {
+	pool: 'hizbLegendPool',
+	read: 'hizbLegendRead',
+	taken: 'hizbLegendTaken'
+} as const;
 
 /** The legend's four keys, each drawn by the palette it explains. */
 const LEGEND = [
@@ -84,7 +93,13 @@ const HizbBoardComponent = ({ cells, onPressIndex, style }: HizbBoardProps) => {
 				if (cell) {
 					items.push({
 						...paletteFor(cell, theme),
-						accessibilityLabel: `${t('portion')} ${number}`,
+						// "Bölüm 4, Okundu" — and "Senin" after it for one of yours, which is what the
+						// ring says to a reader who can see it.
+						accessibilityLabel: [
+							`${t('portion')} ${number}`,
+							t(STATE_LABEL_KEYS[cell.state]),
+							...(cell.isMine ? [t('hizbLegendMine')] : [])
+						].join(', '),
 						isHatched: cell.state === 'pool',
 						key: number,
 						label: number

@@ -380,81 +380,16 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 	);
 
 	/*
-	 * HZ1's heading: the book's mark in the corner — the toolbar's actions are in the navigator's
-	 * bar either way — and under the name, the round and the plan. The design's group has no
-	 * dedication; a group that has one keeps it, on the line below.
-	 */
-	const hizbHeader = (
-		<ScreenHeader
-			action={<KindMark kind='HIZB' size={KIND_MARK_SIZE} />}
-			hasBackButton
-			subtitle={[
-				`${t('roundN')} ${(detail.roundIndex ?? 0) + 1} · ${t(planLabelKey(detail.splitMode))}`,
-				detail.dedication ? t('forName', { dedication: detail.dedication }) : null
-			]
-				.filter(Boolean)
-				.join('\n')}
-			title={detail.name}
-			titleLines={1}
-			titleTrailing={<Chip label={t(cycleLabelKey(detail.cycle))} tone='accent' />}
-		/>
-	);
-
-	/*
-	 * The Hizb's summary card counts what the group has read, where the Cevşen's counts its
-	 * members, and says how long the round has left under one label whatever the cycle. A
-	 * finished round turns the count sage rather than taking the countdown's place: the count
-	 * already reads "33 / 33", and when the next one starts is still worth knowing.
-	 */
-	const hizbSummary = (
-		<TourTarget id='groupSummary'>
-			<CardSurface isFlush>
-				<View style={styles.statsRow}>
-					<View style={[styles.statCell, styles.statCellDivided, { borderRightColor: theme.colors.divider }]}>
-						<NumericText color={isRoundComplete ? theme.colors.accent : theme.colors.text}>
-							{`${detail.readCount} `}
-							<Typography color={theme.colors.faintText} style={styles.statTotal} variant='numeric'>
-								{`/ ${detail.partCount}`}
-							</Typography>
-						</NumericText>
-						<StatText
-							color={isRoundComplete ? theme.colors.accent : theme.colors.faintText}
-							style={styles.statLabel}
-						>
-							{t(isRoundComplete ? 'roundCompleted' : 'portionsReadStat')}
-						</StatText>
-					</View>
-					<View style={styles.statCell}>
-						<NumericText>{leftValue}</NumericText>
-						<StatText color={theme.colors.faintText} style={styles.statLabel}>
-							{t('untilRoundEnd')}
-						</StatText>
-					</View>
-				</View>
-				{reset ? (
-					<RoundResetRow
-						groupLabel={reset.group}
-						localLabel={reset.local}
-						style={[styles.statsReset, { borderTopColor: theme.colors.divider }]}
-						variant='panel'
-					/>
-				) : null}
-			</CardSurface>
-		</TourTarget>
-	);
-
-	/*
 	 * HZ1 counts the pool by what is still free to take, where the Cevşen's card counts the
 	 * whole of it. Once every pool portion has somebody the card says so rather than offering
 	 * none — and stays, so the way to Havuz doesn't go with the last claim.
 	 */
 	const freePoolCount = detail.poolBabNumbers.length;
 	const hizbPoolCount = freePoolCount > 0 ? freePoolCount : detail.poolAllBabNumbers.length;
-	const hizbPoolLine =
+	const hizbPoolLine = () =>
 		freePoolCount > 0
 			? t(freePoolCount === 1 ? 'poolFreeHizbOne' : 'poolFreeHizb', { count: freePoolCount })
 			: t('allClaimedPortions', { count: detail.poolAllBabNumbers.length });
-	const hizbBoard = babsQuery.isPending ? <HizbBoardSkeleton /> : <HizbBoard cells={hizbCells} />;
 	// "Geçen tur"'s line counts portions. It names no people, as HZ1's does: a round's summary
 	// carries only its missing count — who owed them is on the round's own screen.
 	const hizbMissedLine = (count: number) =>
@@ -463,7 +398,28 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 	return (
 		<>
 			<ScreenContainer pullToRefresh={pullToRefresh}>
-				{isHizb ? hizbHeader : header}
+				{/*
+				 * HZ1's heading: the book's mark in the corner — the toolbar's actions are in the
+				 * navigator's bar either way — and under the name, the round and the plan. The design's
+				 * group has no dedication; a group that has one keeps it, on the line below.
+				 */}
+				{isHizb ? (
+					<ScreenHeader
+						action={<KindMark kind='HIZB' size={KIND_MARK_SIZE} />}
+						hasBackButton
+						subtitle={[
+							`${t('roundN')} ${(detail.roundIndex ?? 0) + 1} · ${t(planLabelKey(detail.splitMode))}`,
+							detail.dedication ? t('forName', { dedication: detail.dedication }) : null
+						]
+							.filter(Boolean)
+							.join('\n')}
+						title={detail.name}
+						titleLines={1}
+						titleTrailing={<Chip label={t(cycleLabelKey(detail.cycle))} tone='accent' />}
+					/>
+				) : (
+					header
+				)}
 				{/*
 				 * 07 / 07c. One card rather than two loose tiles: the reset line belongs to
 				 * the same fact as the countdown beside it — how long is left, and until when
@@ -471,8 +427,57 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 				 * never was.
 				 */}
 				{/* Stop 4 of the first-use tour: the group's whole rhythm in one card. */}
+				{/*
+				 * The Hizb's summary card counts what the group has read, where the Cevşen's counts its
+				 * members, and says how long the round has left under one label whatever the cycle. A
+				 * finished round turns the count sage rather than taking the countdown's place: the
+				 * count already reads "33 / 33", and when the next one starts is still worth knowing.
+				 */}
 				{isHizb ? (
-					hizbSummary
+					<TourTarget id='groupSummary'>
+						<CardSurface isFlush>
+							<View style={styles.statsRow}>
+								<View
+									style={[
+										styles.statCell,
+										styles.statCellDivided,
+										{ borderRightColor: theme.colors.divider }
+									]}
+								>
+									<NumericText color={isRoundComplete ? theme.colors.accent : theme.colors.text}>
+										{`${detail.readCount} `}
+										<Typography
+											color={theme.colors.faintText}
+											style={styles.statTotal}
+											variant='numeric'
+										>
+											{`/ ${detail.partCount}`}
+										</Typography>
+									</NumericText>
+									<StatText
+										color={isRoundComplete ? theme.colors.accent : theme.colors.faintText}
+										style={styles.statLabel}
+									>
+										{t(isRoundComplete ? 'roundCompleted' : 'portionsReadStat')}
+									</StatText>
+								</View>
+								<View style={styles.statCell}>
+									<NumericText>{leftValue}</NumericText>
+									<StatText color={theme.colors.faintText} style={styles.statLabel}>
+										{t('untilRoundEnd')}
+									</StatText>
+								</View>
+							</View>
+							{reset ? (
+								<RoundResetRow
+									groupLabel={reset.group}
+									localLabel={reset.local}
+									style={[styles.statsReset, { borderTopColor: theme.colors.divider }]}
+									variant='panel'
+								/>
+							) : null}
+						</CardSurface>
+					</TourTarget>
 				) : (
 					<TourTarget id='groupSummary'>
 						<CardSurface isFlush>
@@ -859,7 +864,7 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 							<View style={styles.lastRoundCopy}>
 								<CaptionText weight='semibold'>{t('pool')}</CaptionText>
 								<CaptionText color={theme.colors.subtext} style={styles.lastRoundSub}>
-									{isHizb ? hizbPoolLine : `${detail.poolAllBabNumbers.length} ${t('babs')}`}
+									{isHizb ? hizbPoolLine() : `${detail.poolAllBabNumbers.length} ${t('babs')}`}
 								</CaptionText>
 							</View>
 							<Icon color={theme.colors.faintText} name='chevronRight' size={15} strokeWidth={1.8} />
@@ -875,7 +880,11 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 				 * were built as two different kinds of thing.
 				 */}
 				{isHizb ? (
-					hizbBoard
+					babsQuery.isPending ? (
+						<HizbBoardSkeleton />
+					) : (
+						<HizbBoard cells={hizbCells} />
+					)
 				) : babsQuery.isPending ? (
 					/*
 					 * The skeleton, not a blank hundred. `emptyBabCells` renders every cell in
