@@ -1,155 +1,109 @@
 import { Bone, SkeletonPulse } from '@/components/Skeleton/Skeleton.component';
+import { SkeletonStatusRow } from '@/components/Skeleton/SkeletonStatusRow.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
-import { Typography } from '@/components/ui/Typography/Typography.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { toAlphaColor } from '@/lib/theme/tokens';
-import { useEffect } from 'react';
+import { useContext } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, {
-	Easing,
-	useAnimatedStyle,
-	useReducedMotion,
-	useSharedValue,
-	withRepeat,
-	withTiming
-} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { TabBarOffsetContext } from '@/navigation/TabBarOffsetContext';
+import { HOME_HEADER_AVATAR_ROOM } from './HomeHeader.component';
+import { HomeFooterLinks } from './HomeFooterLinks.component';
+import { HomeTopCard } from './HomeTopCard.component';
 
-/** Enough rows to fill the fold without promising how many groups there are. */
-const ROW_COUNT = 3;
-const DAY_COUNT = 7;
 const SHEET_RADIUS = 32;
-const DAY_SIZE = 27;
-const AVATAR_SIZE = 36;
-/** The status ring, and the turn it makes. */
-const RING_SIZE = 13;
-const RING_WIDTH = 1.8;
-const RING_TURN_MS = 800;
+/** "Sonra"'s two rows — enough to say rows are coming without promising how many. */
+const ROW_COUNT = 2;
+const DAY_COUNT = 7;
 
 /**
- * The one thing on this screen that is not a bone: a ring that actually turns, telling the
- * reader the app is working rather than stuck. It is a drawn ring rather than
- * `ActivityIndicator` because the whole screen is the app's own drawing — a platform spinner
- * in the middle of it reads as a different app's furniture.
- */
-const StatusRing = () => {
-	const { theme } = useThemeContext();
-	const isReducedMotion = useReducedMotion();
-	const turn = useSharedValue(0);
-
-	useEffect(() => {
-		if (isReducedMotion) {
-			return;
-		}
-
-		turn.value = withRepeat(withTiming(360, { duration: RING_TURN_MS, easing: Easing.linear }), -1, false);
-	}, [isReducedMotion, turn]);
-
-	const spinStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${turn.value}deg` }] }));
-
-	return (
-		<Animated.View
-			style={[styles.ring, { borderColor: theme.colors.border, borderTopColor: theme.colors.accent }, spinStyle]}
-		/>
-	);
-};
-
-/**
- * **B8L — H1 while it waits.** The coloured layer with its greeting and free-reading row, then
- * the paper sheet with the streak card, the groups heading and a few rows: the same furniture
- * the real screen puts in the same places, so nothing jumps when the data lands.
+ * **B8L / B8Ld — Ana sayfa while it waits.** B8's own furniture in B8's places: the band with the
+ * greeting, the day's line and the compact streak; the "Sıradaki" card; the sheet with "Sonra"
+ * and two rows; and the ways to read outside a group, which are real links — they need nothing
+ * that is loading.
  *
- * The top layer is drawn for real rather than boned — it is a flat colour either way, and a
- * grey block where the sage belongs would flash a different screen for half a second. Only the
- * text on it is stubbed, in the layer's own ink at low opacity rather than the skeleton tone,
- * which is mixed for paper.
+ * The band is drawn for real, its text stubbed in its own ink at low opacity rather than the
+ * skeleton tone, which is mixed for paper. The account disc is the navigator's and is already
+ * there, so it has no bone. The card's coloured bones keep their colours — the eyebrow and the
+ * mark in the accent, the badge in the deadline's warmth — so the card fills in rather than
+ * changing colour. Dark (B8Ld) is the same drawing in the dark theme's tokens.
  *
- * **One pulse for the whole screen, not one per bone.** The design gives every placeholder its
- * own animation with a stagger — seven in the week strip, three more down the rows. That is
- * twenty-odd Reanimated mappers on the screen that is on display precisely while the app is
- * busy, and it is the same mistake that once made the bab board unscrollable (CLAUDE.md).
- * `SkeletonPulse` breathes the subtree as one. The stagger is what is lost; the screen still
- * reads as alive, and it costs a single mapper.
- *
- * The status line at the bottom is outside that wrapper on purpose: it is real text about a
- * real state, and a label that faded in and out with the bones would read as another
- * placeholder.
+ * **One pulse for the whole screen, not one per bone** (`SkeletonPulse`): the design staggers
+ * every placeholder, which is twenty-odd mappers on the screen that shows while the app is busy.
+ * The status line and the links stay outside it — they are real.
  */
 export const HomeSkeleton = () => {
 	const { theme } = useThemeContext();
 	const { t } = useTranslation();
 	const insets = useSafeAreaInsets();
-	const onHeader = toAlphaColor(theme.colors.onHeaderSurface, 0.16);
+	const tabBarHeight = useContext(TabBarOffsetContext);
+	const onHeader = theme.colors.onHeaderSurface;
+	const accentTint = toAlphaColor(theme.colors.accent, 0.18);
 
 	return (
-		<View style={[styles.root, { backgroundColor: theme.colors.headerSurface }]}>
-			<SkeletonPulse style={[styles.header, { paddingTop: insets.top + theme.spacing.xs }]}>
-				<View style={styles.headerRow}>
+		<View style={[styles.screen, { backgroundColor: theme.colors.headerSurface }]}>
+			<SkeletonPulse>
+				<View style={[styles.header, { paddingTop: insets.top + theme.spacing.xs }]}>
 					<View style={styles.greeting}>
-						<View style={[styles.bar, { backgroundColor: onHeader, height: 11, width: 84 }]} />
-						<View style={[styles.bar, { backgroundColor: onHeader, height: 20, width: 176 }]} />
+						<View style={[styles.greetingBone, { backgroundColor: toAlphaColor(onHeader, 0.26) }]} />
+						<View style={[styles.titleBone, { backgroundColor: toAlphaColor(onHeader, 0.34) }]} />
 					</View>
-					<View style={[styles.avatar, { backgroundColor: onHeader }]} />
+					<View style={styles.streak}>
+						<View style={[styles.streakBone, { backgroundColor: toAlphaColor(onHeader, 0.26) }]} />
+						<View style={styles.week}>
+							{Array.from({ length: DAY_COUNT }, (_, index) => (
+								<View
+									key={index}
+									style={[styles.pill, { backgroundColor: toAlphaColor(onHeader, 0.2) }]}
+								/>
+							))}
+						</View>
+					</View>
 				</View>
-				<View style={[styles.freeRead, { borderColor: onHeader }]}>
-					<View style={[styles.freeReadBadge, { backgroundColor: onHeader }]} />
-					<View style={styles.freeReadCopy}>
-						<View style={[styles.bar, { backgroundColor: onHeader, height: 11, width: 96 }]} />
-						<View style={[styles.bar, { backgroundColor: onHeader, height: 9, width: 168 }]} />
-					</View>
+
+				<View style={styles.topCard}>
+					<HomeTopCard>
+						<View style={styles.cardTopRow}>
+							<View style={[styles.eyebrowBone, { backgroundColor: accentTint }]} />
+							<View style={[styles.badgeBone, { backgroundColor: theme.colors.deadline }]} />
+						</View>
+						<View style={styles.subject}>
+							<View style={[styles.markBone, { backgroundColor: accentTint }]} />
+							<View style={styles.subjectCopy}>
+								<Bone height={20} radius={7} width={112} />
+								<Bone height={9} radius={4.5} tone='soft' width={150} />
+							</View>
+						</View>
+						<View style={[styles.bar, { backgroundColor: theme.colors.track }]} />
+						<Bone height={44} radius={12} width='100%' />
+					</HomeTopCard>
 				</View>
 			</SkeletonPulse>
 
 			<View style={[styles.sheet, { backgroundColor: theme.colors.background }]}>
-				<SkeletonPulse style={styles.content}>
-					<CardSurface style={styles.streak}>
-						<View style={styles.streakHead}>
-							<View style={styles.streakCopy}>
-								<Bone height={8} radius={4} tone='soft' width={78} />
-								<Bone height={20} radius={7} width={104} />
-							</View>
-							<Bone height={8} radius={4} tone='soft' width={54} />
-						</View>
-						<View style={[styles.week, { borderTopColor: theme.colors.border }]}>
-							{Array.from({ length: DAY_COUNT }, (_, index) => (
-								<View key={index} style={styles.day}>
-									<Bone height={7} radius={3.5} tone='soft' width={18} />
-									<Bone height={DAY_SIZE} radius={DAY_SIZE / 2} width={DAY_SIZE} />
-								</View>
-							))}
-						</View>
-					</CardSurface>
-
-					<View style={styles.groupsHead}>
-						<View style={styles.groupsCopy}>
-							<Bone height={10} radius={5} width={72} />
+				<View style={[styles.sheetContent, { paddingBottom: tabBarHeight + 22 }]}>
+					<SkeletonPulse style={styles.sheetBones}>
+						<View style={styles.sectionHead}>
+							<Bone height={11} radius={5.5} width={52} />
 							<Bone height={8} radius={4} tone='soft' width={96} />
 						</View>
-						<Bone height={24} radius={12} width={24} />
-					</View>
-
-					{Array.from({ length: ROW_COUNT }, (_, index) => (
-						<CardSurface key={index} style={styles.row}>
-							<View style={styles.rowBody}>
-								<View style={styles.rowTitle}>
-									<Bone height={11} radius={5} width={44} />
-									<Bone height={9} radius={4.5} style={styles.rowName} />
+						{Array.from({ length: ROW_COUNT }, (_, index) => (
+							<CardSurface key={index} style={styles.row}>
+								<View style={[styles.rowMark, { backgroundColor: accentTint }]} />
+								<View style={styles.rowCopy}>
+									<View style={styles.rowTitle}>
+										<View style={[styles.rowRangeBone, { backgroundColor: accentTint }]} />
+										<Bone height={10} radius={5} width={92} />
+									</View>
+									<View style={[styles.bar, { backgroundColor: theme.colors.track }]} />
 								</View>
-								<Bone height={6} radius={3} width='100%' />
-							</View>
-							<Bone height={32} radius={10} width={58} />
-						</CardSurface>
-					))}
-				</SkeletonPulse>
-
-				{/* The screen's own name rather than "Loading…": it says *what* is coming, and it
-				    is the word the tab bar already uses for it. */}
-				<View style={styles.status}>
-					<StatusRing />
-					<Typography color={theme.colors.faintText} style={styles.statusLabel}>
-						{t('home')}
-					</Typography>
+								<Bone height={32} radius={10} tone='soft' width={58} />
+							</CardSurface>
+						))}
+					</SkeletonPulse>
+					<SkeletonStatusRow label={t('loadingHome')} />
+					<HomeFooterLinks />
 				</View>
 			</View>
 		</View>
@@ -157,94 +111,90 @@ export const HomeSkeleton = () => {
 };
 
 const styles = StyleSheet.create({
-	avatar: {
-		borderRadius: AVATAR_SIZE / 2,
-		height: AVATAR_SIZE,
-		width: AVATAR_SIZE
+	badgeBone: {
+		borderRadius: 9,
+		height: 18,
+		width: 84
 	},
 	bar: {
-		borderRadius: 5
+		borderRadius: 2.5,
+		height: 5,
+		width: '100%'
 	},
-	content: {
-		gap: 11,
-		paddingHorizontal: 17,
-		paddingTop: 16
-	},
-	day: {
+	cardTopRow: {
 		alignItems: 'center',
-		flex: 1,
-		gap: 7
-	},
-	freeRead: {
-		alignItems: 'center',
-		borderRadius: 15,
-		borderWidth: StyleSheet.hairlineWidth,
 		flexDirection: 'row',
-		gap: 11,
-		paddingHorizontal: 14,
-		paddingVertical: 12
+		justifyContent: 'space-between'
 	},
-	freeReadBadge: {
+	eyebrowBone: {
+		borderRadius: 4,
+		height: 8,
+		width: 58
+	},
+	greeting: {
+		flex: 1,
+		gap: 8
+	},
+	greetingBone: {
+		borderRadius: 5,
+		height: 10,
+		width: 86
+	},
+	header: {
+		alignItems: 'center',
+		flexDirection: 'row',
+		gap: 12,
+		paddingBottom: 14,
+		paddingLeft: 22,
+		paddingRight: 22 + HOME_HEADER_AVATAR_ROOM
+	},
+	markBone: {
 		borderRadius: 9,
 		height: 30,
 		width: 30
 	},
-	freeReadCopy: {
-		flex: 1,
-		gap: 5
-	},
-	greeting: {
-		flex: 1,
-		gap: 6
-	},
-	groupsCopy: {
-		flex: 1,
-		gap: 5
-	},
-	groupsHead: {
-		alignItems: 'flex-end',
-		flexDirection: 'row',
-		gap: 10,
-		paddingHorizontal: 3,
-		paddingTop: 6
-	},
-	header: {
-		gap: 18,
-		paddingBottom: 20,
-		paddingHorizontal: 20
-	},
-	headerRow: {
-		alignItems: 'center',
-		flexDirection: 'row',
-		gap: 12
-	},
-	ring: {
-		borderRadius: RING_SIZE / 2,
-		borderWidth: RING_WIDTH,
-		height: RING_SIZE,
-		width: RING_SIZE
-	},
-	root: {
-		flex: 1
+	pill: {
+		borderRadius: 3,
+		height: 14,
+		width: 6
 	},
 	row: {
 		alignItems: 'center',
 		flexDirection: 'row',
-		gap: 13,
-		paddingHorizontal: 15,
-		paddingVertical: 13
+		gap: 12,
+		paddingHorizontal: 14,
+		paddingVertical: 12
 	},
-	rowBody: {
+	rowCopy: {
 		flex: 1,
-		gap: 9
+		gap: 9,
+		minWidth: 0
 	},
-	rowName: {
-		flex: 1
+	rowMark: {
+		borderRadius: 7,
+		height: 22,
+		width: 22
+	},
+	rowRangeBone: {
+		borderRadius: 6,
+		height: 12,
+		width: 34
 	},
 	rowTitle: {
 		alignItems: 'center',
 		flexDirection: 'row',
 		gap: 8
+	},
+	screen: {
+		flex: 1
+	},
+	sectionHead: {
+		alignItems: 'center',
+		flexDirection: 'row',
+		justifyContent: 'space-between',
+		paddingBottom: 3,
+		paddingHorizontal: 3,
+		paddingTop: 2
 	},
 	sheet: {
 		borderTopLeftRadius: SHEET_RADIUS,
@@ -252,37 +202,44 @@ const styles = StyleSheet.create({
 		flex: 1,
 		overflow: 'hidden'
 	},
-	status: {
-		alignItems: 'center',
-		flexDirection: 'row',
-		gap: 8,
-		justifyContent: 'center',
-		paddingBottom: 2,
-		paddingTop: 16
+	sheetBones: {
+		gap: 9
 	},
-	statusLabel: {
-		fontSize: 10.5,
-		lineHeight: 14
+	// A column the height of the sheet, so the links' `marginTop: 'auto'` reaches its foot.
+	sheetContent: {
+		flex: 1,
+		paddingHorizontal: 17,
+		paddingTop: 18
 	},
 	streak: {
-		paddingBottom: 4,
-		paddingHorizontal: 16,
-		paddingTop: 15
+		alignItems: 'flex-end',
+		gap: 5
 	},
-	streakCopy: {
+	streakBone: {
+		borderRadius: 4.5,
+		height: 9,
+		width: 38
+	},
+	subject: {
+		alignItems: 'center',
+		flexDirection: 'row',
+		gap: 12
+	},
+	subjectCopy: {
+		flex: 1,
 		gap: 8
 	},
-	streakHead: {
-		alignItems: 'flex-start',
-		flexDirection: 'row',
-		gap: 10,
-		justifyContent: 'space-between'
+	titleBone: {
+		borderRadius: 7,
+		height: 19,
+		width: 150
+	},
+	topCard: {
+		paddingBottom: 18,
+		paddingHorizontal: 17
 	},
 	week: {
-		borderTopWidth: StyleSheet.hairlineWidth,
 		flexDirection: 'row',
-		gap: 5,
-		marginTop: 14,
-		paddingVertical: 12
+		gap: 3
 	}
 });

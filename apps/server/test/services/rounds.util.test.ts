@@ -123,7 +123,7 @@ describe('time zones', () => {
 		// The week containing the spring-forward is 167 hours long. Measuring it in hours
 		// would end it an hour late, and drift further at every DST change after that.
 		const roundStart = new Date('2027-03-14T18:00:00Z'); // 2027-03-14 14:00 EDT
-		const ends = roundEndsAt(roundStart, 'WEEKLY', NEW_YORK);
+		const ends = roundEndsAt(roundStart, 7, NEW_YORK);
 
 		expect(ends).toEqual(new Date('2027-03-21T04:00:00Z')); // 2027-03-21 00:00 EDT
 		expect(ends.getTime() - startOfCivilDay(civilDayNumber(roundStart, NEW_YORK), NEW_YORK).getTime()).toBe(

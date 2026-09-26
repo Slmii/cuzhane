@@ -21,3 +21,4 @@ apps/server/src/generated
 design_handoff_cuzhane
 *.log
 .DS_Store
+apps/server/mushaf

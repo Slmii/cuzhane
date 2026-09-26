@@ -1,10 +1,10 @@
 import type { CevsenInvocation } from '@/lib/content/cevsen';
-import type { ReaderArabicFont, ReaderNumerals } from '@/lib/types/domain';
+import type { ReaderNumerals, ReaderTextFont } from '@/lib/types/domain';
 
 export interface ReaderBodyProps {
 	/** 1–100. Bab 1 carries the besmele, bab 100 the du'a that follows it. */
 	babNumber: number;
-	font: ReaderArabicFont;
+	font: ReaderTextFont;
 	/** The reader's chosen size in points, before the per-face scale is applied. */
 	fontSize: number;
 	numerals: ReaderNumerals;

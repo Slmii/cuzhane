@@ -1,6 +1,6 @@
 import prisma from '@db/prisma';
 import { normalizeUserId } from '@utils/normalizeUserId';
-import type { NotificationKind, Prisma } from '../generated/prisma/client';
+import type { GroupKind, NotificationKind, Prisma } from '../generated/prisma/client';
 
 /**
  * The inbox behind design P2.
@@ -85,6 +85,13 @@ export type NotificationRow = {
 	kind: NotificationKind;
 	groupId: string | null;
 	groupName: string;
+	/**
+	 * Cevşen or hatim — which decides whether the row speaks in babs or cüz (Q8). Read off the
+	 * group at list time rather than stored, so every row already filed gets it too. Null once
+	 * the group is gone, and the client reads that as Cevşen: the one case a hatim's old rows
+	 * would say "bab", accepted rather than denormalising a column for it.
+	 */
+	groupKind: GroupKind | null;
 	payload: Record<string, unknown>;
 	isRead: boolean;
 	createdAt: string;
@@ -95,12 +102,14 @@ const serializeNotification = (row: {
 	kind: NotificationKind;
 	groupId: string | null;
 	groupName: string;
+	group: { kind: GroupKind } | null;
 	payload: Prisma.JsonValue;
 	readAt: Date | null;
 	createdAt: Date;
 }): NotificationRow => ({
 	createdAt: row.createdAt.toISOString(),
 	groupId: row.groupId,
+	groupKind: row.group?.kind ?? null,
 	groupName: row.groupName,
 	id: row.id,
 	isRead: row.readAt !== null,
@@ -119,6 +128,7 @@ const INBOX_LIMIT = 100;
 
 export const listNotificationsForUser = async (userId: string): Promise<NotificationRow[]> => {
 	const rows = await prisma.notification.findMany({
+		include: { group: { select: { kind: true } } },
 		where: { userId: normalizeUserId(userId) },
 		orderBy: { createdAt: 'desc' },
 		take: INBOX_LIMIT

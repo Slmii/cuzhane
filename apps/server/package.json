@@ -20,12 +20,15 @@
 		"db:seed": "prisma db seed",
 		"test": "vitest run",
 		"lint": "eslint .",
-		"check-types": "tsc --noEmit --project tsconfig.json"
+		"check-types": "tsc --noEmit --project tsconfig.json",
+		"cuz:fetch": "tsx scripts/fetch-cuz-metadata.ts",
+		"quran:fetch": "tsx scripts/fetch-quran-text.ts"
 	},
 	"dependencies": {
 		"@clerk/express": "^1.7.69",
 		"@prisma/adapter-pg": "^7.8.0",
 		"@prisma/client": "^7.4.0",
+		"@quranjs/api": "^3.10.0",
 		"cors": "^2.8.5",
 		"dedent": "^1.7.1",
 		"dotenv": "^17.3.1",

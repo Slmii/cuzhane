@@ -41,13 +41,14 @@ const createGroup = async () => {
 				.slice(-7)}`,
 			spots: SPOTS,
 			cycle: 'DAILY',
+			roundDays: 1,
 			timezone: DEFAULT_TIME_ZONE,
 			splitMode: 'ROTATION',
 			status: 'RUNNING',
 			startedAt,
 			roundIndex: ROUND_INDEX,
 			roundStartedAt,
-			endsAt: roundEndsAt(roundStartedAt, 'DAILY', DEFAULT_TIME_ZONE),
+			endsAt: roundEndsAt(roundStartedAt, 1, DEFAULT_TIME_ZONE),
 			members: {
 				create: [
 					{ userId: OWNER, displayName: 'Owner', role: 'OWNER', slotIndex: 0 },

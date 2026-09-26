@@ -67,7 +67,8 @@ export const ProfileSkeleton = () => {
 				<View style={styles.heatGrid}>
 					{Array.from({ length: HEATMAP_DAYS }, (_, index) => (
 						<View key={index} style={styles.heatSlot}>
-							<Bone height={undefined} radius={3} style={styles.heatCell} />
+							{/* A plain view, not a `Bone`: its default height would override `aspectRatio`. */}
+							<View style={[styles.heatCell, { backgroundColor: theme.colors.secondary }]} />
 						</View>
 					))}
 				</View>
@@ -106,6 +107,7 @@ const styles = StyleSheet.create({
 	},
 	heatCell: {
 		aspectRatio: 1,
+		borderRadius: 3,
 		width: '100%'
 	},
 	heatGrid: {

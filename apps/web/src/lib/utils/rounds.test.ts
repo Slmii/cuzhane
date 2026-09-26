@@ -94,7 +94,19 @@ describe('roundRows', () => {
 		const [row] = roundRows(round, members, ME);
 
 		expect(row?.covered).toEqual({ byName: 'Hasan T.', isViewer: false, babNumbers: [1] });
-		expect(row?.settledKey).toBe('transferred');
+		// Not "sen üstlendin": Hasan did the covering, and the line under the row names him.
+		expect(row?.settledKey).toBe('noMisses');
+	});
+
+	it('says "you took these" on a partly covered block only when the viewer covered it', () => {
+		const round = {
+			babs: [
+				bab({ number: 1, owedByUserId: ALI, readByUserId: ME }),
+				bab({ number: 2, owedByUserId: ALI, readByUserId: ALI })
+			]
+		};
+
+		expect(roundRows(round, members, ME)[0]?.settledKey).toBe('transferred');
 	});
 
 	it('says the whole block was taken over when none of it was their own read', () => {
@@ -209,6 +221,29 @@ describe('roundRows', () => {
 		const pool = roundRows(round, members, ME).find(row => row.isPool);
 
 		expect(pool?.detailKind).toBe('settled');
+	});
+
+	it('names scattered cüz as they are, not as a span over the gap', () => {
+		const round = {
+			babs: [bab({ number: 7, owedByUserId: ALI }), bab({ number: 22, owedByUserId: ALI })]
+		};
+
+		expect(roundRows(round, members, ME)[0]?.rangeLabel).toBe('7, 22');
+	});
+
+	it('credits the viewer with a settled pool block only when they read all of it', () => {
+		const mine = { babs: [bab({ number: 91, isPool: true, readByUserId: ME })] };
+		const theirs = { babs: [bab({ number: 91, isPool: true, readByUserId: HASAN })] };
+		const shared = {
+			babs: [
+				bab({ number: 91, isPool: true, readByUserId: ME }),
+				bab({ number: 92, isPool: true, readByUserId: HASAN })
+			]
+		};
+
+		expect(roundRows(mine, members, ME).find(row => row.isPool)?.settledKey).toBe('transferred');
+		expect(roundRows(theirs, members, ME).find(row => row.isPool)?.settledKey).toBe('splitTaken');
+		expect(roundRows(shared, members, ME).find(row => row.isPool)?.settledKey).toBe('splitTaken');
 	});
 
 	it('reports no settled phrasing while work is still outstanding', () => {

@@ -15,7 +15,15 @@ const envSchema = z.object({
 
 	// Treat an unset key and a present-but-blank one the same way: `.env.example`
 	// ships this blank, and a bare `.optional()` would reject '' and block boot.
-	APP_STORE_URL: z.preprocess(value => (value === '' ? undefined : value), z.string().url().optional())
+	APP_STORE_URL: z.preprocess(value => (value === '' ? undefined : value), z.string().url().optional()),
+
+	/*
+	 * The Quran Foundation credentials — the verse meal is fetched live through them
+	 * (`quranTranslation.service.ts`). Optional so an environment without them still boots:
+	 * only the meal is unavailable, and it says so, rather than the whole API refusing to start.
+	 */
+	QURAN_CLIENT_ID: z.preprocess(value => (value === '' ? undefined : value), z.string().optional()),
+	QURAN_CLIENT_SECRET: z.preprocess(value => (value === '' ? undefined : value), z.string().optional())
 });
 
 const parsed = envSchema.safeParse(process.env);

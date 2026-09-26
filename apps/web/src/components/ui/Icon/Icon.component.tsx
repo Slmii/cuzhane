@@ -124,6 +124,18 @@ const GLYPHS: Record<IconName, Glyph> = {
 			'M20 5.4h-6.2A1.8 1.8 0 0 0 12 7.2v11.4a1.6 1.6 0 0 1 1.6-1.6H20z'
 		]
 	},
+	// `uygulamada-oku-read-in-app` — two leaves on a rahle, as the design's Q4 draws it.
+	readInApp: {
+		paths: [
+			'M4 5.5h6.5v13H4z',
+			'M13.5 5.5H20v13h-6.5z',
+			'M10.5 18.5c-1.6-1-4.9-1-6.5 0M13.5 18.5c1.6-1 4.9-1 6.5 0'
+		]
+	},
+	// `devret-hand-over` — a card with a plus, for passing a cüz on. Drawn, unused since Devret was removed.
+	handOver: {
+		paths: ['M9 18l-4 2V5a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v15l-4-2', 'M12 8v6', 'M9 11h6']
+	},
 
 	// An arrow curving back on itself — "Geri al" on a pool slot you just took. Traced from
 	// the handoff's own two paths rather than mirroring `back`, which is a bare chevron and

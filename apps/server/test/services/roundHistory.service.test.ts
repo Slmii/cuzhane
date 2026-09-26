@@ -38,6 +38,7 @@ const daysAgo = (days: number): Date => {
  */
 const createGroup = async ({
 	cycle = 'DAILY' as 'DAILY' | 'WEEKLY',
+	kind = 'CEVSEN' as 'CEVSEN' | 'HATIM',
 	startedDaysAgo = 3,
 	seats = [0, 1],
 	splitMode = 'ROTATION' as 'ROTATION' | 'FIXED'
@@ -54,7 +55,9 @@ const createGroup = async ({
 				.toUpperCase()
 				.slice(-7)}`,
 			spots: SPOTS,
+			kind,
 			cycle,
+			roundDays: ROUND_DAYS[cycle],
 			splitMode,
 			status: 'RUNNING',
 			startedAt,
@@ -80,7 +83,10 @@ const createGroup = async ({
 	});
 
 	await prisma.groupBab.createMany({
-		data: Array.from({ length: 100 }, (_, index) => ({ groupId: group.id, number: index + 1 }))
+		data: Array.from({ length: kind === 'HATIM' ? 30 : 100 }, (_, index) => ({
+			groupId: group.id,
+			number: index + 1
+		}))
 	});
 
 	return group;
@@ -183,6 +189,20 @@ describe('getRoundDetailForUser', () => {
 });
 
 describe('coverMissedBabsForUser', () => {
+	it('refuses a round that closed before the member joined', async () => {
+		const group = await createGroup({ startedDaysAgo: 3 });
+
+		// Seat 1 joined on day 2, so rounds 0 and 1 were over before they had a seat.
+		await prisma.groupMember.updateMany({
+			data: { joinedAt: daysAgo(1) },
+			where: { groupId: group.id, userId: SEAT_ONE }
+		});
+
+		await expect(coverMissedBabsForUser(SEAT_ONE, group.id, 0, [1])).rejects.toMatchObject({ statusCode: 403 });
+		await expect(coverMissedBabsForUser(SEAT_ONE, group.id, 1, [1])).rejects.toMatchObject({ statusCode: 403 });
+		await expect(coverMissedBabsForUser(SEAT_ONE, group.id, 2, [1])).resolves.toBeDefined();
+	});
+
 	it('records the cover against the round that missed it, crediting the coverer', async () => {
 		const group = await createGroup({ startedDaysAgo: 3 });
 
@@ -297,6 +317,84 @@ const recordOnTime = (
 			userId
 		}))
 	});
+
+describe('a hatim counts to thirty, not a hundred', () => {
+	/*
+	 * **The seam, from the outside.** Every "how many units are there" answer used to be the
+	 * literal 100 or `BAB_COUNT` wearing its name, which is the same number. Against a
+	 * thirty-cüz group that is silently wrong rather than loudly: a round would never read as
+	 * complete, and a board would report seventy babs nobody had been given.
+	 */
+	it('builds a round of thirty and calls it complete at thirty', async () => {
+		const group = await createGroup({ kind: 'HATIM', startedDaysAgo: 2 });
+		const everyCuz = Array.from({ length: 30 }, (_, index) => index + 1);
+
+		await recordOnTime(group.id, 0, everyCuz, 2);
+
+		const round = await getRoundDetailForUser(OWNER, group.id, 0);
+
+		expect(round.babs).toHaveLength(30);
+		expect(round.readCount).toBe(30);
+		expect(round.missedCount).toBe(0);
+	});
+
+	it('reports the missing thirty rather than a missing hundred', async () => {
+		const group = await createGroup({ kind: 'HATIM', startedDaysAgo: 2 });
+
+		const rounds = await listRoundsForUser(OWNER, group.id);
+		const closed = rounds.find(round => !round.isOpen);
+
+		// Read by nobody, so every unit is outstanding — thirty of them, not ninety-five.
+		expect(closed?.missedCount).toBe(30);
+	});
+
+	it('refuses to cover a cüz past the thirtieth', async () => {
+		const group = await createGroup({ kind: 'HATIM', startedDaysAgo: 2 });
+
+		await expect(coverMissedBabsForUser(OWNER, group.id, 0, [31])).rejects.toThrow();
+	});
+});
+
+describe('a hatim owes what was held, not what a seat derives', () => {
+	/*
+	 * A hatim member holds specific cüz, round by round, in `CuzHolding`. The seat maths the
+	 * Cevşen uses would hand them a block of the thirty that has nothing to do with them: at
+	 * ten seats, cüz 1–10 all fall to seat 0. The cases below are chosen where the two answers
+	 * differ — cüz 3 held by seat 1, cüz 20 held by nobody.
+	 */
+	const hold = (groupId: string, roundIndex: number, cuzNumber: number, userId: string) =>
+		prisma.cuzHolding.create({ data: { cuzNumber, groupId, roundIndex, userId } });
+
+	it('names the holder of each cüz in a closed round, and nobody for an unheld one', async () => {
+		const group = await createGroup({ kind: 'HATIM', startedDaysAgo: 2 });
+
+		await hold(group.id, 0, 3, SEAT_ONE);
+		await hold(group.id, 0, 7, OWNER);
+
+		const round = await getRoundDetailForUser(OWNER, group.id, 0);
+		const cuz = (number: number) => round.babs.find(bab => bab.number === number);
+
+		expect(cuz(3)).toMatchObject({ owedByUserId: SEAT_ONE, owedBySlotIndex: 1, isPool: false });
+		expect(cuz(7)).toMatchObject({ owedByUserId: OWNER, owedBySlotIndex: 0, isPool: false });
+		expect(cuz(20)).toMatchObject({ owedByUserId: null, owedBySlotIndex: null, isPool: true });
+		// Two holders, both missed everything they held.
+		expect(round.missedPeopleCount).toBe(2);
+	});
+
+	it("counts a member's owed cüz from their holdings", async () => {
+		const group = await createGroup({ kind: 'HATIM', startedDaysAgo: 2 });
+
+		await hold(group.id, 0, 7, OWNER);
+		await hold(group.id, 0, 12, OWNER);
+		await hold(group.id, 1, 30, OWNER);
+
+		const rounds = await listRoundsForUser(OWNER, group.id);
+
+		expect(rounds.find(round => round.roundIndex === 0)?.myOwedCount).toBe(2);
+		expect(rounds.find(round => round.roundIndex === 1)?.myOwedCount).toBe(1);
+		expect(rounds.find(round => round.roundIndex === 2)?.myOwedCount).toBe(0);
+	});
+});
 
 describe('covering a closed round is silent', () => {
 	/*

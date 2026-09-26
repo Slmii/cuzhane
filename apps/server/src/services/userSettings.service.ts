@@ -4,21 +4,11 @@ import { normalizeUserId } from '@utils/normalizeUserId';
 import type { UserSettings } from '../generated/prisma/client';
 
 /**
- * `madinah` is retired but still a value in the database enum, so a row written before it went
- * can still carry it — exactly the situation `toSplitMode` handles for `FREE`.
- *
- * It went because of one mark: that face drew the subscript alef, the edition's own long î and
- * 549 of them across seventy babs, more than twice as wide as it is tall. `uthman` is the face
- * that replaced it and the reader's default, so it is the honest reading of such a row.
+ * The row as the client's `UserSettings` expects it — as stored. It used to map a retired reader
+ * face (`madinah`) to the default on the way out; that face is gone from the enum itself now,
+ * so every stored value is one the client knows.
  */
-export const toReaderArabicFont = (font: UserSettings['readerArabicFont']) =>
-	font === 'naskh' || font === 'amiri' ? font : 'uthman';
-
-/** The row as the client's `UserSettings` expects it — see `toReaderArabicFont`. */
-const serializeSettings = (settings: UserSettings) => ({
-	...settings,
-	readerArabicFont: toReaderArabicFont(settings.readerArabicFont)
-});
+const serializeSettings = (settings: UserSettings) => settings;
 
 export const getUserSettingsForUser = async (userId: string) => {
 	const normalizedUserId = normalizeUserId(userId);
@@ -38,9 +28,18 @@ export const updateUserSettingsForUser = async (userId: string, input: UpdateUse
 	const updateData = {
 		...(input.language !== undefined ? { language: input.language } : {}),
 		...(input.reminderEnabled !== undefined ? { reminderEnabled: input.reminderEnabled } : {}),
-		...(input.groupReadsEnabled !== undefined ? { groupReadsEnabled: input.groupReadsEnabled } : {}),
-		...(input.roundCompleteEnabled !== undefined ? { roundCompleteEnabled: input.roundCompleteEnabled } : {}),
-		...(input.poolClaimEnabled !== undefined ? { poolClaimEnabled: input.poolClaimEnabled } : {}),
+		...(input.cevsenGroupReadsEnabled !== undefined
+			? { cevsenGroupReadsEnabled: input.cevsenGroupReadsEnabled }
+			: {}),
+		...(input.cevsenRoundCompleteEnabled !== undefined
+			? { cevsenRoundCompleteEnabled: input.cevsenRoundCompleteEnabled }
+			: {}),
+		...(input.cevsenPoolClaimEnabled !== undefined ? { cevsenPoolClaimEnabled: input.cevsenPoolClaimEnabled } : {}),
+		...(input.hatimGroupReadsEnabled !== undefined ? { hatimGroupReadsEnabled: input.hatimGroupReadsEnabled } : {}),
+		...(input.hatimRoundCompleteEnabled !== undefined
+			? { hatimRoundCompleteEnabled: input.hatimRoundCompleteEnabled }
+			: {}),
+		...(input.hatimPoolClaimEnabled !== undefined ? { hatimPoolClaimEnabled: input.hatimPoolClaimEnabled } : {}),
 		...(input.memberJoinedEnabled !== undefined ? { memberJoinedEnabled: input.memberJoinedEnabled } : {}),
 		...(input.memberLeftEnabled !== undefined ? { memberLeftEnabled: input.memberLeftEnabled } : {}),
 		...(input.reminderTime !== undefined ? { reminderTime: input.reminderTime } : {}),

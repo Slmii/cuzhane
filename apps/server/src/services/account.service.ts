@@ -16,29 +16,41 @@ export const deleteAccountForUser = async (userId: string): Promise<{ success: t
 		const remainingGroupIds = remainingMemberships.map(membership => membership.groupId);
 
 		if (remainingGroupIds.length > 0) {
+			/*
+			 * **The claim is released; the reads stand** — the same rule `removeMember` follows,
+			 * because deleting an account is leaving every group at once.
+			 *
+			 * This used to clear reads twice over, and the first was the worse of the two: it
+			 * wiped `readByUserId` on every bab *assigned* to this user, which under ROTATION
+			 * is read by whoever holds that block on the day — so deleting one account could
+			 * erase somebody else's work. The second cleared their own reads, which were facts
+			 * about the group rather than possessions of theirs.
+			 *
+			 * `BabRead` was never deleted here and still isn't, so the history has always
+			 * outlived the account. All this changes is that the board now agrees with it.
+			 */
 			await tx.groupBab.updateMany({
 				where: { groupId: { in: remainingGroupIds }, assignedUserId: normalizedUserId },
-				data: { assignedUserId: null, readByUserId: null, readAt: null }
-			});
-			await tx.groupBab.updateMany({
-				where: { groupId: { in: remainingGroupIds }, readByUserId: normalizedUserId },
-				data: { readByUserId: null, readAt: null }
+				data: { assignedUserId: null }
 			});
 
-			// Freeing their reads can drop a finished group back below 100, so any group
-			// that is no longer complete has to lose its stamp — otherwise it stays
-			// flagged "completed" while showing unread babs on the board.
-			await tx.group.updateMany({
-				where: {
-					id: { in: remainingGroupIds },
-					completedAt: { not: null },
-					babs: { some: { readAt: null } }
-				},
-				data: { completedAt: null }
+			// A hatim's holdings go with the claim: nobody is going to read them now, so they
+			// return to the pool for whoever is left.
+			await tx.cuzHolding.deleteMany({
+				where: { groupId: { in: remainingGroupIds }, userId: normalizedUserId }
 			});
+
+			/*
+			 * **No `completedAt` reconciliation any more, because nothing above can un-read a
+			 * bab.** Releasing a claim cannot lower a group's read count, so a group that was
+			 * complete when this began is complete when it ends. The sweep that used to clear
+			 * the stamp existed only to repair the damage the two wipes above were doing.
+			 */
 		}
 
 		await tx.groupMember.deleteMany({ where: { userId: normalizedUserId } });
+		// "Bu turu atla" choices — a record about the member, so it leaves with them.
+		await tx.cuzRoundSkip.deleteMany({ where: { userId: normalizedUserId } });
 
 		await tx.cheer.deleteMany({
 			where: { OR: [{ fromUserId: normalizedUserId }, { toUserId: normalizedUserId }] }
@@ -52,9 +64,10 @@ export const deleteAccountForUser = async (userId: string): Promise<{ success: t
 		 * carries a group name and often another member's display name, and the delete-account
 		 * copy promises the lot is gone.
 		 *
-		 * `ShareReadNotice` is left alone deliberately: it is a claim that an announcement was
-		 * already made for a (group, user, round), it names nobody, and deleting it would let the
-		 * same round announce itself a second time for whoever is still in that group.
+		 * `ShareReadNotice` and `GroupEventNotice` are left alone deliberately: each is a claim
+		 * that an announcement was already made for a (group, user, round), it names nobody, and
+		 * deleting it would let the same round announce itself a second time for whoever is still
+		 * in that group.
 		 */
 		await tx.notification.deleteMany({ where: { userId: normalizedUserId } });
 		await tx.userSettings.deleteMany({ where: { userId: normalizedUserId } });

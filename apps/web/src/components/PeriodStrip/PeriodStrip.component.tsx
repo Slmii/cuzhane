@@ -4,6 +4,7 @@ import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { MyProgressPeriod } from '@/lib/types/domain';
 import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
+import type { GroupCycle } from '@/lib/types/domain';
 import type { PeriodStripProps } from './PeriodStrip.types';
 
 /**
@@ -15,7 +16,15 @@ import type { PeriodStripProps } from './PeriodStrip.types';
  * rendered as empty space, which is a different claim from a missed one — the group did not
  * exist yet, and the strip must not say it fell behind.
  */
-const COLUMNS = { DAILY: 7, WEEKLY: 8 } as const;
+const COLUMNS: Record<GroupCycle, number> = {
+	DAILY: 7,
+	WEEKLY: 8,
+	// A month of rounds is a year of strip, so a monthly group shows eight of them like a
+	// weekly one. A one-off has a single round and the strip is one filled column beside
+	// seven empties — correct, and the only honest drawing of "this happens once".
+	MONTHLY: 8,
+	CUSTOM: 8
+};
 
 /**
  * The four states of a cell, from the design's legend: everything read, some of it, none of

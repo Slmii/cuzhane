@@ -4,7 +4,7 @@ import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { Pressable, StyleSheet, View } from 'react-native';
 import type { ChipProps, ChipTone } from './Chip.types';
 
-export const Chip = ({ icon, isSelected = false, label, onPress, style, tone = 'neutral' }: ChipProps) => {
+export const Chip = ({ icon, isSelected = false, label, leading, onPress, style, tone = 'neutral' }: ChipProps) => {
 	const { theme } = useThemeContext();
 
 	const toneMap: Record<ChipTone, { backgroundColor: string; borderColor: string; textColor: string }> = {
@@ -62,6 +62,9 @@ export const Chip = ({ icon, isSelected = false, label, onPress, style, tone = '
 			{/* 12, not the icon's 21 default: it sits on a 10pt line and has to read as part of
 			    the word rather than as a badge stuck on the front of it. */}
 			{icon ? <Icon color={resolvedTone.textColor} name={icon} size={12} strokeWidth={1.7} /> : null}
+			{/* A drawing rather than an icon-set glyph — the reading-type marks, which are not
+			    `Icon` names and carry their own colours. */}
+			{leading}
 			<Typography color={resolvedTone.textColor} style={styles.label} variant='stat' weight='semibold'>
 				{label}
 			</Typography>

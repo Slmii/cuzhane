@@ -5,6 +5,7 @@ import { Typography } from '@/components/ui/Typography/Typography.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { AppTheme } from '@/lib/theme/tokens';
+import { mineTone, takenTone, unclaimedTone } from '@/lib/utils/cellTones';
 import { FILL_STEP_MS, staggerWithinRuns, type PoolCellState } from '@/lib/utils/groups';
 import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -27,11 +28,7 @@ const paletteFor = (state: PoolCellState, theme: AppTheme) => {
 			// from a read bab; with the block's own read state now shown by the two cases
 			// below, the fill alone is unambiguous and the ring was only making your cells
 			// louder than everyone's.
-			return {
-				backgroundColor: theme.colors.accent,
-				borderColor: theme.colors.accent,
-				labelColor: theme.colors.onAccent
-			};
+			return mineTone(theme);
 		case 'takenByOthersRead':
 			// The group board's "others read" tokens exactly — the same fact, so the same
 			// colour. `poolTaken` happens to be this hex too, which is how claimed-but-unread
@@ -42,21 +39,10 @@ const paletteFor = (state: PoolCellState, theme: AppTheme) => {
 				labelColor: theme.colors.babOthersText
 			};
 		case 'takenByOthers':
-			// And the group board's "theirs, unread": a quiet panel, because a claim nobody has
-			// acted on yet is the least eventful thing on this board.
-			return {
-				backgroundColor: theme.colors.surfaceMuted,
-				borderColor: theme.colors.border,
-				labelColor: theme.colors.faintText
-			};
+			// And the group board's "theirs, unread".
+			return takenTone(theme);
 		default:
-			return {
-				backgroundColor: theme.colors.poolFree,
-				borderColor: theme.colors.poolFree,
-				// `sandText`, not `faintText`: the unclaimed fill is a tan now, and a pale grey
-				// numeral on it was barely legible.
-				labelColor: theme.colors.sandText
-			};
+			return unclaimedTone(theme);
 	}
 };
 
@@ -98,10 +84,13 @@ export const PoolGrid = ({ cells, drainingSlotIndexes, style }: PoolGridProps) =
 	// three times a second while a claim sweeps.
 	const legend = useMemo(
 		() => [
+			// The shared vocabulary, not a set of its own — these are the same four states the
+			// group board and the cüz maps draw, and the pool was naming them after the *act*
+			// of claiming ("Sen üstlendin") rather than the state.
 			{ isHatched: true, label: t('legendPool'), state: 'open' as const },
-			{ isHatched: false, label: t('poolTakenOther'), state: 'takenByOthers' as const },
-			{ isHatched: false, label: t('poolTakenOtherRead'), state: 'takenByOthersRead' as const },
-			{ isHatched: false, label: t('poolMine'), state: 'takenByMe' as const }
+			{ isHatched: false, label: t('legendOpen'), state: 'takenByOthers' as const },
+			{ isHatched: false, label: t('legendOthers'), state: 'takenByOthersRead' as const },
+			{ isHatched: false, label: t('legendMine'), state: 'takenByMe' as const }
 		],
 		[t]
 	);

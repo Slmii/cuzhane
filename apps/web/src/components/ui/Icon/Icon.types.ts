@@ -34,6 +34,9 @@ export type IconName =
 	| 'key'
 	| 'undo'
 	| 'book'
+	/** Q4's "Uygulamada oku" and the frame's "Devret" — the set's open book and its hand-over card. */
+	| 'readInApp'
+	| 'handOver'
 	| 'copy'
 	| 'mail'
 	| 'invite'

@@ -1,5 +1,8 @@
 import { NavigatorScreenParams } from '@react-navigation/native';
 
+/** Why a hatim's round-start screen (QR1) is being shown — see `RoundStart`. */
+export type RoundStartReason = 'pick' | 'carried';
+
 export type AuthStackParamList = {
 	SignIn: undefined;
 	SignUp: undefined;
@@ -24,6 +27,30 @@ export type TabDetailParamList = {
 	 * screen, because browsing genuinely is navigation.
 	 */
 	InvitePreview: { groupId: string };
+	/**
+	 * QJ3 — which cüz you are joining a hatim with. Pushed from the preview's CTA.
+	 * `isRoundPick` reuses the same map for a member choosing again at a new round (QR1's
+	 * "Farklı cüz seç"): it takes cüz for the round rather than joining.
+	 */
+	PickCuz: { groupId: string; isRoundPick?: boolean; inviteCode?: string };
+	/**
+	 * Q7 — the hatim of `roundIndex` is complete. `then` is set when a completed round is only
+	 * seen after its boundary: the celebration comes first, then the new round's screen.
+	 */
+	HatimComplete: { groupId: string; roundIndex: number; then?: RoundStartReason };
+	/**
+	 * QR1 — a new round's opening screen. `pick`: the member holds no cüz and must choose or
+	 * skip before the group opens. `carried`: "Cüzler korunur" brought their cüz over — shown
+	 * once, for their information.
+	 */
+	RoundStart: { groupId: string; reason: RoundStartReason };
+	/** Q4 — one cüz of a hatim: its state, its span, what is in it. */
+	CuzDetail: { groupId: string; cuzNumber: number };
+	/**
+	 * Q5 — reading a cüz page by page. `page` is 1-based within the cüz and only seeds where it
+	 * opens; the screen owns it from there. `shouldOpenTextSize` as on `BabReader`.
+	 */
+	CuzReader: { groupId: string; cuzNumber: number; page?: number; shouldOpenTextSize?: boolean };
 	JoinedWelcome: { groupId: string };
 	/**
 	 * `sheet` asks the screen to open one of its sheets on arrival. It exists so the bar's
@@ -46,6 +73,8 @@ export type TabDetailParamList = {
 	BabReader: { groupId: string; babNumber: number; roundIndex?: number; shouldOpenTextSize?: boolean };
 	Rounds: { groupId: string };
 	MyProgress: { groupId: string };
+	/** The Hatim duası in Hüsrev hattı — the same four pages whichever group opened it. */
+	HatimDua: undefined;
 	RoundDetail: { groupId: string; roundIndex: number };
 	/** Where a GATHERING group lives — the creator's start screen, or the member's wait. */
 	Lobby: { groupId: string };
@@ -63,6 +92,11 @@ export type TabDetailParamList = {
 	 * place you are sent to. It only seeds the cursor; the screen owns it from there.
 	 */
 	AllBabs: { shouldOpenTextSize?: boolean; babNumber?: number } | undefined;
+	/**
+	 * The free Mushaf — the Kur'an read outside any group, as `AllBabs` is the Cevşen. The same
+	 * "no params" rule: the cüz and page are screen state, and `cuzNumber` only seeds the cursor.
+	 */
+	Mushaf: { shouldOpenTextSize?: boolean; cuzNumber?: number } | undefined;
 	/**
 	 * The account screen lost its tab to search (K2) and is pushed from the avatar at the right
 	 * end of every tab root's bar — inside that tab, so back returns to where it was opened.

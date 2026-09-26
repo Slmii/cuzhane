@@ -1,4 +1,5 @@
 import prisma from '@db/prisma';
+import { unitCountFor } from '@utils/units';
 import { normalizeUserId } from '@utils/normalizeUserId';
 import { civilDayNumber, DEFAULT_TIME_ZONE } from '@utils/rounds';
 
@@ -56,9 +57,16 @@ export const getProfileStatsForUser = async (
 
 	const babsRead = userReads.length;
 
-	// A round is "completed" once all 100 babs of a (groupId, roundIndex) have been read by
-	// anyone. We only check rounds this user actually contributed a read to, then ask how many
-	// BabRead rows exist in total for each of those rounds.
+	/*
+	 * A round is "completed" once every unit of a (groupId, roundIndex) has been read by
+	 * anyone. We only check rounds this user actually contributed a read to, then ask how many
+	 * `BabRead` rows exist in total for each of those rounds.
+	 *
+	 * **How many "every" is depends on the group**, which is why the kinds are fetched below:
+	 * a hundred babs or thirty cüz. This was a literal `=== 100`, and against a hatim it would
+	 * never have matched — the number would simply have stopped rising, with nothing to say
+	 * why.
+	 */
 	const roundKeys = new Map<string, { groupId: string; roundIndex: number }>();
 	for (const read of userReads) {
 		roundKeys.set(`${read.groupId}:${read.roundIndex}`, { groupId: read.groupId, roundIndex: read.roundIndex });
@@ -73,7 +81,18 @@ export const getProfileStatsForUser = async (
 			  })
 			: [];
 
-	const roundsCompleted = roundCounts.filter(round => round._count._all === 100).length;
+	const kindByGroupId = new Map(
+		(
+			await prisma.group.findMany({
+				where: { id: { in: [...new Set(roundCounts.map(round => round.groupId))] } },
+				select: { id: true, kind: true }
+			})
+		).map(group => [group.id, group.kind])
+	);
+
+	const roundsCompleted = roundCounts.filter(
+		round => round._count._all === unitCountFor({ kind: kindByGroupId.get(round.groupId) ?? 'CEVSEN' })
+	).length;
 
 	const joinDates = memberships.map(membership => membership.joinedAt.getTime());
 	const memberSince =

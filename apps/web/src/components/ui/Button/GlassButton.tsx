@@ -82,6 +82,10 @@ const GLYPH_BY_ICON: Partial<Record<IconName, GlyphSource>> = {
 	// heavier than the tick.
 	delete: { assetName: 'sil-delete' },
 	leave: { assetName: 'ayril-leave' },
+	// Q4's "Uygulamada oku" — converted so the button takes the same capsule as Okudum.
+	readInApp: { assetName: 'uygulamada-oku-read-in-app' },
+	// Beside it on Q4 — the frame's hand-over card, converted the same way.
+	handOver: { assetName: 'devret-hand-over' },
 	search: { assetName: 'ara-search' },
 	/*
 	 * **Converted because its own other half already was.** The pool's one button says
@@ -91,7 +95,10 @@ const GLYPH_BY_ICON: Partial<Record<IconName, GlyphSource>> = {
 	 * the whole button back to the drawn path, silently.
 	 */
 	claim: { assetName: 'ustlen-claim' },
-	undo: { assetName: 'geri-al-undo' }
+	undo: { assetName: 'geri-al-undo' },
+	// The cüz reader's "Kaldığım yeri işaretle" — the set's own bookmark, converted, so the button
+	// is one glyph on both platforms instead of Apple's `bookmark` on iOS and nothing elsewhere.
+	bookmark: { assetName: 'kaldigin-yer-bookmark' }
 };
 
 /** Whether this glyph can cross to a native button. `AppButton` asks before switching paths. */
@@ -309,6 +316,7 @@ export const GlassButton = ({
 		accent: { style: 'glassProminent', tintColor: theme.colors.accent },
 		dangerFilled: { style: 'glassProminent', tintColor: theme.colors.danger },
 		accentOutline: { style: 'glass', tintColor: theme.colors.accent },
+		outline: { style: 'glass', tintColor: undefined },
 		danger: { style: 'glass', tintColor: theme.colors.danger },
 		surface: { style: 'glass', tintColor: undefined },
 		ghost: { style: 'glass', tintColor: undefined }

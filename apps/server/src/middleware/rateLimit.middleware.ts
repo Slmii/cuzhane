@@ -36,6 +36,36 @@ export const createGroupRateLimit = rateLimit({
 	handler: tooManyRequestsHandler
 });
 
+/** Taking and releasing pool slots and cüz — generous for real use, a wall against a loop. */
+export const poolRateLimit = rateLimit({
+	windowMs: 60 * 1000,
+	limit: 30,
+	standardHeaders: 'draft-7',
+	legacyHeaders: false,
+	keyGenerator: userKey,
+	handler: tooManyRequestsHandler
+});
+
+/** Things that call a third party or write a row per request: the verse meal and push-token registration. */
+export const externalCallRateLimit = rateLimit({
+	windowMs: 60 * 1000,
+	limit: 30,
+	standardHeaders: 'draft-7',
+	legacyHeaders: false,
+	keyGenerator: userKey,
+	handler: tooManyRequestsHandler
+});
+
+/** Feedback: a message is written by hand, so ten an hour is more than anyone sends. */
+export const feedbackRateLimit = rateLimit({
+	windowMs: 60 * 60 * 1000,
+	limit: 10,
+	standardHeaders: 'draft-7',
+	legacyHeaders: false,
+	keyGenerator: userKey,
+	handler: tooManyRequestsHandler
+});
+
 export const cheerRateLimit = rateLimit({
 	windowMs: 60 * 1000, // 1 minute
 	limit: 30, // 30 requests per minute
