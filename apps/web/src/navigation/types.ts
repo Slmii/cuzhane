@@ -85,9 +85,11 @@ export type TabDetailParamList = {
 	HizbSections: undefined;
 	/**
 	 * The Hizb-ül Hakaik. `sectionIndex` is free reading, one section of `HIZB_SECTIONS` from
-	 * the list on Profil. `groupId` + `partNumber` is a Hizb group's portion, opened from its
-	 * group screen; `roundIndex`, as on `BabReader`, would put it in cover mode for a closed
-	 * round. `shouldOpenTextSize` as on `BabReader`, in either shape.
+	 * the list on Profil. `groupId` + `partNumber` is a Hizb group's portion, read and marked
+	 * there (`HizbPortionReader`). `roundIndex` below the group's puts it in cover mode for that
+	 * closed round; the open round **omits it**, and the reader treats the open round's own index
+	 * exactly as no index, so a caller holding one may pass it. `shouldOpenTextSize` as on
+	 * `BabReader`, in either shape.
 	 */
 	HizbReader:
 		| { sectionIndex: number; shouldOpenTextSize?: boolean }

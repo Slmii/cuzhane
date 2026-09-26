@@ -51,3 +51,12 @@ export const firstBlockOfSection = (sectionIndex: number): number =>
 		0,
 		HIZB_BLOCKS.findIndex(ref => ref.sectionIndex === sectionIndex)
 	);
+
+const CEVSEN_TITLE = 'Cevşen-ül Kebir';
+
+/**
+ * Whether a section is the Cevşen-ül Kebir, whose blocks are babs closing on the sübhâneke
+ * refrain — the one thing `HizbBody` needs to know about where a block came from. Both readers
+ * ask, the free one of a section and the group's of a portion's blocks.
+ */
+export const isCevsenSection = (sectionIndex: number): boolean => HIZB_SECTIONS[sectionIndex]?.title === CEVSEN_TITLE;

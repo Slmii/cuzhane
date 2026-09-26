@@ -1,8 +1,13 @@
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CaptionText, EyebrowText, Typography } from '@/components/ui/Typography/Typography.component';
 import { READER_FONT_SIZE_DEFAULT } from '@/lib/content/cevsen';
-import { portion } from '@/lib/content/hizbPortions';
-import { firstBlockOfSection, HIZB_BLOCKS, HIZB_SECTIONS, pageRangeOf } from '@/lib/content/hizbulhakaik';
+import {
+	firstBlockOfSection,
+	HIZB_BLOCKS,
+	HIZB_SECTIONS,
+	isCevsenSection,
+	pageRangeOf
+} from '@/lib/content/hizbulhakaik';
 import { useGetUserSettings, useUpdateUserSettings } from '@/lib/hooks/useUserSettings';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
@@ -11,7 +16,7 @@ import type { TabStackParamList } from '@/navigation/types';
 import { ReaderBabMap } from '@/screens/Reader/ReaderBabMap.component';
 import { TextSizeSheet } from '@/screens/Reader/TextSizeSheet.component';
 import { textSizeSheet } from '@/screens/Reader/textSizeSheet';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useKeepAwake } from 'expo-keep-awake';
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
@@ -19,34 +24,33 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS, useSharedValue } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { HizbBody } from './HizbBody.component';
+import { HizbPortionReader } from './HizbPortionReader.component';
 
 type Props = NativeStackScreenProps<TabStackParamList, 'HizbReader'>;
+
+type FreeReaderProps = {
+	navigation: NativeStackNavigationProp<TabStackParamList, 'HizbReader'>;
+	params: Extract<TabStackParamList['HizbReader'], { sectionIndex: number }>;
+};
 
 /** One identity, so the strip's `memo` holds — see `AllBabsScreen`. */
 const NOTHING: number[] = [];
 
-const CEVSEN_TITLE = 'Cevşen-ül Kebir';
-
 /**
- * Where the cursor starts: a section from the list at its first block, a group's portion at
- * the block it begins in.
+ * The Hizb-ül Hakaik's reader, in whichever of its two shapes the route names: a section read
+ * freely from the list on Profil, or a Hizb group's portion — `HizbPortionReader`, which marks it.
  *
- * **A portion opens here as free reading, for now, and only approximately.** The cursor walks
- * whole blocks, so a portion opens at the first block it touches — and a portion that begins
- * partway through a block (10–13 inside the Evrâd, 31–33 inside Tazarru ve Niyaz) opens on
- * the previous portion's text, with its own further down the page. Nothing here is counted,
- * which is what this screen's footer already says. Task 5.1 replaces this with the group's own
- * reader: the portion's text alone, and marking it read.
+ * Two components rather than one with a mode, because they share the page and nothing else:
+ * the group's reader runs the group's queries, its gates and its counter, and none of that may
+ * reach a free read, which counts nothing. A route's params never change shape under it, so the
+ * choice is made once and each keeps its own hooks.
  */
-const initialCursor = (params: TabStackParamList['HizbReader']) => {
-	if ('sectionIndex' in params) {
-		return firstBlockOfSection(params.sectionIndex);
-	}
-
-	const { start } = portion(params.partNumber);
-
-	return firstBlockOfSection(start.section) + (start.block ?? 0);
-};
+export const HizbReaderScreen = ({ navigation, route }: Props) =>
+	'sectionIndex' in route.params ? (
+		<HizbFreeReader navigation={navigation} params={route.params} />
+	) : (
+		<HizbPortionReader navigation={navigation} params={route.params} />
+	);
 
 /**
  * The Hizb-ül Hakaik, read the way `AllBabsScreen` reads the Cevşen: one block to a page, a
@@ -60,16 +64,16 @@ const initialCursor = (params: TabStackParamList['HizbReader']) => {
  * Everything else is the Cevşen reader's: the same faces from the same settings, the same
  * text-size sheet from the same bar control, the same footer note in the same place.
  */
-export const HizbReaderScreen = ({ navigation, route }: Props) => {
+const HizbFreeReader = ({ navigation, params }: FreeReaderProps) => {
 	useKeepAwake();
 	const { t } = useTranslation();
 	const { theme } = useThemeContext();
 	const tabBarOffset = useContext(TabBarOffsetContext);
 	const settingsQuery = useGetUserSettings();
 	const updateSettings = useUpdateUserSettings();
-	const textSize = textSizeSheet(navigation, route.params);
+	const textSize = textSizeSheet(navigation, params);
 
-	const [cursor, setCursor] = useState(() => initialCursor(route.params));
+	const [cursor, setCursor] = useState(() => firstBlockOfSection(params.sectionIndex));
 	const current = HIZB_BLOCKS[cursor] ?? HIZB_BLOCKS[0];
 	const section = HIZB_SECTIONS[current.sectionIndex];
 	const sectionStart = firstBlockOfSection(current.sectionIndex);
@@ -218,7 +222,7 @@ export const HizbReaderScreen = ({ navigation, route }: Props) => {
 					block={current.block}
 					font={readerSettings.readerArabicFont}
 					fontSize={readerSettings.readerFontSize}
-					isCevsenBab={section.title === CEVSEN_TITLE}
+					isCevsenBab={isCevsenSection(current.sectionIndex)}
 					numerals={readerSettings.readerNumerals}
 				/>
 			</ScrollView>
