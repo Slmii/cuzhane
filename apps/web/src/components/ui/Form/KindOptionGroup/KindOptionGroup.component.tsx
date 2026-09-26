@@ -41,7 +41,6 @@ type KindCardProps = {
 const KindCard = ({ hint, isSelected, kind, onPress, title }: KindCardProps) => {
 	const { theme } = useThemeContext();
 	const { t } = useTranslation();
-	// The star's ring and dot are cut out of it, so the mark is told what it sits on.
 	const ground = isSelected ? theme.colors.accentSoft : theme.colors.surface;
 
 	return (
@@ -64,7 +63,7 @@ const KindCard = ({ hint, isSelected, kind, onPress, title }: KindCardProps) => 
 			]}
 		>
 			<View style={styles.body}>
-				<KindMark backgroundColor={ground} kind={kind} size={MARK_SIZE} />
+				<KindMark kind={kind} size={MARK_SIZE} />
 				<TitleText style={styles.title}>{title}</TitleText>
 				<CaptionText color={theme.colors.subtext} style={styles.hint}>
 					{hint}

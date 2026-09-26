@@ -267,9 +267,8 @@ type MissedNoteKey =
  * The clay line under a closed Hizb round on Turlar: "16, 24 ve 31 okunmadı", or "5 bölüm okunmadı"
  * once there are more than three. Null for a round that missed nothing.
  *
- * `numbers` may be null, and on Turlar it is: `RoundSummary` carries how many were missed but not
- * which, so the line counts until the list says more. Numbers that disagree with the count are
- * treated the same way rather than naming the wrong ones.
+ * `numbers` is `RoundSummary.missedPartNumbers`. Null, or numbers that disagree with the count,
+ * falls back to counting rather than naming the wrong ones.
  */
 export const hizbMissedNote = (
 	{ count, numbers }: { count: number; numbers: number[] | null },
@@ -312,6 +311,15 @@ export type HizbRoundCell = {
 	/** Owed by the viewer that round — the ring, over a read or a missed fill alike. */
 	isMine: boolean;
 };
+
+/**
+ * How many members still owe something from a round — the server's `missedPeopleCount`, counted
+ * from the parts in hand so an optimistic cover moves it on the tap. The pool is nobody's.
+ */
+export const missedPeopleCount = (round: Pick<RoundDetail, 'babs'>): number =>
+	new Set(
+		round.babs.filter(bab => bab.readByUserId === null && bab.owedByUserId !== null).map(bab => bab.owedByUserId)
+	).size;
 
 /** The round's portions in order, as HZ5's lattice draws them. */
 export const hizbRoundCells = (round: Pick<RoundDetail, 'babs'>, viewerUserId: string | null): HizbRoundCell[] =>

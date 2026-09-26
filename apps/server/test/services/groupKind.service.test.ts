@@ -158,6 +158,8 @@ describe('round history of a Hizb group', () => {
 		expect(round1?.partCount).toBe(33);
 		expect(round1?.readCount).toBe(5);
 		expect(round1?.missedCount).toBe(28);
+		// Counted out of 33, not 100: nothing past the 33rd part is ever "missed".
+		expect(round1?.missedPartNumbers).toEqual(numbersUpTo(33).filter(number => number < 4 || number > 8));
 		// Eleven seats over 33 parts: the owner owes three a round, never a tenth of a hundred.
 		expect(round1?.myOwedCount).toBe(3);
 	});

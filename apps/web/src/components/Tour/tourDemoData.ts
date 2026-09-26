@@ -235,6 +235,7 @@ const roundsOf = (spec: DemoGroupSpec): RoundSummary[] => [
 		endsAt: hoursFromNow(spec.hoursLeft),
 		isOpen: true,
 		missedCount: 0,
+		missedPartNumbers: [],
 		myOwedCount: SHARE_LENGTH,
 		myReadCount: spec.readInShare,
 		partCount: 100,
@@ -246,6 +247,8 @@ const roundsOf = (spec: DemoGroupSpec): RoundSummary[] => [
 		endsAt: hoursFromNow(spec.hoursLeft - 24),
 		isOpen: false,
 		missedCount: 12,
+		// The first twelve — clear of every demo share (14, 40 and 79 onward), which were all read.
+		missedPartNumbers: Array.from({ length: 12 }, (_, index) => index + 1),
 		myOwedCount: SHARE_LENGTH,
 		myReadCount: SHARE_LENGTH,
 		partCount: 100,

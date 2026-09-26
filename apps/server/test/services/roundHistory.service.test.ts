@@ -119,6 +119,29 @@ describe('listRoundsForUser', () => {
 		expect(round1?.missedCount).toBe(95);
 	});
 
+	it('names a closed round’s missed parts, the complement of what was read', async () => {
+		const group = await createGroup({ startedDaysAgo: 3 });
+		await recordHistory(
+			group.id,
+			1,
+			Array.from({ length: 100 }, (_, index) => index + 1).filter(number => ![16, 24, 31].includes(number))
+		);
+
+		const round1 = (await listRoundsForUser(OWNER, group.id)).find(round => round.roundIndex === 1);
+
+		expect(round1?.missedPartNumbers).toEqual([16, 24, 31]);
+		expect(round1?.missedCount).toBe(3);
+	});
+
+	it('lists every part as missed for a closed round nobody read', async () => {
+		const group = await createGroup({ startedDaysAgo: 3 });
+
+		const round0 = (await listRoundsForUser(OWNER, group.id)).find(round => round.roundIndex === 0);
+
+		expect(round0?.missedPartNumbers).toHaveLength(100);
+		expect(round0?.missedPartNumbers.slice(0, 3)).toEqual([1, 2, 3]);
+	});
+
 	it('never reports the open round as having missed anything — the day is not over', async () => {
 		const group = await createGroup({ startedDaysAgo: 3 });
 
@@ -126,6 +149,7 @@ describe('listRoundsForUser', () => {
 
 		expect(open?.readCount).toBe(0);
 		expect(open?.missedCount).toBe(0);
+		expect(open?.missedPartNumbers).toEqual([]);
 	});
 });
 

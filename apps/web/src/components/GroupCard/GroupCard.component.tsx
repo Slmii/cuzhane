@@ -2,7 +2,9 @@ import { GroupProgressSummary } from '@/components/GroupProgressSummary/GroupPro
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Chip } from '@/components/ui/Chip/Chip.component';
+import { KindMark } from '@/components/ui/KindMark/KindMark.component';
 import { BodyStrongText, CaptionText, TitleText } from '@/components/ui/Typography/Typography.component';
+import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { StyleSheet, View } from 'react-native';
 import type { GroupCardProps } from './GroupCard.types';
@@ -11,7 +13,7 @@ import type { GroupCardProps } from './GroupCard.types';
  * The kind mark's size before a card's name — small enough to sit on the title's line, where
  * the group screen's heading draws the same star at 44.
  */
-export const GROUP_CARD_MARK_SIZE = 18;
+const KIND_MARK_SIZE = 18;
 
 /**
  * One card for both the "My groups" list and Discover. The two differ only in which
@@ -28,6 +30,7 @@ export const GroupCard = ({
 	footerLeading,
 	isActionDisabled = false,
 	isActionPrimary = true,
+	kind,
 	name,
 	onAction,
 	onPress,
@@ -35,10 +38,10 @@ export const GroupCard = ({
 	resetRow,
 	extraBadges,
 	style,
-	subtitle,
-	titleLeading
+	subtitle
 }: GroupCardProps) => {
 	const { theme } = useThemeContext();
+	const { t } = useTranslation();
 	const hasProgress = progress !== undefined;
 	const hasFooter = Boolean(footerLabel || footerLeading || actionLabel);
 
@@ -46,10 +49,17 @@ export const GroupCard = ({
 		<CardSurface onPress={onPress} style={[styles.card, style]}>
 			<View style={styles.headerRow}>
 				<View style={styles.headerCopy}>
-					{titleLeading ? (
+					{/*
+					 * The Hizb's star before a Hizb group's name, so the two books tell apart down a
+					 * list; a Cevşen card has none and draws as it always has. Centred on the title's
+					 * first line however far the name wraps, and named, so the card is announced with
+					 * its book — the card is one accessible element, and it reads its children's labels.
+					 */}
+					{kind === 'HIZB' ? (
 						<View style={styles.titleRow}>
-							{/* Centred on the title's first line, however many lines the name wraps to. */}
-							<View style={styles.titleLeading}>{titleLeading}</View>
+							<View accessibilityLabel={t('kindHizb')} accessible style={styles.titleMark}>
+								<KindMark kind='HIZB' size={KIND_MARK_SIZE} />
+							</View>
 							<TitleText style={styles.titleText}>{name}</TitleText>
 						</View>
 					) : (
@@ -180,7 +190,7 @@ const styles = StyleSheet.create({
 		lineHeight: 17
 	},
 	// `TitleText`'s own line height, so the mark sits on the first line's centre.
-	titleLeading: {
+	titleMark: {
 		height: 22,
 		justifyContent: 'center'
 	},

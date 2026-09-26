@@ -6,6 +6,7 @@ import {
 	hizbRoundCells,
 	hizbRoundRows,
 	joinWithAnd,
+	missedPeopleCount,
 	roundCellStates,
 	roundDateRange,
 	roundRows
@@ -301,7 +302,6 @@ describe('hizbMissedNote', () => {
 	});
 
 	it('counts when the numbers are not known', () => {
-		// Turlar's case: `RoundSummary` carries the count alone.
 		expect(hizbMissedNote({ count: 2, numbers: null }, t)).toBe('roundMissedCountHizb(count=2)');
 		expect(hizbMissedNote({ count: 1, numbers: null }, t)).toBe('roundMissedCountHizbOne(count=1)');
 	});
@@ -410,5 +410,29 @@ describe('hizbRoundRows', () => {
 
 		expect(rows.find(row => row.key === ALI)?.action).toEqual({ kind: 'cover', partNumbers: [24] });
 		expect(rows.find(row => row.isPool)?.action).toEqual({ kind: 'cover', partNumbers: [31] });
+	});
+});
+
+describe('missedPeopleCount', () => {
+	it('counts each member still owing once, and never the pool', () => {
+		const round = {
+			babs: [
+				bab({ number: 15, owedByUserId: ME, readByUserId: ME }),
+				bab({ number: 16, owedByUserId: ME }),
+				bab({ number: 23, owedByUserId: ALI }),
+				bab({ number: 24, owedByUserId: ALI }),
+				bab({ number: 31, isPool: true })
+			]
+		};
+
+		expect(missedPeopleCount(round)).toBe(2);
+	});
+
+	it('drops a member once their last portion is covered, whoever covered it', () => {
+		const round = {
+			babs: [bab({ number: 16, owedByUserId: ME, readByUserId: HASAN }), bab({ number: 24, owedByUserId: ALI })]
+		};
+
+		expect(missedPeopleCount(round)).toBe(1);
 	});
 });

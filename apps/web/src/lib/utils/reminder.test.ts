@@ -131,6 +131,13 @@ describe('reminderBody', () => {
 		expect(reminderBody(totals({ unread: 5, unreadBabs: 5 }))).toEqual({ key: 'notifBody', values: { unread: 5 } });
 	});
 
+	it('says one bab, not "1 babs"', () => {
+		expect(reminderBody(totals({ unread: 1, unreadBabs: 1 }))).toEqual({
+			key: 'notifBodyOne',
+			values: { unread: 1 }
+		});
+	});
+
 	it('names the groups when several Cevşen groups owe babs', () => {
 		expect(reminderBody(totals({ pendingGroups: 2, unread: 9, unreadBabs: 9 }))).toEqual({
 			key: 'notifBodyGroups',

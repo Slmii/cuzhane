@@ -1,3 +1,4 @@
+import { WrapperApiError } from '@/api/wrapper.api';
 import { HIZB_RING_WIDTH, hizbRoundCellItem } from '@/components/HizbBoard/hizbCellPalette';
 import { HizbLegend } from '@/components/HizbBoard/HizbLegend.component';
 import type { PullToRefreshState } from '@/components/ui/PullToRefresh/PullToRefresh.types';
@@ -14,12 +15,21 @@ import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { GroupDetail, GroupMember, RoundDetail } from '@/lib/types/domain';
 import { formatBabRange } from '@/lib/utils/babs';
 import { hizbPartsLabel } from '@/lib/utils/groups';
-import { hizbRoundCells, hizbRoundRows, roundDateRange, type HizbRoundRow } from '@/lib/utils/rounds';
+import {
+	hizbRoundCells,
+	hizbRoundRows,
+	missedPeopleCount,
+	roundDateRange,
+	type HizbRoundRow
+} from '@/lib/utils/rounds';
 import { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 /** HZ5's lattice at eleven across, so the 33 come out as three full rows — the Havuz's layout. */
 export const HIZB_ROUND_COLUMNS = 11;
+
+/** What the cover endpoint answers when somebody else read the portion first. */
+const COVER_TAKEN_STATUS = 409;
 
 type Props = {
 	group: Pick<GroupDetail, 'id' | 'timezone'>;
@@ -62,6 +72,21 @@ export const HizbRoundDetail = ({ group, members, onOpenReader, pullToRefresh, r
 		() => hizbRoundRows(round, members, viewerUserId, settledHere),
 		[members, round, settledHere, viewerUserId]
 	);
+	/*
+	 * "Kişi" from the portions themselves rather than the server's `missedPeopleCount`: the cover
+	 * marks its portions read in the cache on the tap, so a count read off them drops with the
+	 * clay cells beside it, where the stored one waited for the response. Same rule as the server.
+	 */
+	const peopleCount = useMemo(() => missedPeopleCount(round), [round]);
+	/*
+	 * A 409 is the one failure with a cause worth naming: somebody else covered it first, and the
+	 * refetch has already put their read on the board. Anything else — no connection, a refusal —
+	 * says only that it did not go through. Sekine's 409 cannot reach here; it goes to the reader.
+	 */
+	const coverErrorKey =
+		coverBabs.error instanceof WrapperApiError && coverBabs.error.status === COVER_TAKEN_STATUS
+			? 'portionTakenError'
+			: 'genericError';
 
 	/** "15–16. bölüm", "Portion 19" — a set of portions with the noun in the language's own place. */
 	const partsText = (numbers: number[]) => hizbPartsLabel(formatBabRange(numbers), t);
@@ -144,7 +169,7 @@ export const HizbRoundDetail = ({ group, members, onOpenReader, pullToRefresh, r
 					</StatText>
 				</CardSurface>
 				<CardSurface style={styles.statCard}>
-					<NumericText>{round.missedPeopleCount}</NumericText>
+					<NumericText>{peopleCount}</NumericText>
 					<StatText color={theme.colors.faintText} style={styles.statLabel}>
 						{t('missedPeople')}
 					</StatText>
@@ -163,16 +188,18 @@ export const HizbRoundDetail = ({ group, members, onOpenReader, pullToRefresh, r
 
 			<HizbLegend style={styles.legend} variant='round' />
 
-			{rows.length === 0 ? null : (
+			{/* A round that missed nothing says so, rather than ending on the grid as if it had not loaded. */}
+			{rows.length === 0 ? (
+				<CaptionText color={theme.colors.subtext}>{t('roundNothingMissedHizb')}</CaptionText>
+			) : (
 				<StatText color={theme.colors.faintText} style={styles.rowsHeading}>
 					{t('missedTitle')}
 				</StatText>
 			)}
 
-			{/* Losing the race to another cover is the only way one fails; the list has already refreshed. */}
 			{coverBabs.isError ? (
 				<CaptionText color={theme.colors.missed} style={styles.coverError}>
-					{t('portionTakenError')}
+					{t(coverErrorKey)}
 				</CaptionText>
 			) : null}
 

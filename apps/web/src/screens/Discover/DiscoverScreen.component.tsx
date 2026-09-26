@@ -1,5 +1,5 @@
 import { useGroupBrowse } from '@/components/GroupBrowseBar/GroupBrowse.context';
-import { GROUP_CARD_MARK_SIZE, GroupCard } from '@/components/GroupCard/GroupCard.component';
+import { GroupCard } from '@/components/GroupCard/GroupCard.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { PullToRefresh } from '@/components/ui/PullToRefresh/PullToRefresh.component';
 import { ScreenTitle } from '@/components/ScreenTitle/ScreenTitle.component';
@@ -8,7 +8,6 @@ import { GroupCardSkeleton } from '@/components/Skeleton/GroupCardSkeleton.compo
 import { AppButton } from '@/components/ui/Button/Button.component';
 import type { ChipTone } from '@/components/ui/Chip/Chip.types';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
-import { KindMark } from '@/components/ui/KindMark/KindMark.component';
 import { SeatStack } from '@/components/ui/SeatStack/SeatStack.component';
 import { useDiscoverGroups } from '@/lib/hooks/useGroup';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
@@ -55,11 +54,6 @@ export const DiscoverScreen = () => {
 	// Someone who has asked the OS for less motion gets the instant reorder they asked for.
 	const isReducedMotion = useReducedMotion();
 	const cardLayout = isReducedMotion ? undefined : CARD_LAYOUT;
-	// A Hizb group's star before its name, as on Gruplarım — see there.
-	const hizbMark = useMemo(
-		() => <KindMark backgroundColor={theme.colors.surface} kind='HIZB' size={GROUP_CARD_MARK_SIZE} />,
-		[theme.colors.surface]
-	);
 
 	// Only offer "clear" when something is actually narrowing the list; with neither a
 	// query nor a filter there is genuinely nothing to browse, not nothing matching.
@@ -121,14 +115,14 @@ export const DiscoverScreen = () => {
 					}
 					footerLeading={<SeatStack />}
 					name={item.name}
-					titleLeading={item.kind === 'HIZB' ? hizbMark : null}
+					kind={item.kind}
 					// Always the read-only preview: joining happens there, not from the row.
 					onPress={() => navigation.navigate('InvitePreview', { groupId: item.id })}
 					subtitle={`${t(cycleLabelKey(item.cycle))} · ${t(splitModeLabelKey(item.splitMode))}`}
 				/>
 			</Animated.View>
 		),
-		[cardLayout, hizbMark, navigation, t]
+		[cardLayout, navigation, t]
 	);
 
 	if (isError) {

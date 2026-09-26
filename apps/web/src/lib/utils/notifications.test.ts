@@ -104,6 +104,10 @@ describe('notificationText', () => {
 			title: 'notifPoolReleasedTitle(range=16–20)'
 		});
 		expect(notificationText(row('ROUND_COMPLETE', { roundNumber: 4 }), t).body).toBe('notifRoundCompleteBody');
+		expect(notificationText(row('POOL_BAB_CLAIMED', { range: '41–50', takerName: 'Hilal' }), t)).toEqual({
+			body: 'notifPoolClaimedBody(range=41–50)',
+			title: 'notifPoolClaimedTitle(name=Hilal)'
+		});
 	});
 
 	it('names portions in a Hizb group, singular for a range of one', () => {

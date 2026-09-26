@@ -19,6 +19,12 @@ export type RoundSummary = {
 	partCount: number;
 	readCount: number;
 	missedCount: number;
+	/**
+	 * Which parts nobody read, ascending — the complement of the round's reads over the part
+	 * count, so it has exactly `missedCount` entries. Always empty for the open round, whose day
+	 * is not over. Turlar names them on a Hizb round's card when there are three or fewer.
+	 */
+	missedPartNumbers: number[];
 	/** Babs this member was owed and read, of the babs they were owed. */
 	myReadCount: number;
 	myOwedCount: number;
@@ -126,12 +132,13 @@ export const listRoundsForUser = async (userId: string, groupId: string): Promis
 
 	const viewer = members.find(member => member.userId === normalizedUserId);
 	const partCount = partCountFor(group.kind);
-	const readsByRound = new Map<number, { total: number; mine: number }>();
+	const readsByRound = new Map<number, { total: number; mine: number; numbers: Set<number> }>();
 
 	for (const read of reads) {
-		const bucket = readsByRound.get(read.roundIndex) ?? { total: 0, mine: 0 };
+		const bucket = readsByRound.get(read.roundIndex) ?? { total: 0, mine: 0, numbers: new Set<number>() };
 
 		bucket.total += 1;
+		bucket.numbers.add(read.babNumber);
 
 		if (read.userId === normalizedUserId) {
 			bucket.mine += 1;
@@ -143,8 +150,9 @@ export const listRoundsForUser = async (userId: string, groupId: string): Promis
 	const summaries: RoundSummary[] = [];
 
 	for (let roundIndex = group.roundIndex; roundIndex >= 0; roundIndex--) {
-		const bucket = readsByRound.get(roundIndex) ?? { total: 0, mine: 0 };
+		const bucket = readsByRound.get(roundIndex) ?? { total: 0, mine: 0, numbers: new Set<number>() };
 		const { startedAt, endsAt } = boundsFor(group, roundIndex);
+		const isOpen = roundIndex === group.roundIndex;
 		const owedCount =
 			viewer === undefined
 				? 0
@@ -159,10 +167,15 @@ export const listRoundsForUser = async (userId: string, groupId: string): Promis
 			partCount,
 			readCount: bucket.total,
 			// An open round has nothing "missing" yet — the day is not over.
-			missedCount: roundIndex === group.roundIndex ? 0 : partCount - bucket.total,
+			missedCount: isOpen ? 0 : partCount - bucket.total,
+			missedPartNumbers: isOpen
+				? []
+				: Array.from({ length: partCount }, (_, index) => index + 1).filter(
+						number => !bucket.numbers.has(number)
+				  ),
 			myReadCount: bucket.mine,
 			myOwedCount: owedCount,
-			isOpen: roundIndex === group.roundIndex
+			isOpen
 		});
 	}
 

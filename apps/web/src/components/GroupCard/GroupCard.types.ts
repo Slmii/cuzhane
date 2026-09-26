@@ -3,14 +3,12 @@ import type { IconName } from '@/components/ui/Icon/Icon.types';
 import type { ReactNode } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import type { ChipTone } from '@/components/ui/Chip/Chip.types';
+import type { GroupKind } from '@/lib/types/domain';
 
 export interface GroupCardProps {
 	name: string;
-	/**
-	 * A mark before the name — the Hizb's star, so a Hizb group and a Cevşen group can be told
-	 * apart in a list without reading either. Absent on a Cevşen card, which draws as it always has.
-	 */
-	titleLeading?: ReactNode;
+	/** What the group reads. A Hizb card draws the book's star before its name; a Cevşen card, nothing. */
+	kind?: GroupKind;
 	subtitle?: string;
 	badgeLabel: string;
 	badgeTone?: ChipTone;

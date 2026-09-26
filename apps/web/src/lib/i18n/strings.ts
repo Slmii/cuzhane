@@ -516,6 +516,8 @@ const tr = {
 	groupReadsHint: 'Gruplarındaki biri payını tamamladığında haber ver',
 	preview: 'Önizleme',
 	notifBody: 'Bugün {unread} babın kaldı. Şimdi okumak için dokun.',
+	// Turkish keeps its noun singular after a number, so this reads as `notifBody` does at 1.
+	notifBodyOne: 'Bugün 1 babın kaldı. Şimdi okumak için dokun.',
 	/** When more than one group still owes something — otherwise the count reads as one group's. */
 	notifBodyGroups: '{groups} grupta toplam {unread} babın kaldı. Şimdi okumak için dokun.',
 	/*
@@ -871,6 +873,7 @@ const tr = {
 	hizbPartsOne: '{parts}. bölüm',
 	markAsRead: 'Okundu işaretle',
 	portionTakenError: 'Bu bölüm başkası tarafından alındı.',
+	roundNothingMissedHizb: 'Bu turda eksik kalan bölüm yok.',
 
 	// App-specific copy the static design never has to spell out:
 	// validation, error/empty states and parameterised variants.
@@ -1448,6 +1451,7 @@ const en: Strings = {
 	groupReadsHint: 'Tell me when someone in my groups finishes their share',
 	preview: 'Preview',
 	notifBody: 'You have {unread} babs left today. Tap to read now.',
+	notifBodyOne: 'You have 1 bab left today. Tap to read now.',
 	notifBodyGroups: 'You have {unread} babs left across {groups} groups. Tap to read now.',
 	notifBodyPortions: 'You have {unread} portions left today. Tap to read now.',
 	notifBodyPortionsOne: 'You have 1 portion left today. Tap to read now.',
@@ -1744,6 +1748,7 @@ const en: Strings = {
 	hizbPartsOne: 'Portion {parts}',
 	markAsRead: 'Mark as read',
 	portionTakenError: 'Someone else claimed this portion.',
+	roundNothingMissedHizb: 'Nothing was missed this round.',
 
 	// App-specific copy the static design never has to spell out:
 	// validation, error/empty states and parameterised variants.
@@ -2290,11 +2295,13 @@ const nl: Strings = {
 	groupReadsHint: 'Laat het me weten als iemand in mijn groepen het eigen deel afrondt',
 	preview: 'Voorbeeld',
 	notifBody: 'Je hebt vandaag nog {unread} babs. Tik om nu te lezen.',
+	notifBodyOne: 'Je hebt vandaag nog 1 bab. Tik om nu te lezen.',
 	notifBodyGroups: 'Je hebt nog {unread} babs in {groups} groepen. Tik om nu te lezen.',
 	notifBodyPortions: 'Je hebt vandaag nog {unread} gedeelten. Tik om nu te lezen.',
 	notifBodyPortionsOne: 'Je hebt vandaag nog 1 gedeelte. Tik om nu te lezen.',
 	notifBodyGroupsPortions: 'Je hebt nog {unread} gedeelten in {groups} groepen. Tik om nu te lezen.',
-	notifBodyGroupsMixed: 'Je hebt nog {unread} lezingen in {groups} groepen. Tik om nu te lezen.',
+	// Not "lezingen", which reads as lectures: babs and gedeelten together are simply what is left to read.
+	notifBodyGroupsMixed: 'Nog {unread} te lezen in {groups} groepen. Tik om nu te beginnen.',
 	nextReminderToday: 'Eerste melding vandaag om {time}',
 	nextReminderTomorrow: 'Eerste melding morgen om {time}',
 	loadingHome: 'Je ring wordt voorbereid…',
@@ -2585,6 +2592,7 @@ const nl: Strings = {
 	hizbPartsOne: 'Gedeelte {parts}',
 	markAsRead: 'Markeer als gelezen',
 	portionTakenError: 'Dit gedeelte is door iemand anders genomen.',
+	roundNothingMissedHizb: 'Er is deze ronde niets gemist.',
 	membersTitle: 'Leden',
 	save: 'Opslaan',
 	close: 'Sluiten',

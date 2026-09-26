@@ -1,6 +1,6 @@
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { memo } from 'react';
-import Svg, { Circle, Path, Rect } from 'react-native-svg';
+import Svg, { Circle, ClipPath, Defs, G, Path, Rect } from 'react-native-svg';
 import type { KindMarkProps } from './KindMark.types';
 
 /**
@@ -31,20 +31,40 @@ const BEADS = Array.from({ length: BEAD_COUNT }, (_, index) => {
 /** Two 52-square plates, one turned 45°, make the Hizb's eight points. */
 const STAR_PLATE = { height: 52, rx: 3, width: 52, x: 22, y: 22 } as const;
 
-const KindMarkComponent = ({ backgroundColor, kind, size = 48 }: KindMarkProps) => {
+/** A full circle about the star's centre, as path data, so it can share one even-odd clip. */
+const circleAt = (r: number) => `M${48 - r} 48a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0Z`;
+
+/**
+ * **The ring and the dot are holes, not paint.** The design draws them in "whatever colour sits
+ * behind the mark", which they used to be told (`accentSoft` on a chosen card, the page
+ * elsewhere) — and a group card is glass, where no one colour is behind it. So the star is
+ * clipped instead: the whole box, then the ring's outer edge (r 14.25), its inner edge (r 9.75)
+ * and the dot (r 5), filled even-odd, leaves the ring and the dot out of the star and lets the
+ * ground show through wherever it is drawn.
+ *
+ * One fixed id for every instance. Native resolves it inside its own `Svg`; on the web a
+ * duplicate resolves to the first in the document, which is the same shape on the same grid.
+ */
+const STAR_CUT_OUT = `M0 0H${GRID}V${GRID}H0Z${circleAt(14.25)}${circleAt(9.75)}${circleAt(5)}`;
+const STAR_CLIP_ID = 'kindMarkStarCutOut';
+
+const KindMarkComponent = ({ kind, size = 48 }: KindMarkProps) => {
 	const { theme } = useThemeContext();
 	const color = theme.colors.accent;
-	const cutOut = backgroundColor ?? theme.colors.background;
 
 	return (
 		<Svg height={size} viewBox={`0 0 ${GRID} ${GRID}`} width={size}>
 			{kind === 'HIZB' ? (
 				<>
-					<Rect {...STAR_PLATE} fill={color} />
-					<Rect {...STAR_PLATE} fill={color} transform='rotate(45 48 48)' />
-					{/* The ring and the dot are the ground showing through, not a second colour. */}
-					<Circle cx={48} cy={48} fill='none' r={12} stroke={cutOut} strokeWidth={4.5} />
-					<Circle cx={48} cy={48} fill={cutOut} r={5} />
+					<Defs>
+						<ClipPath id={STAR_CLIP_ID}>
+							<Path clipRule='evenodd' d={STAR_CUT_OUT} />
+						</ClipPath>
+					</Defs>
+					<G clipPath={`url(#${STAR_CLIP_ID})`}>
+						<Rect {...STAR_PLATE} fill={color} />
+						<Rect {...STAR_PLATE} fill={color} transform='rotate(45 48 48)' />
+					</G>
 				</>
 			) : (
 				<>

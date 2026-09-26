@@ -230,14 +230,21 @@ export const MyProgressScreen = ({ navigation, route }: Props) => {
 										 */
 										fullWidth={false}
 										onPress={() =>
-											navigation.navigate('BabReader', {
-												babNumber: firstMissed.babNumber,
-												groupId,
-												// The round this gap belongs to — a weekly cell spans
-												// seven, so the period's own index could aim the
-												// cover at the wrong one.
-												roundIndex: firstMissed.roundIndex
-											})
+											// The round this gap belongs to — a weekly cell spans
+											// seven, so the period's own index could aim the cover
+											// at the wrong one. A Hizb group's gap is a portion, and
+											// the Cevşen reader would show bab N and cover portion N.
+											group.kind === 'HIZB'
+												? navigation.navigate('HizbReader', {
+														groupId,
+														partNumber: firstMissed.babNumber,
+														roundIndex: firstMissed.roundIndex
+												  })
+												: navigation.navigate('BabReader', {
+														babNumber: firstMissed.babNumber,
+														groupId,
+														roundIndex: firstMissed.roundIndex
+												  })
 										}
 										size='sm'
 										style={styles.readButton}

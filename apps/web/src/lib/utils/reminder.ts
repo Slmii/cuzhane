@@ -73,11 +73,11 @@ export type ReminderBody = { key: StringKey; values?: Record<string, number> };
  * The reminder's sentence, chosen from the totals — the scheduler turns it into text, and the
  * text is what `contentSig` compares, so a change of wording replaces the pending notification.
  *
- * **Babs and portions are never summed under one noun.** Only babs keeps the Cevşen's lines as
- * they were; only portions is their twin, with its own line for one — a Hizb seat often holds a
- * single portion, so "1 portions" would be the ordinary case in English and Dutch. Owing both
- * says "okuman", a reading, which is true of either. It is always the several-groups line: a
- * group reads one book, so owing both means at least one group of each.
+ * **Babs and portions are never summed under one noun.** Only babs keeps the Cevşen's lines;
+ * only portions is their twin. Each has its own line for one — a Hizb seat often holds a single
+ * portion, and a released pool block can leave a single bab — so English and Dutch never say
+ * "1 portions". Owing both says "okuman", a reading, which is true of either. It is always the
+ * several-groups line: a group reads one book, so owing both means at least one group of each.
  *
  * Past one group the count is named with the groups, because a bare total over several reads as
  * one group's. Nothing owed is still a nudge, since the next round opens before this fires again.
@@ -97,7 +97,8 @@ export const reminderBody = ({ pendingGroups, unread, unreadBabs, unreadPortions
 			: { key: unread === 1 ? 'notifBodyPortionsOne' : 'notifBodyPortions', values: { unread } };
 	}
 
+	// A single bab is real once a released pool block leaves one behind, so it has its own line too.
 	return pendingGroups > 1
 		? { key: 'notifBodyGroups', values: { groups: pendingGroups, unread } }
-		: { key: 'notifBody', values: { unread } };
+		: { key: unread === 1 ? 'notifBodyOne' : 'notifBody', values: { unread } };
 };

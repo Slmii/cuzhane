@@ -319,6 +319,8 @@ export type RoundSummary = {
 	readCount: number;
 	/** Always 0 for the open round — the day isn't over, so nothing is missing yet. */
 	missedCount: number;
+	/** Which parts those were, ascending — `missedCount` of them, and empty for the open round. */
+	missedPartNumbers: number[];
 	myReadCount: number;
 	myOwedCount: number;
 	isOpen: boolean;

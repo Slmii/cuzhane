@@ -112,9 +112,10 @@ export const RoundsScreen = ({ navigation, route }: Props) => {
 
 	const renderRound = useCallback(
 		({ item }: { item: RoundSummary }) => {
-			// `RoundSummary` counts what a round missed but does not say which, so the Hizb's line is
-			// the count ("2 bölüm okunmadı") until it does; the round's own screen names them.
-			const missedNote = isHizb ? hizbMissedNote({ count: item.missedCount, numbers: null }, t) : null;
+			// "16, 24 ve 31 okunmadı" — named up to three, counted past it. The Hizb's alone.
+			const missedNote = isHizb
+				? hizbMissedNote({ count: item.missedCount, numbers: item.missedPartNumbers }, t)
+				: null;
 
 			return (
 				<RoundCard
