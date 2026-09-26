@@ -1,9 +1,15 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/generated/prisma/client';
 import { babNumbersForRound, babNumbersForSlot } from '../src/utils/babs';
-import { partCountFor, type GroupKindName } from '../src/utils/groupKinds';
+import { CYCLES_FOR_KIND, partCountFor, requiredRepetitions, type GroupKindName } from '../src/utils/groupKinds';
 import { INVITE_CODE_ALPHABET } from '../src/utils/inviteCode';
-import { DEFAULT_TIME_ZONE, roundEndsAt, roundIndexSince, roundStartedAtFor } from '../src/utils/rounds';
+import {
+	DEFAULT_TIME_ZONE,
+	roundEndsAt,
+	roundIndexSince,
+	roundStartedAtFor,
+	type CycleName
+} from '../src/utils/rounds';
 
 /**
  * Development seed. Builds one group per screen state the app can show, so every
@@ -32,7 +38,19 @@ import { DEFAULT_TIME_ZONE, roundEndsAt, roundIndexSince, roundStartedAtFor } fr
  *                      state at once: one block dev_user has taken, one another member has,
  *                      and one still going. dev_user is a MEMBER (not owner).
  *
- * Closed-round history (`pastRounds`) is spread across three of them so the Turlar screens
+ * The Hizb (33 portions, `kind: 'HIZB'`) has its own six, one per Hizb screen:
+ *
+ * 16. Cuma Hizbi      — GATHERING, dev_user is OWNER, 9 of 16 seats (the creator's lobby, HC4).
+ * 17. Sabah Hizbi     — GATHERING, dev_user is a MEMBER (not owner) — joined and waiting (HJ3).
+ * 18. Pazartesi Hizbi — GATHERING + PUBLIC, dev_user is NOT a member, starts itself when full (HJ1).
+ * 19. Talebe Hizbi    — RUNNING + PUBLIC, MONTHLY + FIXED, dev_user is NOT a member, FULL (HJ2).
+ * 20. Hizb Halkası    — RUNNING + ROTATION, dev_user is a MEMBER (not owner). Two empty seats,
+ *                       so the pool is claimed portion by portion — one portion another member
+ *                       holds, one dev_user holds, three still free — and dev_user's share this
+ *                       round is 18–19, Sekine included, with 7 of its 19 counted (HZ1/HZ3).
+ * 21. Aylık Hizb      — RUNNING + ROTATION + MONTHLY, dev_user is OWNER, 33 seats of one portion.
+ *
+ * Closed-round history (`pastRounds`) is spread across five of them so the Turlar screens
  * have every state to show:
  *  · Silsile Hatmi — five seats, no pool. Two finished rounds, one part-read round holding
  *    all four row shapes at once, and one nobody touched.
@@ -40,6 +58,10 @@ import { DEFAULT_TIME_ZONE, roundEndsAt, roundIndexSince, roundStartedAtFor } fr
  *    covered part of it, one where it stands untouched.
  *  · Gönül Hatmi   — WEEKLY, so its closed round is what proves the cadence labels read
  *    "geçen hafta" rather than "dün".
+ *  · Hizb Halkası  — five closed rounds (HZ4/HZ5): two finished, two that missed a few
+ *    portions, and one where dev_user left half of their own share unread.
+ *  · Aylık Hizb    — MONTHLY, so its one closed round runs from the start to the same day of
+ *    the next month.
  */
 
 const connectionString = process.env.DATABASE_URL;
@@ -73,12 +95,12 @@ const OWNER_USER_ID = process.env.SEED_USER_ID ?? 'dev_user';
  *
  * Every group below carries a fixed invite code, and `seedGroup` finds the existing row *by
  * that code* and deletes it before rebuilding. That is what makes re-running the seed safe —
- * and it also means a second run under a different `SEED_USER_ID` would hand the same fifteen
+ * and it also means a second run under a different `SEED_USER_ID` would hand the same
  * groups to the new account and take them off the old one. Fine when you are moving fixtures,
  * useless when you want a phone signed in as A and a phone signed in as B both looking
  * populated at once, which is what taking iOS and Android screenshots in one sitting needs.
  *
- * A namespace gives the second account its own fifteen. It replaces the **last character** of
+ * A namespace gives the second account its own set. It replaces the **last character** of
  * every invite code, so:
  *
  *   SEED_USER_ID=user_aaa pnpm --filter @cuzhane/server db:seed
@@ -110,9 +132,9 @@ const assertNamespaceIsUsable = () => {
 	}
 
 	/*
-	 * The fifteen base codes have distinct first seven characters, so swapping the eighth keeps
-	 * them unique among themselves. Asserted rather than assumed: a future fixture whose code
-	 * differs from another's only in its last character would silently seed fourteen groups,
+	 * The base codes have distinct first seven characters, so swapping the eighth keeps them
+	 * unique among themselves. Asserted rather than assumed: a future fixture whose code
+	 * differs from another's only in its last character would silently seed one group fewer,
 	 * the second quietly deleting the first.
 	 */
 	const codes = GROUPS.map(spec => codeFor(spec.inviteCode));
@@ -131,7 +153,22 @@ type PoolClaim = {
 	slotIndex: number;
 	/** Index into `members` of the member who claimed it. */
 	byMemberIndex: number;
+	/** Counted from the first claimed part, in block order. */
 	babsRead: number;
+	/**
+	 * Which of the block's parts the claim holds, by 0-based position in it. Omitted, it takes
+	 * the whole block — the only way a Cevşen slot is taken. A Hizb pool is claimed portion by
+	 * portion, so one block can carry several claims, each naming its own positions.
+	 */
+	portions?: number[];
+};
+
+/** A reader partway through a part that has to be repeated (Sekine ×19), in the current round. */
+type RepetitionInProgress = {
+	bySlotIndex: number;
+	partNumber: number;
+	/** Short of the part's requirement — a finished count is written for every seeded read anyway. */
+	count: number;
 };
 
 type GroupSeed = {
@@ -144,10 +181,10 @@ type GroupSeed = {
 	memberIdPrefix: string;
 	/** Overrides the default seat -> user mapping — used to seat `dev_user` at a non-zero slot. */
 	slotUserIds?: Record<number, string>;
-	/** What the group reads. Every fixture so far is a Cevşen group, so it defaults to that. */
+	/** What the group reads. Defaults to the Cevşen, which most fixtures are. */
 	kind?: GroupKindName;
 	spots: number;
-	cycle: 'DAILY' | 'WEEKLY';
+	cycle: CycleName;
 	reminderTime: string;
 	splitMode: 'ROTATION' | 'FIXED';
 	visibility: 'OPEN' | 'PRIVATE';
@@ -161,6 +198,7 @@ type GroupSeed = {
 	poolClaims?: PoolClaim[];
 	/** Closed rounds to backfill, so the Turlar screens have history to show. */
 	pastRounds?: PastRoundSeed[];
+	repetitionsInProgress?: RepetitionInProgress[];
 };
 
 /**
@@ -184,6 +222,16 @@ type PastRoundSeed = {
 	 */
 	covers?: { babNumbers: number[]; bySlotIndex: number }[];
 };
+
+/**
+ * `readBySlot` for a round every seat finished except the ones named. A count past a seat's
+ * share is clamped to it, so "everyone else" needs no per-seat arithmetic; empty seats are
+ * skipped by the seeder like anywhere else.
+ */
+const everySeatReadExcept = (spots: number, shortfalls: Record<number, number>): Record<number, number> => ({
+	...Object.fromEntries(Array.from({ length: spots }, (_, slot) => [slot, Number.POSITIVE_INFINITY])),
+	...shortfalls
+});
 
 const GROUPS: GroupSeed[] = [
 	{
@@ -658,6 +706,286 @@ const GROUPS: GroupSeed[] = [
 			{ slotIndex: 5, byMemberIndex: 1, babsRead: 5 },
 			{ slotIndex: 6, byMemberIndex: 3, babsRead: 9 }
 		]
+	},
+	{
+		name: 'Cuma Hizbi',
+		dedication: 'Cuma gecelerinin bereketi için',
+		inviteCode: 'HZCM4R7T',
+		ownerUserId: OWNER_USER_ID,
+		memberIdPrefix: 'dev_cumahizb',
+		kind: 'HIZB',
+		spots: 16,
+		cycle: 'WEEKLY',
+		reminderTime: '21:00',
+		splitMode: 'ROTATION',
+		visibility: 'OPEN',
+		status: 'GATHERING',
+		// Off, so this lobby waits on its creator's "Başlat" rather than on the last seat.
+		autoStartWhenFull: false,
+		// 9 of 16 seats taken — the Hizb creator's lobby (HC4), nothing counted until it starts.
+		members: [
+			['Nuriye Aksoy', 0],
+			['Salih Demirel', 0],
+			['Hacer Uzun', 0],
+			['Cemil Karaca', 0],
+			['Esma Yurt', 0],
+			['Rıza Güler', 0],
+			['Nesrin Ateş', 0],
+			['Veysel Tunç', 0],
+			['Dilek Oral', 0]
+		]
+	},
+	{
+		name: 'Sabah Hizbi',
+		dedication: 'Sabah namazından sonra',
+		inviteCode: 'HZSB6K3W',
+		ownerUserId: 'dev_sabahhizb_owner',
+		memberIdPrefix: 'dev_sabahhizb',
+		// dev_user has joined someone else's Hizb and is waiting for it to start (HJ3).
+		slotUserIds: { 4: OWNER_USER_ID },
+		kind: 'HIZB',
+		spots: 11,
+		cycle: 'WEEKLY',
+		reminderTime: '06:15',
+		splitMode: 'ROTATION',
+		visibility: 'OPEN',
+		status: 'GATHERING',
+		autoStartWhenFull: true,
+		// 6 of 11 seats taken.
+		members: [
+			['Şerafettin Işık', 0],
+			['Halime Sezgin', 0],
+			['Orhan Kaplan', 0],
+			['Sevda Er', 0],
+			['Hilal Bozdağ', 0],
+			['Taner Uysal', 0]
+		]
+	},
+	{
+		name: 'Pazartesi Hizbi',
+		dedication: 'Pazartesi akşamları, hep beraber',
+		inviteCode: 'HZPZ8M2D',
+		// Owned by a stranger and dev_user holds no seat — the Hizb invite preview (HJ1).
+		ownerUserId: 'dev_pazartesi_owner',
+		memberIdPrefix: 'dev_pazartesi',
+		kind: 'HIZB',
+		spots: 16,
+		cycle: 'WEEKLY',
+		reminderTime: '20:30',
+		splitMode: 'ROTATION',
+		visibility: 'OPEN',
+		status: 'GATHERING',
+		// On, so the preview can say the group starts itself once the last seat is taken.
+		autoStartWhenFull: true,
+		// 9 of 16 seats taken.
+		members: [
+			['Necmettin Çınar', 0],
+			['Gülsüm Aydın', 0],
+			['Fatih Özer', 0],
+			['Şule Kocaman', 0],
+			['Adem Yücel', 0],
+			['Tuba Sarıgül', 0],
+			['Kemal Balcı', 0],
+			['Nurcan Işıklı', 0],
+			['Erol Tekinalp', 0]
+		]
+	},
+	{
+		name: 'Talebe Hizbi',
+		dedication: 'Talebe arkadaşlarımızla',
+		inviteCode: 'HZTL3V9G',
+		// Owned by a stranger and every seat taken — the full Hizb preview (HJ2).
+		ownerUserId: 'dev_talebe_owner',
+		memberIdPrefix: 'dev_talebe',
+		kind: 'HIZB',
+		spots: 11,
+		cycle: 'MONTHLY',
+		reminderTime: '22:00',
+		splitMode: 'FIXED',
+		visibility: 'OPEN',
+		status: 'RUNNING',
+		// Inside its first month whatever day the seed runs, so this is round 0.
+		startedDaysAgo: 12,
+		autoStartWhenFull: true,
+		// Three portions a seat. Seat 6 holds 19–21 and has read Sekine, so the seeder files the
+		// finished count of 19 that read could not have been made without.
+		members: [
+			['Said Eren', 3],
+			['Zeki Aydemir', 2],
+			['Mahmut Köse', 3],
+			['Bayram Oğuz', 1],
+			['Lütfi Sevim', 0],
+			['Nurettin Acar', 3],
+			['Sadık Yaman', 1],
+			['Ramazan Taşçı', 2],
+			['Selahattin Uçar', 3],
+			['Hamza Bilgiç', 0],
+			['Kâmil Duman', 2]
+		]
+	},
+	{
+		name: 'Hizb Halkası',
+		dedication: 'Halkamızın devamı için',
+		inviteCode: 'HZHK5N8Q',
+		ownerUserId: 'dev_halkasi_owner',
+		memberIdPrefix: 'dev_halkasi',
+		/**
+		 * Seat 3 on purpose. 33 over 16 seats is 1–3 for seat 0 and pairs after it, so seat 8
+		 * holds 18–19 — Sekine and the portion before it. Round 5 moves seat 3 onto seat 8's
+		 * block, which is what puts the Sekine counter in dev_user's own share today. If the
+		 * arithmetic ever drifts, `repetitionsInProgress` below refuses to seed rather than
+		 * counting a part dev_user doesn't hold.
+		 */
+		slotUserIds: { 3: OWNER_USER_ID },
+		kind: 'HIZB',
+		spots: 16,
+		cycle: 'WEEKLY',
+		reminderTime: '21:15',
+		splitMode: 'ROTATION',
+		visibility: 'OPEN',
+		status: 'RUNNING',
+		// 38 days is week 6 — round 5, three days in. The default zone keeps no DST, so it can't slip.
+		startedDaysAgo: 38,
+		autoStartWhenFull: true,
+		/**
+		 * Seats 11 and 14 are empty. This round they leave uncovered the blocks of seats 0 and 3,
+		 * 1–3 and 8–9, which is the pool. Every occupied seat reads two portions this round;
+		 * dev_user has read 18 and is partway through Sekine.
+		 */
+		members: [
+			['Abdullah Gürsoy', 2],
+			['Rukiye Tan', 1],
+			['Mustafa Erkan', 2],
+			['Hüseyin Kara', 1],
+			['Saadet Önal', 0],
+			['Bekir Aslantaş', 2],
+			['Havva Durmaz', 1],
+			['Yakup Selçuk', 2],
+			['Meryem Öztürk', 0],
+			['Enes Kılınç', 2],
+			['Kübra Yazıcı', 1],
+			null,
+			['İsmail Tekin', 0],
+			['Zübeyde Kalkan', 2],
+			null,
+			['Harun Çiftçi', 1]
+		],
+		/**
+		 * A Hizb pool is claimed a portion at a time, so one block can be split between people:
+		 *
+		 *  part 1   — Bekir Aslantaş (seat 5) took it and read it; 2 and 3 are still free
+		 *  part 9   — dev_user took it, not read yet; 8 is still free
+		 */
+		poolClaims: [
+			{ slotIndex: 11, byMemberIndex: 5, portions: [0], babsRead: 1 },
+			{ slotIndex: 14, byMemberIndex: 3, portions: [1], babsRead: 0 }
+		],
+		repetitionsInProgress: [{ bySlotIndex: 3, partNumber: 19, count: 7 }],
+		/**
+		 * The Hizb's Turlar screens. The two empty seats leave two blocks uncovered every round,
+		 * so a round is only whole when somebody covered them:
+		 *
+		 *  5 (round 0) — finished, both pool blocks covered
+		 *  4 (round 1) — seat 9 missed 23 and the pool's 32–33 stood untouched
+		 *  3 (round 2) — dev_user read 12 and missed 13; everything else was read or covered
+		 *  2 (round 3) — finished, dev_user covering the pool's 4–5
+		 *  1 (round 4) — seat 12 read nothing (1–3) and the pool's 6–7 stood untouched
+		 */
+		pastRounds: [
+			{
+				roundsAgo: 5,
+				readBySlot: 'all',
+				covers: [
+					{ babNumbers: [24, 25], bySlotIndex: 0 },
+					{ babNumbers: [30, 31], bySlotIndex: 5 }
+				]
+			},
+			{
+				roundsAgo: 4,
+				readBySlot: everySeatReadExcept(16, { 9: 1 }),
+				covers: [{ babNumbers: [26, 27], bySlotIndex: 2 }]
+			},
+			{
+				roundsAgo: 3,
+				readBySlot: everySeatReadExcept(16, { 3: 1 }),
+				covers: [
+					{ babNumbers: [28, 29], bySlotIndex: 7 },
+					{ babNumbers: [1, 2, 3], bySlotIndex: 10 }
+				]
+			},
+			{
+				roundsAgo: 2,
+				readBySlot: 'all',
+				covers: [
+					{ babNumbers: [30, 31], bySlotIndex: 1 },
+					{ babNumbers: [4, 5], bySlotIndex: 3 }
+				]
+			},
+			{
+				roundsAgo: 1,
+				readBySlot: everySeatReadExcept(16, { 12: 0 }),
+				covers: [{ babNumbers: [32, 33], bySlotIndex: 6 }]
+			}
+		]
+	},
+	{
+		name: 'Aylık Hizb',
+		dedication: 'Her ay bir hatim',
+		inviteCode: 'HZAY7P4C',
+		ownerUserId: OWNER_USER_ID,
+		memberIdPrefix: 'dev_aylik',
+		kind: 'HIZB',
+		spots: 33,
+		cycle: 'MONTHLY',
+		reminderTime: '21:00',
+		splitMode: 'ROTATION',
+		visibility: 'OPEN',
+		status: 'RUNNING',
+		// Past one month and short of two from any day of the year, so this is always round 1.
+		startedDaysAgo: 40,
+		autoStartWhenFull: true,
+		// One portion a seat, 26 of 33 taken; seats 26–32 are empty, so seven portions are the pool.
+		members: [
+			['Nuran Bayraktar', 1],
+			['Asım Gündoğdu', 1],
+			['Feyza Kılıçarslan', 0],
+			['Hikmet Aras', 1],
+			['Leyla Sarı', 1],
+			['Muhammed Coşkun', 0],
+			['Rabia Ekinci', 1],
+			['Sabri Akın', 1],
+			['Tülay Kavak', 0],
+			['Ümit Ersoy', 1],
+			['Vildan Göktaş', 1],
+			['Yasin Başaran', 0],
+			['Zehra Öz', 1],
+			['Abdurrahman Keskin', 1],
+			['Betül Arıkan', 1],
+			['Cengiz Yılmazer', 0],
+			['Döndü Kaya', 1],
+			// Rotated onto Sekine this month and has read it.
+			['Emine Çakır', 1],
+			['Ferhat Soylu', 0],
+			['Gülay Tekeli', 1],
+			['Haşim Erdem', 1],
+			['İclal Tosun', 0],
+			['Kadriye Bal', 1],
+			['Lokman Duru', 1],
+			['Melek Sönmez', 0],
+			['Nazif Özdemir', 1]
+		],
+		// Last month: seats 5 and 12 missed theirs, and dev_user and seat 3 covered three of the
+		// seven pool portions, leaving 30–33 standing.
+		pastRounds: [
+			{
+				roundsAgo: 1,
+				readBySlot: everySeatReadExcept(33, { 5: 0, 12: 0 }),
+				covers: [
+					{ babNumbers: [27, 28], bySlotIndex: 0 },
+					{ babNumbers: [29], bySlotIndex: 3 }
+				]
+			}
+		]
 	}
 ];
 
@@ -685,6 +1013,10 @@ const seedGroup = async (spec: GroupSeed) => {
 
 	if (spec.pastRounds?.length && spec.status !== 'RUNNING') {
 		throw new Error(`"${spec.name}": a group that hasn't started has no closed rounds to describe.`);
+	}
+
+	if (!CYCLES_FOR_KIND[kindOf(spec)].includes(spec.cycle)) {
+		throw new Error(`"${spec.name}": a ${kindOf(spec)} group cannot be created ${spec.cycle}.`);
 	}
 
 	const inviteCode = codeFor(spec.inviteCode);
@@ -775,11 +1107,25 @@ const seedGroup = async (spec: GroupSeed) => {
 			throw new Error(`"${spec.name}": pool claim references empty seat ${claim.byMemberIndex}.`);
 		}
 
-		const claimantUserId = userIdForSlot(spec, claim.byMemberIndex);
+		if (claim.portions && kindOf(spec) !== 'HIZB') {
+			throw new Error(`"${spec.name}": only a Hizb pool is claimed portion by portion.`);
+		}
 
-		babNumbersForSeatRound(spec, claim.slotIndex, roundIndex).forEach((number, indexInSlot) => {
+		const claimantUserId = userIdForSlot(spec, claim.byMemberIndex);
+		const block = babNumbersForSeatRound(spec, claim.slotIndex, roundIndex);
+		const claimed: (number | undefined)[] = claim.portions
+			? claim.portions.map(position => block[position])
+			: block;
+
+		claimed.forEach((number, indexInClaim) => {
+			if (number === undefined || poolClaimByBab.has(number)) {
+				throw new Error(
+					`"${spec.name}": a claim on seat ${claim.slotIndex} names a portion outside its block or one already claimed.`
+				);
+			}
+
 			poolClaimByBab.set(number, claimantUserId);
-			readAssignmentByBab.set(number, { userId: claimantUserId, isRead: indexInSlot < claim.babsRead });
+			readAssignmentByBab.set(number, { userId: claimantUserId, isRead: indexInClaim < claim.babsRead });
 		});
 	}
 
@@ -812,11 +1158,19 @@ const seedGroup = async (spec: GroupSeed) => {
 	for (const past of spec.pastRounds ?? []) {
 		const historicalRoundIndex = roundIndex - past.roundsAgo;
 
-		if (historicalRoundIndex < 0) {
+		if (!startedAt || historicalRoundIndex < 0) {
 			throw new Error(`"${spec.name}": round ${roundIndex} has no round ${past.roundsAgo} rounds before it.`);
 		}
 
-		const historicalReadAt = new Date(now.getTime() - past.roundsAgo * 24 * 60 * 60 * 1000);
+		// Filed inside the round it belongs to, whatever the cycle: "N days ago" only works for a
+		// daily group, and a weekly or monthly round's reads dated yesterday would land in the
+		// round now open on the heatmap and the streak. The middle of the round's own window is
+		// inside it for every cycle, round 0's mid-afternoon start included.
+		const historicalReadAt = new Date(
+			(roundStartedAtFor(startedAt, spec.cycle, historicalRoundIndex, DEFAULT_TIME_ZONE).getTime() +
+				roundEndsAt(startedAt, spec.cycle, historicalRoundIndex, DEFAULT_TIME_ZONE).getTime()) /
+				2
+		);
 		// One reader per bab, exactly as the unique key on `BabRead` enforces. Own reads land
 		// first so a cover can only ever fill what its owner left — the same rule the app's
 		// "Üstlen" obeys, which keeps the fixtures honest about who did what.
@@ -863,6 +1217,50 @@ const seedGroup = async (spec: GroupSeed) => {
 
 	if (babReadData.length > 0) {
 		await prisma.babRead.createMany({ data: babReadData });
+	}
+
+	// A read of a repeated part (Sekine ×19) stands on a finished count in that round — every
+	// read path refuses one without it, so a fixture that skipped the row would describe a read
+	// the app could never have made. The counts in progress are the fixture's own.
+	const kind = kindOf(spec);
+	const repetitionData = babReadData
+		.filter(read => requiredRepetitions(kind, read.babNumber) > 1)
+		.map(read => ({
+			groupId: group.id,
+			userId: read.userId,
+			roundIndex: read.roundIndex,
+			partNumber: read.babNumber,
+			count: requiredRepetitions(kind, read.babNumber)
+		}));
+
+	for (const progress of spec.repetitionsInProgress ?? []) {
+		const userId = userIdForSlot(spec, progress.bySlotIndex);
+		const assignment = readAssignmentByBab.get(progress.partNumber);
+		const required = requiredRepetitions(kind, progress.partNumber);
+
+		if (
+			spec.status !== 'RUNNING' ||
+			required <= 1 ||
+			progress.count >= required ||
+			assignment?.userId !== userId ||
+			assignment.isRead
+		) {
+			throw new Error(
+				`"${spec.name}": seat ${progress.bySlotIndex} is not partway through part ${progress.partNumber} in round ${roundIndex}.`
+			);
+		}
+
+		repetitionData.push({
+			groupId: group.id,
+			userId,
+			roundIndex,
+			partNumber: progress.partNumber,
+			count: progress.count
+		});
+	}
+
+	if (repetitionData.length > 0) {
+		await prisma.groupPartRepetition.createMany({ data: repetitionData });
 	}
 
 	const readCount = await prisma.groupBab.count({ where: { groupId: group.id, readAt: { not: null } } });
