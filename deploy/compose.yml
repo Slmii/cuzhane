@@ -17,8 +17,8 @@ services:
         image: caddy:2.11-alpine
         restart: unless-stopped
         ports:
-            - "80:80"
-            - "443:443"
+            - '80:80'
+            - '443:443'
         environment:
             # **All three are `:?`, and the reason is that Caddy fails whole.** A blank here
             # passes `compose config` — it only warns — and then produces a site block with no
@@ -47,8 +47,8 @@ services:
             options:
                 # Unrotated json-file logs fill a 48 GB disk given a few months and a stack
                 # trace per error — and a full disk stops Postgres accepting writes.
-                max-size: "10m"
-                max-file: "3"
+                max-size: '10m'
+                max-file: '3'
         depends_on:
             - api
             - api-preview
@@ -89,10 +89,10 @@ services:
         healthcheck:
             test:
                 [
-                    "CMD",
-                    "node",
-                    "-e",
-                    "fetch('http://127.0.0.1:3001/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+                    'CMD',
+                    'node',
+                    '-e',
+                    "fetch('http://127.0.0.1:3001/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
                 ]
             interval: 10s
             timeout: 5s
@@ -160,10 +160,10 @@ services:
         healthcheck:
             test:
                 [
-                    "CMD",
-                    "node",
-                    "-e",
-                    "fetch('http://127.0.0.1:3001/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+                    'CMD',
+                    'node',
+                    '-e',
+                    "fetch('http://127.0.0.1:3001/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
                 ]
             interval: 10s
             timeout: 5s
@@ -195,7 +195,7 @@ services:
         # on the public internet while `ufw status` still says the port is closed. Never drop
         # the address.
         ports:
-            - "127.0.0.1:5432:5432"
+            - '127.0.0.1:5432:5432'
         environment:
             POSTGRES_USER: cuzhane
             POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -207,7 +207,7 @@ services:
         healthcheck:
             # The API runs its migrations at boot, so it must not start against a database
             # that is still initialising.
-            test: ["CMD-SHELL", "pg_isready -U cuzhane -d cuzhane"]
+            test: ['CMD-SHELL', 'pg_isready -U cuzhane -d cuzhane']
             interval: 5s
             timeout: 5s
             retries: 10

@@ -1,5 +1,4 @@
 import type {
-	AppNotification,
 	GroupBab,
 	GroupCycle,
 	GroupDetail,
@@ -27,10 +26,11 @@ import type {
  * The cost is that a reader with groups of their own sees these three and these numbers for the
  * minute it lasts, and their own are one tap away the moment it ends.
  *
- * **Three groups, because one is not a day.** Stop 2 points at "Sıradaki" and stop 3 at its
+ * **Three Cevşen groups, because one is not a day.** Stop 2 points at "Sıradaki" and stop 3 at its
  * button, and both read better with more behind them. The three differ in the ways shares
  * actually differ: one owned and mid-share, one joined and nearly done, one finished, which is
- * the one under "Bugün okunanlar". Everything is deliberately unremarkable, because it is a
+ * the one under "Bugün okunanlar". **And one Kur'an group** for the tour's Kur'an leg, which also
+ * shows on Ana sayfa as a "Sonra" row. Everything is deliberately unremarkable, because it is a
  * demonstration rather than a brag.
  *
  * **Each group is built by one factory**, so its share, its board, its counts and its rounds
@@ -166,8 +166,8 @@ const summaryOf = (spec: DemoGroupSpec): GroupSummary => {
 		completedAt: null,
 		createdAt: daysAgo(24),
 		cycle: spec.cycle,
-		// The tour walks Cevşen groups: every stop's copy describes a hundred babs split by
-		// seat, so a hatim among them would describe a board the cards do not match.
+		// These specs are the Cevşen groups — a hundred babs split by seat. The Kur'an leg's group
+		// has its own factory below (`hatimSummary`), since a hatim's board is not shaped like this.
 		kind: 'CEVSEN',
 		roundDays: spec.cycle === 'WEEKLY' ? 7 : 1,
 		daysLeft: spec.cycle === 'WEEKLY' ? 2 : null,
@@ -262,7 +262,176 @@ const roundsOf = (spec: DemoGroupSpec): RoundSummary[] => [
 	}
 ];
 
-export const TOUR_DEMO_GROUPS: GroupSummary[] = SPECS.map(summaryOf);
+/*
+ * **The Kur'an leg's group** — its own small factory, because a hatim is not a hundred babs split
+ * by seat: thirty cüz, the viewer holding two of them (one read), a few nobody took waiting in
+ * the havuz, and the rest held by others. Built once from these constants so its board, its
+ * share, its havuz and its progress cannot disagree, the same rule as the Cevşen specs above.
+ */
+const HATIM_ID = 'tour-demo-hatim';
+const HATIM_MINE = [7, 22];
+const HATIM_MINE_READ = new Set([7]);
+const HATIM_POOL = [26, 27, 28];
+const HATIM_OTHERS_READ = 14;
+const HATIM_HOURS_LEFT = 75;
+const HATIM_ROUND = 3;
+const CUZ_TOTAL = 30;
+
+const hatimBabs = (): GroupBab[] => {
+	const others = new Set<number>();
+
+	for (let number = 1; number <= CUZ_TOTAL && others.size < HATIM_OTHERS_READ; number += 1) {
+		if (!HATIM_MINE.includes(number) && !HATIM_POOL.includes(number)) {
+			others.add(number);
+		}
+	}
+
+	return Array.from({ length: CUZ_TOTAL }, (_, index) => {
+		const number = index + 1;
+		const isMine = HATIM_MINE_READ.has(number);
+		const isRead = isMine || others.has(number);
+
+		return {
+			assignedUserId: null,
+			number,
+			readAt: isRead ? daysAgo(1) : null,
+			readByDisplayName: isRead ? (isMine ? null : 'Yusuf') : null,
+			readByUserId: isRead ? (isMine ? DEMO_USER_ID : 'tour-demo-other') : null
+		};
+	});
+};
+
+const hatimSummary = (): GroupSummary => {
+	const readCount = HATIM_MINE_READ.size + HATIM_OTHERS_READ;
+
+	return {
+		completedAt: null,
+		createdAt: daysAgo(24),
+		cycle: 'WEEKLY',
+		kind: 'HATIM',
+		roundDays: 7,
+		daysLeft: 3,
+		dedication: 'Geçmişlerimiz için',
+		endsAt: null,
+		id: HATIM_ID,
+		isFull: false,
+		isMember: true,
+		isOwner: false,
+		memberCount: 6,
+		myBabNumbers: HATIM_MINE,
+		myNextBabNumber: HATIM_MINE.find(number => !HATIM_MINE_READ.has(number)) ?? null,
+		mustPickCuz: false,
+		myNextRoundRange: null,
+		myPoolBabNumbers: [],
+		myReadCount: HATIM_MINE_READ.size,
+		myShareDoneAt: null,
+		myRoundRange: null,
+		mySlotIndex: 2,
+		name: 'Cuma Hatmi',
+		openToJoin: true,
+		percent: Math.round((readCount / CUZ_TOTAL) * 100),
+		poolAllBabNumbers: HATIM_POOL,
+		poolBabNumbers: HATIM_POOL,
+		readCount,
+		roundEndsAt: hoursFromNow(HATIM_HOURS_LEFT),
+		roundIndex: HATIM_ROUND,
+		roundStartedAt: hoursFromNow(HATIM_HOURS_LEFT - 24 * 7),
+		spots: CUZ_TOTAL,
+		spotsLeft: CUZ_TOTAL - 6,
+		splitMode: 'FIXED',
+		startedAt: daysAgo(24),
+		status: 'RUNNING',
+		timezone: 'Europe/Istanbul',
+		visibility: 'OPEN'
+	};
+};
+
+const hatimDetail = (): GroupDetail => ({
+	...hatimSummary(),
+	autoStartWhenFull: false,
+	boundaryPolicy: 'KEEP',
+	hasSkippedRound: false,
+	maxPerMember: 3,
+	babs: hatimBabs(),
+	inviteCode: 'CUMA-5H3T',
+	members: [
+		{
+			babNumbers: HATIM_MINE,
+			cheeredByMe: false,
+			displayName: 'Sen',
+			id: `${HATIM_ID}-member`,
+			imageUrl: null,
+			joinedAt: daysAgo(24),
+			percent: Math.round((HATIM_MINE_READ.size / HATIM_MINE.length) * 100),
+			readCount: HATIM_MINE_READ.size,
+			role: 'MEMBER',
+			slotIndex: 2,
+			userId: DEMO_USER_ID
+		}
+	],
+	ownerUserId: 'tour-demo-other',
+	poolReleases: [],
+	reminderEnabled: true,
+	reminderTime: '21:30',
+	startsAt: daysAgo(24)
+});
+
+const hatimRounds = (): RoundSummary[] => [
+	{
+		endsAt: hoursFromNow(HATIM_HOURS_LEFT),
+		isOpen: true,
+		missedCount: 0,
+		myOwedCount: HATIM_MINE.length,
+		myReadCount: HATIM_MINE_READ.size,
+		readCount: HATIM_MINE_READ.size + HATIM_OTHERS_READ,
+		roundIndex: HATIM_ROUND,
+		startedAt: hoursFromNow(HATIM_HOURS_LEFT - 24 * 7)
+	},
+	{
+		endsAt: hoursFromNow(HATIM_HOURS_LEFT - 24 * 7),
+		isOpen: false,
+		missedCount: 0,
+		myOwedCount: HATIM_MINE.length,
+		myReadCount: HATIM_MINE.length,
+		readCount: CUZ_TOTAL,
+		roundIndex: HATIM_ROUND - 1,
+		startedAt: hoursFromNow(HATIM_HOURS_LEFT - 24 * 14)
+	}
+];
+
+/** Three rounds, all kept: two closed with both cüz read, and this one with one of two. */
+const hatimMyProgress = (): MyProgress => {
+	const periods: MyProgressPeriod[] = [HATIM_ROUND - 2, HATIM_ROUND - 1, HATIM_ROUND].map(roundIndex => {
+		const isOpen = roundIndex === HATIM_ROUND;
+		const units = HATIM_MINE.map(number => ({ isRead: !isOpen || HATIM_MINE_READ.has(number), number }));
+		const back = HATIM_ROUND - roundIndex;
+
+		return {
+			endsAt: hoursFromNow(HATIM_HOURS_LEFT - 24 * 7 * back),
+			isOpen,
+			missedBabs: [],
+			missedCount: 0,
+			owedCount: HATIM_MINE.length,
+			readCount: units.filter(unit => unit.isRead).length,
+			roundIndex,
+			startedAt: hoursFromNow(HATIM_HOURS_LEFT - 24 * 7 * (back + 1)),
+			units
+		};
+	});
+	const owedCount = periods.reduce((total, period) => total + period.owedCount, 0);
+	const readCount = periods.reduce((total, period) => total + period.readCount, 0);
+
+	return {
+		cycle: 'WEEKLY',
+		missedCount: 0,
+		owedCount,
+		periods,
+		ratePercent: Math.round((readCount / owedCount) * 100),
+		readCount
+	};
+};
+
+export const TOUR_DEMO_GROUPS: GroupSummary[] = [...SPECS.map(summaryOf), hatimSummary()];
 
 /** The group the tour walks, and the bab its reader stop opens: the first row on Ana sayfa. */
 export const TOUR_DEMO_SUBJECT = {
@@ -270,12 +439,23 @@ export const TOUR_DEMO_SUBJECT = {
 	groupId: SPECS[0]!.id
 };
 
-/** Whichever of the three was opened — the first, unless the reader was somewhere else. */
+/** The Kur'an leg's group, and the cüz its cüz page and reader open: the one still unread. */
+export const TOUR_DEMO_HATIM_SUBJECT = {
+	cuzNumber: HATIM_MINE.find(number => !HATIM_MINE_READ.has(number)) ?? HATIM_MINE[0]!,
+	groupId: HATIM_ID
+};
+
+const isHatim = (groupId: string) => groupId === HATIM_ID;
+
+/** Whichever Cevşen group was opened — the first, unless the reader was somewhere else. */
 const specFor = (groupId: string) => SPECS.find(spec => spec.id === groupId) ?? SPECS[0]!;
 
-export const tourDemoGroup = (groupId: string): GroupDetail => detailOf(specFor(groupId));
-export const tourDemoBabs = (groupId: string): GroupBab[] => babsOf(specFor(groupId));
-export const tourDemoRounds = (groupId: string): RoundSummary[] => roundsOf(specFor(groupId));
+export const tourDemoGroup = (groupId: string): GroupDetail =>
+	isHatim(groupId) ? hatimDetail() : detailOf(specFor(groupId));
+export const tourDemoBabs = (groupId: string): GroupBab[] =>
+	isHatim(groupId) ? hatimBabs() : babsOf(specFor(groupId));
+export const tourDemoRounds = (groupId: string): RoundSummary[] =>
+	isHatim(groupId) ? hatimRounds() : roundsOf(specFor(groupId));
 
 /**
  * Seven periods for the "Senin ilerlemen" card — the walkthrough passes over it between
@@ -290,6 +470,10 @@ export const tourDemoRounds = (groupId: string): RoundSummary[] => roundsOf(spec
 const CLOSED_READS = [13, 13, 9, 13, 0, 13];
 
 export const tourDemoMyProgress = (groupId: string): MyProgress => {
+	if (isHatim(groupId)) {
+		return hatimMyProgress();
+	}
+
 	const spec = specFor(groupId);
 	const periods: MyProgressPeriod[] = CLOSED_READS.map((readCount, index) => ({
 		endsAt: hoursFromNow(spec.hoursLeft - 24 * (CLOSED_READS.length - index)),
@@ -387,68 +571,3 @@ export const TOUR_DEMO_PROFILE_STATS: ProfileStats = {
 	roundsCompleted: 3,
 	streakDays: 6
 };
-
-/**
- * The inbox the tour walks through (design P2).
- *
- * **Built from the same three groups as everything else**, so a row cannot name a group the
- * shelf behind it does not have — the reason every fixture in this file comes off one set of
- * specs. The ranges are the blocks those groups actually divide, and the names are the members
- * the demo group screen lists.
- *
- * Four rows rather than one of each kind: the stop is about the inbox being a *record*, and a
- * single row reads as a one-off. They cover the three shapes a reader meets most — somebody
- * finishing, a round closing, somebody joining — plus an unread one at the top, which is what
- * the bell's badge is counting.
- *
- * The first two are unread so the screen shows both weights of row, and the timestamps are
- * minutes and hours rather than fixed dates so the relative ages read correctly whenever the
- * tour is opened.
- */
-const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
-
-export const TOUR_DEMO_NOTIFICATIONS: AppNotification[] = [
-	{
-		createdAt: minutesAgo(12),
-		groupId: 'tour-demo-group-2',
-		groupKind: 'CEVSEN',
-		groupName: 'Silsile Hatmi',
-		id: 'tour-demo-notification-1',
-		isRead: false,
-		kind: 'SHARE_READ',
-		payload: { range: '14–26', readerName: 'Zeynep' }
-	},
-	{
-		createdAt: minutesAgo(95),
-		groupId: 'tour-demo-group-1',
-		groupKind: 'CEVSEN',
-		groupName: 'Aile Hatmi',
-		id: 'tour-demo-notification-2',
-		isRead: false,
-		kind: 'MEMBER_JOINED',
-		payload: { memberCount: 5, memberName: 'Yusuf', spots: SPOTS }
-	},
-	{
-		createdAt: minutesAgo(60 * 20),
-		groupId: 'tour-demo-group-3',
-		groupKind: 'CEVSEN',
-		groupName: 'Şükür Hatmi',
-		id: 'tour-demo-notification-3',
-		isRead: true,
-		kind: 'ROUND_COMPLETE',
-		payload: { roundNumber: 3 }
-	},
-	{
-		createdAt: minutesAgo(60 * 30),
-		groupId: 'tour-demo-group-1',
-		groupKind: 'CEVSEN',
-		groupName: 'Aile Hatmi',
-		id: 'tour-demo-notification-4',
-		isRead: true,
-		kind: 'POOL_BAB_CLAIMED',
-		payload: { range: '66–78', takerName: 'Elif' }
-	}
-];
-
-/** What the bell tab's badge counts during the tour — the unread rows above, and nothing else. */
-export const TOUR_DEMO_UNREAD_COUNT = TOUR_DEMO_NOTIFICATIONS.filter(row => !row.isRead).length;

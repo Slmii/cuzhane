@@ -18,7 +18,7 @@ const MARK_SIZE = 30;
  * How long it has left, where it is, how far along, and one button that starts it or picks it
  * up where it was left (B8c's "Bab 22’den devam").
  *
- * The first-use tour's second and third stops are this card and its button: the tour's "your
+ * The first-use tour's first two stops are this card and its button: the tour's "your
  * groups" and "pick up where you left off" are now this one share.
  */
 export const HomeNextCard = ({
@@ -86,7 +86,7 @@ export const HomeNextCard = ({
 				<PortionBar {...(segments ? { segments } : { fraction: fraction ?? 0 })} />
 
 				<TourTarget id='read'>
-					<AppButton onPress={onPress} size='md' title={actionLabel} variant='primary' />
+					<AppButton onPress={onPress} size='lg' title={actionLabel} variant='primary' />
 				</TourTarget>
 			</HomeTopCard>
 		</TourTarget>

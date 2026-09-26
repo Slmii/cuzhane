@@ -1,4 +1,3 @@
-import { TourTarget } from '@/components/Tour/TourTarget.component';
 import { Typography } from '@/components/ui/Typography/Typography.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { pluralKey } from '@/lib/i18n/plural';
@@ -46,32 +45,30 @@ export const HomeHeader = ({ greeting, streak, title }: HomeHeaderProps) => {
 			</View>
 
 			{streak ? (
-				<TourTarget id='streak'>
-					<View
-						// Said as a streak — the pills beside the count are only a picture of it.
-						accessibilityLabel={t('homeStreakLabel', { days: streakLabel })}
-						accessible
-						style={styles.streak}
-					>
-						<Typography color={onHeader} style={styles.streakValue} weight='semibold'>
-							{streakLabel}
-						</Typography>
-						<View style={styles.week}>
-							{streak.week.map(day => (
-								<View
-									key={day.key}
-									style={[
-										styles.pill,
-										{
-											backgroundColor: day.hasRead ? onHeader : theme.colors.transparent,
-											borderColor: toAlphaColor(onHeader, 0.35)
-										}
-									]}
-								/>
-							))}
-						</View>
+				<View
+					// Said as a streak — the pills beside the count are only a picture of it.
+					accessibilityLabel={t('homeStreakLabel', { days: streakLabel })}
+					accessible
+					style={styles.streak}
+				>
+					<Typography color={onHeader} style={styles.streakValue} weight='semibold'>
+						{streakLabel}
+					</Typography>
+					<View style={styles.week}>
+						{streak.week.map(day => (
+							<View
+								key={day.key}
+								style={[
+									styles.pill,
+									{
+										backgroundColor: day.hasRead ? onHeader : theme.colors.transparent,
+										borderColor: toAlphaColor(onHeader, 0.35)
+									}
+								]}
+							/>
+						))}
 					</View>
-				</TourTarget>
+				</View>
 			) : null}
 		</View>
 	);

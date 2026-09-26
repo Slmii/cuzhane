@@ -1,5 +1,6 @@
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
+import { TourTarget } from '@/components/Tour/TourTarget.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Chip } from '@/components/ui/Chip/Chip.component';
@@ -7,10 +8,13 @@ import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
 import { BodyStrongText, CaptionText, FieldLabelText, MonoText } from '@/components/ui/Typography/Typography.component';
 import { cuzByNumber, cuzSuraRange } from '@/lib/content/cuz';
+import { mushafCuzPages } from '@/lib/content/mushaf';
+import { cuzPages } from '@/lib/content/quran';
 import { useGetBabs, useSetBabRead } from '@/lib/hooks/useBab';
 import { useGetGroupById } from '@/lib/hooks/useGroup';
 import { useRequireRoundCuz } from '@/lib/hooks/useHatimRoundGate';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
+import { useGetUserSettings } from '@/lib/hooks/useUserSettings';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { CUZ_COUNT } from '@/lib/utils/units';
@@ -69,11 +73,15 @@ export const CuzDetailScreen = ({ navigation, route }: Props) => {
 	const babs = useGetBabs(groupId);
 	const setBabRead = useSetBabRead();
 	const pullToRefresh = usePullToRefresh(group, babs);
+	const isHusrev = useGetUserSettings().data?.readerArabicFont === 'husrev';
 
 	// Bundled rather than fetched, so the heading's span and the contents' length are known
 	// before either query answers.
 	const entry = cuzByNumber(cuzNumber);
-	const subtitle = `${cuzSuraRange(cuzNumber, language)} · ${entry?.pageCount ?? 0} ${t('qPages')}`;
+	// Counted in the saved face's pagination, as the reader and Ana sayfa count it — Hüsrev's
+	// cüz 3 is 20 pages where the Madinah one is 21.
+	const pageCount = (isHusrev ? mushafCuzPages(cuzNumber) : cuzPages(cuzNumber)).length;
+	const subtitle = `${cuzSuraRange(cuzNumber, language)} · ${pageCount} ${t('qPages')}`;
 
 	if (group.isLoading || babs.isLoading) {
 		return (
@@ -125,62 +133,66 @@ export const CuzDetailScreen = ({ navigation, route }: Props) => {
 				titleTrailing={isMine ? <Chip label={t('qMine')} tone='accent' /> : null}
 			/>
 
-			{/* The state, and the one action that changes it. */}
-			<CardSurface style={styles.statusCard}>
-				<View style={styles.statusRow}>
-					<View
-						style={[
-							styles.ring,
-							{ backgroundColor: isRead ? theme.colors.accentSoft : theme.colors.segmentTrack }
-						]}
-					>
-						<View style={[styles.disc, { backgroundColor: theme.colors.surface }]}>
-							<Icon
-								color={theme.colors.accent}
-								name={isRead ? 'check' : 'book'}
-								size={20}
-								strokeWidth={2.2}
-							/>
+			{/* The tour's cüz-page stop spotlights both ways through a cüz: mark it, or read it here.
+			    The wrapper keeps the column's own gap, so the page lays out as it did without it. */}
+			<TourTarget id='cuzActions' style={styles.tourActions}>
+				{/* The state, and the one action that changes it. */}
+				<CardSurface style={styles.statusCard}>
+					<View style={styles.statusRow}>
+						<View
+							style={[
+								styles.ring,
+								{ backgroundColor: isRead ? theme.colors.accentSoft : theme.colors.segmentTrack }
+							]}
+						>
+							<View style={[styles.disc, { backgroundColor: theme.colors.surface }]}>
+								<Icon
+									color={theme.colors.accent}
+									name={isRead ? 'check' : 'book'}
+									size={20}
+									strokeWidth={2.2}
+								/>
+							</View>
+						</View>
+						<View style={styles.statusText}>
+							<BodyStrongText>{t(isRead ? 'qCuzDone' : 'qCuzTodo')}</BodyStrongText>
+							<CaptionText color={theme.colors.subtext} style={styles.statusSub}>
+								{isReadByOthers
+									? bab?.readByDisplayName
+										? t('readBeforeYoursBy', { name: bab.readByDisplayName })
+										: t('readBeforeYours')
+									: statusSub}
+							</CaptionText>
 						</View>
 					</View>
-					<View style={styles.statusText}>
-						<BodyStrongText>{t(isRead ? 'qCuzDone' : 'qCuzTodo')}</BodyStrongText>
-						<CaptionText color={theme.colors.subtext} style={styles.statusSub}>
-							{isReadByOthers
-								? bab?.readByDisplayName
-									? t('readBeforeYoursBy', { name: bab.readByDisplayName })
-									: t('readBeforeYours')
-								: statusSub}
-						</CaptionText>
-					</View>
-				</View>
-				{/*
-				 * Only the holder marks it, and only the reader undoes it — the same two rules
-				 * the group screen's row follows. For anyone else the state above is the whole
-				 * of what this card says.
-				 */}
-				{isMine ? (
-					<AppButton
-						isLoading={setBabRead.isPending}
-						onPress={handleToggle}
-						title={t(isRead ? 'markUnread' : 'markRead')}
-						variant={isRead ? 'surface' : 'primary'}
-					/>
-				) : null}
-			</CardSurface>
+					{/*
+					 * Only the holder marks it, and only the reader undoes it — the same two rules
+					 * the group screen's row follows. For anyone else the state above is the whole
+					 * of what this card says.
+					 */}
+					{isMine ? (
+						<AppButton
+							isLoading={setBabRead.isPending}
+							onPress={handleToggle}
+							title={t(isRead ? 'markUnread' : 'markRead')}
+							variant={isRead ? 'surface' : 'primary'}
+						/>
+					) : null}
+				</CardSurface>
 
-			{/*
-			 * The frame's second row, down to its first half: read it here (Q5). Its "Devret" is
-			 * removed for now — what handing a cüz over *means* (back to the havuz, or to a named
-			 * member) is undecided, and neither has a server path.
-			 */}
-			<AppButton
-				icon='readInApp'
-				onPress={() => navigation.push('CuzReader', { cuzNumber, groupId })}
-				style={styles.action}
-				title={t('qReadInApp')}
-				variant='accent'
-			/>
+				{/*
+				 * The frame's second row, down to its first half: read it here (Q5). Its "Devret" is
+				 * removed for now — what handing a cüz over *means* (back to the havuz, or to a named
+				 * member) is undecided, and neither has a server path.
+				 */}
+				<AppButton
+					icon='readInApp'
+					onPress={() => navigation.push('CuzReader', { cuzNumber, groupId })}
+					style={styles.action}
+					title={t('qReadInApp')}
+					variant='accent'
+				/>
+			</TourTarget>
 
 			{/* Which suras, and how much of each — the metadata the app bundles for this. */}
 			<FieldLabelText style={styles.contentsLabel}>{t('qCuzContents')}</FieldLabelText>
@@ -237,6 +249,9 @@ const styles = StyleSheet.create({
 		gap: 14,
 		paddingHorizontal: 16,
 		paddingVertical: 18
+	},
+	tourActions: {
+		gap: 12
 	},
 	statusRow: {
 		alignItems: 'center',

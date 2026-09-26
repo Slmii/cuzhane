@@ -1,11 +1,13 @@
 import { getNotifications, getUnreadNotificationCount, markAllNotificationsRead } from '@/api/notifications.api';
 import { notificationQueryKeys, tourDemoQueryKeys } from '@/lib/hooks/queryKeys';
 import { useIsTourDemo } from '@/components/Tour/Tour.context';
-import { TOUR_DEMO_NOTIFICATIONS, TOUR_DEMO_UNREAD_COUNT } from '@/components/Tour/tourDemoData';
 import { useLiveRefetchInterval } from '@/lib/hooks/useLiveRefetchInterval';
 import { useRefetchOnFocus } from '@/lib/hooks/useRefetchOnFocus';
 import { AppNotification } from '@/lib/types/domain';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+
+/** The tour's inbox: nothing, so the bell carries no badge while it runs. */
+const NO_NOTIFICATIONS: AppNotification[] = [];
 
 /**
  * The inbox itself (design P2).
@@ -21,7 +23,7 @@ export const useGetNotifications = () => {
 
 	const query = useQuery({
 		queryKey: isDemo ? tourDemoQueryKeys.notifications() : notificationQueryKeys.list(),
-		queryFn: isDemo ? async () => TOUR_DEMO_NOTIFICATIONS : getNotifications,
+		queryFn: isDemo ? async () => NO_NOTIFICATIONS : getNotifications,
 		/*
 		 * **The same cadence as the badge.** The count polled and this did not, and the tabs stay
 		 * mounted — so the bell counted up while the list behind it kept showing the rows from
@@ -35,7 +37,7 @@ export const useGetNotifications = () => {
 		 * would flash its skeleton on the way in. The same reason the other five demo hooks
 		 * carry it.
 		 */
-		...(isDemo ? { initialData: () => TOUR_DEMO_NOTIFICATIONS, staleTime: Infinity } : {})
+		...(isDemo ? { initialData: () => NO_NOTIFICATIONS, staleTime: Infinity } : {})
 	});
 
 	/*
@@ -60,10 +62,10 @@ export const useUnreadNotificationCount = () => {
 
 	return useQuery({
 		queryKey: isDemo ? tourDemoQueryKeys.unreadCount() : notificationQueryKeys.unreadCount(),
-		// The stand-in rows' own unread count, so the badge and the list it opens agree.
-		queryFn: isDemo ? async () => TOUR_DEMO_UNREAD_COUNT : async () => (await getUnreadNotificationCount()).count,
+		// None during the tour, so the badge and the empty list it opens agree.
+		queryFn: isDemo ? async () => 0 : async () => (await getUnreadNotificationCount()).count,
 		refetchInterval: isDemo ? false : refetchInterval,
-		...(isDemo ? { initialData: () => TOUR_DEMO_UNREAD_COUNT, staleTime: Infinity } : {})
+		...(isDemo ? { initialData: () => 0, staleTime: Infinity } : {})
 	});
 };
 

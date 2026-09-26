@@ -448,6 +448,21 @@ export const HomeScreen = () => {
 					</>
 				) : null}
 
+				{/*
+				 * B8e — one share left and nothing else: no later list and nothing read today, so the
+				 * sheet says so rather than standing empty under the card.
+				 */}
+				{state === 'next' && later.length === 0 && readToday.length === 0 ? (
+					<View style={styles.lastReading}>
+						<Typography style={styles.lastReadingTitle} textAlign='center' variant='title' weight='regular'>
+							{t('homeLastTitle')}
+						</Typography>
+						<CaptionText color={theme.colors.subtext} textAlign='center'>
+							{t('homeLastBody')}
+						</CaptionText>
+					</View>
+				) : null}
+
 				{/* What is already read, under what is still to come (B8c). */}
 				{readToday.length > 0 ? (
 					<>
@@ -598,6 +613,17 @@ const styles = StyleSheet.create({
 	},
 	page: {
 		flexGrow: 1
+	},
+	// Fills the sheet above the footer links, so the two lines sit in its middle as the frame has them.
+	lastReading: {
+		flexGrow: 1,
+		gap: 6,
+		justifyContent: 'center',
+		paddingHorizontal: 24
+	},
+	lastReadingTitle: {
+		fontSize: 19,
+		lineHeight: 24
 	},
 	screen: {
 		flex: 1

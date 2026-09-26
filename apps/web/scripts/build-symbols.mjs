@@ -121,7 +121,9 @@ const candidates = names
  * The test is deliberately crude: a `fill` that is not `none` means painted shapes. Our icons
  * declare `fill="none"` on the root and stroke every path.
  */
-const filled = candidates.filter(name => /fill="(?!none)[^"]+"/.test(readFileSync(join(source, `${name}.svg`), 'utf8')));
+const filled = candidates.filter(name =>
+	/fill="(?!none)[^"]+"/.test(readFileSync(join(source, `${name}.svg`), 'utf8'))
+);
 
 if (filled.length > 0) {
 	console.error(`filled artwork cannot become a symbol: ${filled.join(', ')}`);

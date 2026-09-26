@@ -294,9 +294,12 @@ sheet via `@expo/ui/community/bottom-sheet`; no gorhom, no close button):
 
 -   Always runs on its own fixtures (`tourDemoData`, separate `tourDemoQueryKeys`, with
     `initialData`). While it runs the app is inert (`TourBlocker`) and Android back is swallowed.
--   Targets measure with `measureInWindow`, withdraw on blur; bar-glyph targets are arithmetic
-    (`useTourBarTarget`). Ending anywhere but Home pops the tab stack **with a `target`**.
--   Copy `tour1…tour16` is numbered in visit order — inserting a stop renumbers.
+-   Targets measure with `measureInWindow`, withdraw on blur. Ending anywhere but Home pops the
+    tab stack **with a `target`**.
+-   Two legs: Cevşen (group, reader) then Kur'an (a demo hatim's group, cüz page, reader). The
+    round gate opens straight away for demo data (`useHatimRoundGate`). Stops cover only what
+    doesn't explain itself — no streak, share, Aa, inbox, notification or settings stops.
+-   Copy `tour1…tour15` is numbered in visit order — inserting a stop renumbers.
 
 **Environment and releases (EAS)**
 

@@ -740,24 +740,26 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 						 * Drag or tap anywhere along it to jump — the arrows step one bab, which is
 						 * ninety-nine taps end to end.
 						 */}
-						<GestureDetector gesture={railGesture}>
-							<View
-								accessibilityRole='adjustable'
-								accessibilityValue={{ max: BAB_COUNT, min: 1, now: babNumber }}
-								onLayout={event => setRailWidth(event.nativeEvent.layout.width)}
-								style={styles.babMapRow}
-							>
-								<ReaderBabMap
-									currentBab={displayBab}
-									scrubRatio={scrubRatio}
-									myBabNumbers={myBabNumbers}
-									poolBabNumbers={poolBabNumbers}
-									readBabNumbers={readBabNumbers}
-									// What chunks the pool ticks into the blocks a seat actually offers.
-									{...(groupQuery.data ? { spots: groupQuery.data.spots } : {})}
-								/>
-							</View>
-						</GestureDetector>
+						{/* Stop 9 of the first-use tour — the strip, and that it can be dragged. */}
+						<TourTarget id='readerMap' style={styles.babMapRow}>
+							<GestureDetector gesture={railGesture}>
+								<View
+									accessibilityRole='adjustable'
+									accessibilityValue={{ max: BAB_COUNT, min: 1, now: babNumber }}
+									onLayout={event => setRailWidth(event.nativeEvent.layout.width)}
+								>
+									<ReaderBabMap
+										currentBab={displayBab}
+										scrubRatio={scrubRatio}
+										myBabNumbers={myBabNumbers}
+										poolBabNumbers={poolBabNumbers}
+										readBabNumbers={readBabNumbers}
+										// What chunks the pool ticks into the blocks a seat actually offers.
+										{...(groupQuery.data ? { spots: groupQuery.data.spots } : {})}
+									/>
+								</View>
+							</GestureDetector>
+						</TourTarget>
 					</View>
 
 					<GestureDetector gesture={swipe}>
@@ -805,7 +807,7 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 						{readHint}
 					</Typography>
 				) : null}
-				{/* Stop 10 of the first-use tour: Okudum and the two arrows, as one row. */}
+				{/* Stop 8 of the first-use tour: Okudum and the two arrows, as one row. */}
 				<TourTarget id='readerActions'>
 					<View style={styles.footerRow}>
 						<AppButton

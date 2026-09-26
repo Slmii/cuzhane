@@ -398,7 +398,7 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 				 * exactly. Split apart, the countdown reads as the reader's own clock when it
 				 * never was.
 				 */}
-				{/* Stop 4 of the first-use tour: the group's whole rhythm in one card. */}
+				{/* Stop 3 of the first-use tour: the group's whole rhythm in one card. */}
 				<TourTarget id='groupSummary'>
 					<CardSurface isFlush>
 						<View style={styles.statsRow}>
@@ -471,7 +471,7 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 				 */}
 				{myProgressQuery.isLoading ? <MyProgressCardSkeleton /> : null}
 				{myProgress ? (
-					// Stop 5 of the first-use tour. Inside the guard, as the closed-round and pool
+					// Stop 4 of the first-use tour. Inside the guard, as the closed-round and pool
 					// stops are, so a group with nothing to report registers no rect and that
 					// stop simply centres its card.
 					<TourTarget id='myProgress'>
@@ -499,7 +499,7 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 					isFlush
 					style={isMyBabsOpen ? null : { backgroundColor: theme.colors.accentSoft }}
 				>
-					{/* Stop 6 of the first-use tour frames this row, closed or open. */}
+					{/* Stop 5 of the first-use tour frames this row, closed or open. */}
 					<TourTarget id='assigned'>
 						<Pressable
 							// The eyebrow and the sentence are gone from the row, so the label they carried
@@ -684,7 +684,7 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 				 * worse than no row.
 				 */}
 				{lastClosedRound ? (
-					// Stop 7 of the first-use tour. Inside the guard, so a group with no closed
+					// Stop 6 of the first-use tour. Inside the guard, so a group with no closed
 					// round registers nothing and that stop centres its card.
 					<TourTarget id='lastRound'>
 						<CardSurface
@@ -765,7 +765,7 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 				 * it. The count comes from the group, so nothing here waits on the board.
 				 */}
 				{detail.poolAllBabNumbers.length > 0 ? (
-					// Stop 8 of the first-use tour, guarded the same way as the row above.
+					// Stop 7 of the first-use tour, guarded the same way as the row above.
 					<TourTarget id='pool'>
 						<CardSurface
 							onPress={() => navigation.navigate('Pool', { groupId })}
