@@ -28,8 +28,8 @@ export const HomeGroupRow = ({ group, isTourTarget = false, onOpenReader, onPres
 		return (
 			<CardSurface onPress={onPress}>
 				<BodyStrongText>{group.name}</BodyStrongText>
-				<CaptionText color={theme.colors.subtext}>{t('planFlexible')}</CaptionText>
-				<AppButton title={t('flexibleChoose')} onPress={onPress} variant='surface' />
+				<CaptionText color={theme.colors.subtext}>{group.planLabel ?? t('planFlexible')}</CaptionText>
+				<AppButton title={t(group.planLabel ? 'hpRead' : 'flexibleChoose')} onPress={onPress} variant='surface' />
 			</CardSurface>
 		);
 	}

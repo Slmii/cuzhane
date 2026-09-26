@@ -39,6 +39,17 @@ model Group {
     status            GroupStatus     @default(GATHERING)
     cycle             GroupCycle      @default(WEEKLY)
     kind              GroupKind       @default(CEVSEN)
+    /// Null for legacy groups; 0 lets members choose, otherwise 7/15/33 days.
+    hizbPlan          Int?
+    hizbIndividual    Boolean         @default(false)
+    hizbStartPortion  Int             @default(1)
+    inactivityDays    Int?
+    hizbNext7         Int             @default(0)
+    hizbNext15        Int             @default(0)
+    hizbNext33        Int             @default(0)
+    inactivitySinceDay Int?
+    hizbNextSlot       Int             @default(1)
+    hizbEnrollments   HizbEnrollment[]
     spots             Int             @default(20)
     inviteCode        String          @unique
     openToJoin        Boolean         @default(true)

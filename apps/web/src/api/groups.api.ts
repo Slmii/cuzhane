@@ -10,6 +10,10 @@ import {
 } from '@/lib/types/domain';
 
 export type CreateGroupInput = {
+	hizbIndividual?: boolean;
+	hizbStartPortion?: number;
+	hizbPlan?: number;
+	inactivityDays?: number | null;
 	name: string;
 	dedication?: string;
 	visibility: GroupVisibility;
@@ -32,6 +36,7 @@ export type CreateGroupInput = {
 // Mirrors the server's UpdateGroupBodySchema. `kind`, `spots`, `splitMode` and `cycle` are
 // immutable once the group exists and are deliberately absent — the server rejects them.
 export type UpdateGroupInput = {
+	inactivityDays?: number | null;
 	groupId: string;
 	name?: string;
 	dedication?: string | null;

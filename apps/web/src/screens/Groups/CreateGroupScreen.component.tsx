@@ -20,6 +20,7 @@ import type { GroupKind } from '@/lib/types/domain';
 import { babsPerPerson } from '@/lib/utils/babs';
 import { CREATE_DEFAULTS_FOR_KIND, partCountFor, SPOTS_FOR_KIND } from '@/lib/utils/groupKinds';
 import { cycleLabelKey, cycleOptionsFor } from '@/lib/utils/groups';
+import { hizbPlanDescriptionKey } from '@/lib/utils/hizbPlanLabels';
 import { deviceTimeZone } from '@/lib/utils/timezone';
 import { RootStackParamList } from '@/navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -41,8 +42,8 @@ type CreateGroupScreenProps = NativeStackScreenProps<RootStackParamList, 'Create
 const FIELDS_BY_STEP: Record<CreateGroupStep, (keyof GroupForm)[]> = {
 	1: ['kind'],
 	2: ['name', 'dedication', 'visibility', 'hideMemberNames'],
-	3: ['spots', 'splitMode'],
-	4: ['cycle']
+	3: ['spots', 'splitMode', 'hizbPlan'],
+	4: ['cycle', 'inactivityDays', 'hizbStartPortion']
 };
 
 /**
@@ -129,7 +130,16 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 	const handleCreate = (values: GroupForm) => {
 		createGroup.mutate(
 			{
-				cycle: values.cycle,
+				cycle: values.kind === 'HIZB' ? 'DAILY' : values.cycle,
+				...(values.kind === 'HIZB'
+					? {
+							hizbPlan: Number(values.hizbPlan),
+							hizbIndividual: values.hizbIndividual,
+							hizbStartPortion: values.hizbIndividual ? values.hizbStartPortion : 1,
+							inactivityDays:
+								!values.hizbIndividual && values.inactivityEnabled ? values.inactivityDays : null
+					  }
+					: {}),
 				dedication: values.dedication.trim() || undefined,
 				kind: values.kind,
 				name: values.name.trim(),
@@ -159,12 +169,16 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 					// `Tabs` dismisses the sheet and delivers the params in one dispatch, so
 					// there's no separate `goBack` to fire an unhandled action.
 					//
-					// Flexible groups start immediately; assigned groups gather in the lobby.
+					// Offer the group explainer before continuing to the group or lobby.
 					navigation.popTo('Tabs', {
 						screen: 'Groups',
 						params: {
-							screen: created.status === 'RUNNING' ? 'GroupDetail' : 'Lobby',
-							params: { groupId: created.id }
+							...(created.hizbIndividual
+								? { screen: 'GroupDetail' as const, params: { groupId: created.id } }
+								: {
+										screen: 'GroupIntroduction' as const,
+										params: { groupId: created.id, source: 'created' as const }
+								  })
 						}
 					})
 			}
@@ -191,13 +205,19 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 					kind: 'CEVSEN',
 					name: '',
 					visibility: 'OPEN',
-					hideMemberNames: false
+					hideMemberNames: false,
+					hizbPlan: '33',
+					hizbIndividual: false,
+					hizbStartPortion: 1,
+					inactivityEnabled: false,
+					inactivityDays: 10
 				}}
 				isDisabled={createGroup.isPending}
 				schema={schema}
 				render={({ handleSubmit, setValue, trigger, watch }) => {
 					const spots = watch('spots');
 					const kind = watch('kind');
+					const individual = kind === 'HIZB' && watch('hizbIndividual');
 					const isFlexible = watch('splitMode') === 'FLEXIBLE';
 					const perPart = babsPerPerson(spots, partCountFor(kind));
 					// The Hizb's line names its own unit, and "1 portion" and a lone seat are lines of
@@ -267,6 +287,15 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 								<CreatingGroupStep isFlexible={isFlexible} />
 							) : (
 								<CreateGroupStepHeader
+									titleKey={
+										kind === 'HIZB' && step >= 3
+											? step === 3
+												? 'hpPlan'
+												: individual
+												? 'hpStartPortion'
+												: 'hpInactivity'
+											: undefined
+									}
 									onBack={handleBack}
 									onNext={step === LAST_STEP ? handleSubmit(handleCreate) : () => void handleNext()}
 									step={step}
@@ -297,6 +326,19 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 										 * sits below the cards, so appearing moves nothing above it.
 										 */}
 										{kind === 'HIZB' ? (
+											<ToggleRow
+												title={t('hpIndividual')}
+												hint={t('hpIndividualHint')}
+												value={watch('hizbIndividual')}
+												onValueChange={next => {
+													setValue('hizbIndividual', next);
+													if (next && watch('hizbPlan') === '0') {
+														setValue('hizbPlan', '33');
+													}
+												}}
+											/>
+										) : null}
+										{kind === 'HIZB' ? (
 											<CardSurface style={styles.kindNoteCard}>
 												<View style={styles.kindNote}>
 													<Icon
@@ -307,7 +349,7 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 														style={styles.kindNoteIcon}
 													/>
 													<BodyText color={theme.colors.subtext} style={styles.kindNoteText}>
-														{t('kindHizbNote')}
+														{t('hpDailyHint')}
 													</BodyText>
 												</View>
 											</CardSurface>
@@ -328,33 +370,63 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 											name='dedication'
 											placeholder={t('dedicationHint')}
 										/>
-										<FieldLabelText style={styles.fieldLabel}>{t('visibility')}</FieldLabelText>
-										<FormOptionGroup
-											direction='row'
-											name='visibility'
-											options={[
-												{ hint: t('openHint'), title: t('open'), value: 'OPEN' },
-												...(!isFlexible
-													? [
-															{
-																hint: t('privateHint'),
-																title: t('private'),
-																value: 'PRIVATE'
-															}
-													  ]
-													: [])
-											]}
-										/>
-										<ToggleRow
-											title={t('hideMemberNames')}
-											hint={t('hideMemberNamesHint')}
-											value={watch('hideMemberNames')}
-											onValueChange={next => setValue('hideMemberNames', next)}
-										/>
+										{!individual ? (
+											<>
+												<FieldLabelText style={styles.fieldLabel}>
+													{t('visibility')}
+												</FieldLabelText>
+												<FormOptionGroup
+													direction='row'
+													name='visibility'
+													options={[
+														{ hint: t('openHint'), title: t('open'), value: 'OPEN' },
+														...(!isFlexible
+															? [
+																	{
+																		hint: t('privateHint'),
+																		title: t('private'),
+																		value: 'PRIVATE'
+																	}
+															  ]
+															: [])
+													]}
+												/>
+												<ToggleRow
+													title={t('hideMemberNames')}
+													hint={t('hideMemberNamesHint')}
+													value={watch('hideMemberNames')}
+													onValueChange={next => setValue('hideMemberNames', next)}
+												/>
+											</>
+										) : (
+											<BodyText>{t('hpIndividualPrivacy')}</BodyText>
+										)}
 									</>
 								) : null}
 
-								{!createGroup.isPending && step === 3 ? (
+								{!createGroup.isPending && step === 3 && kind === 'HIZB' ? (
+									<>
+										<FieldLabelText>{t('hpPlan')}</FieldLabelText>
+										<FormOptionGroup
+											name='hizbPlan'
+											onChange={() => setValue('hizbStartPortion', 1)}
+											direction='column'
+											options={(individual ? [7, 15, 33] : [7, 15, 33, 0]).map(days => ({
+												value: String(days),
+												title: days ? t('hpDays', { days }) : t('hpMixed'),
+												hint: t(
+													individual
+														? 'hpIndividualPlanHint'
+														: days
+														? 'hpFixedHint'
+														: 'hpMixedHint'
+												)
+											}))}
+										/>
+										<BodyText>{t('hpDailyHint')}</BodyText>
+									</>
+								) : null}
+								{!createGroup.isPending && step === 3 && kind !== 'HIZB' ? (
 									<>
 										<FieldLabelText style={styles.fieldLabel}>{t('readingPlan')}</FieldLabelText>
 										<FormOptionGroup
@@ -415,7 +487,54 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 									</>
 								) : null}
 
-								{!createGroup.isPending && step === 4 ? (
+								{!createGroup.isPending && step === 4 && individual ? (
+									<>
+										<BodyText>{t('hpStartHint')}</BodyText>
+										<FieldLabelText>{t('hpStartPortion')}</FieldLabelText>
+										<FormStepper
+											name='hizbStartPortion'
+											values={Array.from(
+												{ length: Number(watch('hizbPlan')) || 33 },
+												(_, i) => i + 1
+											)}
+											caption={t('hpPortion', {
+												days: Number(watch('hizbPlan')),
+												portion: watch('hizbStartPortion')
+											})}
+										/>
+										<BodyText>
+											{t(
+												hizbPlanDescriptionKey(
+													Number(watch('hizbPlan')) || 33,
+													watch('hizbStartPortion')
+												)
+											)}
+										</BodyText>
+										<CaptionText>{t('hpDailyHint')}</CaptionText>
+									</>
+								) : null}
+								{!createGroup.isPending && step === 4 && kind === 'HIZB' && !individual ? (
+									<>
+										<BodyText>{t('hpBeginHint')}</BodyText>
+										<ToggleRow
+											title={t('hpInactivity')}
+											hint={t('hpInactivityHint')}
+											value={watch('inactivityEnabled')}
+											onValueChange={v => setValue('inactivityEnabled', v)}
+										/>
+										{watch('inactivityEnabled') ? (
+											<>
+												<FieldLabelText>{t('hpInactiveDays')}</FieldLabelText>
+												<FormStepper
+													name='inactivityDays'
+													values={Array.from({ length: 365 }, (_, i) => i + 1)}
+													caption={t('hpDays', { days: watch('inactivityDays') })}
+												/>
+											</>
+										) : null}
+									</>
+								) : null}
+								{!createGroup.isPending && step === 4 && kind !== 'HIZB' ? (
 									<>
 										<FieldLabelText style={styles.fieldLabel}>{t('cycle')}</FieldLabelText>
 										<Select

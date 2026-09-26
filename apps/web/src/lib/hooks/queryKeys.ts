@@ -40,6 +40,7 @@ export const groupQueryKeys = {
  * keys by prefix — and `repetitions` covers every `partRepetitions` the same way.
  */
 export const groupOwnedQueryKeys = (groupId: string) => [
+	['groups', 'hizb-reading', groupId] as const,
 	groupQueryKeys.groupById(groupId),
 	groupQueryKeys.babs(groupId),
 	groupQueryKeys.pool(groupId),

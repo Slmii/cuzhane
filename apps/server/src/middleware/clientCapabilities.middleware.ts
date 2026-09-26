@@ -9,6 +9,7 @@ export const CLIENT_KINDS_HEADER = 'X-Cuzhane-Kinds';
 
 export type ClientCapabilityLocals = {
 	clientKinds: ReadonlySet<GroupKindName>;
+	hizbPlans?: boolean;
 };
 
 const isGroupKind = (value: string): value is GroupKindName => Object.hasOwn(PART_COUNT, value);
@@ -35,6 +36,7 @@ export const parseClientKinds = (header: string | undefined): Set<GroupKindName>
 
 /** Populates `res.locals.clientKinds` from the capability header, for the compatibility guard. */
 export const clientCapabilities = (req: Request, res: Response<object, ClientCapabilityLocals>, next: NextFunction) => {
+	res.locals.hizbPlans = req.get('X-Cuzhane-Hizb-Plans') === '1';
 	res.locals.clientKinds = parseClientKinds(req.get(CLIENT_KINDS_HEADER));
 
 	next();

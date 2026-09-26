@@ -1,7 +1,22 @@
 import type { HizbBlock } from '@/lib/content/hizbulhakaik';
 import type { ReaderArabicFont, ReaderNumerals } from '@/lib/types/domain';
 
+export type IstighfarProgress = {
+	sessionOnly?: boolean;
+	count: number;
+	target: number;
+	disabled: boolean;
+	onChange: (patch: { istighfarRepetitions?: number; istighfarTarget?: number }) => void;
+};
+export type DelailProgress = {
+	count: number;
+	disabled: boolean;
+	sessionOnly?: boolean;
+	onChange: (count: number) => void;
+};
 export interface HizbBodyProps {
+	delailProgress?: DelailProgress;
+	istighfarProgress?: IstighfarProgress;
 	block: HizbBlock;
 	/**
 	 * The block is a bab of the Cevşen-ül Kebir, whose last line is the sübhâneke refrain and

@@ -1,20 +1,25 @@
+import { enrollHizbInTransaction, hizbSummary, expireHizb } from './hizbReading.service';
 import { BAD_REQUEST, INTERNAL_SERVER_ERROR } from '@config/httpCodes';
 import { HttpError } from '@config/httpError';
 import prisma from '@db/prisma';
 import { partCountFor, type GroupKindName } from '@utils/groupKinds';
 import { formatInviteCode, generateInviteCode } from '@utils/inviteCode';
 import { normalizeUserId } from '@utils/normalizeUserId';
-import { roundEndsAt } from '@utils/rounds';
+import { civilDayNumber, roundEndsAt } from '@utils/rounds';
 import type { Prisma } from '../generated/prisma/client';
 import { getMemberProfiles } from '@utils/memberProfiles';
 import { requireMembership, requireOwner } from './groupAccess.service';
 import { toGroupDetail, toGroupSummary } from './groupSerializers';
-import { ensureCurrentRoundFor, ensureCurrentRoundsFor } from './rounds.service';
+import { lockGroup, ensureCurrentRoundFor, ensureCurrentRoundsFor } from './rounds.service';
 import type { GroupCycle, GroupDetail, GroupSplitMode, GroupSummary, GroupVisibility } from './groupSerializers';
 
 // `exactOptionalPropertyTypes` is on, so optional fields must admit `undefined`
 // explicitly — Zod's inferred output types always include it on optional keys.
 export type CreateGroupInput = {
+	hizbIndividual?: boolean;
+	hizbStartPortion?: number;
+	hizbPlan?: number | undefined;
+	inactivityDays?: number | null | undefined;
 	name: string;
 	dedication?: string | null | undefined;
 	visibility: GroupVisibility;
@@ -36,6 +41,7 @@ export type CreateGroupInput = {
 };
 
 export type UpdateGroupInput = {
+	inactivityDays?: number | null | undefined;
 	name?: string | undefined;
 	dedication?: string | null | undefined;
 	visibility?: GroupVisibility | undefined;
@@ -105,7 +111,12 @@ export const listGroupsForUser = async (userId: string): Promise<GroupSummary[]>
 		include: { members: true, babs: true }
 	});
 
-	return groups.map(group => toGroupSummary(group, group.babs, group.members, normalizedUserId));
+	return Promise.all(
+		groups.map(async group => ({
+			...toGroupSummary(group, group.babs, group.members, normalizedUserId),
+			...(group.hizbPlan !== null ? await hizbSummary(group.id, normalizedUserId) : {})
+		}))
+	);
 };
 
 export const getGroupDetailForUser = async (userId: string, groupId: string): Promise<GroupDetail> => {
@@ -127,7 +138,7 @@ export const getGroupDetailForUser = async (userId: string, groupId: string): Pr
 
 	const profiles = await getMemberProfiles(group.members.map(member => member.userId));
 
-	return toGroupDetail(
+	const detail = toGroupDetail(
 		group,
 		group.babs,
 		group.members,
@@ -136,6 +147,7 @@ export const getGroupDetailForUser = async (userId: string, groupId: string): Pr
 		group.poolReleases,
 		profiles
 	);
+	return group.hizbPlan !== null ? { ...detail, ...(await hizbSummary(group.id, normalizedUserId)) } : detail;
 };
 
 export const createGroupForUser = async (
@@ -145,13 +157,26 @@ export const createGroupForUser = async (
 ): Promise<GroupDetail> => {
 	const normalizedUserId = normalizeUserId(userId);
 	const startsAt = new Date();
-	const flexible = input.splitMode === 'FLEXIBLE';
-	if (flexible && input.visibility !== 'OPEN') {
+	const personal = input.hizbPlan !== undefined;
+	const individual = input.hizbIndividual ?? false;
+	const startPortion = input.hizbStartPortion ?? 1;
+	if (
+		!Number.isInteger(startPortion) ||
+		startPortion < 1 ||
+		(individual ? !personal || !input.hizbPlan || startPortion > input.hizbPlan : startPortion !== 1)
+	) {
+		throw new HttpError(BAD_REQUEST, 'Invalid individual reading start');
+	}
+	if (personal && (input.kind !== 'HIZB' || ![0, 7, 15, 33].includes(input.hizbPlan!))) {
+		throw new HttpError(BAD_REQUEST, 'Invalid personal plan');
+	}
+	const flexible = personal || input.splitMode === 'FLEXIBLE';
+	if (flexible && !personal && input.visibility !== 'OPEN') {
 		throw new HttpError(BAD_REQUEST, 'Flexible groups must be open');
 	}
 	// A placeholder until the owner starts: `startGroupForUser` recomputes it from the
 	// moment round 0 actually begins, so gathering time doesn't eat into the round.
-	const endsAt = roundEndsAt(startsAt, input.cycle, 0, input.timezone);
+	const endsAt = roundEndsAt(startsAt, personal ? 'DAILY' : input.cycle, 0, input.timezone);
 
 	// Resolve the invite code BEFORE opening the transaction. Postgres aborts the whole
 	// transaction on a unique violation, so retrying `create` inside one can never
@@ -164,11 +189,16 @@ export const createGroupForUser = async (
 				ownerUserId: normalizedUserId,
 				name: input.name,
 				dedication: input.dedication ?? null,
-				visibility: input.visibility,
+				visibility: individual ? 'PRIVATE' : input.visibility,
 				hideMemberNames: input.hideMemberNames ?? false,
 				kind: input.kind,
-				splitMode: input.splitMode,
-				cycle: input.cycle,
+				splitMode: personal ? 'FLEXIBLE' : input.splitMode,
+				hizbPlan: input.hizbPlan ?? null,
+				hizbIndividual: individual,
+				hizbStartPortion: startPortion,
+				openToJoin: !individual,
+				inactivityDays: personal && !individual ? input.inactivityDays ?? null : null,
+				cycle: personal ? 'DAILY' : input.cycle,
 				spots: flexible ? partCountFor(input.kind) : input.spots,
 				// The owner's zone becomes the group's day. Everyone's board resets on this
 				// clock, which is why it is captured once and never changed.
@@ -190,12 +220,14 @@ export const createGroupForUser = async (
 		// One row per part — a hundred for the Cevşen, 33 for the Hizb — with nothing but its
 		// number. Ownership isn't stored: who reads which block falls out of the seat and the
 		// round, and `assignedUserId` is reserved for pool volunteering.
-		await tx.groupBab.createMany({
-			data: Array.from({ length: partCountFor(input.kind) }, (_, index) => ({
-				groupId: group.id,
-				number: index + 1
-			}))
-		});
+		if (!personal) {
+			await tx.groupBab.createMany({
+				data: Array.from({ length: partCountFor(input.kind) }, (_, index) => ({
+					groupId: group.id,
+					number: index + 1
+				}))
+			});
+		}
 
 		await tx.groupMember.create({
 			data: {
@@ -207,6 +239,9 @@ export const createGroupForUser = async (
 			}
 		});
 
+		if (personal && group.hizbPlan !== 0) {
+			await enrollHizbInTransaction(tx, group, normalizedUserId);
+		}
 		return group.id;
 	});
 
@@ -221,6 +256,13 @@ export const updateGroupForUser = async (
 	await requireOwner(userId, groupId);
 	const existing = await prisma.group.findUniqueOrThrow({ where: { id: groupId } });
 	if (
+		existing.hizbIndividual &&
+		(input.visibility === 'OPEN' || input.openToJoin === true || input.inactivityDays != null)
+	) {
+		throw new HttpError(BAD_REQUEST, 'Individual reading stays private with no inactivity removal');
+	}
+	if (
+		existing.hizbPlan === null &&
 		existing.splitMode === 'FLEXIBLE' &&
 		(input.visibility === 'PRIVATE' || input.openToJoin === false || input.autoStartWhenFull === true)
 	) {
@@ -232,6 +274,13 @@ export const updateGroupForUser = async (
 	}
 
 	const data: Prisma.GroupUpdateInput = {};
+	if (input.inactivityDays !== undefined) {
+		if (existing.hizbPlan === null) {
+			throw new HttpError(BAD_REQUEST, 'Inactivity applies to personal Hizb plans');
+		}
+		data.inactivityDays = input.inactivityDays;
+		data.inactivitySinceDay = civilDayNumber(new Date(), existing.timezone);
+	}
 
 	if (input.name !== undefined) {
 		data.name = input.name;
@@ -265,6 +314,11 @@ export const updateGroupForUser = async (
 	}
 
 	await prisma.$transaction(async tx => {
+		await lockGroup(tx, groupId);
+		const previous = await tx.group.findUniqueOrThrow({ where: { id: groupId } });
+		if (previous.hizbPlan !== null) {
+			await expireHizb(tx, previous);
+		}
 		await tx.group.update({ where: { id: groupId }, data });
 		if (input.hideMemberNames === true) {
 			// Older inbox rows outlive the group. Remove their names permanently as well.
@@ -388,7 +442,7 @@ export const discoverGroups = async (userId: string, query: DiscoverGroupsQuery)
 		AND: [
 			// Discover is the *public* shelf: a PRIVATE group never appears here, not even
 			// to its own owner — it is reachable from "my groups" and by invite only.
-			{ visibility: 'OPEN' },
+			{ visibility: 'OPEN', hizbIndividual: false },
 			{ openToJoin: true },
 			// Nor does a group you are already in. Discover exists to find groups to join,
 			// and yours are one tab away in Gruplarım — listing them here offers a "Katıl"
@@ -416,11 +470,20 @@ export const discoverGroups = async (userId: string, query: DiscoverGroupsQuery)
 		include: { members: true, babs: true }
 	});
 
-	return groups.map(group => toGroupSummary(group, group.babs, group.members, normalizedUserId));
+	return Promise.all(
+		groups.map(async group => ({
+			...toGroupSummary(group, group.babs, group.members, normalizedUserId),
+			...(group.hizbPlan !== null ? await hizbSummary(group.id, normalizedUserId) : {})
+		}))
+	);
 };
 
 export const regenerateInviteCodeForUser = async (userId: string, groupId: string): Promise<{ inviteCode: string }> => {
 	await requireOwner(userId, groupId);
+	const group = await prisma.group.findUniqueOrThrow({ where: { id: groupId } });
+	if (group.hizbIndividual) {
+		throw new HttpError(BAD_REQUEST, 'Individual reading has no invitations');
+	}
 
 	for (let attempt = 0; attempt < MAX_INVITE_CODE_ATTEMPTS; attempt++) {
 		try {

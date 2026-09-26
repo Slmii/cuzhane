@@ -48,11 +48,17 @@ export const isNextReminderTomorrow = (time: string, now: Date) => {
  * A group with no share today is not "done", it is not participating — it never counts.
  */
 export const reminderTotals = (groups: GroupSummary[] | undefined): ReminderTotals => {
-	const running = (groups ?? []).filter(group => group.status === 'RUNNING' && group.myBabNumbers.length > 0);
+	const running = (groups ?? []).filter(
+		group => group.status === 'RUNNING' && (group.myBabNumbers.length > 0 || group.hizbToday != null)
+	);
 
 	return running.reduce<ReminderTotals>(
 		(totals, group) => {
-			const outstanding = Math.max(0, group.myBabNumbers.length - group.myReadCount);
+			const outstanding = group.hizbToday
+				? group.hizbToday.completed
+					? 0
+					: 1
+				: Math.max(0, group.myBabNumbers.length - group.myReadCount);
 			const isHizb = group.kind === 'HIZB';
 
 			return {

@@ -8,6 +8,7 @@ import { StyleSheet, View } from 'react-native';
 export type CreateGroupStep = 1 | 2 | 3 | 4;
 
 interface CreateGroupStepHeaderProps {
+	titleKey?: StringKey;
 	onBack: () => void;
 	/** Validates the step and moves on; on the last one it creates the group. */
 	onNext: () => void;
@@ -29,7 +30,7 @@ const TITLE_KEY_BY_STEP: Record<CreateGroupStep, StringKey> = {
 	4: 'stepCycle'
 };
 
-export const CreateGroupStepHeader = ({ onBack, onNext, step }: CreateGroupStepHeaderProps) => {
+export const CreateGroupStepHeader = ({ onBack, onNext, step, titleKey }: CreateGroupStepHeaderProps) => {
 	const { t } = useTranslation();
 	const isLastStep = step === LAST_STEP;
 	const isFirstStep = step === 1;
@@ -65,7 +66,7 @@ export const CreateGroupStepHeader = ({ onBack, onNext, step }: CreateGroupStepH
 			</View>
 			<StepProgress current={step} style={styles.progress} total={LAST_STEP} />
 			<EyebrowText style={styles.eyebrow}>{t('stepOfTotal', { step, total: LAST_STEP })}</EyebrowText>
-			<Header1>{t(TITLE_KEY_BY_STEP[step])}</Header1>
+			<Header1>{t(titleKey ?? TITLE_KEY_BY_STEP[step])}</Header1>
 		</View>
 	);
 };

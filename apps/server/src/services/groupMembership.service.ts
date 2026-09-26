@@ -1,3 +1,4 @@
+import { enrollHizbInTransaction, closeHizbEnrollment, hizbSummary } from './hizbReading.service';
 import { BAD_REQUEST, CONFLICT, FORBIDDEN, NOT_FOUND } from '@config/httpCodes';
 import { HttpError } from '@config/httpError';
 import prisma from '@db/prisma';
@@ -34,7 +35,16 @@ const loadDetail = async (groupId: string, viewerUserId: string): Promise<GroupD
 
 	const profiles = await getMemberProfiles(group.members.map(member => member.userId));
 
-	return toGroupDetail(group, group.babs, group.members, group.cheers, viewerUserId, group.poolReleases, profiles);
+	const detail = toGroupDetail(
+		group,
+		group.babs,
+		group.members,
+		group.cheers,
+		viewerUserId,
+		group.poolReleases,
+		profiles
+	);
+	return group.hizbPlan !== null ? { ...detail, ...(await hizbSummary(group.id, viewerUserId)) } : detail;
 };
 
 export const previewGroupByCode = async (userId: string, rawCode: string): Promise<GroupInvitePreview> => {
@@ -46,11 +56,12 @@ export const previewGroupByCode = async (userId: string, rawCode: string): Promi
 		include: { members: true, babs: true }
 	});
 
-	if (!group) {
+	if (!group || (group.hizbIndividual && group.ownerUserId !== normalizedUserId)) {
 		throw new HttpError(NOT_FOUND, 'Group not found');
 	}
 
-	return toInvitePreview(group, group.babs, group.members, normalizedUserId);
+	const preview = toInvitePreview(group, group.babs, group.members, normalizedUserId);
+	return group.hizbPlan !== null ? { ...preview, ...(await hizbSummary(group.id, normalizedUserId)) } : preview;
 };
 
 export const previewGroupById = async (userId: string, groupId: string): Promise<GroupInvitePreview> => {
@@ -61,7 +72,7 @@ export const previewGroupById = async (userId: string, groupId: string): Promise
 		include: { members: true, babs: true }
 	});
 
-	if (!group) {
+	if (!group || (group.hizbIndividual && group.ownerUserId !== normalizedUserId)) {
 		throw new HttpError(NOT_FOUND, 'Group not found');
 	}
 
@@ -71,7 +82,8 @@ export const previewGroupById = async (userId: string, groupId: string): Promise
 		throw new HttpError(NOT_FOUND, 'Group not found');
 	}
 
-	return toInvitePreview(group, group.babs, group.members, normalizedUserId);
+	const preview = toInvitePreview(group, group.babs, group.members, normalizedUserId);
+	return group.hizbPlan !== null ? { ...preview, ...(await hizbSummary(group.id, normalizedUserId)) } : preview;
 };
 
 const MAX_SLOT_ATTEMPTS = 5;
@@ -125,6 +137,10 @@ const attemptJoin = async (
 			throw new HttpError(NOT_FOUND, 'Group not found');
 		}
 
+		if (group.hizbIndividual) {
+			throw new HttpError(FORBIDDEN, 'Individual reading cannot accept members');
+		}
+
 		const alreadyMember = group.members.some(member => member.userId === normalizedUserId);
 
 		if (alreadyMember) {
@@ -150,6 +166,10 @@ const attemptJoin = async (
 			}
 		}
 
+		if (group.hizbPlan !== null) {
+			slotIndex = group.hizbNextSlot;
+			await tx.group.update({ where: { id: groupId }, data: { hizbNextSlot: { increment: 1 } } });
+		}
 		if (slotIndex === null) {
 			throw new HttpError(CONFLICT, 'This group is full');
 		}
@@ -168,6 +188,12 @@ const attemptJoin = async (
 			}
 		});
 
+		if (group.hizbPlan !== null) {
+			if (group.hizbPlan !== 0) {
+				await enrollHizbInTransaction(tx, group, normalizedUserId);
+			}
+			return;
+		}
 		// Joining assigns no babs. Which block a member reads is derived from their seat and
 		// the round, so writing their name onto a block here would only duplicate that — and
 		// the duplicate goes stale the moment the rotation moves them off it.
@@ -374,6 +400,7 @@ const removeMember = async (
 			where: { id: groupId },
 			include: { members: { orderBy: { joinedAt: 'asc' } } }
 		});
+		await closeHizbEnrollment(tx, group, userId);
 		if (group.splitMode === 'FLEXIBLE' && group.ownerUserId === userId) {
 			const successor = group.members.find(member => member.userId !== userId);
 			if (successor) {
@@ -432,7 +459,7 @@ export const leaveGroupForUser = async (userId: string, groupId: string): Promis
 	const membership = await requireMembership(normalizedUserId, groupId);
 
 	const group = await prisma.group.findUniqueOrThrow({ where: { id: groupId } });
-	if (membership.role === 'OWNER' && group.splitMode !== 'FLEXIBLE') {
+	if (group.hizbIndividual || (membership.role === 'OWNER' && group.splitMode !== 'FLEXIBLE')) {
 		throw new HttpError(BAD_REQUEST, 'The group owner cannot leave. Delete the group instead.');
 	}
 

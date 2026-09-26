@@ -1,3 +1,4 @@
+import { HizbPlanGroup } from './HizbPlanGroup.component';
 import { BabGrid } from '@/components/BabGrid/BabGrid.component';
 import { FlexibleReadingPanel } from '@/components/FlexibleReadingPanel/FlexibleReadingPanel.component';
 import { BabLegend } from '@/components/BabLegend/BabLegend.component';
@@ -90,7 +91,21 @@ const KIND_MARK_SIZE = 44;
 
 type Props = NativeStackScreenProps<TabStackParamList, 'GroupDetail'>;
 
-export const GroupDetailScreen = ({ navigation, route }: Props) => {
+export const GroupDetailScreen = (props: Props) => {
+	const query = useGetGroupById(props.route.params.groupId);
+	if (query.isError) {
+		return <ErrorState queries={[query]} />;
+	}
+	if (!query.data) {
+		return <GroupDetailSkeleton />;
+	}
+	return query.data.hizbPlan != null ? (
+		<HizbPlanGroup {...props} group={query.data} />
+	) : (
+		<LegacyGroupDetailScreen {...props} />
+	);
+};
+const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 	const { groupId } = route.params;
 	const { theme } = useThemeContext();
 	const { t } = useTranslation();

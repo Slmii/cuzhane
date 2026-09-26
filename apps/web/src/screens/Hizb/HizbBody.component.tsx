@@ -1,3 +1,5 @@
+import { splitDelailRepetition } from '@/lib/content/hizbDelail';
+import { DelailReading } from './DelailReading.component';
 import { Typography } from '@/components/ui/Typography/Typography.component';
 import { ayahMark, BISMILLAH } from '@/lib/content/cevsen';
 import type { HizbLine } from '@/lib/content/hizbulhakaik';
@@ -6,6 +8,8 @@ import type { ReaderNumerals } from '@/lib/types/domain';
 import { readerFaces, withDivineName } from '@/screens/Reader/ReaderBody.component';
 import { Fragment, memo, type ReactNode } from 'react';
 import { StyleSheet } from 'react-native';
+import { splitIstighfar } from '@/lib/content/hizbIstighfar';
+import { IstighfarReading } from './IstighfarReading.component';
 import type { HizbBodyProps } from './HizbBody.types';
 
 /** The print's mark between invocations. */
@@ -76,7 +80,7 @@ const setArabic = (text: string, faces: Faces, color: string, ornamentColor: str
  * primitive or a block both readers hand over with a stable identity, so the shallow compare
  * holds until the page or the typography actually changes.
  */
-export const HizbBody = memo(({ block, font, fontSize: chosenSize, isCevsenBab, numerals }: HizbBodyProps) => {
+const HizbBodyContent = memo(({ block, font, fontSize: chosenSize, isCevsenBab, numerals }: HizbBodyProps) => {
 	const { theme } = useThemeContext();
 	const faces = readerFaces(font, chosenSize);
 	const arabic = {
@@ -131,6 +135,32 @@ export const HizbBody = memo(({ block, font, fontSize: chosenSize, isCevsenBab, 
 	);
 });
 
+HizbBodyContent.displayName = 'HizbBodyContent';
+export const HizbBody = memo((props: HizbBodyProps) => {
+	const delail = splitDelailRepetition(props.block);
+	if (delail) {
+		return (
+			<>
+				<DelailReading progress={props.delailProgress}>
+					<HizbBodyContent {...props} block={delail.passage} />
+				</DelailReading>
+				<HizbBodyContent {...props} block={delail.after} />
+			</>
+		);
+	}
+	const parts = splitIstighfar(props.block);
+	if (!parts) {
+		return <HizbBodyContent {...props} />;
+	}
+	return (
+		<>
+			<HizbBodyContent {...props} block={parts.introduction} />
+			<IstighfarReading progress={props.istighfarProgress}>
+				<HizbBodyContent {...props} block={{ lines: [parts.sentence] }} />
+			</IstighfarReading>
+		</>
+	);
+});
 HizbBody.displayName = 'HizbBody';
 
 const styles = StyleSheet.create({

@@ -1,3 +1,4 @@
+import { hizbCompatibility } from '@middleware/hizbCompatibility.middleware';
 import { clerkMiddleware, getAuth } from '@clerk/express';
 import { env } from '@config/env';
 import { UNAUTHORIZED } from '@config/httpCodes';
@@ -47,7 +48,7 @@ export const createApp = () => {
 	// Protected routes — require a valid Clerk session
 	app.use('/api', requireAuthApi, populateAuthLocals);
 	// Which group kinds this build can draw, for the guard in `clientCompatibility.service.ts`
-	app.use('/api', clientCapabilities);
+	app.use('/api', clientCapabilities, hizbCompatibility);
 	app.use('/api/groups', groupsRouter);
 	app.use('/api/memberships', membershipRouter);
 	app.use('/api/babs', babsRouter);

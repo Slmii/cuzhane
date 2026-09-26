@@ -98,6 +98,15 @@ export const HomeScreen = () => {
 
 					return {
 						isFlexible: group.splitMode === 'FLEXIBLE',
+						planLabel:
+							group.hizbPlan != null
+								? group.hizbToday
+									? t('hpPortion', {
+											days: group.hizbToday.planDays,
+											portion: group.hizbToday.portion
+									  })
+									: t('hpChoose')
+								: undefined,
 						done: group.myReadCount,
 						id: group.id,
 						moreCount: slices.moreCount,

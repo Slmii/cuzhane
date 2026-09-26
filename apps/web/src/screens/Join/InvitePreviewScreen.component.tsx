@@ -113,8 +113,16 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 			<ScreenContainer pullToRefresh={pullToRefresh}>
 				<ScreenHeader hasBackButton title={data.name} subtitle={data.dedication ?? undefined} />
 				<CardSurface>
-					<TitleText>{t('planFlexible')}</TitleText>
-					<CaptionText color={theme.colors.subtext}>{t('planFlexibleHint')}</CaptionText>
+					<TitleText>
+						{data.hizbPlan != null
+							? data.hizbPlan
+								? t('hpDays', { days: data.hizbPlan })
+								: t('hpMixed')
+							: t('planFlexible')}
+					</TitleText>
+					<CaptionText color={theme.colors.subtext}>
+						{t(data.hizbPlan != null ? 'hpDailyHint' : 'planFlexibleHint')}
+					</CaptionText>
 					<CaptionText>{t('flexibleMembers', { count: data.memberCount })}</CaptionText>
 					<CaptionText>{`${t(cycleLabelKey(data.cycle))} · ${data.readCount} / ${
 						data.partCount
@@ -130,7 +138,11 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 						data.isMember
 							? navigation.replace('GroupDetail', { groupId })
 							: joinByGroupId.mutate(groupId, {
-									onSuccess: joined => navigation.replace('JoinedWelcome', { groupId: joined.id })
+									onSuccess: joined =>
+										navigation.replace('GroupIntroduction', {
+											groupId: joined.id,
+											source: 'joined'
+										})
 							  })
 					}
 				/>
@@ -299,9 +311,8 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 		const joined = await joinByGroupId.mutateAsync(data.id);
 
 		// Joining from Keşfet and joining by code produce the same thing, so both land on
-		// the same welcome, which decides whether it is showing "your babs are ready" or
-		// "waiting to start".
-		navigation.replace('JoinedWelcome', { groupId: joined.id });
+		// the same first-time question before continuing to the welcome screen.
+		navigation.replace('GroupIntroduction', { groupId: joined.id, source: 'joined' });
 	};
 
 	/**

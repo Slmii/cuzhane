@@ -34,6 +34,11 @@ export const createGroupSchema = (t: Translate) =>
 			hideMemberNames: z.boolean().default(false),
 			/** What the group reads, and so how many parts it divides. Immutable once created. */
 			kind: z.enum(['CEVSEN', 'HIZB']).default('CEVSEN'),
+			hizbIndividual: z.boolean().default(false),
+			hizbStartPortion: z.number().int().min(1).max(33).default(1),
+			hizbPlan: z.enum(['0', '7', '15', '33']).default('33'),
+			inactivityEnabled: z.boolean().default(false),
+			inactivityDays: z.number().int().min(1).max(365).default(10),
 			// Rotation is the design's default and the first option offered.
 			splitMode: z.enum(['ROTATION', 'FIXED', 'FLEXIBLE']).default('ROTATION'),
 			// Which sizes and cycles are allowed depends on the kind, so both are checked below.
@@ -54,6 +59,14 @@ export const createGroupSchema = (t: Translate) =>
 		 * are immutable after creation, so a wrong one is refused here rather than kept forever.
 		 */
 		.superRefine((form, context) => {
+			if (form.kind === 'HIZB' && form.hizbIndividual) {
+				if (form.hizbPlan === '0') {
+					context.addIssue({ code: 'custom', message: t('fieldRequired'), path: ['hizbPlan'] });
+				}
+				if (form.hizbStartPortion > Number(form.hizbPlan)) {
+					context.addIssue({ code: 'custom', message: t('fieldRequired'), path: ['hizbStartPortion'] });
+				}
+			}
 			if (form.splitMode !== 'FLEXIBLE' && !SPOTS_FOR_KIND[form.kind].includes(form.spots)) {
 				context.addIssue({ code: 'custom', message: t('fieldRequired'), path: ['spots'] });
 			}

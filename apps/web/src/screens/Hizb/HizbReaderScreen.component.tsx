@@ -1,3 +1,4 @@
+import { useDelailSession } from '@/lib/hooks/useDelailSession';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CaptionText, EyebrowText, Typography } from '@/components/ui/Typography/Typography.component';
 import { READER_FONT_SIZE_DEFAULT } from '@/lib/content/cevsen';
@@ -8,6 +9,7 @@ import {
 	isCevsenSection,
 	pageRangeOf
 } from '@/lib/content/hizbulhakaik';
+import { useIstighfarSession } from '@/lib/hooks/useIstighfarSession';
 import { useGetUserSettings, useUpdateUserSettings } from '@/lib/hooks/useUserSettings';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
@@ -65,6 +67,8 @@ export const HizbReaderScreen = ({ navigation, route }: Props) =>
  * text-size sheet from the same bar control, the same footer note in the same place.
  */
 const HizbFreeReader = ({ navigation, params }: FreeReaderProps) => {
+	const delailProgress = useDelailSession('free');
+	const istighfarProgress = useIstighfarSession('free');
 	useKeepAwake();
 	const { t } = useTranslation();
 	const { theme } = useThemeContext();
@@ -219,6 +223,8 @@ const HizbFreeReader = ({ navigation, params }: FreeReaderProps) => {
 				showsVerticalScrollIndicator={false}
 			>
 				<HizbBody
+					istighfarProgress={istighfarProgress}
+					delailProgress={delailProgress}
 					block={current.block}
 					font={readerSettings.readerArabicFont}
 					fontSize={readerSettings.readerFontSize}

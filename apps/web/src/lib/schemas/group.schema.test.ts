@@ -52,3 +52,22 @@ describe('createGroupSchema', () => {
 		expect(result.success ? null : result.error.issues[0]?.message).toBe('fieldRequired');
 	});
 });
+
+describe('individual Hizb creation', () => {
+	it('keeps the individual choice and starting portion', () => {
+		const result = schema.parse({
+			name: 'My reading',
+			kind: 'HIZB',
+			hizbIndividual: true,
+			hizbPlan: '15',
+			hizbStartPortion: 12
+		});
+		expect(result).toMatchObject({ hizbIndividual: true, hizbStartPortion: 12 });
+	});
+	it('rejects an invalid start or a mixed individual plan', () => {
+		expect(issuePaths({ kind: 'HIZB', hizbIndividual: true, hizbPlan: '7', hizbStartPortion: 8 })).toContain(
+			'hizbStartPortion'
+		);
+		expect(issuePaths({ kind: 'HIZB', hizbIndividual: true, hizbPlan: '0' })).toContain('hizbPlan');
+	});
+});

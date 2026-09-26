@@ -120,7 +120,13 @@ export const DiscoverScreen = () => {
 					kind={item.kind}
 					// Always the read-only preview: joining happens there, not from the row.
 					onPress={() => navigation.navigate('InvitePreview', { groupId: item.id })}
-					subtitle={`${t(cycleLabelKey(item.cycle))} · ${t(splitModeLabelKey(item.splitMode))}`}
+					subtitle={
+						item.hizbPlan != null
+							? item.hizbPlan
+								? t('hpDays', { days: item.hizbPlan })
+								: t('hpMixed')
+							: `${t(cycleLabelKey(item.cycle))} · ${t(splitModeLabelKey(item.splitMode))}`
+					}
 				/>
 			</Animated.View>
 		),

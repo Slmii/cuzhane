@@ -26,16 +26,17 @@ type GroupLookup = { id: string } | { inviteCode: string };
 export const assertClientCanUseGroup = async (res: ClientResponse, where: GroupLookup): Promise<void> => {
 	const group = await prisma.group.findUnique({
 		where: 'id' in where ? { id: where.id } : { inviteCode: normalizeInviteCode(where.inviteCode) },
-		select: { kind: true }
+		select: { kind: true, hizbPlan: true }
 	});
 
-	if (group && !clientSupportsKind(res, group.kind)) {
+	if (group && (!clientSupportsKind(res, group.kind) || (group.hizbPlan !== null && !res.locals.hizbPlans))) {
 		throw new HttpError(UPGRADE_REQUIRED, 'Update the app to open this group');
 	}
 };
 
 /** Drops the groups whose kind the caller cannot draw. */
-export const filterGroupsForClient = <T extends { kind: GroupKindName }>(
+export const filterGroupsForClient = <T extends { kind: GroupKindName; hizbPlan?: number | null }>(
 	res: ClientResponse,
 	groups: readonly T[]
-): T[] => groups.filter(group => clientSupportsKind(res, group.kind));
+): T[] =>
+	groups.filter(group => clientSupportsKind(res, group.kind) && (group.hizbPlan == null || res.locals.hizbPlans));

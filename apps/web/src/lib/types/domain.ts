@@ -37,6 +37,11 @@ export type GroupBab = {
 
 /** Shape returned by list endpoints — enough to render a group card without the bab grid. */
 export type GroupSummary = {
+	hizbToday?: { planDays: number; portion: number; completed: boolean } | null;
+	hizbPlan?: number | null;
+	hizbIndividual?: boolean;
+	hizbStartPortion?: number;
+	inactivityDays?: number | null;
 	hideMemberNames: boolean;
 	id: string;
 	name: string;
@@ -130,6 +135,10 @@ export type GroupDetail = GroupSummary & {
 
 /** Unauthenticated-ish preview shown when opening an invite link or entering a code. */
 export type GroupInvitePreview = {
+	hizbPlan?: number | null;
+	hizbIndividual?: boolean;
+	hizbStartPortion?: number;
+	inactivityDays?: number | null;
 	hideMemberNames: boolean;
 	id: string;
 	name: string;

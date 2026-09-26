@@ -8,6 +8,7 @@ export interface HomeGroupRowGroup {
 	total: number;
 	done: number;
 	isFlexible?: boolean;
+	planLabel?: string;
 }
 
 export interface HomeGroupRowProps {

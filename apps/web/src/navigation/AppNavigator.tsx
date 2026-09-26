@@ -1,3 +1,4 @@
+import { HizbPlanReader } from '@/screens/Hizb/HizbPlanReader.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { SplashScreen as AnimatedSplash } from '@/screens/Splash/SplashScreen.component';
 import { userSettingsQueryKeys } from '@/lib/hooks/queryKeys';
@@ -29,6 +30,7 @@ import { LobbyScreen } from '@/screens/Groups/LobbyScreen.component';
 import { PoolScreen } from '@/screens/Groups/PoolScreen.component';
 import { RoundDetailScreen } from '@/screens/Groups/RoundDetailScreen.component';
 import { MyProgressScreen } from '@/screens/Groups/MyProgressScreen.component';
+import { GroupIntroductionScreen } from '@/screens/Groups/GroupIntroductionScreen.component';
 import { RoundsScreen } from '@/screens/Groups/RoundsScreen.component';
 import { HomeScreen } from '@/screens/Home/HomeScreen.component';
 import { HomeSkeleton } from '@/screens/Home/HomeSkeleton.component';
@@ -426,6 +428,7 @@ const sharedTabScreens = ({ isProfileRoot = false }: { isProfileRoot?: boolean }
 		 * the only place it goes and the chevron already says so.
 		 */}
 		<TabStack.Screen name='InvitePreview' component={InvitePreviewScreen} options={pushedScreenOptions} />
+		<TabStack.Screen name='GroupIntroduction' component={GroupIntroductionScreen} options={pushedScreenOptions} />
 		{/*
 		 * **It needs the back button like any other pushed screen.** Gruplarım navigates here for
 		 * a member whose group is still gathering, and that is a push onto the shelf — with no
@@ -454,6 +457,7 @@ const sharedTabScreens = ({ isProfileRoot = false }: { isProfileRoot?: boolean }
 		 */}
 		<TabStack.Screen name='Reminders' component={RemindersScreen} options={pushedScreenOptions} />
 		<TabStack.Screen name='ReleaseNotes' component={ReleaseNotesScreen} options={nativeBackScreenOptions} />
+		<TabStack.Screen name='HizbPlanReader' component={HizbPlanReader} options={nativeBackScreenOptions} />
 		<TabStack.Screen name='HizbSections' component={HizbSectionsScreen} options={nativeBackScreenOptions} />
 		<TabStack.Screen
 			name='HizbReader'

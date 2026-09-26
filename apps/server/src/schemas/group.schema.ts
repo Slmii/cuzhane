@@ -78,6 +78,10 @@ export const CreateGroupBodySchema = z
 		hideMemberNames: z.boolean().default(false),
 		/** What the group reads, and so how many parts it divides. Immutable after creation. */
 		kind: z.enum(['CEVSEN', 'HIZB']).default('CEVSEN'),
+		hizbIndividual: z.boolean().default(false),
+		hizbStartPortion: z.number().int().min(1).max(33).default(1),
+		hizbPlan: z.union([z.literal(0), z.literal(7), z.literal(15), z.literal(33)]).optional(),
+		inactivityDays: z.number().int().min(1).max(365).nullable().optional(),
 		// `FREE` is retired — the DB enum still carries it for legacy rows, but no new
 		// group can choose it. Rotation is the design's default and comes first.
 		splitMode: z.enum(['ROTATION', 'FIXED', 'FLEXIBLE']).default('ROTATION'),
@@ -97,6 +101,26 @@ export const CreateGroupBodySchema = z
 	 * message under the control that caused it.
 	 */
 	.superRefine((body, context) => {
+		if (body.hizbIndividual && (body.kind !== 'HIZB' || !body.hizbPlan || body.hizbStartPortion > body.hizbPlan)) {
+			context.addIssue({
+				code: 'custom',
+				message: 'Individual reading needs a fixed Hizb plan and a valid starting portion',
+				path: ['hizbStartPortion']
+			});
+		}
+		if (!body.hizbIndividual && body.hizbStartPortion !== 1) {
+			context.addIssue({
+				code: 'custom',
+				message: 'Only individual reading can choose a starting portion',
+				path: ['hizbStartPortion']
+			});
+		}
+		if (body.hizbPlan !== undefined) {
+			if (body.kind !== 'HIZB') {
+				context.addIssue({ code: 'custom', message: 'Personal plans require Hizb', path: ['hizbPlan'] });
+			}
+			return;
+		}
 		if (body.splitMode === 'FLEXIBLE') {
 			if (body.visibility !== 'OPEN') {
 				context.addIssue({ code: 'custom', message: 'Flexible groups must be open', path: ['visibility'] });
@@ -132,6 +156,7 @@ export const CreateGroupBodySchema = z
 
 export const UpdateGroupBodySchema = z
 	.object({
+		inactivityDays: z.number().int().min(1).max(365).nullable().optional(),
 		name: z.string().trim().min(1).max(60).optional(),
 		dedication: z.string().trim().max(120).nullable().optional(),
 		visibility: GroupVisibilitySchema.optional(),

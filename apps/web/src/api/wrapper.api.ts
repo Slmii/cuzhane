@@ -114,6 +114,7 @@ export const wrapperApi = async <T>(endpoint: string, init?: RequestInit): Promi
 				...(isFormData ? {} : { 'Content-Type': 'application/json' }),
 				...(token ? { Authorization: `Bearer ${token}` } : {}),
 				[CLIENT_KINDS_HEADER]: CLIENT_KINDS,
+				'X-Cuzhane-Hizb-Plans': '1',
 				...(init?.headers || {})
 			}
 		});

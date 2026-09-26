@@ -56,6 +56,11 @@ export type GroupMember = {
 };
 
 export type GroupSummary = {
+	hizbToday?: { planDays: number; portion: number; completed: boolean } | null;
+	hizbPlan?: number | null;
+	hizbIndividual?: boolean;
+	hizbStartPortion?: number;
+	inactivityDays?: number | null;
 	hideMemberNames: boolean;
 	id: string;
 	name: string;
@@ -143,6 +148,10 @@ export type PoolClaimReleaseNotice = {
 };
 
 export type GroupInvitePreview = {
+	hizbPlan?: number | null;
+	hizbIndividual?: boolean;
+	hizbStartPortion?: number;
+	inactivityDays?: number | null;
 	hideMemberNames: boolean;
 	id: string;
 	name: string;
@@ -409,6 +418,10 @@ export const toGroupSummary = (
 
 	return {
 		id: group.id,
+		hizbPlan: group.hizbPlan,
+		hizbIndividual: group.hizbIndividual,
+		hizbStartPortion: group.hizbStartPortion,
+		inactivityDays: group.inactivityDays,
 		hideMemberNames: group.hideMemberNames,
 		name: group.name,
 		dedication: group.dedication,
@@ -586,6 +599,10 @@ export const toInvitePreview = (
 
 	return {
 		id: group.id,
+		hizbPlan: group.hizbPlan,
+		hizbIndividual: group.hizbIndividual,
+		hizbStartPortion: group.hizbStartPortion,
+		inactivityDays: group.inactivityDays,
 		name: group.name,
 		dedication: group.dedication,
 		visibility: group.visibility,

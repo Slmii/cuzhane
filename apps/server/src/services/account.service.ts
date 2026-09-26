@@ -38,6 +38,7 @@ export const deleteAccountForUser = async (userId: string): Promise<{ success: t
 			});
 		}
 
+		await tx.hizbEnrollment.deleteMany({ where: { userId: normalizedUserId } });
 		await tx.groupMember.deleteMany({ where: { userId: normalizedUserId } });
 
 		await tx.cheer.deleteMany({

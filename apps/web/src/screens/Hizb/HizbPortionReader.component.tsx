@@ -1,3 +1,5 @@
+import { useDelailSession } from '@/lib/hooks/useDelailSession';
+import { useIstighfarSession } from '@/lib/hooks/useIstighfarSession';
 import { WrapperApiError } from '@/api/wrapper.api';
 import { LateReadingNotice } from '@/components/LateReadingNotice/LateReadingNotice.component';
 import { RepetitionCounter } from '@/components/RepetitionCounter/RepetitionCounter.component';
@@ -177,6 +179,8 @@ export const HizbPortionReader = ({ navigation, params }: Props) => {
 	const round = isCovering ? roundQuery.data : undefined;
 	// The round every count and cover here is about. Null only until the group says, or while it gathers.
 	const shownRoundIndex = coveredRoundIndex ?? openRoundIndex;
+	const delailProgress = useDelailSession(`${groupId}:${shownRoundIndex}`);
+	const istighfarProgress = useIstighfarSession(`${groupId}:${shownRoundIndex}`);
 
 	/** Mine, pool and read, for the round shown — null until both halves of that round are in. */
 	const shares = useMemo(() => {
@@ -755,6 +759,8 @@ export const HizbPortionReader = ({ navigation, params }: Props) => {
 							 * cut. Keyed on the portion too — consecutive portions are cut from one block.
 							 */}
 							<HizbBody
+								istighfarProgress={istighfarProgress}
+								delailProgress={delailProgress}
 								block={current.block}
 								font={readerSettings.readerArabicFont}
 								fontSize={readerSettings.readerFontSize}

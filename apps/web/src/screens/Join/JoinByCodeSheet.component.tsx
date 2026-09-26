@@ -204,7 +204,7 @@ export const JoinByCodeSheet = ({ initialCode, isVisible, onClose }: JoinByCodeS
 		const joined = await joinByCode.mutateAsync(code);
 
 		handleClose();
-		navigation.navigate('JoinedWelcome', { groupId: joined.id });
+		navigation.navigate('GroupIntroduction', { groupId: joined.id, source: 'joined' });
 	};
 
 	const handleDiscover = () => {

@@ -50,6 +50,7 @@ export const GroupDetailToolbar = () => {
 	useTourBarTarget('share', 1);
 
 	const shelf = useQueryClient().getQueryData<GroupSummary[]>(groupQueryKeys.groups());
+	const individual = group?.hizbIndividual ?? shelf?.find(entry => entry.id === groupId)?.hizbIndividual ?? false;
 	const isOwner = group?.isOwner ?? shelf?.find(entry => entry.id === groupId)?.isOwner ?? false;
 
 	return (
@@ -77,13 +78,15 @@ export const GroupDetailToolbar = () => {
 			 * outlier rather than as the more important of the two — the same call already made
 			 * for Gruplarım's +.
 			 */}
-			<GlassCornerAction
-				accessibilityLabel={t('share')}
-				assetName='paylas-share'
-				icon='share'
-				onPress={() => navigation.setParams({ sheet: 'share' })}
-				tone='surface'
-			/>
+			{!individual ? (
+				<GlassCornerAction
+					accessibilityLabel={t('share')}
+					assetName='paylas-share'
+					icon='share'
+					onPress={() => navigation.setParams({ sheet: 'share' })}
+					tone='surface'
+				/>
+			) : null}
 			<TrailingCornerAction />
 		</View>
 	);

@@ -1,3 +1,4 @@
+import hizbReadingRouter from './hizbReading.route';
 import { CREATED, OK } from '@config/httpCodes';
 import { ResponseLocals, ResponseLocalsWithBody, ResponseLocalsWithQuery } from '@interfaces/response.types';
 import { createGroupRateLimit } from '@middleware/rateLimit.middleware';
@@ -44,6 +45,7 @@ import { resolveDisplayName } from '@utils/displayName';
 import { NextFunction, Request, Response, Router } from 'express';
 
 const groupsRouter = Router();
+groupsRouter.use('/:groupId/reading', hizbReadingRouter);
 
 groupsRouter.get('/', async (_req: Request, res: Response<object, ResponseLocals>, next: NextFunction) => {
 	try {
@@ -52,7 +54,7 @@ groupsRouter.get('/', async (_req: Request, res: Response<object, ResponseLocals
 		} = res.locals;
 
 		const groups = await listGroupsForUser(userId);
-		res.status(OK).json(groups);
+		res.status(OK).json(filterGroupsForClient(res, groups));
 	} catch (error) {
 		next(error);
 	}

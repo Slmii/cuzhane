@@ -185,3 +185,21 @@ describe('reminderBody', () => {
 		expect(reminderBody(shelf)).toEqual({ key: 'notifBodyGroupsMixed', values: { groups: 2, unread: 6 } });
 	});
 });
+
+it('counts personal Hizb assignments without treating inactive readers as owing work', () => {
+	const pending = group({
+		kind: 'HIZB',
+		hizbPlan: 7,
+		myBabNumbers: [],
+		hizbToday: { planDays: 7, portion: 2, completed: false }
+	});
+	const complete = group({ ...pending, hizbToday: { planDays: 7, portion: 2, completed: true } });
+	const removed = group({ ...pending, hizbToday: null });
+	expect(reminderTotals([pending, complete, removed])).toEqual({
+		participatingGroups: 2,
+		pendingGroups: 1,
+		unread: 1,
+		unreadBabs: 0,
+		unreadPortions: 1
+	});
+});

@@ -8,7 +8,7 @@ import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import * as Haptics from 'expo-haptics';
 import { useCallback, useMemo, useState } from 'react';
-import { AccessibilityInfo, Pressable, StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import type { RepetitionCounterProps } from './RepetitionCounter.types';
 
 /** Five across, so nineteen and the zero come out as four full rows of thumb-sized cells. */
@@ -87,11 +87,11 @@ export const RepetitionCounter = ({ count, isDisabled = false, onChange, require
 		(key: string | number) => {
 			setIsPickerOpen(false);
 
-			if (key !== count) {
+			if (!isDisabled && key !== count) {
 				change(Number(key));
 			}
 		},
-		[change, count]
+		[change, count, isDisabled]
 	);
 
 	return (
@@ -145,11 +145,14 @@ export const RepetitionCounter = ({ count, isDisabled = false, onChange, require
 			{/* Beside the row, not in it: the sheet's host is absolutely placed and no part of the row. */}
 			<AppBottomSheet
 				description={t('enterCountHint')}
+				heightRatio={0.72}
 				isVisible={isPickerOpen}
 				onClose={() => setIsPickerOpen(false)}
 				title={t('enterCount')}
 			>
-				<CellGrid columns={PICKER_COLUMNS} gap={8} items={items} onPressCell={pick} radius={12} />
+				<ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 20 }}>
+					<CellGrid columns={PICKER_COLUMNS} gap={8} items={items} onPressCell={pick} radius={12} />
+				</ScrollView>
 			</AppBottomSheet>
 		</>
 	);

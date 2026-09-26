@@ -255,11 +255,12 @@ const spanOfLine = (
  * the same source block — parts 9–13 all return block 8/0 (the Evrâd is one block), and 30–33
  * all return 16/28 — so a React key needs the portion number beside them.
  */
-export const portionBlocks = (number: number): HizbBlockRef[] => {
-	const start = positionOf(portion(number).start);
-	// `number` is 1-based, so the following portion sits at index `number`.
-	const following = HIZB_PORTIONS[number];
-	const end = following ? positionOf(following.start) : undefined;
+export const portionBlocks = (number: number): HizbBlockRef[] =>
+	sliceHizbBlocks(portion(number).start, HIZB_PORTIONS[number]?.start);
+
+export const sliceHizbBlocks = (from: HizbAnchor, until?: HizbAnchor): HizbBlockRef[] => {
+	const start = positionOf(from);
+	const end = until ? positionOf(until) : undefined;
 
 	return HIZB_BLOCKS.flatMap(ref => {
 		const lines = ref.block.lines.flatMap((line, lineIndex) => {

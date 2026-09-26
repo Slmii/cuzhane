@@ -180,16 +180,22 @@ export const GroupsScreen = () => {
 					<GroupCard
 						actionLabel={isCompleted ? t('view') : t('continue')}
 						badgeIcon={visibilityIcon(item.visibility)}
-						badgeLabel={t(visibilityLabelKey(item.visibility))}
+						badgeLabel={item.hizbIndividual ? t('hpIndividual') : t(visibilityLabelKey(item.visibility))}
 						badgeTone={visibilityChipTone(item.visibility)}
 						footerCaption={
-							item.splitMode === 'FLEXIBLE'
+							item.hizbIndividual
+								? t(item.hizbToday?.completed ? 'hpComplete' : 'hpPending')
+								: item.splitMode === 'FLEXIBLE'
 								? t('flexibleMembers', { count: item.memberCount })
 								: `${t('todayLabel')} · ${item.myReadCount}/${item.myBabNumbers.length}`
 						}
 						footerLabel={
 							item.splitMode === 'FLEXIBLE'
-								? t('planFlexible')
+								? item.hizbPlan != null
+									? item.hizbPlan
+										? t('hpDays', { days: item.hizbPlan })
+										: t('hpMixed')
+									: t('planFlexible')
 								: `${t(planLabelKey(item.splitMode))} · ${formatBabRange(item.myBabNumbers)}`
 						}
 						// Filled even when the round is finished: the hatim itself is ongoing, so a

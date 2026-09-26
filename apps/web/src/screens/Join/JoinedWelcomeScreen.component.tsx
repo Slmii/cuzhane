@@ -112,9 +112,14 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 			<ScreenContainer>
 				<Header1>{t('flexibleJoined')}</Header1>
 				<BodyText>{detail.name}</BodyText>
-				<BodyText color={theme.colors.subtext}>{t('planFlexibleHint')}</BodyText>
+				<BodyText color={theme.colors.subtext}>
+					{t(detail.hizbPlan != null ? 'hpDailyHint' : 'planFlexibleHint')}
+				</BodyText>
 				<CaptionText>{t('flexibleMembers', { count: detail.memberCount })}</CaptionText>
-				<AppButton title={t('flexibleChoose')} onPress={handleStartReading} />
+				<AppButton
+					title={t(detail.hizbPlan != null ? (detail.hizbPlan ? 'hpRead' : 'hpChoose') : 'flexibleChoose')}
+					onPress={handleStartReading}
+				/>
 			</ScreenContainer>
 		);
 	}

@@ -1,3 +1,4 @@
+import { coverageFor } from '@utils/hizbPlans';
 import prisma from '@db/prisma';
 import { partCountFor } from '@utils/groupKinds';
 import { normalizeUserId } from '@utils/normalizeUserId';
@@ -46,7 +47,11 @@ export const getProfileStatsForUser = async (
 	// `GroupBab.readByUserId` / `readAt` describe only the CURRENT round — a rollover wipes
 	// them clean. `BabRead` is the append-only log that survives rollovers, so every
 	// historical stat here (total read, streak, heatmap, completed rounds) is derived from it.
-	const [memberships, userReads] = await Promise.all([
+	const [personalReads, memberships, userReads] = await Promise.all([
+		prisma.hizbAssignment.findMany({
+			where: { enrollment: { userId: normalizedUserId }, completedAt: { not: null } },
+			include: { enrollment: true }
+		}),
 		prisma.groupMember.findMany({
 			where: { userId: normalizedUserId },
 			select: { joinedAt: true }
@@ -96,11 +101,34 @@ export const getProfileStatsForUser = async (
 	 */
 	const babsRead = userReads.filter(read => kindByGroupId.get(read.groupId) === 'CEVSEN').length;
 
-	const roundsCompleted = roundCounts.filter(round => {
+	let roundsCompleted = roundCounts.filter(round => {
 		const kind = kindByGroupId.get(round.groupId);
 
 		return kind !== undefined && round._count._all === partCountFor(kind);
 	}).length;
+
+	const contributed = [
+		...new Map(
+			personalReads.map(a => [
+				`${a.enrollment.groupId}:${a.day}`,
+				{ day: a.day, enrollment: { groupId: a.enrollment.groupId } }
+			])
+		).values()
+	];
+	const shared = contributed.length
+		? await prisma.hizbAssignment.findMany({
+				where: { OR: contributed, completedAt: { not: null } },
+				include: { enrollment: true }
+		  })
+		: [];
+	const byDay = new Map<string, { planDays: number; portion: number }[]>();
+	for (const a of shared) {
+		const key = `${a.enrollment.groupId}:${a.day}`;
+		const list = byDay.get(key) ?? [];
+		list.push({ planDays: a.enrollment.planDays, portion: a.portion });
+		byDay.set(key, list);
+	}
+	roundsCompleted += [...byDay.values()].filter(reads => coverageFor(reads).complete).length;
 
 	const joinDates = memberships.map(membership => membership.joinedAt.getTime());
 	const memberSince =
@@ -112,6 +140,10 @@ export const getProfileStatsForUser = async (
 		countsByDay.set(day, (countsByDay.get(day) ?? 0) + 1);
 	}
 
+	for (const read of personalReads) {
+		const day = civilDayNumber(read.completedAt!, timeZone);
+		countsByDay.set(day, (countsByDay.get(day) ?? 0) + 1);
+	}
 	const today = civilDayNumber(new Date(), timeZone);
 
 	// A streak may end today or yesterday — not having read yet today shouldn't break one.

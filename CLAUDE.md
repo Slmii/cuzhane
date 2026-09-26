@@ -38,8 +38,28 @@ Per workspace (`--filter @cuzhane/server` or `@cuzhane/web`):
 
 ## Domain model — read this before touching group logic
 
-The Cevşen is **100 babs**. A group divides those 100 across its members — or, since a group has a
-**kind**, the Hizbü'l-Hakaik's **33 portions**.
+The Cevşen is **100 babs**. Legacy Hizb groups divide **33 portions** across their members. New Hizb groups instead use personal daily plans, selected by `Group.hizbPlan`: `null` preserves the legacy model, `0` allows member choice, and `7`, `15`, or `33` requires that plan.
+
+### Personal Hizb plans
+
+- `hizbReading.service.ts` owns versioned enrollments and dated personal assignments; these groups have no `GroupBab` rows. Membership is unlimited. Creation starts daily reading immediately in the group's timezone.
+- `HizbEnrollment.sequence` is allocated from persistent per-plan counters; `ordinal` records shared join order. Joins and rejoins append under the group lock, even after account deletion. Never compact or reuse these positions.
+- Rotation advances each calendar day; missed readings remain catch-up. A personal traversal counts only after all its assignments are completed. Shared coverage is the union of completed canonical text spans for the assignment date; duplicate or mixed-plan overlaps never count twice.
+- The opening istighfar’s final sentence has its own saved count and target (11 by default, optionally 33 or 100). New completions require the selected target; old completed records retain their status without fabricated counts. The exact source sentence is highlighted by the shared `HizbBody`; free/legacy counters are session-local. Do not interpret ordinary Arabic verse markers as repetition instructions.
+- The Delail salawat in section 9, block 1, line 0 ends at `﴿٣﴾` and requires three readings total. Highlight only that line, excluding the following prayer. Its saved `delailRepetitions` count is independent of istighfar and Sekine; new completions require three, existing completed history is preserved, and free/legacy counts are session-local.
+- Sekine needs 19 repetitions by the same reader for each dated assignment. Assignment updates require a revision; repetition counts, bookmarks and history are never inherited on rejoin.
+- Optional inactivity removal ends reading enrollment while retaining group membership and administration, so the removal notice and explicit rejoin action remain accessible. Only a newly completed assignment resets inactivity. Changing the rule starts a grace period after enforcing the previous rule.
+- The server/client `utils/hizbPlans.ts` manifests must remain identical. `lib/content/hizbPlans.ts` slices the existing source; tests verify exact coverage. The approved 15-day Hulasat split is section 16, block 16. The 7-day plan is app-designed from existing boundaries.
+- `HizbPlanGroup` and `HizbPlanReader` provide personal progress, actual shared coverage, catch-up and a bounded reader. Reuse existing membership, invitation and privacy controls. Clients send `X-Cuzhane-Hizb-Plans: 1`; unsupported clients cannot discover or join these groups, and legacy board/round writes are rejected.
+- See `docs/plans/2026-09-26-hizb-personal-plans-design.md` for the approved behavior. Existing groups are not automatically converted.
+
+### Individual Hizb reading
+
+`Group.hizbIndividual` creates an owner-only entry with a fixed 7/15/33 plan. `hizbStartPortion` offsets the first day's assignment; all subsequent dates rotate from there and wrap normally. Existing rows default to non-individual and start portion 1. Individual entries are always private and closed to joins, including invite-code joins, and cannot enable inactivity removal or regenerate invitations. Owners delete them instead of leaving; allowing the sole membership to leave would orphan private history. The creation form offers the individual switch and starting-portion description. Hide shared coverage, members, sharing and inactivity controls; keep personal history, reading, renaming and deletion. Shelf progress represents today's individual assignment. The daily boundary uses the creator's device timezone, like other Hizb plans.
+
+### Legacy shared-board groups
+
+The following seat, pool and round rules apply to Cevşen and to Hizb groups with `hizbPlan === null`.
 
 -   **`Group.kind` is `CEVSEN` or `HIZB`, and it is immutable.** Everything that differs by kind is derived
     from it in `utils/groupKinds.ts`: the part count (`partCountFor` — 100 or 33), the parts one reader
@@ -49,8 +69,7 @@ The Cevşen is **100 babs**. A group divides those 100 across its members — or
     copy to the server's values. Sizes are a create-time rule per kind, enforced by both
     `group.schema.ts` and the web's `SPOTS_FOR_KIND`: the Cevşen 5, 10 or 20 seats (each divides the
     hundred, so nobody carries a leftover bab), the Hizb any of 1–33 (past 33 a seat would hold nothing).
-    **A Hizb group is this same machine over 33, not a second model** — the unreleased reading-groups
-    model that tried personal cycles was dropped by migration for it. What follows says "bab" and "100"
+    **A legacy Hizb group uses this same machine over 33**; personal-plan groups use the enrollment model described above. What follows says "bab" and "100"
     because it was written for the Cevşen; read them as "part" and "the group's part count".
 -   `Group` owns exactly one `GroupBab` row per part, created up front in the same transaction as the group.
 -   `GroupBab` is the single source of truth for BOTH assignment (`assignedUserId`) and progress
@@ -832,7 +851,7 @@ defaultValues render={({ handleSubmit, watch, setValue }) => …} />`, which wir
     while the group screen's card chip counts the **whole** pool. Two questions, deliberately two
     numbers; `GroupInvitePreview.poolBabNumbers` is the whole pool too, `GroupSummary.poolBabNumbers`
     only the unclaimed part (it feeds the board, where a claimed bab is someone's work).
--   **A Hizb group is the Cevşen's screens with a Hizb body, not a second app** (design HC1–HC4,
+-   **A legacy Hizb group uses the Cevşen's screens with a Hizb body** (design HC1–HC4,
     HJ1–HJ3, HZ1–HZ5). The lobby, invite preview and joined-waiting screens, the group screen, Turlar
     and Home's rows all branch on `kind` in place. HZ1 swaps the board for `HizbBoard` (the 33 as
     11 × 3, with a "Fihrist ›" to `HizbIndex`, the portions work by work — registered in
@@ -1001,8 +1020,7 @@ a page. A block is what the print closes with `* * *`: a bab of the Cevşen, a d
 carry `invocations` beside their `text`; one line (Evrâd-ı Kudsiyye, page 106) ends in a `❁` and yields no
 empty invocation for it.
 
-**A Hizb group divides it into 33 portions, and `lib/content/hizbPortions.ts` is where they are
-drawn.** The thirty-three are the family's **revised** division, read off the numbered photographs of
+**The 33-day and legacy shared-board divisions are defined in `lib/content/hizbPortions.ts`.** The thirty-three are the family's **revised** division, read off the numbered photographs of
 their book; the older 32-part calendar the design was drawn to is historical. They fall into ten works
 (`HIZB_WORKS`: the Kur'ân 1–3, the Cevşen 4–8, Evrâd 9–13, Delâil 14–18, Sekine 19, … Tazarru 31–33),
 and **the seventeen sections are the print's headings, not the division** — a portion can run across

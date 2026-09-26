@@ -58,7 +58,7 @@ export const ManageSheet = ({ group, isVisible, onClose, onOpenMembers }: Props)
 			dedication: values.dedication.trim() === '' ? null : values.dedication.trim(),
 			groupId: group.id,
 			name: values.name.trim(),
-			visibility: group.splitMode === 'FLEXIBLE' ? 'OPEN' : values.visibility
+			visibility: group.splitMode === 'FLEXIBLE' && group.hizbPlan == null ? 'OPEN' : values.visibility
 		});
 
 		setIsSaved(true);
@@ -86,7 +86,7 @@ export const ManageSheet = ({ group, isVisible, onClose, onOpenMembers }: Props)
 		});
 	};
 
-	const isFlexible = group.splitMode === 'FLEXIBLE';
+	const isFlexible = group.splitMode === 'FLEXIBLE' && group.hizbPlan == null;
 	const spotsHint = isFlexible
 		? t('flexiblePublicHint')
 		: `${group.memberCount} / ${group.spots} · ${group.spotsLeft} ${t('spotsLeft')}`;
@@ -166,7 +166,9 @@ export const ManageSheet = ({ group, isVisible, onClose, onOpenMembers }: Props)
 									useHeadingFont
 								/>
 								<Field label={t('dedication')} name='dedication' placeholder={t('dedicationHint')} />
-								{isFlexible ? (
+								{group.hizbIndividual ? (
+									<CaptionText>{t('hpIndividualPrivacy')}</CaptionText>
+								) : isFlexible ? (
 									<CaptionText>{t('flexiblePublicHint')}</CaptionText>
 								) : (
 									<>
@@ -186,36 +188,44 @@ export const ManageSheet = ({ group, isVisible, onClose, onOpenMembers }: Props)
 							{/* Who may come in, and who already has: switches that mean something the
 							    moment they are touched, so they save on the spot rather than waiting
 							    for the tick above. */}
-							<EyebrowText color={theme.colors.faintText} style={styles.sectionLabel}>
-								{t('groupAccess')}
-							</EyebrowText>
-							<View style={styles.card}>
-								<ToggleRow
-									title={t('hideMemberNames')}
-									hint={t('hideMemberNamesHint')}
-									value={group.hideMemberNames}
-									disabled={updateGroup.isPending}
-									onValueChange={next =>
-										updateGroup.mutate({ groupId: group.id, hideMemberNames: next })
-									}
-								/>
-								<Divider />
-								<ToggleRow
-									hint={spotsHint}
-									disabled={isFlexible}
-									onValueChange={next => updateGroup.mutate({ groupId: group.id, openToJoin: next })}
-									title={t('openToJoin')}
-									value={group.openToJoin}
-								/>
-								<Divider />
-								<NavRow
-									label={t('membersTitle')}
-									meta={
-										isFlexible ? String(group.memberCount) : `${group.memberCount} / ${group.spots}`
-									}
-									onPress={onOpenMembers}
-								/>
-							</View>
+							{!group.hizbIndividual ? (
+								<>
+									<EyebrowText color={theme.colors.faintText} style={styles.sectionLabel}>
+										{t('groupAccess')}
+									</EyebrowText>
+									<View style={styles.card}>
+										<ToggleRow
+											title={t('hideMemberNames')}
+											hint={t('hideMemberNamesHint')}
+											value={group.hideMemberNames}
+											disabled={updateGroup.isPending}
+											onValueChange={next =>
+												updateGroup.mutate({ groupId: group.id, hideMemberNames: next })
+											}
+										/>
+										<Divider />
+										<ToggleRow
+											hint={spotsHint}
+											disabled={isFlexible}
+											onValueChange={next =>
+												updateGroup.mutate({ groupId: group.id, openToJoin: next })
+											}
+											title={t('openToJoin')}
+											value={group.openToJoin}
+										/>
+										<Divider />
+										<NavRow
+											label={t('membersTitle')}
+											meta={
+												isFlexible
+													? String(group.memberCount)
+													: `${group.memberCount} / ${group.spots}`
+											}
+											onPress={onOpenMembers}
+										/>
+									</View>
+								</>
+							) : null}
 						</ScrollView>
 					</>
 				)}

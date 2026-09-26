@@ -25,6 +25,7 @@ export type TabDetailParamList = {
 	 * screen, because browsing genuinely is navigation.
 	 */
 	InvitePreview: { groupId: string };
+	GroupIntroduction: { groupId: string; source: 'created' | 'joined' };
 	JoinedWelcome: { groupId: string };
 	/**
 	 * `sheet` asks the screen to open one of its sheets on arrival. It exists so the bar's
@@ -91,6 +92,7 @@ export type TabDetailParamList = {
 	 * exactly as no index, so a caller holding one may pass it. `shouldOpenTextSize` as on
 	 * `BabReader`, in either shape.
 	 */
+	HizbPlanReader: { groupId: string; assignmentId: string };
 	HizbReader:
 		| { sectionIndex: number; shouldOpenTextSize?: boolean }
 		| { groupId: string; partNumber: number; roundIndex?: number; shouldOpenTextSize?: boolean };
