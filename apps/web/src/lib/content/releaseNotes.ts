@@ -74,6 +74,16 @@ export type Release = {
  */
 export const RELEASES: Release[] = [
 	{
+		id: '2026-09-quran',
+		entries: [
+			{ bodyKey: 'rn130HatimBody', icon: 'book', isNew: true, titleKey: 'rn130HatimTitle' },
+			{ bodyKey: 'rn130MushafBody', icon: 'readInApp', isNew: true, titleKey: 'rn130MushafTitle' },
+			{ bodyKey: 'rn130GoBody', icon: 'goTo', isNew: true, titleKey: 'rn130GoTitle' }
+		],
+		releasedOn: '2026-09-26',
+		version: APP_VERSION
+	},
+	{
 		id: '2026-09-my-progress',
 		entries: [
 			{ bodyKey: 'rn120ProgressBody', icon: 'calendar', isNew: true, titleKey: 'rn120ProgressTitle' },
@@ -81,7 +91,7 @@ export const RELEASES: Release[] = [
 			{ bodyKey: 'rn120NotificationBody', icon: 'bell', isNew: false, titleKey: 'rn120NotificationTitle' }
 		],
 		releasedOn: '2026-09-20',
-		version: APP_VERSION
+		version: '1.2.0'
 	},
 	{
 		id: '2026-09-notifications',

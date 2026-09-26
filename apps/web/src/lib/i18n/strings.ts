@@ -621,6 +621,15 @@ const tr = {
 	 * Sürüm 1.1'in kendi notları. Tasarımdaki örnek metinler değil — gerçekten değişenler.
 	 * Yeni bir sürüm çıkarken bu üç anahtarın yerine o sürümünkiler yazılır.
 	 */
+	rn130HatimTitle: 'Kur’an hatimleri',
+	rn130HatimBody:
+		'Artık Kur’an da okunuyor: bir hatim grubu kur, üyeler 30 cüzden kendi cüzlerini seçsin. Kimsenin almadığı cüzler havuzda bekler; tur tamamlanınca hatim duası açılır.',
+	rn130MushafTitle: 'Uygulamada Mushaf',
+	rn130MushafBody:
+		'Cüzünü uygulamada oku: Medine mushafının dizgisi ya da Hüsrev hattının sayfaları. Dizgide bir ayete basılı tut, meali açılır.',
+	rn130GoTitle: 'Mushaf’ta istediğin yere git',
+	rn130GoBody:
+		'Serbest Mushaf’ta sure adının yanındaki düğmeyle bir sureye, ayete, cüze ya da sayfaya git. Arama da artık sure adını, 34:10 gibi ayetleri ve sayfa numarasını buluyor.',
 	rn120ProgressTitle: 'Senin ilerlemen',
 	rn120ProgressBody:
 		'Her grubun üstünde ince bir şerit: kaç bab kaçırdığın ve payının ne kadarını tamamladığın. Dokun, son günlerin tek tek dökümünü gör.',
@@ -1626,6 +1635,15 @@ const en: Strings = {
 	releaseNotesTitle: 'Release notes',
 	releaseNotesNew: 'new',
 	releaseNotesEmpty: 'This is the app’s first release. Later ones collect here.',
+	rn130HatimTitle: 'Qur’an hatims',
+	rn130HatimBody:
+		'You can now read the Qur’an too: start a hatim group and members pick their own juz from the thirty. Juz nobody took wait in the pool, and the hatim du’a opens when the round is complete.',
+	rn130MushafTitle: 'A mushaf in the app',
+	rn130MushafBody:
+		'Read your juz in the app: the Madinah mushaf’s typeset text, or the pages of the Hüsrev script. In the typeset text, hold an ayah to see its meaning.',
+	rn130GoTitle: 'Go anywhere in the Mushaf',
+	rn130GoBody:
+		'In the free Mushaf, the button beside the surah name takes you to a surah, an ayah, a juz or a page. Search now finds surah names, ayahs like 34:10 and page numbers too.',
 	rn120ProgressTitle: 'Your progress',
 	rn120ProgressBody:
 		'A slim strip above each group: how many babs you have missed and how much of your share is done. Tap it for a day-by-day breakdown.',
@@ -2530,6 +2548,15 @@ const nl: Strings = {
 	releaseNotesTitle: 'Versienotities',
 	releaseNotesNew: 'nieuw',
 	releaseNotesEmpty: 'Dit is de eerste versie van de app. Latere versies verzamelen zich hier.',
+	rn130HatimTitle: 'Koran-hatims',
+	rn130HatimBody:
+		'Je kunt nu ook de Koran lezen: start een hatimgroep en leden kiezen hun eigen cüz uit de dertig. Cüz die niemand nam wachten in de pool, en de hatim-du’a opent zodra de ronde rond is.',
+	rn130MushafTitle: 'Een mushaf in de app',
+	rn130MushafBody:
+		'Lees je cüz in de app: de gezette tekst van de Medina-mushaf, of de pagina’s van het Hüsrev-schrift. Houd in de gezette tekst een ayah vast voor de vertaling.',
+	rn130GoTitle: 'Overal heen in de Mushaf',
+	rn130GoBody:
+		'In de vrije Mushaf brengt de knop naast de soeranaam je naar een soera, een ayah, een cüz of een pagina. Zoeken vindt nu ook soeranamen, ayahs als 34:10 en paginanummers.',
 	rn120ProgressTitle: 'Jouw voortgang',
 	rn120ProgressBody:
 		'Een smalle strook boven elke groep: hoeveel babs je miste en hoeveel van je deel af is. Tik erop voor een overzicht per dag.',
