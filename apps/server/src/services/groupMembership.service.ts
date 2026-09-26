@@ -1,7 +1,7 @@
 import { BAD_REQUEST, CONFLICT, FORBIDDEN, NOT_FOUND } from '@config/httpCodes';
 import { HttpError } from '@config/httpError';
 import prisma from '@db/prisma';
-import { formatRun } from '@utils/babs';
+import { babRuns, formatRun, type BabRange } from '@utils/babs';
 import { normalizeInviteCode } from '@utils/inviteCode';
 import { normalizeUserId } from '@utils/normalizeUserId';
 import { syncCompletedAt } from './babs.service';
@@ -75,8 +75,12 @@ export const previewGroupById = async (userId: string, groupId: string): Promise
 
 const MAX_SLOT_ATTEMPTS = 5;
 
-/** A volunteer's claim a join took back, and over which babs. */
-type ReleasedClaim = { userId: string; startBab: number; endBab: number; kind: GroupKindName };
+/**
+ * One volunteer's claims a join took back, as the runs of *their own* numbers — in a Hizb
+ * block several members can each hold a portion, and a run spanning the whole block would
+ * tell one of them they had held a portion that was somebody else's.
+ */
+type ReleasedClaim = { userId: string; runs: BabRange[]; kind: GroupKindName };
 
 const isUniqueConstraintError = (error: unknown): boolean =>
 	typeof error === 'object' && error !== null && 'code' in error && (error as { code?: string }).code === 'P2002';
@@ -93,11 +97,11 @@ const attemptJoin = async (
 	viaInviteCode: boolean
 ): Promise<void> => {
 	/*
-	 * Whose claim the join released, and over which babs — collected inside the transaction
+	 * Whose claims the join released, and over which babs — collected inside the transaction
 	 * but told to them outside it. A push is a courtesy; the join is the point, and Expo
 	 * being slow or unreachable must never roll one back or hold the response open.
 	 */
-	let released: ReleasedClaim | null = null;
+	const released: ReleasedClaim[] = [];
 
 	await prisma.$transaction(async tx => {
 		const group = await tx.group.findUnique({
@@ -151,8 +155,9 @@ const attemptJoin = async (
 		// the round, so writing their name onto a block here would only duplicate that — and
 		// the duplicate goes stale the moment the rotation moves them off it.
 		//
-		// It does, however, *release* one. Volunteering out of the pool means "I'll cover for
-		// an empty seat this round"; the seat now has someone in it, so the errand is over.
+		// It does, however, *release* whatever was volunteered for the seat. Volunteering out of
+		// the pool means "I'll cover for an empty seat this round"; the seat now has someone in
+		// it, so the errand is over.
 		// Left standing, the claim strands the volunteer: the block stops being pool (the seat
 		// is taken) and was never their own seat's, so `setBabRead` refuses it as "not yours to
 		// mark today" while their share still lists it. Meanwhile the joiner is handed the same
@@ -167,11 +172,12 @@ const attemptJoin = async (
 		const coveredBabNumbers = poolBlockFor(group, group.members, slotIndex);
 
 		if (coveredBabNumbers) {
-			// Read before the clear — afterwards there is nothing left to ask. A block is taken
-			// whole by one person, so one row identifies them.
-			const claim = await tx.groupBab.findFirst({
+			// Read before the clear — afterwards there is nothing left to ask. A Cevşen block is
+			// taken whole by one person, but a Hizb block can be split a portion at a time between
+			// several, so every claimed row is read and grouped by who holds it.
+			const claims = await tx.groupBab.findMany({
 				where: { groupId, number: { in: coveredBabNumbers }, assignedUserId: { not: null } },
-				select: { assignedUserId: true }
+				select: { number: true, assignedUserId: true }
 			});
 
 			await tx.groupBab.updateMany({
@@ -179,20 +185,38 @@ const attemptJoin = async (
 				data: { assignedUserId: null }
 			});
 
-			const startBab = coveredBabNumbers[0];
-			const endBab = coveredBabNumbers[coveredBabNumbers.length - 1];
+			const numbersByClaimant = new Map<string, number[]>();
 
-			if (claim?.assignedUserId && startBab !== undefined && endBab !== undefined) {
+			for (const claim of claims) {
+				if (claim.assignedUserId !== null) {
+					numbersByClaimant.set(claim.assignedUserId, [
+						...(numbersByClaimant.get(claim.assignedUserId) ?? []),
+						claim.number
+					]);
+				}
+			}
+
+			for (const [userId, numbers] of numbersByClaimant) {
+				const runs = babRuns(numbers);
+
 				/*
 				 * Written in the same transaction as the clear, so the record and the thing it
 				 * describes can never disagree. The push that follows is the fast path; this is
-				 * what the volunteer still finds if it never arrives.
+				 * what the volunteer still finds if it never arrives. One row per run, because
+				 * a row is a start and an end, and "16–18" for someone who held 16 and 18 would
+				 * claim they held 17 too.
 				 */
-				await tx.poolClaimRelease.create({
-					data: { groupId, userId: claim.assignedUserId, roundIndex: group.roundIndex, startBab, endBab }
+				await tx.poolClaimRelease.createMany({
+					data: runs.map(run => ({
+						groupId,
+						userId,
+						roundIndex: group.roundIndex,
+						startBab: run.start,
+						endBab: run.end
+					}))
 				});
 
-				released = { userId: claim.assignedUserId, startBab, endBab, kind: group.kind };
+				released.push({ userId, runs, kind: group.kind });
 			}
 		}
 
@@ -210,28 +234,35 @@ const attemptJoin = async (
 	 * escape the request and any rejection would surface as an unhandled one. `sendPushToUser`
 	 * never throws, so awaiting it costs the join nothing and cannot fail it.
 	 */
-	if (released !== null) {
-		const { userId: volunteerId, startBab, endBab, kind } = released as ReleasedClaim;
+	if (released.length === 0) {
+		return;
+	}
+
+	const group = await prisma.group.findUnique({ where: { id: groupId }, select: { name: true } });
+
+	for (const { userId: volunteerId, runs, kind } of released) {
 		const language = await pushLanguageFor(volunteerId);
-		// `formatRun`, so a one-part block reads "27" — the push copy takes a bare number as singular.
-		const range = formatRun({ start: startBab, end: endBab });
+		// `formatRun`, so a one-part run reads "27" — the push copy takes a bare number as singular.
+		const range = runs.map(formatRun).join(', ');
 
 		/*
 		 * The inbox row is the durable half of this notice. `PoolClaimRelease` already records
 		 * the same event for the group screen's banner; this is what puts it in the reader's
-		 * own list (design P2), and it is filed whether or not the push reaches them.
+		 * own list (design P2), and it is filed whether or not the push reaches them. One row
+		 * per run, like the release rows — a row's payload is a single start and end.
 		 */
-		const group = await prisma.group.findUnique({ where: { id: groupId }, select: { name: true } });
-
 		if (group !== null) {
-			await recordNotification({
-				groupId,
-				groupName: group.name,
-				payload: { endBab, kind: 'POOL_CLAIM_RELEASED', startBab },
-				userIds: [volunteerId]
-			});
+			for (const run of runs) {
+				await recordNotification({
+					groupId,
+					groupName: group.name,
+					payload: { endBab: run.end, kind: 'POOL_CLAIM_RELEASED', startBab: run.start },
+					userIds: [volunteerId]
+				});
+			}
 		}
 
+		// One push per volunteer, naming every run they lost.
 		await sendPushToUser(volunteerId, {
 			...poolClaimReleasedPush(language, { kind, range }),
 			data: { groupId, kind: 'pool-claim-released' }

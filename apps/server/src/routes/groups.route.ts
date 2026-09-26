@@ -10,6 +10,7 @@ import {
 	GroupIdParamsSchema,
 	CoverRoundBabsBodySchema,
 	RoundParamsSchema,
+	PoolPartParamsSchema,
 	PoolSlotParamsSchema,
 	UpdateGroupBody,
 	UpdateGroupBodySchema
@@ -27,7 +28,9 @@ import {
 import {
 	listPoolSlotsForUser,
 	markPoolReleasesSeenForUser,
+	releasePoolPartForUser,
 	releasePoolSlotForUser,
+	takePoolPartForUser,
 	takePoolSlotForUser
 } from '@services/pool.service';
 import {
@@ -214,6 +217,44 @@ groupsRouter.delete(
 			} = res.locals;
 
 			const result = await releasePoolSlotForUser(userId, groupId, slotIndex);
+			res.status(OK).json(result);
+		} catch (error) {
+			next(error);
+		}
+	}
+);
+
+/*
+ * One portion of a Hizb pool block, rather than the whole slot. Its own path segment, so a
+ * portion number is never read as a seat index — the two routes above take a seat.
+ */
+groupsRouter.post(
+	'/:groupId/pool/parts/:babNumber',
+	async (req: Request, res: Response<object, ResponseLocals>, next: NextFunction) => {
+		try {
+			const { groupId, babNumber } = PoolPartParamsSchema.parse(req.params);
+			const {
+				auth: { userId }
+			} = res.locals;
+
+			const result = await takePoolPartForUser(userId, groupId, babNumber);
+			res.status(OK).json(result);
+		} catch (error) {
+			next(error);
+		}
+	}
+);
+
+groupsRouter.delete(
+	'/:groupId/pool/parts/:babNumber',
+	async (req: Request, res: Response<object, ResponseLocals>, next: NextFunction) => {
+		try {
+			const { groupId, babNumber } = PoolPartParamsSchema.parse(req.params);
+			const {
+				auth: { userId }
+			} = res.locals;
+
+			const result = await releasePoolPartForUser(userId, groupId, babNumber);
 			res.status(OK).json(result);
 		} catch (error) {
 			next(error);

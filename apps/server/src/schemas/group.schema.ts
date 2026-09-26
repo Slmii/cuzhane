@@ -61,6 +61,15 @@ export const PoolSlotParamsSchema = z.object({
 	slotIndex: z.coerce.number().int().min(0).max(49)
 });
 
+/**
+ * One portion of a Hizb pool block. 100 is the outer bound, the Cevşen's count; the service
+ * refuses a Cevşen group outright and checks the number against the group's own pool.
+ */
+export const PoolPartParamsSchema = z.object({
+	groupId: z.string().trim().min(1),
+	babNumber: z.coerce.number().int().min(1).max(100)
+});
+
 export const CreateGroupBodySchema = z
 	.object({
 		name: z.string().trim().min(1).max(60),
