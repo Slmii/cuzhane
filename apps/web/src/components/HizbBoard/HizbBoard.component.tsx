@@ -1,9 +1,8 @@
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Cell } from '@/components/ui/CellGrid/CellGrid.component';
 import type { CellGridItem } from '@/components/ui/CellGrid/CellGrid.types';
-import { Hatch } from '@/components/ui/Hatch/Hatch.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
-import { CaptionText, TitleText, Typography } from '@/components/ui/Typography/Typography.component';
+import { CaptionText, TitleText } from '@/components/ui/Typography/Typography.component';
 import { HIZB_WORKS } from '@/lib/content/hizbPortions';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
@@ -11,7 +10,8 @@ import { memo, useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 import type { HizbBoardProps } from './HizbBoard.types';
-import { HIZB_LEGEND, hizbCellItem, hizbCellPalette } from './hizbCellPalette';
+import { hizbCellItem } from './hizbCellPalette';
+import { HizbLegend } from './HizbLegend.component';
 
 /**
  * The cell the Cevşen's board comes out at on a phone, rather than HZ1's 24: the two boards are
@@ -23,7 +23,6 @@ export const HIZB_CELL_GAP = 4;
 export const HIZB_CELL_RADIUS = 6;
 /** The ring on a portion of yours — the same 1.5 on every cell, so none changes size. */
 const RING_WIDTH = 1.5;
-const SWATCH_RADIUS = 3;
 
 /**
  * "Grubun ilerlemesi" for a Hizb group (HZ1): a row per work, its portions at the right.
@@ -103,28 +102,7 @@ const HizbBoardComponent = ({ cells, onPressIndex, style }: HizbBoardProps) => {
 						</View>
 					</View>
 				))}
-				<View style={hizbBoardLayout.legend}>
-					{HIZB_LEGEND.map(entry => {
-						const palette = hizbCellPalette(entry.cell, theme);
-
-						return (
-							<View key={entry.labelKey} style={hizbBoardLayout.legendEntry}>
-								<View
-									style={[
-										styles.swatch,
-										{ backgroundColor: palette.backgroundColor, borderColor: palette.borderColor }
-									]}
-								>
-									{/* The primitive the cells use, so the key can't drift from the thing it keys. */}
-									{entry.cell.state === 'pool' ? <Hatch radius={SWATCH_RADIUS} /> : null}
-								</View>
-								<Typography color={theme.colors.subtext} style={styles.legendLabel} variant='caption'>
-									{t(entry.labelKey)}
-								</Typography>
-							</View>
-						);
-					})}
-				</View>
+				<HizbLegend />
 			</View>
 		</CardSurface>
 	);
@@ -172,20 +150,6 @@ export const hizbBoardLayout = StyleSheet.create({
 	cells: {
 		flexDirection: 'row',
 		gap: HIZB_CELL_GAP
-	},
-	legend: {
-		columnGap: 13,
-		flexDirection: 'row',
-		flexWrap: 'wrap',
-		marginTop: 10,
-		rowGap: 6
-	},
-	legendEntry: {
-		alignItems: 'center',
-		flexDirection: 'row',
-		gap: 6,
-		// The caption's own line, so a row of bones is as tall as a row of labels.
-		minHeight: 17
 	}
 });
 
@@ -194,15 +158,5 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		flexDirection: 'row',
 		gap: 3
-	},
-	legendLabel: {
-		fontSize: 10.5
-	},
-	swatch: {
-		borderRadius: SWATCH_RADIUS,
-		borderWidth: RING_WIDTH,
-		height: 11,
-		overflow: 'hidden',
-		width: 11
 	}
 });

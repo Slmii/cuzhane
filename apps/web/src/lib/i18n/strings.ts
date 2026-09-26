@@ -819,6 +819,13 @@ const tr = {
 	hizbWorkSpanOne: '{a}. bölüm',
 	hizbIndexYou: 'Sen',
 	hizbStatusReading: 'Okunuyor',
+	// The Hizb's Havuz (HZ3): the pool portion by portion. The Cevşen's `poolTitle`/`poolSub` say "bab".
+	poolTitleHizb: 'Sahipsiz bölümler',
+	poolSubHizb: 'Bu tur kimsenin almadığı bölümler. Üstlendiğin bölüm tur sonuna kadar senindir.',
+	poolPortionsHizb: 'sahipsiz bölüm',
+	poolPortionsHizbOne: 'sahipsiz bölüm',
+	poolLeftHizb: '{left} kaldı',
+	poolEmptyHizb: 'Bu tur havuz boş — her bölümün sahibi var.',
 
 	// App-specific copy the static design never has to spell out:
 	// validation, error/empty states and parameterised variants.
@@ -1654,6 +1661,12 @@ const en: Strings = {
 	hizbWorkSpanOne: 'Portion {a}',
 	hizbIndexYou: 'You',
 	hizbStatusReading: 'Being read',
+	poolTitleHizb: 'Unclaimed portions',
+	poolSubHizb: 'Portions nobody has taken this round. One you take is yours until the round ends.',
+	poolPortionsHizb: 'unclaimed portions',
+	poolPortionsHizbOne: 'unclaimed portion',
+	poolLeftHizb: '{left} left',
+	poolEmptyHizb: 'The pool is empty this round — every portion has someone.',
 
 	// App-specific copy the static design never has to spell out:
 	// validation, error/empty states and parameterised variants.
@@ -2455,6 +2468,13 @@ const nl: Strings = {
 	hizbWorkSpanOne: 'Gedeelte {a}',
 	hizbIndexYou: 'Jij',
 	hizbStatusReading: 'Wordt gelezen',
+	poolTitleHizb: 'Gedeelten zonder eigenaar',
+	poolSubHizb:
+		'Gedeelten die deze ronde door niemand zijn genomen. Wat jij oppakt, is van jou tot het einde van de ronde.',
+	poolPortionsHizb: 'gedeelten zonder eigenaar',
+	poolPortionsHizbOne: 'gedeelte zonder eigenaar',
+	poolLeftHizb: 'nog {left}',
+	poolEmptyHizb: 'De pool is deze ronde leeg — elk gedeelte heeft een eigenaar.',
 	membersTitle: 'Leden',
 	save: 'Opslaan',
 	close: 'Sluiten',

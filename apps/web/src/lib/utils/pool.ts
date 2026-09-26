@@ -1,4 +1,5 @@
 import type { PoolSlot, PoolSlotPart } from '@/lib/types/domain';
+import type { HizbBoardCell } from '@/lib/utils/groups';
 
 /**
  * The optimistic halves of the four pool writes — a whole slot or one Hizb portion, taken or
@@ -98,3 +99,47 @@ export const withPoolPartTaken = (slots: PoolSlot[], number: number, viewerUserI
 /** `useReleasePoolPart`: one of the viewer's portions goes back, with their read of it. */
 export const withPoolPartReleased = (slots: PoolSlot[], number: number): PoolSlot[] =>
 	changeParts(slots, part => part.number === number && isMine(part), handedBack);
+
+/**
+ * The Havuz lattice (HZ3): the whole book as the board draws it, with every pool portion read
+ * off the pool query instead.
+ *
+ * The pool cache is the one the take and release write optimistically; the board and the group
+ * catch up only on the refetch. Drawn from the board alone, a portion taken here would sit
+ * hatched for a round trip and then fill — so the pool's parts win wherever they speak, and the
+ * cell changes colour on the tap. Everything outside the pool is the seats', and stays the
+ * board's.
+ */
+export const hizbPoolCells = (cells: HizbBoardCell[], slots: PoolSlot[]): HizbBoardCell[] => {
+	const parts = new Map(slots.flatMap(slot => slot.parts.map(part => [part.number, part] as const)));
+
+	return cells.map(cell => {
+		const part = parts.get(cell.number);
+
+		return part === undefined
+			? cell
+			: {
+					isMine: part.takenByMe,
+					number: cell.number,
+					state: part.isRead ? 'read' : part.takenByUserId === null ? 'pool' : 'taken'
+			  };
+	});
+};
+
+/** A row of HZ3's list: a portion on offer, or one the viewer has just taken and can hand back. */
+export type HizbPoolRow = { number: number; isMine: boolean };
+
+/**
+ * HZ3's list, in portion order: every portion still free, and the ones the viewer took in this
+ * session, which stay in the row they were taken from — with "Geri al" where "Üstlen" was —
+ * rather than jumping out of the list under the thumb that took them.
+ *
+ * A claim from before this session is not a row. It is the viewer's work now, other members can
+ * see it, and the board above already rings it.
+ */
+export const hizbPoolRows = (slots: PoolSlot[], takenHere: ReadonlySet<number>): HizbPoolRow[] =>
+	slots
+		.flatMap(slot => slot.parts)
+		.filter(part => part.takenByUserId === null || (part.takenByMe && takenHere.has(part.number)))
+		.map(part => ({ isMine: part.takenByMe, number: part.number }))
+		.sort((a, b) => a.number - b.number);

@@ -15,3 +15,7 @@ export interface HizbBoardProps {
 export interface HizbBoardSkeletonProps {
 	style?: StyleProp<ViewStyle>;
 }
+
+export interface HizbLegendProps {
+	style?: StyleProp<ViewStyle>;
+}

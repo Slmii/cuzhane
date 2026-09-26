@@ -1,6 +1,14 @@
 import type { PoolSlot, PoolSlotPart } from '@/lib/types/domain';
 import { describe, expect, it } from 'vitest';
-import { withPoolPartReleased, withPoolPartTaken, withPoolSlotReleased, withPoolSlotTaken } from './pool';
+import type { HizbBoardCell } from './groups';
+import {
+	hizbPoolCells,
+	hizbPoolRows,
+	withPoolPartReleased,
+	withPoolPartTaken,
+	withPoolSlotReleased,
+	withPoolSlotTaken
+} from './pool';
 
 const ME = 'user_me';
 const OTHER = 'user_other';
@@ -182,5 +190,64 @@ describe('withPoolSlotReleased', () => {
 		const slots = [slot(4, [part(13, taken(OTHER, 'Ayşe'))])];
 
 		expect(withPoolSlotReleased(slots, 4)).toEqual(slots);
+	});
+});
+
+describe('hizbPoolCells', () => {
+	const cells: HizbBoardCell[] = [
+		{ isMine: false, number: 23, state: 'taken' },
+		{ isMine: false, number: 24, state: 'pool' },
+		{ isMine: true, number: 31, state: 'taken' }
+	];
+
+	it('leaves a portion outside the pool as the board has it', () => {
+		expect(hizbPoolCells(cells, [slot(9, [part(24)])])[0]).toEqual(cells[0]);
+	});
+
+	it('fills a pool portion the moment the viewer takes it, before the board has heard', () => {
+		const slots = withPoolPartTaken([slot(9, [part(24)])], 24, ME);
+
+		expect(hizbPoolCells(cells, slots)[1]).toEqual({ isMine: true, number: 24, state: 'taken' });
+	});
+
+	it('hatches a portion the viewer has just handed back, whatever the board still says', () => {
+		const slots = withPoolPartReleased([slot(12, [part(31, taken(ME, 'Ben'))])], 31);
+
+		expect(hizbPoolCells(cells, slots)[2]).toEqual({ isMine: false, number: 31, state: 'pool' });
+	});
+
+	it('marks a pool portion read once its holder has read it', () => {
+		const slots = [slot(9, [part(24, { ...taken(OTHER, 'Ayşe'), isRead: true })])];
+
+		expect(hizbPoolCells(cells, slots)[1]).toEqual({ isMine: false, number: 24, state: 'read' });
+	});
+});
+
+describe('hizbPoolRows', () => {
+	const slots = [
+		slot(9, [part(24), part(25, taken(OTHER, 'Ayşe'))]),
+		slot(3, [part(7, taken(ME, 'Ben')), part(8, taken(ME, 'Ben'))]),
+		slot(12, [part(31)])
+	];
+
+	it('offers every free portion, in order, across slots', () => {
+		expect(hizbPoolRows(slots, new Set())).toEqual([
+			{ isMine: false, number: 24 },
+			{ isMine: false, number: 31 }
+		]);
+	});
+
+	it('keeps a portion taken this session in its place, as the viewer’s', () => {
+		expect(hizbPoolRows(slots, new Set([8]))).toEqual([
+			{ isMine: true, number: 8 },
+			{ isMine: false, number: 24 },
+			{ isMine: false, number: 31 }
+		]);
+	});
+
+	it('lists neither an earlier claim of the viewer’s nor anybody else’s', () => {
+		const rows = hizbPoolRows(slots, new Set([25]));
+
+		expect(rows.map(row => row.number)).toEqual([24, 31]);
 	});
 });

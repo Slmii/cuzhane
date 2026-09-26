@@ -10,7 +10,7 @@ import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { Hatch } from '@/components/ui/Hatch/Hatch.component';
 import { BodyStrongText, CaptionText, NumericText, Typography } from '@/components/ui/Typography/Typography.component';
-import { useGetPoolSlots, useReleasePoolSlot, useTakePoolSlot } from '@/lib/hooks/useGroup';
+import { useGetGroupById, useGetPoolSlots, useReleasePoolSlot, useTakePoolSlot } from '@/lib/hooks/useGroup';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useViewerIdentity } from '@/lib/hooks/useViewerIdentity';
 import { useTranslation } from '@/lib/i18n/I18n.context';
@@ -21,6 +21,7 @@ import type { TabStackParamList } from '@/navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { HizbPoolScreen } from './HizbPoolScreen.component';
 
 type Props = NativeStackScreenProps<TabStackParamList, 'Pool'>;
 
@@ -78,7 +79,7 @@ const forgetClaim = (groupId: string, slotIndex: number) => {
  * a bab with no owner. A slot someone has already taken is dimmed and shows who has it.
  */
 // No `navigation`: going back is the navigator's own header button now.
-export const PoolScreen = ({ route }: Props) => {
+const CevsenPoolScreen = ({ route }: Props) => {
 	const { groupId } = route.params;
 	const { theme } = useThemeContext();
 	const { t } = useTranslation();
@@ -380,6 +381,18 @@ export const PoolScreen = ({ route }: Props) => {
 			)}
 		</ScreenContainer>
 	);
+};
+
+/**
+ * One route, two pools: a Cevşen group's is offered a block at a time, a Hizb group's a portion
+ * at a time (`HizbPoolScreen`, HZ3). The group decides which. It is already in the cache — the
+ * only way here is the group screen's pool card, which is drawn from this very query — so the
+ * choice is made on the first frame rather than after a load.
+ */
+export const PoolScreen = (props: Props) => {
+	const groupQuery = useGetGroupById(props.route.params.groupId);
+
+	return groupQuery.data?.kind === 'HIZB' ? <HizbPoolScreen {...props} /> : <CevsenPoolScreen {...props} />;
 };
 
 const styles = StyleSheet.create({
