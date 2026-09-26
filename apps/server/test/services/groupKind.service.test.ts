@@ -134,11 +134,16 @@ describe('setBabReadForUser on a Hizb group', () => {
 	});
 
 	it('marks a part in the caller’s share', async () => {
-		const group = await createRunningGroup({ startedDaysAgo: 0 });
+		/*
+		 * In round 3 seat 0 reads block 3: parts 10–12 of 33. Split as a hundred, the same seat
+		 * would be reading 29–37 and part 11 would be an empty seat's pool block, which the
+		 * owner has not taken — so a hundred-part computation refuses this with a 409.
+		 */
+		const group = await createRunningGroup({ startedDaysAgo: 3 });
 
-		const bab = await setBabReadForUser(OWNER, group.id, 2, true);
+		const bab = await setBabReadForUser(OWNER, group.id, 11, true);
 
-		expect(bab.number).toBe(2);
+		expect(bab.number).toBe(11);
 		expect(bab.readByUserId).toBe(OWNER);
 	});
 });

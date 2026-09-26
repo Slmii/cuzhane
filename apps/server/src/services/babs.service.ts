@@ -97,7 +97,7 @@ export const lockGroup = async (tx: Prisma.TransactionClient, groupId: string): 
 };
 
 /**
- * Returns **whether this call is the one that closed the hundred** — `true` only on the
+ * Returns **whether this call is the one that closed the whole round** — `true` only on the
  * `null → set` transition, never on a board that was already complete.
  *
  * That answer costs nothing extra: the stamp is a conditional `updateMany` guarded on
@@ -208,7 +208,7 @@ const claimShareNotice = async (
  * Records that this group's completed round has been announced, and says whether this call is the
  * one that recorded it.
  *
- * **Closing the hundred is not a one-way door**, which is why the stamp alone is not enough to
+ * **Closing the round is not a one-way door**, which is why the stamp alone is not enough to
  * decide: Geri al on the last bab and Okudum again re-closes it, and so does a member leaving or
  * releasing a pool slot — both clear reads — followed by someone re-reading those babs. Each of
  * those is a real `null → set` transition, and without this row each one buzzes the whole group
@@ -325,7 +325,7 @@ const notifyGroupOfShareRead = async (input: { groupId: string; range: string; r
 const shareRange = (babNumbers: number[]): string => babRuns(babNumbers).map(formatRun).join(', ');
 
 /**
- * Tells the group the hundred is closed.
+ * Tells the group every part of the round is read.
  *
  * **Everyone in the group except whoever finished it**, and no "did you take part" test: the
  * round belongs to the group, and a member who read nothing this time is exactly the person for
@@ -529,7 +529,7 @@ export const setBabReadForUser = async (
 	});
 
 	/*
-	 * **Only the bigger news.** A tap that closes the hundred usually closes a share too, and
+	 * **Only the bigger news.** A tap that closes the whole round usually closes a share too, and
 	 * sending both would tell the group twice about one moment — "Ahmet finished babs 1–13" and
 	 * "Round 13 is complete" a second apart. The round is the thing that happened; the share is
 	 * how it happened. It also halves the work hanging off the slowest write in the app.
@@ -665,7 +665,7 @@ export const setAssignedBabsReadForUser = async (
 	});
 
 	/*
-	 * **Only the bigger news.** A tap that closes the hundred usually closes a share too, and
+	 * **Only the bigger news.** A tap that closes the whole round usually closes a share too, and
 	 * sending both would tell the group twice about one moment — "Ahmet finished babs 1–13" and
 	 * "Round 13 is complete" a second apart. The round is the thing that happened; the share is
 	 * how it happened. It also halves the work hanging off the slowest write in the app.

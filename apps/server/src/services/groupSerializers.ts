@@ -202,13 +202,10 @@ const roundIndexFor = (group: Group): number | null =>
 	group.status === 'RUNNING' && group.startedAt ? group.roundIndex : null;
 
 /**
- * The babs a member reads in a given round. `GroupBab.assignedUserId` records the seat's
- * standing owner and never rotates; which block a seat reads is derived from the round
- * index, so a ROTATION group's share moves without rewriting the board's rows.
- */
-/**
  * Only the fields the split actually depends on, so callers with a partial row can use it.
- * `kind` is one of them: it decides how many parts there are to split.
+ * `kind` is one of them: it decides how many parts there are to split. Nothing on the board
+ * records which block a seat reads — it is derived from the seat and the round, so a ROTATION
+ * group's share moves without rewriting a row.
  */
 type PlanShape = Pick<Group, 'spots' | 'splitMode' | 'kind'>;
 

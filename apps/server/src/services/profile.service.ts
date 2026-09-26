@@ -63,19 +63,6 @@ export const getProfileStatsForUser = async (
 	 * its group (the relation cascades), so every id here resolves.
 	 */
 	const groupIds = [...new Set(userReads.map(read => read.groupId))];
-	const groups =
-		groupIds.length > 0
-			? await prisma.group.findMany({ where: { id: { in: groupIds } }, select: { id: true, kind: true } })
-			: [];
-	const kindByGroupId = new Map(groups.map(group => [group.id, group.kind]));
-
-	/*
-	 * **Babs are the Cevşen's.** The screen labels this number "bab", and a Hizb portion is
-	 * a different unit and a far longer one, so adding the two would make the total mean
-	 * neither. Hizb reading still shows in the streak and the heatmap below, which count
-	 * reading days rather than babs.
-	 */
-	const babsRead = userReads.filter(read => kindByGroupId.get(read.groupId) === 'CEVSEN').length;
 
 	// A round is "completed" once every part of a (groupId, roundIndex) has been read by
 	// anyone — 100 for a Cevşen group, 33 for a Hizb one. We only check rounds this user
@@ -86,14 +73,28 @@ export const getProfileStatsForUser = async (
 		roundKeys.set(`${read.groupId}:${read.roundIndex}`, { groupId: read.groupId, roundIndex: read.roundIndex });
 	}
 
-	const roundCounts =
+	// Both are derived from the reads alone, so neither waits on the other.
+	const [groups, roundCounts] = await Promise.all([
+		groupIds.length > 0
+			? prisma.group.findMany({ where: { id: { in: groupIds } }, select: { id: true, kind: true } })
+			: [],
 		roundKeys.size > 0
-			? await prisma.babRead.groupBy({
+			? prisma.babRead.groupBy({
 					by: ['groupId', 'roundIndex'],
 					where: { OR: Array.from(roundKeys.values()) },
 					_count: { _all: true }
 			  })
-			: [];
+			: []
+	]);
+	const kindByGroupId = new Map(groups.map(group => [group.id, group.kind]));
+
+	/*
+	 * **Babs are the Cevşen's.** The screen labels this number "bab", and a Hizb portion is
+	 * a different unit and a far longer one, so adding the two would make the total mean
+	 * neither. Hizb reading still shows in the streak and the heatmap below, which count
+	 * reading days rather than babs.
+	 */
+	const babsRead = userReads.filter(read => kindByGroupId.get(read.groupId) === 'CEVSEN').length;
 
 	const roundsCompleted = roundCounts.filter(round => {
 		const kind = kindByGroupId.get(round.groupId);

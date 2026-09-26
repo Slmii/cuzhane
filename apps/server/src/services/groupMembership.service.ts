@@ -1,6 +1,7 @@
 import { BAD_REQUEST, CONFLICT, FORBIDDEN, NOT_FOUND } from '@config/httpCodes';
 import { HttpError } from '@config/httpError';
 import prisma from '@db/prisma';
+import { formatRun } from '@utils/babs';
 import { normalizeInviteCode } from '@utils/inviteCode';
 import { normalizeUserId } from '@utils/normalizeUserId';
 import { syncCompletedAt } from './babs.service';
@@ -74,6 +75,9 @@ export const previewGroupById = async (userId: string, groupId: string): Promise
 
 const MAX_SLOT_ATTEMPTS = 5;
 
+/** A volunteer's claim a join took back, and over which babs. */
+type ReleasedClaim = { userId: string; startBab: number; endBab: number; kind: GroupKindName };
+
 const isUniqueConstraintError = (error: unknown): boolean =>
 	typeof error === 'object' && error !== null && 'code' in error && (error as { code?: string }).code === 'P2002';
 
@@ -93,7 +97,7 @@ const attemptJoin = async (
 	 * but told to them outside it. A push is a courtesy; the join is the point, and Expo
 	 * being slow or unreachable must never roll one back or hold the response open.
 	 */
-	let released: { userId: string; range: string; kind: GroupKindName } | null = null;
+	let released: ReleasedClaim | null = null;
 
 	await prisma.$transaction(async tx => {
 		const group = await tx.group.findUnique({
@@ -188,7 +192,7 @@ const attemptJoin = async (
 					data: { groupId, userId: claim.assignedUserId, roundIndex: group.roundIndex, startBab, endBab }
 				});
 
-				released = { userId: claim.assignedUserId, range: `${startBab}–${endBab}`, kind: group.kind };
+				released = { userId: claim.assignedUserId, startBab, endBab, kind: group.kind };
 			}
 		}
 
@@ -207,9 +211,10 @@ const attemptJoin = async (
 	 * never throws, so awaiting it costs the join nothing and cannot fail it.
 	 */
 	if (released !== null) {
-		const { userId: volunteerId, range, kind } = released as { userId: string; range: string; kind: GroupKindName };
+		const { userId: volunteerId, startBab, endBab, kind } = released as ReleasedClaim;
 		const language = await pushLanguageFor(volunteerId);
-		const [startBab, endBab] = range.split('–').map(Number);
+		// `formatRun`, so a one-part block reads "27" — the push copy takes a bare number as singular.
+		const range = formatRun({ start: startBab, end: endBab });
 
 		/*
 		 * The inbox row is the durable half of this notice. `PoolClaimRelease` already records
@@ -218,7 +223,7 @@ const attemptJoin = async (
 		 */
 		const group = await prisma.group.findUnique({ where: { id: groupId }, select: { name: true } });
 
-		if (group !== null && startBab !== undefined && endBab !== undefined) {
+		if (group !== null) {
 			await recordNotification({
 				groupId,
 				groupName: group.name,

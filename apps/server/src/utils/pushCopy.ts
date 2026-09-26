@@ -104,12 +104,20 @@ export const poolClaimReleasedPush = (language: PushLanguage, input: { kind: Gro
 	const lead = capitalized(noun);
 
 	if (language === 'nl') {
-		const verb = isSingle ? 'is' : 'zijn';
+		/*
+		 * "Het deel geworden van" says share with *deel*, which beside "gedeelte" reads as the
+		 * same word twice meaning two things — so the Hizb line says it with "hoort bij". The
+		 * Cevşen line keeps the wording it has always had.
+		 */
+		const became =
+			kind === 'HIZB'
+				? `${isSingle ? 'hoort' : 'horen'} nu bij`
+				: `${isSingle ? 'is' : 'zijn'} het deel geworden van`;
 
 		return {
 			// No article: Dutch would have to know the noun's gender, and "je" needs none.
 			title: isSingle ? `Je overgenomen ${noun} is doorgegeven` : `De ${noun} die je overnam zijn doorgegeven`,
-			body: `${lead} ${range} ${verb} het deel geworden van het nieuwe lid. Wat je al gelezen hebt, blijft van jou.`
+			body: `${lead} ${range} ${became} het nieuwe lid. Wat je al gelezen hebt, blijft van jou.`
 		};
 	}
 

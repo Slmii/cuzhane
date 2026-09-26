@@ -33,7 +33,7 @@ describe('poolClaimReleasedPush', () => {
 		});
 		expect(poolClaimReleasedPush('nl', { kind: 'HIZB', range: '7–9' })).toEqual({
 			title: 'De gedeelten die je overnam zijn doorgegeven',
-			body: 'Gedeelten 7–9 zijn het deel geworden van het nieuwe lid. Wat je al gelezen hebt, blijft van jou.'
+			body: 'Gedeelten 7–9 horen nu bij het nieuwe lid. Wat je al gelezen hebt, blijft van jou.'
 		});
 	});
 
@@ -48,7 +48,7 @@ describe('poolClaimReleasedPush', () => {
 		});
 		expect(poolClaimReleasedPush('nl', { kind: 'HIZB', range: '19' })).toEqual({
 			title: 'Je overgenomen gedeelte is doorgegeven',
-			body: 'Gedeelte 19 is het deel geworden van het nieuwe lid. Wat je al gelezen hebt, blijft van jou.'
+			body: 'Gedeelte 19 hoort nu bij het nieuwe lid. Wat je al gelezen hebt, blijft van jou.'
 		});
 	});
 });
