@@ -2,7 +2,9 @@ export type GroupVisibility = 'OPEN' | 'PRIVATE';
 export type GroupSplitMode = 'ROTATION' | 'FIXED';
 export type GroupStatus = 'GATHERING' | 'RUNNING';
 export type BabRange = { start: number; end: number };
-export type GroupCycle = 'DAILY' | 'WEEKLY';
+export type GroupCycle = 'DAILY' | 'WEEKLY' | 'MONTHLY';
+/** What a group reads: the Cevşen's hundred babs or the Hizb's 33 portions. */
+export type GroupKind = 'CEVSEN' | 'HIZB';
 export type GroupMemberRole = 'OWNER' | 'MEMBER';
 
 export type GroupMember = {
@@ -41,6 +43,10 @@ export type GroupSummary = {
 	visibility: GroupVisibility;
 	splitMode: GroupSplitMode;
 	cycle: GroupCycle;
+	/** What the group reads. Immutable after creation. */
+	kind: GroupKind;
+	/** How many parts the group divides — 100 babs for the Cevşen, 33 portions for the Hizb. */
+	partCount: number;
 	/** IANA zone the group's rounds roll in — the creator's, fixed at creation. */
 	timezone: string;
 	spots: number;
@@ -129,6 +135,9 @@ export type GroupInvitePreview = {
 	visibility: GroupVisibility;
 	splitMode: GroupSplitMode;
 	cycle: GroupCycle;
+	kind: GroupKind;
+	/** See `GroupSummary.partCount`. */
+	partCount: number;
 	spots: number;
 	memberCount: number;
 	spotsLeft: number;
@@ -271,6 +280,8 @@ export type RoundSummary = {
 	roundIndex: number;
 	startedAt: string;
 	endsAt: string;
+	/** How many parts the round had to cover — what `readCount` and `missedCount` are out of. */
+	partCount: number;
 	readCount: number;
 	/** Always 0 for the open round — the day isn't over, so nothing is missing yet. */
 	missedCount: number;
@@ -295,6 +306,8 @@ export type RoundDetail = {
 	startedAt: string;
 	endsAt: string;
 	isOpen: boolean;
+	/** See `RoundSummary.partCount`; `babs` has exactly this many entries. */
+	partCount: number;
 	readCount: number;
 	missedCount: number;
 	missedPeopleCount: number;

@@ -1,6 +1,7 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/generated/prisma/client';
-import { BAB_COUNT, babNumbersForRound, babNumbersForSlot } from '../src/utils/babs';
+import { babNumbersForRound, babNumbersForSlot } from '../src/utils/babs';
+import { partCountFor, type GroupKindName } from '../src/utils/groupKinds';
 import { INVITE_CODE_ALPHABET } from '../src/utils/inviteCode';
 import { DEFAULT_TIME_ZONE, roundEndsAt, roundIndexSince, roundStartedAtFor } from '../src/utils/rounds';
 
@@ -143,6 +144,8 @@ type GroupSeed = {
 	memberIdPrefix: string;
 	/** Overrides the default seat -> user mapping — used to seat `dev_user` at a non-zero slot. */
 	slotUserIds?: Record<number, string>;
+	/** What the group reads. Every fixture so far is a Cevşen group, so it defaults to that. */
+	kind?: GroupKindName;
 	spots: number;
 	cycle: 'DAILY' | 'WEEKLY';
 	reminderTime: string;
@@ -411,7 +414,7 @@ const GROUPS: GroupSeed[] = [
 		status: 'RUNNING',
 		startedDaysAgo: 20,
 		autoStartWhenFull: true,
-		// Every seat filled and every share fully read — `readCount === BAB_COUNT` below
+		// Every seat filled and every share fully read — `readCount === partCount` below
 		// stamps `completedAt` to match the board.
 		members: [
 			['Onur Kaptan', 13],
@@ -663,11 +666,13 @@ const userIdForSlot = (spec: GroupSeed, slotIndex: number) =>
 
 const isOccupiedSlot = (spec: GroupSeed, slotIndex: number) => (spec.members[slotIndex] ?? null) !== null;
 
+const kindOf = (spec: GroupSeed): GroupKindName => spec.kind ?? 'CEVSEN';
+
 /** Which babs a seat reads in a given round: rotated for ROTATION groups, standing for FIXED. */
 const babNumbersForSeatRound = (spec: GroupSeed, slotIndex: number, roundIndex: number) =>
 	spec.splitMode === 'ROTATION'
-		? babNumbersForRound(slotIndex, spec.spots, roundIndex, BAB_COUNT)
-		: babNumbersForSlot(slotIndex, spec.spots, BAB_COUNT);
+		? babNumbersForRound(slotIndex, spec.spots, roundIndex, partCountFor(kindOf(spec)))
+		: babNumbersForSlot(slotIndex, spec.spots, partCountFor(kindOf(spec)));
 
 const seedGroup = async (spec: GroupSeed) => {
 	if (spec.slotUserIds?.[0]) {
@@ -714,6 +719,7 @@ const seedGroup = async (spec: GroupSeed) => {
 			roundStartedAt,
 			...(endsAt ? { endsAt } : {}),
 			autoStartWhenFull: spec.autoStartWhenFull,
+			kind: kindOf(spec),
 			cycle: spec.cycle,
 			spots: spec.spots,
 			inviteCode,
@@ -741,6 +747,7 @@ const seedGroup = async (spec: GroupSeed) => {
 	// Bab -> who reads it and whether it's read, for the group's *current* round — rotated
 	// per seat for ROTATION groups, standing for FIXED — so an uneven `spots` (12 doesn't
 	// divide 100) lands exactly where `rangeForSlot` says it does.
+	const partCount = partCountFor(kindOf(spec));
 	const readAssignmentByBab = new Map<number, { userId: string; isRead: boolean }>();
 
 	spec.members.forEach((member, slotIndex) => {
@@ -777,7 +784,7 @@ const seedGroup = async (spec: GroupSeed) => {
 	}
 
 	await prisma.groupBab.createMany({
-		data: Array.from({ length: BAB_COUNT }, (_, index) => {
+		data: Array.from({ length: partCount }, (_, index) => {
 			const number = index + 1;
 			const readAssignment = readAssignmentByBab.get(number);
 			const claimedByUserId = poolClaimByBab.get(number);
@@ -861,14 +868,14 @@ const seedGroup = async (spec: GroupSeed) => {
 	const readCount = await prisma.groupBab.count({ where: { groupId: group.id, readAt: { not: null } } });
 
 	// Mirrors `syncCompletedAt`: `completedAt` only ever agrees with a fully-read board.
-	if (readCount === BAB_COUNT) {
+	if (readCount === partCount) {
 		await prisma.group.update({ where: { id: group.id }, data: { completedAt: readAt } });
 	}
 
 	const memberCount = spec.members.filter(member => member !== null).length;
 
 	console.log(
-		`Seeded "${spec.name}" [${spec.status}/${spec.splitMode}] — ${memberCount}/${spec.spots} members, ${readCount}/${BAB_COUNT} babs read.`
+		`Seeded "${spec.name}" [${spec.status}/${spec.splitMode}] — ${memberCount}/${spec.spots} members, ${readCount}/${partCount} babs read.`
 	);
 };
 

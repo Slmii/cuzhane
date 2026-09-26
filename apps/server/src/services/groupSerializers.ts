@@ -1,11 +1,5 @@
-import {
-	BAB_COUNT,
-	babNumbersForRound,
-	babNumbersForSlot,
-	progressPercent,
-	rangeForRound,
-	rangeForSlot
-} from '@utils/babs';
+import { babNumbersForRound, babNumbersForSlot, progressPercent, rangeForRound, rangeForSlot } from '@utils/babs';
+import { partCountFor, type GroupKindName } from '@utils/groupKinds';
 import { formatInviteCode } from '@utils/inviteCode';
 import { FALLBACK_DISPLAY_NAME, type MemberProfile } from '@utils/memberProfiles';
 import { civilDayNumber, roundEndsAt } from '@utils/rounds';
@@ -25,8 +19,9 @@ export type GroupVisibility = 'OPEN' | 'PRIVATE';
 export type GroupSplitMode = 'ROTATION' | 'FIXED';
 export type GroupStatus = 'GATHERING' | 'RUNNING';
 export type BabRange = { start: number; end: number };
-/** One source of truth: the round maths keys its cycle table off the same union. */
+/** One source of truth: the same union the round maths takes, MONTHLY included. */
 export type GroupCycle = CycleName;
+export type GroupKind = GroupKindName;
 export type GroupMemberRole = 'OWNER' | 'MEMBER';
 
 export type GroupBab = {
@@ -66,6 +61,14 @@ export type GroupSummary = {
 	visibility: GroupVisibility;
 	splitMode: GroupSplitMode;
 	cycle: GroupCycle;
+	/** What the group reads. Immutable after creation. */
+	kind: GroupKind;
+	/**
+	 * How many parts the group divides among its seats — 100 babs for the Cevşen, 33
+	 * portions for the Hizb. Sent rather than derived on the client so the board, the
+	 * progress and the pool are all sized by the same number the server split by.
+	 */
+	partCount: number;
 	/**
 	 * IANA zone the group's rounds roll in — the creator's. The client needs it to say when
 	 * the reset lands both in the group's day and in the reader's own.
@@ -144,6 +147,9 @@ export type GroupInvitePreview = {
 	visibility: GroupVisibility;
 	splitMode: GroupSplitMode;
 	cycle: GroupCycle;
+	kind: GroupKind;
+	/** See `GroupSummary.partCount`. */
+	partCount: number;
 	spots: number;
 	memberCount: number;
 	spotsLeft: number;
@@ -198,10 +204,13 @@ const roundIndexFor = (group: Group): number | null =>
 /**
  * The babs a member reads in a given round. `GroupBab.assignedUserId` records the seat's
  * standing owner and never rotates; which block a seat reads is derived from the round
- * index, so a ROTATION group's share moves without rewriting a hundred rows.
+ * index, so a ROTATION group's share moves without rewriting the board's rows.
  */
-/** Only the two fields the split actually depends on, so callers with a partial row can use it. */
-type PlanShape = Pick<Group, 'spots' | 'splitMode'>;
+/**
+ * Only the fields the split actually depends on, so callers with a partial row can use it.
+ * `kind` is one of them: it decides how many parts there are to split.
+ */
+type PlanShape = Pick<Group, 'spots' | 'splitMode' | 'kind'>;
 
 /**
  * The block a seat reads in a given round.
@@ -214,20 +223,25 @@ type PlanShape = Pick<Group, 'spots' | 'splitMode'>;
  * would be a second thing to remember to change when the split rules move.
  */
 export const babNumbersInRound = (group: PlanShape, slotIndex: number, roundIndex: number | null): number[] => {
+	const partCount = partCountFor(group.kind);
+
 	if (roundIndex === null) {
 		// Still gathering: the seat's own block is what has been reserved for them.
-		return babNumbersForSlot(slotIndex, group.spots, BAB_COUNT);
+		return babNumbersForSlot(slotIndex, group.spots, partCount);
 	}
 
 	return toSplitMode(group.splitMode) === 'ROTATION'
-		? babNumbersForRound(slotIndex, group.spots, roundIndex, BAB_COUNT)
-		: babNumbersForSlot(slotIndex, group.spots, BAB_COUNT);
+		? babNumbersForRound(slotIndex, group.spots, roundIndex, partCount)
+		: babNumbersForSlot(slotIndex, group.spots, partCount);
 };
 
-const rangeInRound = (group: PlanShape, slotIndex: number, roundIndex: number): BabRange | null =>
-	toSplitMode(group.splitMode) === 'ROTATION'
-		? rangeForRound(slotIndex, group.spots, roundIndex, BAB_COUNT)
-		: rangeForSlot(slotIndex, group.spots, BAB_COUNT);
+const rangeInRound = (group: PlanShape, slotIndex: number, roundIndex: number): BabRange | null => {
+	const partCount = partCountFor(group.kind);
+
+	return toSplitMode(group.splitMode) === 'ROTATION'
+		? rangeForRound(slotIndex, group.spots, roundIndex, partCount)
+		: rangeForSlot(slotIndex, group.spots, partCount);
+};
 
 /**
  * The block a member reads today. Exported because the write paths need the same answer
@@ -255,7 +269,7 @@ export const poolSlotIndexes = (members: Pick<GroupMemberModel, 'slotIndex'>[], 
  * which is `(e + r) % spots`. Taking the standing block instead gets it wrong twice over:
  * that block is being read by whichever member rotated onto it (so two people are
  * authorised for the same bab), while the genuinely uncovered block appears nowhere and
- * cannot be reached at all — making 100/100 unattainable through the intended shares.
+ * cannot be reached at all — making a full board unattainable through the intended shares.
  */
 export const poolBlocks = (
 	group: PlanShape,
@@ -366,6 +380,8 @@ export const toGroupSummary = (
 		visibility: group.visibility,
 		splitMode: toSplitMode(group.splitMode),
 		cycle: group.cycle,
+		kind: group.kind,
+		partCount: partCountFor(group.kind),
 		timezone: group.timezone,
 		spots: group.spots,
 		memberCount,
@@ -534,6 +550,8 @@ export const toInvitePreview = (
 		visibility: group.visibility,
 		splitMode: toSplitMode(group.splitMode),
 		cycle: group.cycle,
+		kind: group.kind,
+		partCount: partCountFor(group.kind),
 		spots: group.spots,
 		memberCount,
 		spotsLeft,
@@ -553,8 +571,8 @@ export const toInvitePreview = (
 		 * an empty seat rather than filling it. Filtering to the unvolunteered part made the
 		 * preview say "0 bab sahipsiz" for a group whose Havuz screen said 16.
 		 *
-		 * The summary's copy stays filtered: it feeds the 100-bab board, where a claimed bab
-		 * is that person's work and must stop wearing the hatch.
+		 * The summary's copy stays filtered: it feeds the board, where a claimed bab is that
+		 * person's work and must stop wearing the hatch.
 		 */
 		poolBabNumbers: babs
 			.filter(bab => poolNumbersForPreview.has(bab.number))

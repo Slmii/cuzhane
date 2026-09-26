@@ -1,7 +1,7 @@
 import { BAD_REQUEST, INTERNAL_SERVER_ERROR } from '@config/httpCodes';
 import { HttpError } from '@config/httpError';
 import prisma from '@db/prisma';
-import { BAB_COUNT } from '@utils/babs';
+import { partCountFor, type GroupKindName } from '@utils/groupKinds';
 import { formatInviteCode, generateInviteCode } from '@utils/inviteCode';
 import { normalizeUserId } from '@utils/normalizeUserId';
 import { roundEndsAt } from '@utils/rounds';
@@ -18,6 +18,8 @@ export type CreateGroupInput = {
 	name: string;
 	dedication?: string | null | undefined;
 	visibility: GroupVisibility;
+	/** What the group reads. The schema has already held `spots` and `cycle` to its rules. */
+	kind: GroupKindName;
 	splitMode: GroupSplitMode;
 	cycle: GroupCycle;
 	spots: number;
@@ -157,6 +159,7 @@ export const createGroupForUser = async (
 				name: input.name,
 				dedication: input.dedication ?? null,
 				visibility: input.visibility,
+				kind: input.kind,
 				splitMode: input.splitMode,
 				cycle: input.cycle,
 				spots: input.spots,
@@ -176,11 +179,14 @@ export const createGroupForUser = async (
 			}
 		});
 
-		// A hundred rows with nothing but their number. Ownership isn't stored: who reads
-		// which block falls out of the seat and the round, and `assignedUserId` is reserved
-		// for pool volunteering.
+		// One row per part — a hundred for the Cevşen, 33 for the Hizb — with nothing but its
+		// number. Ownership isn't stored: who reads which block falls out of the seat and the
+		// round, and `assignedUserId` is reserved for pool volunteering.
 		await tx.groupBab.createMany({
-			data: Array.from({ length: BAB_COUNT }, (_, index) => ({ groupId: group.id, number: index + 1 }))
+			data: Array.from({ length: partCountFor(input.kind) }, (_, index) => ({
+				groupId: group.id,
+				number: index + 1
+			}))
 		});
 
 		await tx.groupMember.create({

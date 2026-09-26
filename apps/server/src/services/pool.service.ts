@@ -10,6 +10,7 @@ import { babRuns, formatRun } from '@utils/babs';
 import { requireMembership } from './groupAccess.service';
 import { poolBlocks } from './groupSerializers';
 import { ensureCurrentRound, ensureCurrentRoundFor } from './rounds.service';
+import type { Group } from '../generated/prisma/client';
 
 /**
  * The shared pool is the share of the seats nobody took. A slot is offered whole rather
@@ -97,7 +98,8 @@ export const listPoolSlotsForUser = async (userId: string, groupId: string): Pro
  * babs — leaving the claim it meant to release and voiding one it didn't.
  */
 export const poolBlockFor = (
-	group: { spots: number; splitMode: 'ROTATION' | 'FIXED' | 'FREE'; roundIndex: number },
+	// `kind` because the block is a share of the group's own part count, not of a hundred.
+	group: Pick<Group, 'spots' | 'splitMode' | 'kind' | 'roundIndex'>,
 	members: { slotIndex: number }[],
 	slotIndex: number
 ): number[] | null =>

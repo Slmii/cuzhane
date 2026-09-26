@@ -7,7 +7,8 @@ import { StyleSheet, View } from 'react-native';
 import type { PeriodStripProps } from './PeriodStrip.types';
 
 /**
- * How many columns the strip always draws — seven for a DAILY group, eight for a WEEKLY one.
+ * How many columns the strip always draws — seven for a DAILY group, eight for a WEEKLY one,
+ * six for a MONTHLY one.
  *
  * **Fixed, even when the group is younger than the window.** The columns are sized by
  * dividing the row, so letting the count follow the data would draw a two-day-old group as
@@ -15,7 +16,7 @@ import type { PeriodStripProps } from './PeriodStrip.types';
  * rendered as empty space, which is a different claim from a missed one — the group did not
  * exist yet, and the strip must not say it fell behind.
  */
-const COLUMNS = { DAILY: 7, WEEKLY: 8 } as const;
+const COLUMNS = { DAILY: 7, WEEKLY: 8, MONTHLY: 6 } as const;
 
 /**
  * The four states of a cell, from the design's legend: everything read, some of it, none of

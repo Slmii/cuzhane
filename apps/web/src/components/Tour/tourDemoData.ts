@@ -173,6 +173,7 @@ const summaryOf = (spec: DemoGroupSpec): GroupSummary => {
 		isFull: spec.memberCount >= SPOTS,
 		isMember: true,
 		isOwner: spec.isOwner,
+		kind: 'CEVSEN',
 		memberCount: spec.memberCount,
 		myBabNumbers: share,
 		// Null once the share is done, which is what turns Ana sayfa's button into "Tamam".
@@ -184,6 +185,7 @@ const summaryOf = (spec: DemoGroupSpec): GroupSummary => {
 		mySlotIndex: 3,
 		name: spec.name,
 		openToJoin: spec.openToJoin,
+		partCount: 100,
 		percent: readCount,
 		poolAllBabNumbers: pool,
 		poolBabNumbers: pool,
@@ -235,6 +237,7 @@ const roundsOf = (spec: DemoGroupSpec): RoundSummary[] => [
 		missedCount: 0,
 		myOwedCount: SHARE_LENGTH,
 		myReadCount: spec.readInShare,
+		partCount: 100,
 		readCount: spec.readInShare + spec.othersReadCount,
 		roundIndex: 9,
 		startedAt: hoursFromNow(spec.hoursLeft - 24)
@@ -245,6 +248,7 @@ const roundsOf = (spec: DemoGroupSpec): RoundSummary[] => [
 		missedCount: 12,
 		myOwedCount: SHARE_LENGTH,
 		myReadCount: SHARE_LENGTH,
+		partCount: 100,
 		readCount: 88,
 		roundIndex: 8,
 		startedAt: hoursFromNow(spec.hoursLeft - 48)

@@ -1,7 +1,8 @@
 import { CONFLICT, FORBIDDEN, NOT_FOUND } from '@config/httpCodes';
 import { HttpError } from '@config/httpError';
 import prisma from '@db/prisma';
-import { BAB_COUNT, slotIndexForBab } from '@utils/babs';
+import { slotIndexForBab } from '@utils/babs';
+import { partCountFor } from '@utils/groupKinds';
 import { roundEndsAt, roundIndexSince, roundStartedAtFor, type CycleName } from '@utils/rounds';
 import { normalizeUserId } from '@utils/normalizeUserId';
 import { ensureCurrentRoundFor } from './rounds.service';
@@ -13,6 +14,8 @@ export type RoundSummary = {
 	roundIndex: number;
 	startedAt: string;
 	endsAt: string;
+	/** How many parts the round had to cover — what `readCount` and `missedCount` are out of. */
+	partCount: number;
 	readCount: number;
 	missedCount: number;
 	/** Babs this member was owed and read, of the babs they were owed. */
@@ -38,6 +41,8 @@ export type RoundDetail = {
 	startedAt: string;
 	endsAt: string;
 	isOpen: boolean;
+	/** See `RoundSummary.partCount`; `babs` has exactly this many entries. */
+	partCount: number;
 	readCount: number;
 	missedCount: number;
 	/** How many members still owe at least one bab from this round. */
@@ -53,8 +58,8 @@ export type RoundDetail = {
  * block index is the seat. This is what lets a closed round be attributed at all: nothing
  * stores who owed what, exactly as nothing stores who reads what.
  */
-const owedSlotForBab = (group: Pick<Group, 'spots' | 'splitMode'>, babNumber: number, roundIndex: number) => {
-	const blockIndex = slotIndexForBab(babNumber, group.spots, BAB_COUNT);
+const owedSlotForBab = (group: Pick<Group, 'spots' | 'splitMode' | 'kind'>, babNumber: number, roundIndex: number) => {
+	const blockIndex = slotIndexForBab(babNumber, group.spots, partCountFor(group.kind));
 
 	if (blockIndex === null) {
 		return null;
@@ -119,6 +124,7 @@ export const listRoundsForUser = async (userId: string, groupId: string): Promis
 	]);
 
 	const viewer = members.find(member => member.userId === normalizedUserId);
+	const partCount = partCountFor(group.kind);
 	const readsByRound = new Map<number, { total: number; mine: number }>();
 
 	for (const read of reads) {
@@ -141,7 +147,7 @@ export const listRoundsForUser = async (userId: string, groupId: string): Promis
 		const owedCount =
 			viewer === undefined
 				? 0
-				: Array.from({ length: BAB_COUNT }, (_, index) => index + 1).filter(
+				: Array.from({ length: partCount }, (_, index) => index + 1).filter(
 						babNumber => owedSlotForBab(group, babNumber, roundIndex) === viewer.slotIndex
 				  ).length;
 
@@ -149,9 +155,10 @@ export const listRoundsForUser = async (userId: string, groupId: string): Promis
 			roundIndex,
 			startedAt: startedAt.toISOString(),
 			endsAt: endsAt.toISOString(),
+			partCount,
 			readCount: bucket.total,
 			// An open round has nothing "missing" yet — the day is not over.
-			missedCount: roundIndex === group.roundIndex ? 0 : BAB_COUNT - bucket.total,
+			missedCount: roundIndex === group.roundIndex ? 0 : partCount - bucket.total,
 			myReadCount: bucket.mine,
 			myOwedCount: owedCount,
 			isOpen: roundIndex === group.roundIndex
@@ -183,8 +190,9 @@ export const getRoundDetailForUser = async (
 
 	const memberBySlot = new Map<number, GroupMember>(members.map(member => [member.slotIndex, member]));
 	const readByNumber = new Map(reads.map(read => [read.babNumber, read]));
+	const partCount = partCountFor(group.kind);
 
-	const babs: RoundBab[] = Array.from({ length: BAB_COUNT }, (_, index) => {
+	const babs: RoundBab[] = Array.from({ length: partCount }, (_, index) => {
 		const number = index + 1;
 		const read = readByNumber.get(number);
 		const slotIndex = owedSlotForBab(group, number, roundIndex);
@@ -209,7 +217,8 @@ export const getRoundDetailForUser = async (
 		startedAt: startedAt.toISOString(),
 		endsAt: endsAt.toISOString(),
 		isOpen: roundIndex === group.roundIndex,
-		readCount: BAB_COUNT - missed.length,
+		partCount,
+		readCount: partCount - missed.length,
 		missedCount: missed.length,
 		missedPeopleCount: new Set(missed.map(bab => bab.owedByUserId).filter(Boolean)).size,
 		babs
@@ -241,8 +250,10 @@ export const coverMissedBabsForUser = async (
 	}
 
 	const wanted = [...new Set(babNumbers)];
+	// The route bounds the numbers by the Cevşen's hundred; a Hizb group stops at 33.
+	const partCount = partCountFor(group.kind);
 
-	if (wanted.some(babNumber => !Number.isInteger(babNumber) || babNumber < 1 || babNumber > BAB_COUNT)) {
+	if (wanted.some(babNumber => !Number.isInteger(babNumber) || babNumber < 1 || babNumber > partCount)) {
 		throw new HttpError(NOT_FOUND, 'Bab not found');
 	}
 
@@ -295,9 +306,9 @@ export type MyProgressPeriod = {
 	 * differently — that design was built and dropped, and the field went back with it rather
 	 * than staying as a payload nobody reads.
 	 *
-	 * **Never a constant** — `100 / spots`, with the first `100 % spots` seats getting one
-	 * extra, and under ROTATION the seat moves each round, so the same member can owe 9 one
-	 * round and 8 the next.
+	 * **Never a constant** — `partCount / spots`, with the first `partCount % spots` seats
+	 * getting one extra, and under ROTATION the seat moves each round, so the same member can
+	 * owe 9 one round and 8 the next.
 	 */
 	owedCount: number;
 	/**

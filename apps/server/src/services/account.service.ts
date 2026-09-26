@@ -25,7 +25,7 @@ export const deleteAccountForUser = async (userId: string): Promise<{ success: t
 				data: { readByUserId: null, readAt: null }
 			});
 
-			// Freeing their reads can drop a finished group back below 100, so any group
+			// Freeing their reads can drop a finished group back below a full board, so any group
 			// that is no longer complete has to lose its stamp — otherwise it stays
 			// flagged "completed" while showing unread babs on the board.
 			await tx.group.updateMany({

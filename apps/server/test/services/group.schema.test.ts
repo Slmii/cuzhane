@@ -1,0 +1,58 @@
+import { CreateGroupBodySchema, DiscoverQuerySchema } from '@schemas/group.schema';
+import { describe, expect, it } from 'vitest';
+
+const base = { name: 'Hizb Halkası', reminderTime: '21:30' };
+
+/** The paths a rejected body's issues point at — what the create sheet binds its messages to. */
+const issuePaths = (body: unknown): string[] => {
+	const result = CreateGroupBodySchema.safeParse(body);
+
+	return result.success ? [] : result.error.issues.map(issue => issue.path.join('.'));
+};
+
+describe('CreateGroupBodySchema', () => {
+	it('defaults an omitted kind to the Cevşen', () => {
+		const parsed = CreateGroupBodySchema.parse({ ...base, spots: 10 });
+
+		expect(parsed.kind).toBe('CEVSEN');
+	});
+
+	it('refuses a monthly Cevşen, on the cycle', () => {
+		expect(issuePaths({ ...base, kind: 'CEVSEN', cycle: 'MONTHLY' })).toEqual(['cycle']);
+	});
+
+	it('keeps the Cevşen to its three sizes, on the spots', () => {
+		expect(issuePaths({ ...base, kind: 'CEVSEN', spots: 7 })).toEqual(['spots']);
+	});
+
+	it('accepts any Hizb size that leaves every seat a portion', () => {
+		expect(CreateGroupBodySchema.safeParse({ ...base, kind: 'HIZB', spots: 7 }).success).toBe(true);
+		expect(CreateGroupBodySchema.safeParse({ ...base, kind: 'HIZB', spots: 1 }).success).toBe(true);
+		expect(CreateGroupBodySchema.safeParse({ ...base, kind: 'HIZB', spots: 33 }).success).toBe(true);
+	});
+
+	it('refuses a Hizb seat with nothing to read, on the spots', () => {
+		expect(issuePaths({ ...base, kind: 'HIZB', spots: 34 })).toEqual(['spots']);
+		expect(issuePaths({ ...base, kind: 'HIZB', spots: 0 })).toEqual(['spots']);
+	});
+
+	it('gives the Hizb a monthly round', () => {
+		const parsed = CreateGroupBodySchema.parse({ ...base, kind: 'HIZB', spots: 11, cycle: 'MONTHLY' });
+
+		expect(parsed.cycle).toBe('MONTHLY');
+	});
+
+	it('keeps the default size valid for a Hizb that names none', () => {
+		expect(CreateGroupBodySchema.safeParse({ ...base, kind: 'HIZB' }).success).toBe(true);
+	});
+
+	it('refuses a kind it does not know', () => {
+		expect(issuePaths({ ...base, kind: 'HATIM' })).toEqual(['kind']);
+	});
+});
+
+describe('DiscoverQuerySchema', () => {
+	it('filters on a monthly round', () => {
+		expect(DiscoverQuerySchema.parse({ cycle: 'MONTHLY' }).cycle).toBe('MONTHLY');
+	});
+});

@@ -168,10 +168,8 @@ const daysInMonth = (year: number, monthIndex: number) => new Date(Date.UTC(year
  * boundary, or one short February would pull every later round back to the 28th.
  */
 export const boundaryDayNumber = (startedAt: Date, cycle: CycleName, roundIndex: number, timeZone: string): number => {
-	const startDay = civilDayNumber(startedAt, timeZone);
-
 	if (cycle !== 'MONTHLY') {
-		return startDay + Math.max(0, roundIndex) * ROUND_DAYS[cycle];
+		return civilDayNumber(startedAt, timeZone) + Math.max(0, roundIndex) * ROUND_DAYS[cycle];
 	}
 
 	const { year, month, day } = wallClockIn(startedAt, timeZone);
@@ -240,7 +238,7 @@ export const roundStartedAtFor = (startedAt: Date, cycle: CycleName, roundIndex:
  * started on the 31st rolls on Mar 31.
  */
 export const roundEndsAt = (startedAt: Date, cycle: CycleName, roundIndex: number, timeZone: string): Date =>
-	startOfCivilDay(boundaryDayNumber(startedAt, cycle, roundIndex + 1, timeZone), timeZone);
+	startOfCivilDay(boundaryDayNumber(startedAt, cycle, Math.max(0, roundIndex) + 1, timeZone), timeZone);
 
 /** Whether a string is a time zone this platform actually knows, for validating client input. */
 export const isValidTimeZone = (timeZone: string): boolean => {

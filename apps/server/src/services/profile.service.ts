@@ -1,9 +1,12 @@
 import prisma from '@db/prisma';
+import { partCountFor } from '@utils/groupKinds';
 import { normalizeUserId } from '@utils/normalizeUserId';
 import { civilDayNumber, DEFAULT_TIME_ZONE } from '@utils/rounds';
 
 export type ProfileStats = {
+	/** Cevşen babs only — the label says babs, and a Hizb portion is not one. */
 	babsRead: number;
+	/** Every group's completed rounds, whatever it reads. */
 	roundsCompleted: number;
 	streakDays: number;
 	/** The longest run of consecutive reading days, ever — what the current streak is measured against. */
@@ -54,11 +57,30 @@ export const getProfileStatsForUser = async (
 		})
 	]);
 
-	const babsRead = userReads.length;
+	/*
+	 * What each group reads, for the two stats that depend on it. One lookup over the groups
+	 * this reader has touched rather than a join on every read: a `BabRead` row can't outlive
+	 * its group (the relation cascades), so every id here resolves.
+	 */
+	const groupIds = [...new Set(userReads.map(read => read.groupId))];
+	const groups =
+		groupIds.length > 0
+			? await prisma.group.findMany({ where: { id: { in: groupIds } }, select: { id: true, kind: true } })
+			: [];
+	const kindByGroupId = new Map(groups.map(group => [group.id, group.kind]));
 
-	// A round is "completed" once all 100 babs of a (groupId, roundIndex) have been read by
-	// anyone. We only check rounds this user actually contributed a read to, then ask how many
-	// BabRead rows exist in total for each of those rounds.
+	/*
+	 * **Babs are the Cevşen's.** The screen labels this number "bab", and a Hizb portion is
+	 * a different unit and a far longer one, so adding the two would make the total mean
+	 * neither. Hizb reading still shows in the streak and the heatmap below, which count
+	 * reading days rather than babs.
+	 */
+	const babsRead = userReads.filter(read => kindByGroupId.get(read.groupId) === 'CEVSEN').length;
+
+	// A round is "completed" once every part of a (groupId, roundIndex) has been read by
+	// anyone — 100 for a Cevşen group, 33 for a Hizb one. We only check rounds this user
+	// actually contributed a read to, then ask how many BabRead rows exist in total for each
+	// of those rounds.
 	const roundKeys = new Map<string, { groupId: string; roundIndex: number }>();
 	for (const read of userReads) {
 		roundKeys.set(`${read.groupId}:${read.roundIndex}`, { groupId: read.groupId, roundIndex: read.roundIndex });
@@ -73,7 +95,11 @@ export const getProfileStatsForUser = async (
 			  })
 			: [];
 
-	const roundsCompleted = roundCounts.filter(round => round._count._all === 100).length;
+	const roundsCompleted = roundCounts.filter(round => {
+		const kind = kindByGroupId.get(round.groupId);
+
+		return kind !== undefined && round._count._all === partCountFor(kind);
+	}).length;
 
 	const joinDates = memberships.map(membership => membership.joinedAt.getTime());
 	const memberSince =

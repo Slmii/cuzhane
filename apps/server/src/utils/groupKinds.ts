@@ -1,3 +1,5 @@
+import type { CycleName } from '@utils/rounds';
+
 /** What a group reads. Immutable after creation; a new division would be a new kind, never a re-read of this one. */
 export type GroupKindName = 'CEVSEN' | 'HIZB';
 
@@ -16,7 +18,7 @@ export const requiredRepetitions = (kind: GroupKindName, partNumber: number): nu
 	REQUIRED_REPETITIONS[kind][partNumber] ?? 1;
 
 /** Which cycles a kind may be created with. The Cevşen keeps its two; the Hizb adds a month. */
-export const CYCLES_FOR_KIND: Record<GroupKindName, readonly ('DAILY' | 'WEEKLY' | 'MONTHLY')[]> = {
+export const CYCLES_FOR_KIND: Record<GroupKindName, readonly CycleName[]> = {
 	CEVSEN: ['DAILY', 'WEEKLY'],
 	HIZB: ['DAILY', 'WEEKLY', 'MONTHLY']
 };

@@ -1,7 +1,8 @@
 import { BAD_REQUEST, CONFLICT } from '@config/httpCodes';
 import { HttpError } from '@config/httpError';
 import prisma from '@db/prisma';
-import { BAB_COUNT, babRuns, formatRun } from '@utils/babs';
+import { babRuns, formatRun } from '@utils/babs';
+import { partCountFor } from '@utils/groupKinds';
 import { FALLBACK_DISPLAY_NAME, getMemberProfiles } from '@utils/memberProfiles';
 import { normalizeUserId } from '@utils/normalizeUserId';
 import { groupReadPush, roundCompletePush, toPushLanguage } from '@utils/pushCopy';
@@ -13,8 +14,12 @@ import { poolBabNumbers, serializeBab, shareBabNumbersToday } from './groupSeria
 import { ensureCurrentRound, ensureCurrentRoundFor } from './rounds.service';
 import type { GroupBab, GroupStatus } from './groupSerializers';
 
-const validateBabNumber = (babNumber: number): void => {
-	if (!Number.isInteger(babNumber) || babNumber < 1 || babNumber > BAB_COUNT) {
+/**
+ * Checked against the group's own part count, so it needs the group loaded first: the route
+ * only bounds the number by the Cevşen's hundred, and a Hizb group has 33.
+ */
+const validateBabNumber = (babNumber: number, partCount: number): void => {
+	if (!Number.isInteger(babNumber) || babNumber < 1 || babNumber > partCount) {
 		throw new HttpError(BAD_REQUEST, 'Invalid bab number');
 	}
 };
@@ -402,8 +407,6 @@ export const setBabReadForUser = async (
 	babNumber: number,
 	read: boolean
 ): Promise<GroupBab> => {
-	validateBabNumber(babNumber);
-
 	const normalizedUserId = normalizeUserId(userId);
 	await requireMembership(normalizedUserId, groupId);
 
@@ -421,6 +424,7 @@ export const setBabReadForUser = async (
 		await ensureCurrentRound(tx, groupId);
 
 		const group = await tx.group.findUniqueOrThrow({ where: { id: groupId }, include: { members: true } });
+		validateBabNumber(babNumber, partCountFor(group.kind));
 		requireRunning(group);
 
 		// Under ROTATION the babs a member may mark this round are their seat's *rotated*

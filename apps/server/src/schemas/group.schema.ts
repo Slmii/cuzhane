@@ -1,7 +1,11 @@
+import { CYCLES_FOR_KIND, partCountFor } from '@utils/groupKinds';
 import { DEFAULT_TIME_ZONE, isValidTimeZone } from '@utils/rounds';
 import { z } from 'zod';
 
-/** The only group sizes a client may create. Mirrored by `SPOTS_VALUES` on the web app. */
+/**
+ * The only sizes a Cevşen group may be created with. Mirrored by `SPOTS_VALUES` on the web
+ * app. A Hizb group is not held to these — see `CreateGroupBodySchema`.
+ */
 const SPOTS_VALUES = [5, 10, 20];
 
 /**
@@ -29,7 +33,7 @@ const TimeStringSchema = z
 	}, 'Invalid time value');
 
 const GroupVisibilitySchema = z.enum(['OPEN', 'PRIVATE']);
-const GroupCycleSchema = z.enum(['DAILY', 'WEEKLY']);
+const GroupCycleSchema = z.enum(['DAILY', 'WEEKLY', 'MONTHLY']);
 
 export const GroupIdParamsSchema = z.object({
 	groupId: z.string().trim().min(1)
@@ -41,7 +45,12 @@ export const RoundParamsSchema = z.object({
 	roundIndex: z.coerce.number().int().min(0)
 });
 
-/** Covering a whole block at once — the row's outstanding babs, not one per request. */
+/**
+ * Covering a whole block at once — the row's outstanding babs, not one per request.
+ *
+ * 100 is the outer bound, the Cevşen's count. A Hizb group has 33 parts, and the service
+ * checks against the group's own count once it has loaded the group.
+ */
 export const CoverRoundBabsBodySchema = z.object({
 	babNumbers: z.array(z.number().int().min(1).max(100)).min(1).max(100)
 });
@@ -52,28 +61,60 @@ export const PoolSlotParamsSchema = z.object({
 	slotIndex: z.coerce.number().int().min(0).max(49)
 });
 
-export const CreateGroupBodySchema = z.object({
-	name: z.string().trim().min(1).max(60),
-	dedication: z.string().trim().max(120).nullable().optional(),
-	visibility: GroupVisibilitySchema.default('OPEN'),
-	// `FREE` is retired — the DB enum still carries it for legacy rows, but no new
-	// group can choose it. Rotation is the design's default and comes first.
-	splitMode: z.enum(['ROTATION', 'FIXED']).default('ROTATION'),
-	cycle: GroupCycleSchema.default('WEEKLY'),
-	/**
-	 * Three sizes only. Each divides the hundred evenly — 20, 10 and 5 babs a head — so no
-	 * seat carries a leftover bab. Mirrors `SPOTS_VALUES` on the client; `spots` is immutable
-	 * after creation, so a value accepted here is one the group keeps forever.
+export const CreateGroupBodySchema = z
+	.object({
+		name: z.string().trim().min(1).max(60),
+		dedication: z.string().trim().max(120).nullable().optional(),
+		visibility: GroupVisibilitySchema.default('OPEN'),
+		/** What the group reads, and so how many parts it divides. Immutable after creation. */
+		kind: z.enum(['CEVSEN', 'HIZB']).default('CEVSEN'),
+		// `FREE` is retired — the DB enum still carries it for legacy rows, but no new
+		// group can choose it. Rotation is the design's default and comes first.
+		splitMode: z.enum(['ROTATION', 'FIXED']).default('ROTATION'),
+		// Which cycles are allowed depends on the kind, so that is checked below.
+		cycle: GroupCycleSchema.default('WEEKLY'),
+		// Which sizes are allowed depends on the kind too. 20 stays the default because it is
+		// valid for both: the Cevşen's largest size, and 20 of the Hizb's 33.
+		spots: z.number().int().default(20),
+		reminderEnabled: z.boolean().default(true),
+		reminderTime: TimeStringSchema,
+		timezone: TimeZoneSchema
+	})
+	/*
+	 * `spots` and `cycle` are immutable after creation, so a value accepted here is one the
+	 * group keeps forever — which is why each kind's rules are enforced here rather than
+	 * trusted to the client. Issues land on the field, so the create sheet can put the
+	 * message under the control that caused it.
 	 */
-	spots: z
-		.number()
-		.int()
-		.default(20)
-		.refine(value => SPOTS_VALUES.includes(value), { message: 'Spots must be 5, 10 or 20' }),
-	reminderEnabled: z.boolean().default(true),
-	reminderTime: TimeStringSchema,
-	timezone: TimeZoneSchema
-});
+	.superRefine((body, context) => {
+		if (body.kind === 'CEVSEN') {
+			/*
+			 * Three sizes only. Each divides the hundred evenly — 20, 10 and 5 babs a head — so
+			 * no seat carries a leftover bab. Mirrors `SPOTS_VALUES` on the client.
+			 */
+			if (!SPOTS_VALUES.includes(body.spots)) {
+				context.addIssue({ code: 'custom', message: 'Spots must be 5, 10 or 20', path: ['spots'] });
+			}
+		} else {
+			/*
+			 * Any size from one to the part count. An uneven split is already handled — the
+			 * first `33 % spots` seats take one more — and past 33 a seat would hold nothing.
+			 */
+			const partCount = partCountFor(body.kind);
+
+			if (body.spots < 1 || body.spots > partCount) {
+				context.addIssue({
+					code: 'custom',
+					message: `Spots must be between 1 and ${partCount}`,
+					path: ['spots']
+				});
+			}
+		}
+
+		if (!CYCLES_FOR_KIND[body.kind].includes(body.cycle)) {
+			context.addIssue({ code: 'custom', message: 'This cycle is not available for this kind', path: ['cycle'] });
+		}
+	});
 
 export const UpdateGroupBodySchema = z
 	.object({
