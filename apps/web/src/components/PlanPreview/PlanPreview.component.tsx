@@ -3,7 +3,7 @@ import { CaptionText, EyebrowText, MonoText, Typography } from '@/components/ui/
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { partCountFor } from '@/lib/utils/groupKinds';
-import { partUnitKey, planPreviewRows } from '@/lib/utils/groups';
+import { movesEachRound, partUnitKey, planPreviewRows } from '@/lib/utils/groups';
 import { StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import type { PlanPreviewProps } from './PlanPreview.types';
@@ -77,7 +77,7 @@ export const PlanPreview = ({ kind, slotIndex = 0, splitMode, spots, style }: Pl
 			key: row.roundIndex,
 			// Rounds, not days: this step comes before the cycle is chosen, so "gün" would be
 			// a guess — and a wrong one for a weekly group, which holds its range all week.
-			label: isRotation ? t('roundShort', { n: row.roundIndex + 1 }) : t('everyRoundLabel'),
+			label: row.isEveryRound ? t('everyRoundLabel') : t('roundShort', { n: row.roundIndex + 1 }),
 			range: `${row.start}–${row.end}`,
 			offset: row.offset,
 			width: row.width
@@ -102,9 +102,10 @@ export const PlanPreview = ({ kind, slotIndex = 0, splitMode, spots, style }: Pl
 				<CaptionText color={theme.colors.faintText}>
 					{/* `spots` rounds is how long a full rotation takes — after that a seat is
 					    back where it started, having read the whole book. A lone seat (the Hizb
-					    allows one) reads all of it every round, which is what "Her tur" says —
-					    and "1 rounds" is what the count would have said. */}
-					{isRotation && spots > 1
+					    allows one) reads all of it every round, which is what "Her tur" says,
+					    on the row as well as here — and "1 rounds" is what the count would have
+					    said. */}
+					{movesEachRound(splitMode, spots)
 						? t('roundsToFullCycle', { count: spots, total, unit: t(partUnitKey(kind)) })
 						: t('everyRoundLabel')}
 				</CaptionText>

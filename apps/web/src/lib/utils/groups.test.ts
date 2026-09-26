@@ -6,6 +6,7 @@ import {
 	cycleLabelKey,
 	cycleOptionsFor,
 	emptyBabCells,
+	movesEachRound,
 	partLabelKey,
 	partUnitKey,
 	planPreviewRows,
@@ -227,6 +228,8 @@ describe('planPreviewRows', () => {
 
 		expect(ranges(rows)).toEqual(['1–3', '4–5', '6–7', '8–9']);
 		expect(rows.map(row => row.roundIndex)).toEqual([0, 1, 2, 3]);
+		expect(rows.every(row => !row.isEveryRound)).toBe(true);
+		expect(movesEachRound('ROTATION', 16)).toBe(true);
 		expect(rows[0]?.offset).toBe(0);
 		expect(rows[0]?.width).toBeCloseTo((3 / 33) * 100);
 		expect(rows[1]?.offset).toBeCloseTo((3 / 33) * 100);
@@ -238,17 +241,22 @@ describe('planPreviewRows', () => {
 		expect(ranges(rows)).toEqual(['1–17', '18–33']);
 	});
 
-	it('gives a lone seat the whole book in one row', () => {
+	it('gives a lone seat the whole book in one row, read every round', () => {
 		const rows = planPreviewRows({ maxRounds: 4, partCount: 33, slotIndex: 0, splitMode: 'ROTATION', spots: 1 });
 
 		expect(ranges(rows)).toEqual(['1–33']);
 		expect(rows[0]?.width).toBe(100);
+		// Labelled "Her tur" like the caption, not "1. tur" beneath a caption saying every round.
+		expect(rows[0]?.isEveryRound).toBe(true);
+		expect(movesEachRound('ROTATION', 1)).toBe(false);
 	});
 
 	it('holds one unmoving range under FIXED', () => {
 		const rows = planPreviewRows({ maxRounds: 4, partCount: 33, slotIndex: 0, splitMode: 'FIXED', spots: 11 });
 
 		expect(ranges(rows)).toEqual(['1–3']);
+		expect(rows[0]?.isEveryRound).toBe(true);
+		expect(movesEachRound('FIXED', 11)).toBe(false);
 	});
 
 	it('draws the Cevşen as it always has', () => {

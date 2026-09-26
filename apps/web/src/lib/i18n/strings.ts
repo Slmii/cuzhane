@@ -780,6 +780,8 @@ const tr = {
 	// among them — English and Dutch would otherwise open a Hizb group on "1 portions".
 	perPersonHizb: '{spots} kişi · kişi başı {perPart} bölüm',
 	perPersonHizbOne: '{spots} kişi · kişi başı 1 bölüm',
+	// One seat holds the whole book — said as such, rather than as "1 members" in English and Dutch.
+	perPersonHizbSolo: '1 kişi · 33 bölümün hepsi',
 	groupCycleLine: '{cycle} · {count} kişi',
 	groupSummaryLine: '{cycle} · {split}',
 	readToday: 'bugün okundu',
@@ -1561,6 +1563,7 @@ const en: Strings = {
 	perPersonTr: '{spots} members · {perBab} babs each',
 	perPersonHizb: '{spots} members · {perPart} portions each',
 	perPersonHizbOne: '{spots} members · 1 portion each',
+	perPersonHizbSolo: '1 member · all 33 portions',
 	groupCycleLine: '{cycle} · {count} members',
 	groupSummaryLine: '{cycle} · {split}',
 	readToday: 'read today',
@@ -2308,6 +2311,7 @@ const nl: Strings = {
 	perPersonTr: '{spots} personen · {perBab} bab/persoon',
 	perPersonHizb: '{spots} personen · {perPart} gedeelten per persoon',
 	perPersonHizbOne: '{spots} personen · 1 gedeelte per persoon',
+	perPersonHizbSolo: '1 persoon · alle 33 gedeelten',
 	groupCycleLine: '{cycle} · {count} personen',
 	groupSummaryLine: '{cycle} · {split}',
 	readToday: 'vandaag gelezen',

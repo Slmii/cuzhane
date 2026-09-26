@@ -195,11 +195,14 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 					const spots = watch('spots');
 					const kind = watch('kind');
 					const perPart = babsPerPerson(spots, partCountFor(kind));
-					// The Hizb's line names its own unit, and "1 portion" is its own line — see
-					// `perPersonHizbOne`. The Cevşen's is the one it has always had.
+					// The Hizb's line names its own unit, and "1 portion" and a lone seat are lines of
+					// their own — see `perPersonHizbOne` / `perPersonHizbSolo`. The Cevşen's is the
+					// one it has always had.
+					const hizbCaptionKey: StringKey =
+						spots === 1 ? 'perPersonHizbSolo' : perPart === 1 ? 'perPersonHizbOne' : 'perPersonHizb';
 					const spotsCaption =
 						kind === 'HIZB'
-							? t(perPart === 1 ? 'perPersonHizbOne' : 'perPersonHizb', { perPart, spots })
+							? t(hizbCaptionKey, { perPart, spots })
 							: t('perPersonTr', { perBab: perPart, spots });
 
 					/*
@@ -278,27 +281,29 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 								{!createGroup.isPending && step === 1 ? (
 									<>
 										<BodyText color={theme.colors.subtext}>{t('stepKindSub')}</BodyText>
-										<FormKindOptionGroup name='kind' onChange={handleKindChange} />
+										<FormKindOptionGroup
+											name='kind'
+											onChange={handleKindChange}
+											style={styles.kindCards}
+										/>
 										{/*
 										 * Only under the Hizb: the note explains the book just chosen, and
 										 * the Cevşen is the one everybody arriving here already knows. It
 										 * sits below the cards, so appearing moves nothing above it.
 										 */}
 										{kind === 'HIZB' ? (
-											<CardSurface>
+											<CardSurface style={styles.kindNoteCard}>
 												<View style={styles.kindNote}>
 													<Icon
 														color={theme.colors.accent}
 														name='info'
 														size={17}
 														strokeWidth={1.8}
+														style={styles.kindNoteIcon}
 													/>
-													<CaptionText
-														color={theme.colors.subtext}
-														style={styles.kindNoteText}
-													>
+													<BodyText color={theme.colors.subtext} style={styles.kindNoteText}>
 														{t('kindHizbNote')}
-													</CaptionText>
+													</BodyText>
 												</View>
 											</CardSurface>
 										) : null}
@@ -421,11 +426,26 @@ const styles = StyleSheet.create({
 	fieldLabel: {
 		marginBottom: 8
 	},
+	/*
+	 * **Step 1's own rhythm, on top of the container's 12** — HC1 opens the gap to about 20 under
+	 * the sub line and 16 above the note. Added here rather than to `gap`, which every other
+	 * step shares.
+	 */
+	kindCards: {
+		marginTop: 8
+	},
 	// Glyph beside the text, both from the top: the note runs three lines and the glyph marks the first.
 	kindNote: {
 		alignItems: 'flex-start',
 		flexDirection: 'row',
 		gap: 12
+	},
+	kindNoteCard: {
+		marginTop: 4
+	},
+	// Centres the 17pt glyph on the body's 21pt first line.
+	kindNoteIcon: {
+		marginTop: 2
 	},
 	kindNoteText: {
 		flex: 1

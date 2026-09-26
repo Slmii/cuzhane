@@ -292,7 +292,17 @@ export type PlanPreviewRow = {
 	offset: number;
 	/** How much of the whole text the range covers, 0–100. */
 	width: number;
+	/** The range never moves — FIXED, or a lone seat — so the row is "every round", not round n. */
+	isEveryRound: boolean;
 };
+
+/**
+ * Whether a seat reads a different range from one round to the next: ROTATION with somebody to
+ * rotate past. A lone seat under ROTATION (the Hizb allows one) holds the whole book every round,
+ * which is FIXED in all but name — the preview's caption and its row both say so from here, so
+ * the two cannot disagree.
+ */
+export const movesEachRound = (splitMode: GroupSplitMode, spots: number) => splitMode === 'ROTATION' && spots > 1;
 
 /**
  * What `PlanPreview` draws. Under ROTATION, the first `maxRounds` rounds of one seat — never more
@@ -313,16 +323,17 @@ export const planPreviewRows = ({
 	splitMode: GroupSplitMode;
 	spots: number;
 }): PlanPreviewRow[] => {
-	const isRotation = splitMode === 'ROTATION';
-	const roundCount = isRotation ? Math.min(maxRounds, spots) : 1;
+	const moves = movesEachRound(splitMode, spots);
+	const roundCount = moves ? Math.min(maxRounds, spots) : 1;
 
 	return Array.from({ length: roundCount }, (_, roundIndex) =>
-		isRotation ? rangeForRound(slotIndex, spots, roundIndex, partCount) : rangeForSlot(slotIndex, spots, partCount)
+		moves ? rangeForRound(slotIndex, spots, roundIndex, partCount) : rangeForSlot(slotIndex, spots, partCount)
 	).flatMap((range, roundIndex) =>
 		range
 			? [
 					{
 						end: range.end,
+						isEveryRound: !moves,
 						offset: ((range.start - 1) / partCount) * 100,
 						roundIndex,
 						start: range.start,
