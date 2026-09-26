@@ -11,8 +11,10 @@ import { useGetGroupById } from '@/lib/hooks/useGroup';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useGetRounds } from '@/lib/hooks/useRounds';
 import { useTranslation } from '@/lib/i18n/I18n.context';
+import type { StringKey } from '@/lib/i18n/strings';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { GroupCycle, RoundSummary } from '@/lib/types/domain';
+import { cycleLabelKey, partUnitKey } from '@/lib/utils/groups';
 import type { TabStackParamList } from '@/navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useMemo } from 'react';
@@ -24,7 +26,19 @@ type Props = NativeStackScreenProps<TabStackParamList, 'Rounds'>;
 /** One array for the empty case, so the list's memo isn't invalidated by a new `[]`. */
 const NO_ROUNDS: RoundSummary[] = [];
 
-const BAB_TOTAL = 100;
+/**
+ * The open round and the one before it, by cadence — "bugün" / "dün", "bu hafta" / "geçen
+ * hafta", "bu ay" / "geçen ay". A record, so a cycle without a name fails the build.
+ */
+const WHEN_LABELS: Record<GroupCycle, { current: StringKey; previous: StringKey }> = {
+	DAILY: { current: 'todayLabel', previous: 'yesterdayLabel' },
+	WEEKLY: { current: 'thisWeekLabel', previous: 'lastWeekLabel' },
+	MONTHLY: { current: 'thisMonthLabel', previous: 'lastMonthLabel' }
+};
+
+/** A round's read count as a share of what it had to cover, 0–100. */
+const roundPercent = (round: RoundSummary) =>
+	round.partCount > 0 ? Math.round((round.readCount / round.partCount) * 100) : 0;
 
 /**
  * 10. Every pass the group has made at the hundred, newest first.
@@ -54,11 +68,11 @@ export const RoundsScreen = ({ navigation, route }: Props) => {
 	const pastRounds = useMemo(() => rounds.filter(round => !round.isOpen), [rounds]);
 
 	// The design labels rounds by cadence rather than by date: a daily group's previous
-	// round is "dün", a weekly one's is "geçen hafta".
+	// round is "dün", a weekly one's is "geçen hafta", a monthly one's "geçen ay".
 	const whenLabel = useCallback(
 		(round: RoundSummary, isOpenRound: boolean) => {
 			if (isOpenRound) {
-				return cycle === 'DAILY' ? t('todayLabel') : t('thisWeekLabel');
+				return t(WHEN_LABELS[cycle].current);
 			}
 
 			const isPrevious = openRound !== undefined && round.roundIndex === openRound.roundIndex - 1;
@@ -72,7 +86,7 @@ export const RoundsScreen = ({ navigation, route }: Props) => {
 				});
 			}
 
-			return cycle === 'DAILY' ? t('yesterdayLabel') : t('lastWeekLabel');
+			return t(WHEN_LABELS[cycle].previous);
 		},
 		[cycle, openRound, t]
 	);
@@ -86,8 +100,8 @@ export const RoundsScreen = ({ navigation, route }: Props) => {
 				label={`${t('roundN')} ${item.roundIndex + 1}`}
 				missedLabel={item.missedCount === 0 ? t('roundComplete') : `${item.missedCount} ${t('missedN')}`}
 				onPress={() => navigation.navigate('RoundDetail', { groupId, roundIndex: item.roundIndex })}
-				percent={Math.round((item.readCount / BAB_TOTAL) * 100)}
-				readLabel={`${item.readCount}/${BAB_TOTAL}`}
+				percent={roundPercent(item)}
+				readLabel={`${item.readCount}/${item.partCount}`}
 				whenText={whenLabel(item, false)}
 			/>
 		),
@@ -112,7 +126,7 @@ export const RoundsScreen = ({ navigation, route }: Props) => {
 				hasBackButton
 				subtitle={t('roundsSub')}
 				title={t('rounds')}
-				titleTrailing={<Chip label={t(cycle === 'DAILY' ? 'daily' : 'weekly')} tone='accent' />}
+				titleTrailing={<Chip label={t(cycleLabelKey(cycle))} tone='accent' />}
 			/>
 			{openRound ? (
 				<CardSurface style={[styles.openCard, { borderColor: theme.colors.accent }]}>
@@ -127,12 +141,14 @@ export const RoundsScreen = ({ navigation, route }: Props) => {
 					</View>
 					<View style={styles.openCounts}>
 						<NumericText color={theme.colors.accent}>{openRound.readCount}</NumericText>
-						<CaptionText color={theme.colors.faintText}>{`/ ${BAB_TOTAL} ${t('babs')}`}</CaptionText>
+						<CaptionText color={theme.colors.faintText}>
+							{`/ ${openRound.partCount} ${t(partUnitKey(groupQuery.data.kind))}`}
+						</CaptionText>
 						<CaptionText color={theme.colors.faintText} style={styles.openMine}>
 							{`${openRound.myReadCount}/${openRound.myOwedCount} ${t('yourShare')}`}
 						</CaptionText>
 					</View>
-					<ProgressBar percent={Math.round((openRound.readCount / BAB_TOTAL) * 100)} />
+					<ProgressBar percent={roundPercent(openRound)} />
 				</CardSurface>
 			) : null}
 		</>

@@ -2,7 +2,7 @@ import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { CaptionText, EyebrowText, MonoText, Typography } from '@/components/ui/Typography/Typography.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import { BAB_COUNT, rangeForRound, rangeForSlot } from '@/lib/utils/babs';
+import { rangeForRound, rangeForSlot } from '@/lib/utils/babs';
 import { StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import type { PlanPreviewProps } from './PlanPreview.types';
@@ -16,7 +16,7 @@ const SLIDE_DURATION_MS = 350;
 type PlanRowProps = {
 	label: string;
 	range: string;
-	/** Percent of the hundred, 0-100. */
+	/** Percent of the whole text, 0-100. */
 	offset: number;
 	width: number;
 };
@@ -57,10 +57,11 @@ const PlanRow = ({ label, offset, range, width }: PlanRowProps) => {
 
 /**
  * Shows what the chosen plan actually means, round by round: the range and where it sits
- * across the hundred. A ROTATION group walks forward one seat each round, so the bar
- * marches left to right; a FIXED group is one unmoving row.
+ * across the whole text — the hundred babs, or the Hizb's 33 portions. A ROTATION group walks
+ * forward one seat each round, so the bar marches left to right; a FIXED group is one
+ * unmoving row.
  */
-export const PlanPreview = ({ slotIndex = 0, splitMode, spots, style }: PlanPreviewProps) => {
+export const PlanPreview = ({ slotIndex = 0, splitMode, spots, style, total }: PlanPreviewProps) => {
 	const { theme } = useThemeContext();
 	const { t } = useTranslation();
 
@@ -68,9 +69,7 @@ export const PlanPreview = ({ slotIndex = 0, splitMode, spots, style }: PlanPrev
 	const roundCount = isRotation ? Math.min(PREVIEW_ROUNDS, spots) : 1;
 
 	const rows = Array.from({ length: roundCount }, (_, day) => {
-		const range = isRotation
-			? rangeForRound(slotIndex, spots, day, BAB_COUNT)
-			: rangeForSlot(slotIndex, spots, BAB_COUNT);
+		const range = isRotation ? rangeForRound(slotIndex, spots, day, total) : rangeForSlot(slotIndex, spots, total);
 
 		if (!range) {
 			return null;
@@ -87,9 +86,9 @@ export const PlanPreview = ({ slotIndex = 0, splitMode, spots, style }: PlanPrev
 			// a guess — and a wrong one for a weekly group, which holds its range all week.
 			label: isRotation ? t('roundShort', { n: day + 1 }) : t('everyRoundLabel'),
 			range: `${range.start}–${range.end}`,
-			// Percentages of the whole hundred, so the bar reads as a position on the board.
-			offset: ((range.start - 1) / BAB_COUNT) * 100,
-			width: (size / BAB_COUNT) * 100
+			// Percentages of the whole text, so the bar reads as a position on the board.
+			offset: ((range.start - 1) / total) * 100,
+			width: (size / total) * 100
 		};
 	}).filter(row => row !== null);
 

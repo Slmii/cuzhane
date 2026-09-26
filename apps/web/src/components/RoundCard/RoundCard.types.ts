@@ -6,7 +6,7 @@ export type RoundCardProps = {
 	isComplete: boolean;
 	onPress: () => void;
 	percent: number;
-	/** "42/100", the round's read count against the hundred. */
+	/** "42/100", the round's read count against the parts it had to cover. */
 	readLabel: string;
 	/** When it ran, in the cadence's own words — "dün", "geçen hafta", or a date. */
 	whenText: string;

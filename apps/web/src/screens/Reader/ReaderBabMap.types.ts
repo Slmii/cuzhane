@@ -36,8 +36,10 @@ export type ReaderBabMapProps = {
 	 */
 	hasLegend?: boolean;
 	/**
-	 * How many ticks the strip has. The Cevşen's hundred by default; the Hizb reader hands it
-	 * the current section's block count, so one strip serves both texts.
+	 * How many ticks the strip has — the Cevşen reader's hundred, or the Hizb reader's current
+	 * section's block count, so one strip serves both texts. **With `spots`, it must be the
+	 * group's part count**: the pool's blocks are cut from the seat split of exactly that many
+	 * parts, and any other number would bracket the wrong ticks.
 	 */
-	count?: number;
+	count: number;
 };

@@ -11,8 +11,9 @@ import { useGetGroupById } from '@/lib/hooks/useGroup';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useGetMyProgress } from '@/lib/hooks/useRounds';
 import { useTranslation } from '@/lib/i18n/I18n.context';
+import type { StringKey } from '@/lib/i18n/strings';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import type { MyProgressPeriod } from '@/lib/types/domain';
+import type { GroupCycle, MyProgressPeriod } from '@/lib/types/domain';
 import type { TabStackParamList } from '@/navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useMemo } from 'react';
@@ -22,6 +23,17 @@ type Props = NativeStackScreenProps<TabStackParamList, 'MyProgress'>;
 
 /** The four swatches under the strip, in the design's order. */
 const LEGEND = ['mpLegendFull', 'mpLegendPart', 'mpLegendNone', 'mpLegendOpen'] as const;
+
+/**
+ * The strip's heading, how far back a closed round sits, and what the open swatch is — each in
+ * the group's own period, since a round *is* the period. "Son 7 gün" / "3 gün önce" / "bugün";
+ * the strip draws six months for a MONTHLY group (see `PeriodStrip`), hence "Son 6 ay".
+ */
+const PERIOD_COPY: Record<GroupCycle, { heading: StringKey; ago: StringKey; open: StringKey }> = {
+	DAILY: { heading: 'mpLast7', ago: 'mpDaysAgo', open: 'mpToday' },
+	WEEKLY: { heading: 'mpLast8', ago: 'mpWeeksAgo', open: 'mpThisWeek' },
+	MONTHLY: { heading: 'mpLast6', ago: 'mpMonthsAgo', open: 'mpThisMonth' }
+};
 
 /**
  * F7 — "Senin ilerlemen": one member's own record, and the babs they can still go back for.
@@ -68,7 +80,7 @@ export const MyProgressScreen = ({ navigation, route }: Props) => {
 	}
 
 	const group = groupQuery.data;
-	const isWeekly = progress.cycle === 'WEEKLY';
+	const periodCopy = PERIOD_COPY[progress.cycle];
 	const openPeriod = progress.periods.at(-1);
 
 	/**
@@ -91,7 +103,7 @@ export const MyProgressScreen = ({ navigation, route }: Props) => {
 	const agoLabel = (period: MyProgressPeriod) => {
 		const distance = (openPeriod?.roundIndex ?? period.roundIndex) - period.roundIndex;
 
-		return t(isWeekly ? 'mpWeeksAgo' : 'mpDaysAgo', { n: distance });
+		return t(periodCopy.ago, { n: distance });
 	};
 
 	const legendTone = {
@@ -117,7 +129,7 @@ export const MyProgressScreen = ({ navigation, route }: Props) => {
 			</View>
 
 			<View style={styles.sectionHead}>
-				<TitleText>{isWeekly ? t('mpLast8') : t('mpLast7')}</TitleText>
+				<TitleText>{t(periodCopy.heading)}</TitleText>
 				{openPeriod ? (
 					<CaptionText color={theme.colors.subtext}>
 						{`${t('myBabs')} ${openPeriod.readCount}/${openPeriod.owedCount}`}
@@ -144,9 +156,7 @@ export const MyProgressScreen = ({ navigation, route }: Props) => {
 							]}
 						/>
 						<CaptionText color={theme.colors.subtext}>
-							{key === 'mpLegendOpen'
-								? `${t(key)} (${isWeekly ? t('mpThisWeek') : t('mpToday')})`
-								: t(key)}
+							{key === 'mpLegendOpen' ? `${t(key)} (${t(periodCopy.open)})` : t(key)}
 						</CaptionText>
 					</View>
 				))}

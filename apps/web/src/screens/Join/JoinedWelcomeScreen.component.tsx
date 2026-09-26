@@ -36,6 +36,7 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 	const reset = useRoundReset({
 		cycle: group.data?.cycle ?? 'WEEKLY',
 		roundEndsAt: group.data?.roundEndsAt ?? null,
+		startedAt: group.data?.startedAt ?? null,
 		timezone: group.data?.timezone ?? 'UTC'
 	});
 

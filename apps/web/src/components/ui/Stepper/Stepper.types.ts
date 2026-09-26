@@ -11,7 +11,7 @@ export interface StepperProps {
 	 * and `min`/`max`/`step` are ignored — a set like 5, 10, 20 isn't an arithmetic sequence,
 	 * so a stepper that could only add a constant would stop at values nothing accepts.
 	 */
-	values?: number[];
+	values?: readonly number[];
 	caption?: string;
 	style?: StyleProp<ViewStyle>;
 }

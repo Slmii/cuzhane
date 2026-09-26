@@ -1,4 +1,5 @@
 import type { StringKey } from '@/lib/i18n/strings';
+import { PART_COUNT, requiredRepetitions } from '@/lib/utils/groupKinds';
 import { HIZB_BLOCKS, type HizbBlockRef, type HizbLine } from './hizbulhakaik';
 
 /**
@@ -53,8 +54,8 @@ export type HizbPortion = {
 	repetitions?: number;
 };
 
-// Mirrors PART_COUNT.HIZB in apps/server/src/utils/groupKinds.ts — change both together.
-export const HIZB_PORTION_COUNT = 33;
+// The group side's count, so the manifest and the seat math can never divide different books.
+export const HIZB_PORTION_COUNT = PART_COUNT.HIZB;
 
 export const HIZB_WORKS: HizbWork[] = [
 	{ key: 'quran', parts: [1, 3], titleKey: 'hizbWorkQuran' },
@@ -111,8 +112,14 @@ export const HIZB_PORTIONS: HizbPortion[] = [
 	{ number: 16, work: 'delail', descriptionKey: 'hizbPart16Desc', start: { section: 9, block: 7 } },
 	{ number: 17, work: 'delail', descriptionKey: 'hizbPart17Desc', start: { section: 9, block: 10 } },
 	{ number: 18, work: 'delail', descriptionKey: 'hizbPart18Desc', start: { section: 9, block: 18 } },
-	// Mirrors REQUIRED_REPETITIONS.HIZB in apps/server/src/utils/groupKinds.ts — change both together.
-	{ number: 19, work: 'sekine', descriptionKey: 'hizbPart19Desc', start: { section: 10 }, repetitions: 19 },
+	// Read off `groupKinds.ts`, which mirrors the server's table — the one place the nineteen lives.
+	{
+		number: 19,
+		work: 'sekine',
+		descriptionKey: 'hizbPart19Desc',
+		start: { section: 10 },
+		repetitions: requiredRepetitions('HIZB', 19)
+	},
 	{ number: 20, work: 'munacatIsmiAzam', descriptionKey: 'hizbPart20Desc', start: { section: 11 } },
 	{ number: 21, work: 'munacatQuran', descriptionKey: 'hizbPart21Desc', start: { section: 14, block: 0 } },
 	{ number: 22, work: 'munacatQuran', descriptionKey: 'hizbPart22Desc', start: { section: 14, block: 12 } },

@@ -31,8 +31,7 @@ import { useGetMyProgress, useGetRounds } from '@/lib/hooks/useRounds';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { GroupBab } from '@/lib/types/domain';
-import { BAB_COUNT } from '@/lib/utils/babs';
-import { shareSlices, toBabCells } from '@/lib/utils/groups';
+import { cycleLabelKey, shareSlices, toBabCells } from '@/lib/utils/groups';
 import type { TabStackParamList } from '@/navigation/types';
 import { LeaveGroupButton } from '@/screens/Groups/LeaveGroupButton.component';
 import { ManageSheet } from '@/screens/Groups/ManageSheet.component';
@@ -165,6 +164,7 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 	const reset = useRoundReset({
 		cycle: groupQuery.data?.cycle ?? 'WEEKLY',
 		roundEndsAt: groupQuery.data?.roundEndsAt ?? null,
+		startedAt: groupQuery.data?.startedAt ?? null,
 		timezone: groupQuery.data?.timezone ?? 'UTC'
 	});
 	const untilReset = useTimeUntilReset(groupQuery.data?.roundEndsAt ?? null);
@@ -261,6 +261,7 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 	// `endsAt` was never backfilled can still surface a null `daysLeft` here — fall back to
 	// an em dash rather than a removed string.
 	const daysLeftLabel = detail.daysLeft === null ? '—' : `${detail.daysLeft} ${t('days')}`;
+	// Only a DAILY round counts down in hours; WEEKLY and MONTHLY ones count days.
 	const isDaily = detail.cycle === 'DAILY';
 	const isRoundComplete = detail.completedAt !== null;
 	// Newest closed round — the list arrives newest-first with the open one at the head.
@@ -323,7 +324,7 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 			// true, but it made the *chip itself* conditional, so a weekly group looked like a
 			// group with no cadence rather than one whose cadence you had to infer. Turlar
 			// shows both; this now matches it.
-			titleTrailing={<Chip label={t(isDaily ? 'daily' : 'weekly')} tone='accent' />}
+			titleTrailing={<Chip label={t(cycleLabelKey(detail.cycle))} tone='accent' />}
 		/>
 	);
 
@@ -369,7 +370,7 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 								{isRoundComplete ? (
 									<>
 										<NumericText color={theme.colors.accent}>
-											{`${BAB_COUNT} / ${BAB_COUNT}`}
+											{`${detail.partCount} / ${detail.partCount}`}
 										</NumericText>
 										<StatText color={theme.colors.accent} style={styles.statLabel}>
 											{t('roundCompleted')}
@@ -719,13 +720,15 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 					 * having read anything, which is a claim about the data rather than an
 					 * admission that it hasn't arrived.
 					 */
-					<GridSkeleton cellCount={BAB_COUNT} legendCount={BAB_LEGEND_COUNT} />
+					<GridSkeleton cellCount={detail.partCount} legendCount={BAB_LEGEND_COUNT} />
 				) : (
 					<CardSurface isFlush>
 						<View style={[styles.sectionHeader, { borderBottomColor: theme.colors.divider }]}>
 							<TitleText>{t('groupProgress')}</TitleText>
 							{/* The count is the group's own, so the heading is real either way. */}
-							<CaptionText color={theme.colors.faintText}>{`${detail.readCount} / 100`}</CaptionText>
+							<CaptionText color={theme.colors.faintText}>
+								{`${detail.readCount} / ${detail.partCount}`}
+							</CaptionText>
 						</View>
 						<View style={styles.sectionBody}>
 							<BabGrid cells={babCells} onPressBab={handlePressBab} />

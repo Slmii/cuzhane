@@ -1,3 +1,4 @@
+import type { GroupProgressSummaryProps } from '@/components/GroupProgressSummary/GroupProgressSummary.types';
 import type { IconName } from '@/components/ui/Icon/Icon.types';
 import type { ReactNode } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
@@ -16,9 +17,11 @@ export interface GroupCardProps {
 	 */
 	extraBadges?: { label: string; tone?: ChipTone }[];
 	onPress?: () => void;
-	/** Progress block — omitted on Discover cards, which show seats instead. */
-	readCount?: number;
-	percent?: number;
+	/**
+	 * Progress block — omitted on Discover cards, which show seats instead. One object, so a
+	 * count can't arrive without the total and the noun it is read against.
+	 */
+	progress?: Omit<GroupProgressSummaryProps, 'style'>;
 	/** The round-reset row, between the progress bar and the footer. Omitted while gathering. */
 	resetRow?: ReactNode;
 	/** Footer: label + caption on the left, an action on the right. */

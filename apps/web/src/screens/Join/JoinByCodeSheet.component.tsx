@@ -19,7 +19,7 @@ import {
 import { useJoinGroupByCode, useLookupGroupByCode } from '@/lib/hooks/useMembership';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import { cycleLabelKey } from '@/lib/utils/groups';
+import { cycleLabelKey, partUnitKey } from '@/lib/utils/groups';
 import { formatInviteCode } from '@/lib/utils/inviteCode';
 import type { TabStackParamList } from '@/navigation/types';
 import { useNavigation } from '@react-navigation/native';
@@ -292,7 +292,9 @@ export const JoinByCodeSheet = ({ initialCode, isVisible, onClose }: JoinByCodeS
 								<Typography color={theme.colors.accent} style={styles.count} variant='numeric'>
 									{data.readCount}
 								</Typography>
-								<CaptionText color={theme.colors.faintText}>{`/ 100 ${t('babs')}`}</CaptionText>
+								<CaptionText color={theme.colors.faintText}>
+									{`/ ${data.partCount} ${t(partUnitKey(data.kind))}`}
+								</CaptionText>
 							</View>
 							<ProgressBar percent={data.percent} style={styles.bar} />
 

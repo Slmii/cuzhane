@@ -3,8 +3,11 @@ import type { GroupCycle, GroupStatus } from '@/lib/types/domain';
 
 export type GroupSortKey = 'newest' | 'seats' | 'soon';
 
-/** The design's filter sheet: "all" first, then the cadences. */
-export const CYCLE_FILTER_OPTIONS: (GroupCycle | undefined)[] = [undefined, 'DAILY', 'WEEKLY'];
+/**
+ * The design's filter sheet: "all" first, then the cadences — every one a group can have, the
+ * Hizb's month included, since both screens browse both kinds.
+ */
+export const CYCLE_FILTER_OPTIONS: (GroupCycle | undefined)[] = [undefined, 'DAILY', 'WEEKLY', 'MONTHLY'];
 
 /** Order matches the sort sheet: newest, most seats free, starting soon. */
 export const GROUP_SORT_OPTIONS: { key: GroupSortKey; labelKey: StringKey }[] = [

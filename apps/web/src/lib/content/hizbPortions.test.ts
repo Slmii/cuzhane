@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { requiredRepetitions } from '@/lib/utils/groupKinds';
 import { HIZB_BLOCKS, HIZB_SECTIONS, type HizbLine } from './hizbulhakaik';
 import {
 	cutLine,
@@ -266,6 +267,12 @@ describe('HIZB_PORTIONS', () => {
 
 		expect(repeated).toEqual({ 19: 19 });
 		expect(portion(19).repetitions).toBe(19);
+	});
+
+	it('agrees with the group side about every portion’s count of repetitions', () => {
+		HIZB_PORTIONS.forEach(part => {
+			expect(part.repetitions ?? 1, `portion ${part.number}`).toBe(requiredRepetitions('HIZB', part.number));
+		});
 	});
 });
 

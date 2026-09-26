@@ -180,9 +180,10 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 			return group?.myBabNumbers ?? NO_BAB_NUMBERS;
 		}
 
+		// The group's own count: a share is a slice of the parts the group divides.
 		return group.splitMode === 'ROTATION'
-			? babNumbersForRound(group.mySlotIndex, group.spots, coveredRoundIndex, BAB_COUNT)
-			: babNumbersForSlot(group.mySlotIndex, group.spots, BAB_COUNT);
+			? babNumbersForRound(group.mySlotIndex, group.spots, coveredRoundIndex, group.partCount)
+			: babNumbersForSlot(group.mySlotIndex, group.spots, group.partCount);
 	}, [coveredRoundIndex, groupQuery.data]);
 
 	/** "12 Eylül Cuma" in the reader's language, in the group's zone. */
@@ -756,6 +757,7 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 								style={styles.babMapRow}
 							>
 								<ReaderBabMap
+									count={readableTotal}
 									currentBab={displayBab}
 									scrubRatio={scrubRatio}
 									myBabNumbers={myBabNumbers}

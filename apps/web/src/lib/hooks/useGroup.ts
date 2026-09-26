@@ -12,15 +12,20 @@ import {
 	getPoolSlots,
 	regenerateInviteCode,
 	markPoolReleasesSeen,
+	releasePoolPart,
 	releasePoolSlot,
 	startGroup,
+	takePoolPart,
+	type TakePoolPartInput,
 	takePoolSlot,
 	type TakePoolSlotInput,
 	updateGroup,
 	type UpdateGroupInput
 } from '@/api/groups.api';
+import { useCurrentUserId } from '@/lib/hooks/useCurrentUserId';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import type { GroupSummary, PoolSlot } from '@/lib/types/domain';
+import { withPoolPartReleased, withPoolPartTaken } from '@/lib/utils/pool';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert } from 'react-native';
 import { useLiveRefetchInterval } from './useLiveRefetchInterval';
@@ -264,6 +269,77 @@ export const useReleasePoolSlot = () => {
 							? { ...slot, takenByDisplayName: null, takenByMe: false, takenByUserId: null }
 							: slot
 					)
+				);
+			}
+
+			return { previousSlots };
+		},
+		onError: (_error, { groupId }, context) => {
+			if (context?.previousSlots) {
+				queryClient.setQueryData(groupQueryKeys.pool(groupId), context.previousSlots);
+			}
+		},
+		onSettled: async () => {
+			await queryClient.invalidateQueries({ queryKey: groupQueryKeys.root() });
+		}
+	});
+};
+
+/**
+ * One Hizb portion out of the pool, painted before the server agrees — `useTakePoolSlot`
+ * narrowed to a single part, and optimistic for the same reason: the fill is the feedback.
+ *
+ * Only the pool cache is written, as the slot hook writes only it; the board and the group's
+ * pool counts are derived from the claim and left to the invalidation. `withPoolPartTaken`
+ * moves nothing somebody else already holds, so a 409 has nothing to roll back but the snapshot.
+ */
+export const useTakePoolPart = () => {
+	const queryClient = useQueryClient();
+	const userId = useCurrentUserId();
+
+	return useMutation({
+		mutationFn: (input: TakePoolPartInput) => takePoolPart(input),
+		onMutate: async ({ groupId, babNumber }) => {
+			await queryClient.cancelQueries({ queryKey: groupQueryKeys.pool(groupId) });
+
+			const previousSlots = queryClient.getQueryData<PoolSlot[]>(groupQueryKeys.pool(groupId));
+
+			if (previousSlots) {
+				queryClient.setQueryData<PoolSlot[]>(
+					groupQueryKeys.pool(groupId),
+					// The same stand-in id the slot hook uses when Clerk has no session to name.
+					withPoolPartTaken(previousSlots, babNumber, userId ?? 'optimistic')
+				);
+			}
+
+			return { previousSlots };
+		},
+		onError: (_error, { groupId }, context) => {
+			if (context?.previousSlots) {
+				queryClient.setQueryData(groupQueryKeys.pool(groupId), context.previousSlots);
+			}
+		},
+		onSettled: async () => {
+			await queryClient.invalidateQueries({ queryKey: groupQueryKeys.root() });
+		}
+	});
+};
+
+/** Handing one portion back — optimistic, like taking it, so the drain starts on the tap. */
+export const useReleasePoolPart = () => {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		mutationFn: (input: TakePoolPartInput) => releasePoolPart(input),
+		onMutate: async ({ groupId, babNumber }) => {
+			await queryClient.cancelQueries({ queryKey: groupQueryKeys.pool(groupId) });
+
+			const previousSlots = queryClient.getQueryData<PoolSlot[]>(groupQueryKeys.pool(groupId));
+
+			if (previousSlots) {
+				queryClient.setQueryData<PoolSlot[]>(
+					groupQueryKeys.pool(groupId),
+					withPoolPartReleased(previousSlots, babNumber)
 				);
 			}
 

@@ -16,6 +16,7 @@ import { formatBabRange } from '@/lib/utils/babs';
 import { applyGroupBrowse, emptyGroupBrowseState, isGroupBrowseNarrowed } from '@/lib/utils/groupBrowse';
 import {
 	cycleLabelKey,
+	partUnitKey,
 	planLabelKey,
 	visibilityChipTone,
 	visibilityIcon,
@@ -153,8 +154,12 @@ export const GroupsScreen = () => {
 							name={item.name}
 							onAction={() => goToGathering(item.id, item.isOwner)}
 							onPress={() => goToGathering(item.id, item.isOwner)}
-							percent={Math.round((item.memberCount / item.spots) * 100)}
-							readCount={item.memberCount}
+							progress={{
+								percent: Math.round((item.memberCount / item.spots) * 100),
+								readCount: item.memberCount,
+								total: item.partCount,
+								unit: t(partUnitKey(item.kind))
+							}}
 							subtitle={t('notCounting')}
 						/>
 					</Animated.View>
@@ -165,7 +170,7 @@ export const GroupsScreen = () => {
 			const isCompleted = item.completedAt !== null;
 			// Called straight rather than through the hook: this renders per row, and a hook
 			// per card would change hook order as the list grows or shrinks.
-			const reset = roundResetLabels(item.roundEndsAt, item.cycle, item.timezone, language, t);
+			const reset = roundResetLabels(item.roundEndsAt, item.cycle, item.timezone, language, t, item.startedAt);
 
 			return (
 				<Animated.View layout={cardLayout}>
@@ -183,8 +188,12 @@ export const GroupsScreen = () => {
 						name={item.name}
 						onAction={() => goToGroup(item.id)}
 						onPress={() => goToGroup(item.id)}
-						percent={item.percent}
-						readCount={item.readCount}
+						progress={{
+							percent: item.percent,
+							readCount: item.readCount,
+							total: item.partCount,
+							unit: t(partUnitKey(item.kind))
+						}}
 						{...(reset
 							? { resetRow: <RoundResetRow groupLabel={reset.group} localLabel={reset.local} /> }
 							: {})}

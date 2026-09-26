@@ -1,20 +1,11 @@
 import type { StringKey } from '@/lib/i18n/strings';
+import { CYCLES_FOR_KIND, SPOTS_FOR_KIND } from '@/lib/utils/groupKinds';
 import * as z from 'zod';
 
 type Translate = (key: StringKey, values?: Record<string, string | number>) => string;
 
 const GROUP_NAME_MAX = 60;
 const DEDICATION_MAX = 120;
-
-/**
- * The only group sizes offered, ascending. Each divides the hundred evenly — 20, 10 and 5
- * babs a head — so nobody carries a leftover bab, which is what the "first `100 % spots`
- * seats get one extra" rule exists to handle and what these three sizes avoid entirely.
- *
- * Exported because the picker walks this exact list: a stepper with its own bounds and the
- * schema with its own would eventually disagree about what is selectable.
- */
-export const SPOTS_VALUES = [5, 10, 20];
 
 /**
  * The three things a group can still be told after it exists — Yönet's "Grup bilgileri".
@@ -35,26 +26,41 @@ export type EditGroupForm = z.infer<ReturnType<typeof editGroupSchema>>;
 
 /** Mirrors the server's `CreateGroupBodySchema` so the client rejects what the API would. */
 export const createGroupSchema = (t: Translate) =>
-	z.object({
-		name: z.string().trim().min(1, t('fieldRequired')).max(GROUP_NAME_MAX),
-		dedication: z.string().trim().max(DEDICATION_MAX).default(''),
-		visibility: z.enum(['OPEN', 'PRIVATE']).default('OPEN'),
-		// Rotation is the design's default and the first option offered.
-		splitMode: z.enum(['ROTATION', 'FIXED']).default('ROTATION'),
-		spots: z
-			.number()
-			.int()
-			.refine(value => SPOTS_VALUES.includes(value), { message: t('fieldRequired') })
-			.default(20),
-		cycle: z.enum(['DAILY', 'WEEKLY']).default('DAILY')
+	z
+		.object({
+			name: z.string().trim().min(1, t('fieldRequired')).max(GROUP_NAME_MAX),
+			dedication: z.string().trim().max(DEDICATION_MAX).default(''),
+			visibility: z.enum(['OPEN', 'PRIVATE']).default('OPEN'),
+			/** What the group reads, and so how many parts it divides. Immutable once created. */
+			kind: z.enum(['CEVSEN', 'HIZB']).default('CEVSEN'),
+			// Rotation is the design's default and the first option offered.
+			splitMode: z.enum(['ROTATION', 'FIXED']).default('ROTATION'),
+			// Which sizes and cycles are allowed depends on the kind, so both are checked below.
+			spots: z.number().int().default(20),
+			cycle: z.enum(['DAILY', 'WEEKLY', 'MONTHLY']).default('DAILY')
+			/*
+			 * No `reminderEnabled` / `reminderTime`. The server's body schema still has them and
+			 * still requires the time, but they stopped being *form* fields when the reminder came
+			 * off step 3 — nothing on the screen sets them, so a field here would only be a default
+			 * pretending to be an answer. `CreateGroupScreen` passes the same two values as
+			 * literals, which is where the fact that the API wants them belongs.
+			 */
+		})
 		/*
-		 * No `reminderEnabled` / `reminderTime`. The server's body schema still has them and
-		 * still requires the time, but they stopped being *form* fields when the reminder came
-		 * off step 3 — nothing on the screen sets them, so a field here would only be a default
-		 * pretending to be an answer. `CreateGroupScreen` passes the same two values as
-		 * literals, which is where the fact that the API wants them belongs.
+		 * The kind's own sizes and cycles, from `groupKinds.ts` — the lists the create sheet's
+		 * controls walk, so a control cannot offer what this refuses. Issues land on the field,
+		 * which is what puts the message under the control that caused it; `spots` and `cycle`
+		 * are immutable after creation, so a wrong one is refused here rather than kept forever.
 		 */
-	});
+		.superRefine((form, context) => {
+			if (!SPOTS_FOR_KIND[form.kind].includes(form.spots)) {
+				context.addIssue({ code: 'custom', message: t('fieldRequired'), path: ['spots'] });
+			}
+
+			if (!CYCLES_FOR_KIND[form.kind].includes(form.cycle)) {
+				context.addIssue({ code: 'custom', message: t('fieldRequired'), path: ['cycle'] });
+			}
+		});
 
 export type GroupForm = z.infer<ReturnType<typeof createGroupSchema>>;
 

@@ -4,10 +4,11 @@ import type { GroupCycle } from '@/lib/types/domain';
  * When a round rolls over, said twice: once in the group's day and once in the reader's.
  *
  * The boundary is a local midnight in the group's zone, so the group-side time is always
- * 00:00 — what varies is the zone it is midnight *in*, and which weekday a WEEKLY group
- * lands on. The reader-side line is the same instant expressed where they are standing,
- * which is the whole point: a Turkish group resetting at midnight is 18:00 the previous
- * day in New York, and without saying so the countdown looks wrong to everyone abroad.
+ * 00:00 — what varies is the zone it is midnight *in*, which weekday a WEEKLY group lands on,
+ * and which day of the month a MONTHLY one does. The reader-side line is the same instant
+ * expressed where they are standing, which is the whole point: a Turkish group resetting at
+ * midnight is 18:00 the previous day in New York, and without saying so the countdown looks
+ * wrong to everyone abroad.
  *
  * Both come from `Intl`, so the weekday and the zone abbreviation are already localised —
  * no weekday table to keep in two languages.
@@ -42,6 +43,18 @@ const weekdayIn = (instant: Date, locale: string, timeZone?: string) => {
 
 	return locale.startsWith('tr') ? weekday.toLocaleLowerCase(locale) : weekday;
 };
+
+/**
+ * The day of the month an instant falls on in a zone — the number a MONTHLY group's reset line
+ * names. Read in the group's zone, because that is where the month turns: a start at 01:00 on
+ * the 31st in Istanbul is still the 30th in UTC.
+ */
+const dayOfMonthIn = (instant: Date, timeZone: string) =>
+	new Intl.DateTimeFormat('en-CA', { day: 'numeric', timeZone }).format(instant);
+
+/** "30 September" / "30 Eylül" — which day, when a weekday cannot say which month. */
+const dateIn = (instant: Date, locale: string) =>
+	new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'long' }).format(instant);
 
 /**
  * The zone's short name — "GMT+3" for Istanbul, "EDT" for New York. Read from the formatted
@@ -114,7 +127,15 @@ export const roundResetLabels = (
 	cycle: GroupCycle,
 	timezone: string,
 	locale: string,
-	t: (key: 'resetDaily' | 'resetWeekly' | 'yourTimeAt' | 'yourTimeAtDay', values: Record<string, string>) => string
+	t: (
+		key: 'resetDaily' | 'resetWeekly' | 'resetMonthly' | 'yourTimeAt' | 'yourTimeAtDay',
+		values: Record<string, string>
+	) => string,
+	/**
+	 * When the hatim began — a MONTHLY group rolls on this day of every month. Optional because
+	 * not every payload carries it (`GroupInvitePreview` does not); see the MONTHLY branch.
+	 */
+	startedAt: string | null = null
 ): RoundResetLabels | null => {
 	if (!roundEndsAt) {
 		return null;
@@ -134,6 +155,24 @@ export const roundResetLabels = (
 		return {
 			group: t('resetDaily', { time: groupTime, zone }),
 			local: t('yourTimeAt', { time: localTime })
+		};
+	}
+
+	if (cycle === 'MONTHLY') {
+		/*
+		 * **The start's day, not the boundary's.** The server rolls a month on the anchor's
+		 * day-of-month, clamped — a group started on the 31st rolls on 28 February and then on
+		 * 31 March — so the boundary's own day is only the rule in a month long enough to hold
+		 * it. Without a start to read, it is the best answer there is, and right in most months.
+		 */
+		const start = startedAt ? new Date(startedAt) : null;
+		const anchor = start && !Number.isNaN(start.getTime()) ? start : instant;
+
+		return {
+			group: t('resetMonthly', { day: dayOfMonthIn(anchor, timezone), time: groupTime, zone }),
+			// Dated on the reader's side: crossing the zone can put the reset on the day before,
+			// and a weekday alone would not say which month's.
+			local: t('yourTimeAtDay', { day: dateIn(instant, locale), time: localTime })
 		};
 	}
 

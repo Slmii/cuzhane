@@ -8,7 +8,7 @@ import type { StyleProp, ViewStyle } from 'react-native';
 export type BabCellState = 'readByMe' | 'mineUnread' | 'readByOthers' | 'takenByOthers' | 'pool' | 'open';
 
 export interface BabGridProps {
-	/** Exactly BAB_COUNT entries expected, but the grid renders whatever it is given. */
+	/** One entry per part the group divides (its `partCount`), but the grid renders whatever it is given. */
 	cells: { number: number; state: BabCellState }[];
 	columns?: number;
 	onPressBab?: (babNumber: number) => void;

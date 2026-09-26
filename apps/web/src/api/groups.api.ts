@@ -1,10 +1,20 @@
 import { wrapperApi } from '@/api/wrapper.api';
-import { GroupCycle, GroupDetail, GroupSplitMode, GroupSummary, GroupVisibility, PoolSlot } from '@/lib/types/domain';
+import {
+	GroupCycle,
+	GroupDetail,
+	GroupKind,
+	GroupSplitMode,
+	GroupSummary,
+	GroupVisibility,
+	PoolSlot
+} from '@/lib/types/domain';
 
 export type CreateGroupInput = {
 	name: string;
 	dedication?: string;
 	visibility: GroupVisibility;
+	/** What the group reads. Optional over the wire; the server defaults it to the Cevşen. */
+	kind?: GroupKind;
 	splitMode: GroupSplitMode;
 	cycle: GroupCycle;
 	spots: number;
@@ -18,7 +28,7 @@ export type CreateGroupInput = {
 	timezone?: string;
 };
 
-// Mirrors the server's UpdateGroupBodySchema. `spots`, `splitMode` and `cycle` are
+// Mirrors the server's UpdateGroupBodySchema. `kind`, `spots`, `splitMode` and `cycle` are
 // immutable once the group exists and are deliberately absent — the server rejects them.
 export type UpdateGroupInput = {
 	groupId: string;
@@ -34,6 +44,12 @@ export type UpdateGroupInput = {
 export type TakePoolSlotInput = {
 	groupId: string;
 	slotIndex: number;
+};
+
+/** One portion of a Hizb pool block, by its part number rather than its seat. */
+export type TakePoolPartInput = {
+	groupId: string;
+	babNumber: number;
 };
 
 export type DiscoverGroupsParams = {
@@ -90,6 +106,18 @@ export const takePoolSlot = async ({ groupId, slotIndex }: TakePoolSlotInput) =>
 
 export const releasePoolSlot = async ({ groupId, slotIndex }: TakePoolSlotInput) =>
 	wrapperApi<{ success: boolean }>(`/groups/${groupId}/pool/${slotIndex}`, { method: 'DELETE' });
+
+/**
+ * One portion of a Hizb pool block, on top of the caller's share, for this round. Hizb groups
+ * only — a Cevşen slot is taken whole, and the server answers 400 for one. 409 when somebody
+ * already holds the portion.
+ */
+export const takePoolPart = async ({ groupId, babNumber }: TakePoolPartInput) =>
+	wrapperApi<{ success: boolean }>(`/groups/${groupId}/pool/parts/${babNumber}`, { method: 'POST' });
+
+/** Hands a portion the caller took back to the pool, with their read of it. */
+export const releasePoolPart = async ({ groupId, babNumber }: TakePoolPartInput) =>
+	wrapperApi<{ success: boolean }>(`/groups/${groupId}/pool/parts/${babNumber}`, { method: 'DELETE' });
 
 /** Acknowledges the "a joiner took over the block you volunteered for" notices in a group. */
 export const markPoolReleasesSeen = async (groupId: string) =>

@@ -113,7 +113,9 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 					<CardSurface style={styles.sectionCard}>
 						<View style={styles.sectionHead}>
 							<EyebrowText color={theme.colors.faintText}>{t('roundNow')}</EyebrowText>
-							<CaptionText color={theme.colors.subtext}>{`${data.readCount} / 100`}</CaptionText>
+							<CaptionText
+								color={theme.colors.subtext}
+							>{`${data.readCount} / ${data.partCount}`}</CaptionText>
 						</View>
 						<ProgressBar percent={data.percent} style={styles.sectionBar} />
 						<CaptionText color={theme.colors.subtext}>{t('allClaimed')}</CaptionText>
@@ -265,7 +267,9 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 						<CardSurface style={[styles.sectionCard, styles.firstCard]}>
 							<View style={styles.sectionHead}>
 								<EyebrowText color={theme.colors.faintText}>{t('roundNow')}</EyebrowText>
-								<CaptionText color={theme.colors.subtext}>{`${data.readCount} / 100`}</CaptionText>
+								<CaptionText
+									color={theme.colors.subtext}
+								>{`${data.readCount} / ${data.partCount}`}</CaptionText>
 							</View>
 							<ProgressBar percent={data.percent} style={styles.sectionBar} />
 							<CaptionText color={theme.colors.subtext}>

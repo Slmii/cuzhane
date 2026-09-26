@@ -2,12 +2,27 @@ import type { BabCellState } from '@/components/BabGrid/BabGrid.types';
 import type { ChipTone } from '@/components/ui/Chip/Chip.types';
 import type { IconName } from '@/components/ui/Icon/Icon.types';
 import type { StringKey } from '@/lib/i18n/strings';
-import type { GroupBab, GroupCycle, GroupSplitMode, GroupVisibility } from '@/lib/types/domain';
-import { BAB_COUNT, babRuns, formatRun } from '@/lib/utils/babs';
+import type { GroupBab, GroupCycle, GroupKind, GroupSplitMode, GroupVisibility } from '@/lib/types/domain';
+import { babRuns, formatRun } from '@/lib/utils/babs';
+import { CYCLES_FOR_KIND } from '@/lib/utils/groupKinds';
 
-export const CYCLE_OPTIONS: GroupCycle[] = ['DAILY', 'WEEKLY'];
+/** The cycles the create sheet offers a kind — the Hizb's month is not the Cevşen's to choose. */
+export const cycleOptionsFor = (kind: GroupKind): readonly GroupCycle[] => CYCLES_FOR_KIND[kind];
 
-export const cycleLabelKey = (cycle: GroupCycle): StringKey => (cycle === 'DAILY' ? 'daily' : 'weekly');
+// A record rather than a ternary, so a cycle added to `GroupCycle` fails the build until it has a name.
+const CYCLE_LABEL_KEYS: Record<GroupCycle, StringKey> = { DAILY: 'daily', WEEKLY: 'weekly', MONTHLY: 'monthly' };
+
+export const cycleLabelKey = (cycle: GroupCycle): StringKey => CYCLE_LABEL_KEYS[cycle];
+
+/**
+ * The noun a count of parts takes — "20 bab", "7 bölüm". Lowercase, for after a number:
+ * "/ 100 bab", "33 bölüm". A Hizb group divides portions, not babs, and saying "bab" there
+ * would name a unit the book is not cut into.
+ */
+export const partUnitKey = (kind: GroupKind): StringKey => (kind === 'HIZB' ? 'portions' : 'babs');
+
+/** The same noun titling one part — "Bab 12", "Bölüm 19". */
+export const partLabelKey = (kind: GroupKind): StringKey => (kind === 'HIZB' ? 'portion' : 'bab');
 
 export const visibilityLabelKey = (visibility: GroupVisibility): StringKey =>
 	visibility === 'OPEN' ? 'open' : 'private';
@@ -263,6 +278,6 @@ export const shareSlices = (babNumbers: number[], nextBabNumber: number | null):
 		: { current: formatRun(current), moreCount: runs.length - 1 };
 };
 
-/** Placeholder board for the loading state so the card doesn't jump when data lands. */
-export const emptyBabCells = () =>
-	Array.from({ length: BAB_COUNT }, (_, index) => ({ number: index + 1, state: 'open' as BabCellState }));
+/** Placeholder board for the loading state so the card doesn't jump when data lands — one cell per part. */
+export const emptyBabCells = (total: number) =>
+	Array.from({ length: total }, (_, index) => ({ number: index + 1, state: 'open' as BabCellState }));

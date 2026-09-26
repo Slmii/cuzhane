@@ -65,6 +65,60 @@ describe('roundResetLabels', () => {
 		expect(labels?.local).not.toContain('day=');
 	});
 
+	describe('a monthly group', () => {
+		// Started at 01:00 on 31 January in Istanbul — still the 30th in UTC.
+		const STARTED_ON_THE_31ST = '2026-01-30T22:00:00.000Z';
+		// Its next boundary, clamped: 00:00 on 28 February in Istanbul.
+		const CLAMPED_FEBRUARY = '2026-02-27T21:00:00.000Z';
+
+		it('names the start’s day of the month, not the clamped day this month lands on', () => {
+			const labels = roundResetLabels(
+				CLAMPED_FEBRUARY,
+				'MONTHLY',
+				'Europe/Istanbul',
+				'tr',
+				t,
+				STARTED_ON_THE_31ST
+			);
+
+			expect(labels?.group).toBe('resetMonthly(day=31,time=00:00,zone=GMT+3)');
+		});
+
+		it('reads the start’s day in the group’s zone, where the month turns', () => {
+			const labels = roundResetLabels(
+				CLAMPED_FEBRUARY,
+				'MONTHLY',
+				'Europe/Istanbul',
+				'en',
+				t,
+				STARTED_ON_THE_31ST
+			);
+
+			// The 30th would be the day in UTC, or anywhere west of the start's midnight.
+			expect(labels?.group).toContain('day=31');
+		});
+
+		it('falls back to the boundary’s own day when the start is not known', () => {
+			const labels = roundResetLabels(CLAMPED_FEBRUARY, 'MONTHLY', 'Europe/Istanbul', 'tr', t);
+
+			expect(labels?.group).toContain('day=28');
+		});
+
+		it('dates the reader’s side, since a weekday says nothing about which month', () => {
+			const labels = roundResetLabels(
+				CLAMPED_FEBRUARY,
+				'MONTHLY',
+				'Europe/Istanbul',
+				'en',
+				t,
+				STARTED_ON_THE_31ST
+			);
+
+			expect(labels?.local).toContain('yourTimeAtDay(');
+			expect(labels?.local).toMatch(/day=(February \d+|\d+ February)/);
+		});
+	});
+
 	it('returns nothing when the group has no round yet', () => {
 		expect(roundResetLabels(null, 'DAILY', 'Europe/Istanbul', 'tr', t)).toBeNull();
 		expect(roundResetLabels('not-a-date', 'DAILY', 'Europe/Istanbul', 'tr', t)).toBeNull();

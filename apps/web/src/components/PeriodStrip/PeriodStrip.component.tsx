@@ -50,9 +50,12 @@ const toneFor = (period: MyProgressPeriod, theme: ReturnType<typeof useThemeCont
  * The run of periods behind "Senin ilerlemen" — one cell per round, oldest on the left,
  * ending on the round still open.
  *
- * A cell is a *round*, so it means a day in a DAILY group and a week in a WEEKLY one. That
- * is why the labels differ: a daily round is named by its weekday, a weekly one by its
- * number, because "the week of the 4th" tells a reader nothing the round number doesn't.
+ * A cell is a *round*, so it means a day in a DAILY group, a week in a WEEKLY one and a month
+ * in a MONTHLY one. That is why the labels differ: a daily round is named by its weekday, a
+ * weekly one by its number, because "the week of the 4th" tells a reader nothing the round
+ * number doesn't — and a monthly one by its month, which is how a month is remembered. Each
+ * monthly round opens in a different month (they start a calendar month apart), so no two
+ * cells share a name.
  */
 export const PeriodStrip = ({ cycle, periods, timezone }: PeriodStripProps) => {
 	const { language, t } = useTranslation();
@@ -62,6 +65,10 @@ export const PeriodStrip = ({ cycle, periods, timezone }: PeriodStripProps) => {
 	// that day's round for everyone in the group, whatever zone they are reading from.
 	const weekdayLabel = useMemo(
 		() => new Intl.DateTimeFormat(language, { timeZone: timezone, weekday: 'short' }),
+		[language, timezone]
+	);
+	const monthLabel = useMemo(
+		() => new Intl.DateTimeFormat(language, { month: 'short', timeZone: timezone }),
 		[language, timezone]
 	);
 
@@ -79,6 +86,11 @@ export const PeriodStrip = ({ cycle, periods, timezone }: PeriodStripProps) => {
 	const labelFor = (period: MyProgressPeriod) => {
 		if (cycle === 'WEEKLY') {
 			return period.isOpen ? t('mpNow') : t('mpWeekLabel', { n: period.roundIndex + 1 });
+		}
+
+		// The month it opened in — like a day, named by the calendar even while it is open.
+		if (cycle === 'MONTHLY') {
+			return monthLabel.format(new Date(period.startedAt));
 		}
 
 		return weekdayLabel.format(new Date(period.startedAt));

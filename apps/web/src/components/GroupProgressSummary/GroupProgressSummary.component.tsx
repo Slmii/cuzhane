@@ -1,22 +1,24 @@
 import { ProgressBar } from '@/components/ui/ProgressBar/ProgressBar.component';
 import { NumericText, Typography } from '@/components/ui/Typography/Typography.component';
-import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import { BAB_COUNT } from '@/lib/utils/babs';
 import { StyleSheet, View } from 'react-native';
 import type { GroupProgressSummaryProps } from './GroupProgressSummary.types';
 
-/** The "78 / 100 bab" count line above a progress bar — the design's core status readout. */
-export const GroupProgressSummary = ({ percent, readCount, style }: GroupProgressSummaryProps) => {
+/**
+ * The "78 / 100 bab" count line above a progress bar — the design's core status readout.
+ *
+ * The total and its noun are the caller's: a Cevşen group counts its hundred babs, a Hizb
+ * group its 33 portions, and a gathering group's lobby card counts members against its seats.
+ */
+export const GroupProgressSummary = ({ percent, readCount, style, total, unit }: GroupProgressSummaryProps) => {
 	const { theme } = useThemeContext();
-	const { t } = useTranslation();
 
 	return (
 		<View style={style}>
 			<View style={styles.countRow}>
 				<NumericText color={theme.colors.accent}>{readCount}</NumericText>
 				<Typography color={theme.colors.faintText} variant='caption'>
-					{`/ ${BAB_COUNT} ${t('babs')}`}
+					{`/ ${total} ${unit}`}
 				</Typography>
 			</View>
 			<ProgressBar percent={percent} style={styles.bar} />

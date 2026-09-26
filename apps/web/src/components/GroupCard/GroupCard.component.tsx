@@ -25,15 +25,14 @@ export const GroupCard = ({
 	name,
 	onAction,
 	onPress,
-	percent,
-	readCount,
+	progress,
 	resetRow,
 	extraBadges,
 	style,
 	subtitle
 }: GroupCardProps) => {
 	const { theme } = useThemeContext();
-	const hasProgress = readCount !== undefined && percent !== undefined;
+	const hasProgress = progress !== undefined;
 	const hasFooter = Boolean(footerLabel || footerLeading || actionLabel);
 
 	return (
@@ -72,7 +71,7 @@ export const GroupCard = ({
 				)}
 			</View>
 
-			{hasProgress ? <GroupProgressSummary percent={percent} readCount={readCount} /> : null}
+			{progress ? <GroupProgressSummary {...progress} /> : null}
 
 			{resetRow ? <View style={styles.resetRow}>{resetRow}</View> : null}
 

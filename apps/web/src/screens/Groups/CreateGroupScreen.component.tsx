@@ -9,10 +9,11 @@ import { SpotsGrid } from '@/components/ui/SpotsGrid/SpotsGrid.component';
 import { CaptionText, FieldLabelText } from '@/components/ui/Typography/Typography.component';
 import { useCreateGroup } from '@/lib/hooks/useGroup';
 import { useTranslation } from '@/lib/i18n/I18n.context';
-import { createGroupSchema, SPOTS_VALUES, type GroupForm } from '@/lib/schemas/group.schema';
+import { createGroupSchema, type GroupForm } from '@/lib/schemas/group.schema';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import { BAB_COUNT, babsPerPerson } from '@/lib/utils/babs';
-import { CYCLE_OPTIONS, cycleLabelKey } from '@/lib/utils/groups';
+import { babsPerPerson } from '@/lib/utils/babs';
+import { CREATE_DEFAULTS_FOR_KIND, partCountFor, SPOTS_FOR_KIND } from '@/lib/utils/groupKinds';
+import { cycleLabelKey, cycleOptionsFor } from '@/lib/utils/groups';
 import { deviceTimeZone } from '@/lib/utils/timezone';
 import { RootStackParamList } from '@/navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -61,7 +62,7 @@ const FIELDS_BY_STEP: Record<CreateGroupStep, (keyof GroupForm)[]> = {
 const SHEET_HEIGHT_RATIO = 0.82;
 
 /** The tallest the seat lattice ever gets, which is the height it always reserves. */
-const MAX_SPOTS = Math.max(...SPOTS_VALUES);
+const MAX_SPOTS = Math.max(...SPOTS_FOR_KIND.CEVSEN);
 
 export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 	const { theme } = useThemeContext();
@@ -112,6 +113,7 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 			{
 				cycle: values.cycle,
 				dedication: values.dedication.trim() || undefined,
+				kind: values.kind,
 				name: values.name.trim(),
 				/*
 				 * Not asked for and not shown, but `CreateGroupBodySchema` still requires
@@ -161,18 +163,19 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 				 * the field is right, which is the only way it ever goes away here.
 				 */
 				mode='onChange'
+				// Only the Cevşen can be created from this sheet until the kind gets a step of its own.
 				defaultValues={{
-					cycle: 'DAILY',
+					...CREATE_DEFAULTS_FOR_KIND.CEVSEN,
 					dedication: '',
+					kind: 'CEVSEN',
 					name: '',
-					spots: 20,
-					splitMode: 'ROTATION',
 					visibility: 'OPEN'
 				}}
 				isDisabled={createGroup.isPending}
 				schema={schema}
 				render={({ handleSubmit, trigger, watch }) => {
 					const spots = watch('spots');
+					const kind = watch('kind');
 
 					/*
 					 * **Forward is a validation, not just a state change.** The step buttons used
@@ -263,12 +266,12 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 										    evenly, so +/- walk the list rather than adding a constant. */}
 											<FormStepper
 												caption={t('perPersonTr', {
-													perBab: babsPerPerson(spots, BAB_COUNT),
+													perBab: babsPerPerson(spots, partCountFor(kind)),
 													spots
 												})}
 												name='spots'
 												style={styles.stepper}
-												values={SPOTS_VALUES}
+												values={SPOTS_FOR_KIND[kind]}
 											/>
 											{/* Every seat is a seat that will be filled — the grid shows the
 										    capacity being chosen, not who has joined yet. */}
@@ -290,7 +293,11 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 												{ hint: t('planFixedHint'), title: t('planFixed'), value: 'FIXED' }
 											]}
 										/>
-										<PlanPreview splitMode={watch('splitMode')} spots={spots} />
+										<PlanPreview
+											splitMode={watch('splitMode')}
+											spots={spots}
+											total={partCountFor(kind)}
+										/>
 									</>
 								) : null}
 
@@ -299,7 +306,7 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 										<FieldLabelText style={styles.fieldLabel}>{t('cycle')}</FieldLabelText>
 										<Select
 											name='cycle'
-											options={CYCLE_OPTIONS.map(option => ({
+											options={cycleOptionsFor(kind).map(option => ({
 												label: t(cycleLabelKey(option)),
 												value: option
 											}))}

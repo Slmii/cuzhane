@@ -182,7 +182,29 @@ export type PoolSlot = {
 	readCount: number;
 	/** Which of this slot's babs are read — the board needs *which*, not just how many. */
 	readBabNumbers: number[];
+	/**
+	 * Who holds each of the slot's parts, in order. A Cevşen slot is taken whole, so every part
+	 * names one taker; a Hizb slot can be taken a portion at a time by several members, and the
+	 * slot-level `takenBy*` fields above name only the first of them.
+	 */
+	parts: PoolSlotPart[];
 };
+
+/** One part of a pool slot and who holds it this round. Mirrors the server's `PoolSlot['parts']`. */
+export type PoolSlotPart = {
+	number: number;
+	takenByUserId: string | null;
+	takenByDisplayName: string | null;
+	takenByImageUrl: string | null;
+	takenByMe: boolean;
+	isRead: boolean;
+};
+
+/**
+ * How far one reader has got with a part that must be repeated before it counts — Sekine's
+ * nineteen. The reader's own and the round's own. Mirrors the server's `PartRepetitions`.
+ */
+export type PartRepetitions = { count: number; required: number };
 
 /** What an inbox row is about. Mirrors the server's `NotificationKind` enum. */
 export type NotificationKind =

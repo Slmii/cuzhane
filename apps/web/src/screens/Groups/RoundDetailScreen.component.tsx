@@ -16,7 +16,7 @@ import { useCoverBabs, useGetRoundDetail } from '@/lib/hooks/useRounds';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { AppTheme } from '@/lib/theme/tokens';
-import { formatBabRange } from '@/lib/utils/babs';
+import { BAB_COUNT, formatBabRange } from '@/lib/utils/babs';
 import { staggerWithinRuns } from '@/lib/utils/groups';
 import { roundCellStates, roundRows, type RoundCellState, type RoundRow } from '@/lib/utils/rounds';
 import type { TabStackParamList } from '@/navigation/types';
@@ -146,7 +146,9 @@ export const RoundDetailScreen = ({ route }: Props) => {
 				 * cells feel like the screen arriving twice.
 				 */}
 				<ScreenHeader eyebrow={`${t('roundN')} ${roundIndex + 1}`} hasBackButton title={t('missedTitle')} />
-				<RoundDetailSkeleton />
+				{/* The group's own count once it is cached — it usually is, this screen being
+				    reached from the group's — and the Cevşen's hundred until then. */}
+				<RoundDetailSkeleton cellCount={groupQuery.data?.partCount ?? BAB_COUNT} />
 			</ScreenContainer>
 		);
 	}

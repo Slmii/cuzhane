@@ -2,7 +2,6 @@ import { Bone } from '@/components/Skeleton/Skeleton.component';
 import { SkeletonStatusRow } from '@/components/Skeleton/SkeletonStatusRow.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
-import { BAB_COUNT } from '@/lib/utils/babs';
 import { StyleSheet, View } from 'react-native';
 
 const GRID_COLUMNS = 10;
@@ -17,17 +16,23 @@ const STATS = [
 	{ label: 48, value: 34 }
 ];
 
+type Props = {
+	/** One bone per part the group divides — its `partCount`. */
+	cellCount: number;
+};
+
 /**
  * F4 · Tur detayı yükleniyor.
  *
- * The stat trio, the whole hundred, the legend and the rows naming who was short.
+ * The stat trio, the whole board — a cell per part, `cellCount` of them — the legend and the
+ * rows naming who was short.
  *
  * The board is drawn here rather than delegated to `GridSkeleton`: this frame lays the
  * hundred out at a 6pt radius with a 4pt gap directly on the card, where the pool card's
  * lattice is smaller and carries a header. Sharing one component would have meant
  * parameterising it until it described neither.
  */
-export const RoundDetailSkeleton = () => {
+export const RoundDetailSkeleton = ({ cellCount }: Props) => {
 	const { t } = useTranslation();
 
 	/*
@@ -48,7 +53,7 @@ export const RoundDetailSkeleton = () => {
 
 			<CardSurface style={styles.boardCard}>
 				<View style={styles.grid}>
-					{Array.from({ length: BAB_COUNT }, (_, index) => (
+					{Array.from({ length: cellCount }, (_, index) => (
 						<View key={index} style={styles.cellSlot}>
 							<Bone height={undefined} radius={6} style={styles.cell} />
 						</View>

@@ -34,15 +34,14 @@ type DiscoverNavigationProp = NativeStackNavigationProp<TabStackParamList>;
  */
 const CARD_LAYOUT = LinearTransition.springify().damping(20).stiffness(180).mass(0.7);
 
-const badgeToneForCycle = (cycle: GroupCycle): ChipTone => {
-	switch (cycle) {
-		case 'WEEKLY':
-			return 'accent';
-		case 'DAILY':
-			return 'sand';
-		default:
-			return 'neutral';
-	}
+/**
+ * The cadence badge's tone. A record, so a new cycle has to be given one; the month takes the
+ * `neutral` the old switch's fallthrough already handed anything that was neither.
+ */
+const BADGE_TONE_FOR_CYCLE: Record<GroupCycle, ChipTone> = {
+	DAILY: 'sand',
+	MONTHLY: 'neutral',
+	WEEKLY: 'accent'
 };
 
 export const DiscoverScreen = () => {
@@ -104,7 +103,7 @@ export const DiscoverScreen = () => {
 			<Animated.View layout={cardLayout}>
 				<GroupCard
 					badgeLabel={t(cycleLabelKey(item.cycle))}
-					badgeTone={badgeToneForCycle(item.cycle)}
+					badgeTone={BADGE_TONE_FOR_CYCLE[item.cycle]}
 					// Cycle, then whether it has started. The design also has a "Kurucu" chip
 					// here, but a group you created is one you're in, and those no longer reach
 					// this list.

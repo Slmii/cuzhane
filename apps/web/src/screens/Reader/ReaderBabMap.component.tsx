@@ -1,7 +1,7 @@
 import { Typography } from '@/components/ui/Typography/Typography.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import { BAB_COUNT, slotIndexForBab } from '@/lib/utils/babs';
+import { slotIndexForBab } from '@/lib/utils/babs';
 import { memo, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion } from 'react-native-reanimated';
@@ -146,7 +146,7 @@ Ticks.displayName = 'Ticks';
  * version that kept position in the list left 44% of frames identical to the one before.
  */
 export const ReaderBabMap = ({
-	count = BAB_COUNT,
+	count,
 	currentBab,
 	hasLegend = true,
 	myBabNumbers,
@@ -201,7 +201,8 @@ export const ReaderBabMap = ({
 		const bySlot = new Map<number, number[]>();
 
 		for (const n of poolBabNumbers) {
-			const slot = slotIndexForBab(n, spots, BAB_COUNT);
+			// `count` is the group's part count whenever `spots` is given — see the prop.
+			const slot = slotIndexForBab(n, spots, count);
 
 			if (slot === null) {
 				continue;
@@ -222,7 +223,7 @@ export const ReaderBabMap = ({
 				return [sorted[0] ?? 0, sorted[sorted.length - 1] ?? 0] as const;
 			})
 			.sort((a, b) => a[0] - b[0]);
-	}, [poolBabNumbers, spots]);
+	}, [count, poolBabNumbers, spots]);
 
 	const legend = useMemo(
 		() => [

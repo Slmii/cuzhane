@@ -2,6 +2,7 @@ import type { GroupCycle, GroupStatus } from '@/lib/types/domain';
 import { describe, expect, it } from 'vitest';
 import {
 	applyGroupBrowse,
+	CYCLE_FILTER_OPTIONS,
 	emptyGroupBrowseState,
 	isGroupBrowseMenuActive,
 	isGroupBrowseNarrowed,
@@ -27,6 +28,12 @@ const group = (over: Partial<TestGroup> = {}): TestGroup => ({
 
 const state = (over: Partial<GroupBrowseState> = {}): GroupBrowseState => ({ ...emptyGroupBrowseState, ...over });
 
+describe('CYCLE_FILTER_OPTIONS', () => {
+	it('offers every cadence a group can have, after "all"', () => {
+		expect(CYCLE_FILTER_OPTIONS).toEqual([undefined, 'DAILY', 'WEEKLY', 'MONTHLY']);
+	});
+});
+
 describe('applyGroupBrowse — filtering', () => {
 	it('keeps everything when nothing is asked of it', () => {
 		const groups = [group({ name: 'A' }), group({ name: 'B' })];
@@ -38,6 +45,11 @@ describe('applyGroupBrowse — filtering', () => {
 		const groups = [group({ cycle: 'DAILY', name: 'D' }), group({ cycle: 'WEEKLY', name: 'W' })];
 
 		expect(applyGroupBrowse(groups, state({ cycle: 'DAILY' })).map(g => g.name)).toEqual(['D']);
+		expect(
+			applyGroupBrowse([...groups, group({ cycle: 'MONTHLY', name: 'M' })], state({ cycle: 'MONTHLY' })).map(
+				g => g.name
+			)
+		).toEqual(['M']);
 	});
 
 	it('"henüz başlamadı" keeps only gathering groups', () => {

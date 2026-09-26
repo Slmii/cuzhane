@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import type { GroupBab } from '@/lib/types/domain';
-import { babCellState, type BabCellContext, staggerWithinRuns, toBabCells, toPoolCells } from './groups';
+import {
+	babCellState,
+	type BabCellContext,
+	cycleLabelKey,
+	cycleOptionsFor,
+	emptyBabCells,
+	partLabelKey,
+	partUnitKey,
+	staggerWithinRuns,
+	toBabCells,
+	toPoolCells
+} from './groups';
 
 const ME = 'user_me';
 const OTHER = 'user_other';
@@ -163,5 +174,45 @@ describe('staggerWithinRuns', () => {
 
 	it('survives an empty grid', () => {
 		expect(staggerWithinRuns([], 70)).toEqual([]);
+	});
+});
+
+describe('cycleOptionsFor', () => {
+	it('offers a Cevşen group its day and its week', () => {
+		expect(cycleOptionsFor('CEVSEN')).toEqual(['DAILY', 'WEEKLY']);
+	});
+
+	it('offers a Hizb group a month as well', () => {
+		expect(cycleOptionsFor('HIZB')).toEqual(['DAILY', 'WEEKLY', 'MONTHLY']);
+	});
+});
+
+describe('cycleLabelKey', () => {
+	it('names every cycle, the month included', () => {
+		expect(cycleLabelKey('DAILY')).toBe('daily');
+		expect(cycleLabelKey('WEEKLY')).toBe('weekly');
+		expect(cycleLabelKey('MONTHLY')).toBe('monthly');
+	});
+});
+
+describe('part nouns', () => {
+	it('counts a Cevşen in babs and a Hizb in portions', () => {
+		expect(partUnitKey('CEVSEN')).toBe('babs');
+		expect(partUnitKey('HIZB')).toBe('portions');
+	});
+
+	it('titles one part the same way', () => {
+		expect(partLabelKey('CEVSEN')).toBe('bab');
+		expect(partLabelKey('HIZB')).toBe('portion');
+	});
+});
+
+describe('emptyBabCells', () => {
+	it('lays out as many open cells as the group has parts, numbered from one', () => {
+		const cells = emptyBabCells(33);
+
+		expect(cells).toHaveLength(33);
+		expect(cells[0]).toEqual({ number: 1, state: 'open' });
+		expect(cells[32]).toEqual({ number: 33, state: 'open' });
 	});
 });
