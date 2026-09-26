@@ -154,11 +154,13 @@ export const GroupsScreen = () => {
 							name={item.name}
 							onAction={() => goToGathering(item.id, item.isOwner)}
 							onPress={() => goToGathering(item.id, item.isOwner)}
+							// Members out of seats, as the lobby itself counts them — "4 / 12 katıldı".
+							// It read "4 / 100 bab" once: a seat count set against the hundred.
 							progress={{
 								percent: Math.round((item.memberCount / item.spots) * 100),
 								readCount: item.memberCount,
-								total: item.partCount,
-								unit: t(partUnitKey(item.kind))
+								total: item.spots,
+								unit: t('joinedCount')
 							}}
 							subtitle={t('notCounting')}
 						/>
