@@ -1,4 +1,3 @@
-import { AppButton } from '@/components/ui/Button/Button.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
@@ -28,7 +27,6 @@ export const HizbSectionsScreen = ({ navigation }: Props) => {
 	return (
 		<ScreenContainer>
 			<ScreenHeader hasBackButton subtitle={t('hizbSub')} title={t('hizbTitle')} />
-			<AppButton title={t('hrGroups')} onPress={() => navigation.navigate('HizbGroups')} />
 			<CardSurface isFlush>
 				{HIZB_SECTIONS.map((section, index) => {
 					const { from, to } = sectionPageRange(section);

@@ -1,5 +1,3 @@
-import { HizbGroupsScreen } from '@/screens/Hizb/HizbGroupsScreen.component';
-import { HizbGroupScreen } from '@/screens/Hizb/HizbGroupScreen.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { SplashScreen as AnimatedSplash } from '@/screens/Splash/SplashScreen.component';
 import { userSettingsQueryKeys } from '@/lib/hooks/queryKeys';
@@ -454,8 +452,6 @@ const sharedTabScreens = ({ isProfileRoot = false }: { isProfileRoot?: boolean }
 		 */}
 		<TabStack.Screen name='Reminders' component={RemindersScreen} options={pushedScreenOptions} />
 		<TabStack.Screen name='ReleaseNotes' component={ReleaseNotesScreen} options={nativeBackScreenOptions} />
-		<TabStack.Screen name='HizbGroups' component={HizbGroupsScreen} options={nativeBackScreenOptions} />
-		<TabStack.Screen name='HizbGroup' component={HizbGroupScreen} options={nativeBackScreenOptions} />
 		<TabStack.Screen name='HizbSections' component={HizbSectionsScreen} options={nativeBackScreenOptions} />
 		<TabStack.Screen
 			name='HizbReader'

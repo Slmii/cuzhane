@@ -1,5 +1,3 @@
-import { hizbReadingBounds } from '@/lib/content/hizbAssignments';
-import { useCompleteReadingAssignment } from '@/lib/hooks/useReadingGroups';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CaptionText, EyebrowText, Typography } from '@/components/ui/Typography/Typography.component';
 import { READER_FONT_SIZE_DEFAULT } from '@/lib/content/cevsen';
@@ -43,9 +41,6 @@ const CEVSEN_TITLE = 'Cevşen-ül Kebir';
 export const HizbReaderScreen = ({ navigation, route }: Props) => {
 	useKeepAwake();
 	const { t } = useTranslation();
-	const complete = useCompleteReadingAssignment();
-	const assignment = route.params.assignment;
-	const bounds = hizbReadingBounds(route.params.sectionIndex, !!assignment);
 	const { theme } = useThemeContext();
 	const tabBarOffset = useContext(TabBarOffsetContext);
 	const settingsQuery = useGetUserSettings();
@@ -134,9 +129,8 @@ export const HizbReaderScreen = ({ navigation, route }: Props) => {
 		readerNumerals: settingsQuery.data?.readerNumerals ?? 'arabic'
 	} as const;
 
-	const previousCursor = cursor > bounds.first ? cursor - 1 : undefined;
-	const nextCursor = cursor < bounds.last ? cursor + 1 : undefined;
-	const canComplete = !!assignment && cursor === bounds.last;
+	const previousCursor = cursor > 0 ? cursor - 1 : undefined;
+	const nextCursor = cursor < HIZB_BLOCKS.length - 1 ? cursor + 1 : undefined;
 
 	const pages = pageRangeOf(displayBlock.lines);
 	const pageLabel =
@@ -157,9 +151,7 @@ export const HizbReaderScreen = ({ navigation, route }: Props) => {
 					    eyebrow between them. */}
 					<View style={styles.headerSide} />
 					<View style={styles.headerCenter}>
-						<EyebrowText numberOfLines={1}>
-							{assignment ? t('hrPart', { part: current.sectionIndex + 1 }) : t('abFree')}
-						</EyebrowText>
+						<EyebrowText numberOfLines={1}>{t('abFree')}</EyebrowText>
 					</View>
 					<View style={[styles.headerSide, styles.headerSideEnd]} />
 				</View>
@@ -211,57 +203,28 @@ export const HizbReaderScreen = ({ navigation, route }: Props) => {
 
 			<View style={[styles.footer, { borderTopColor: theme.colors.readerRule }]}>
 				<View style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.readerSurface }]} />
-				{!assignment ? (
-					<CaptionText color={theme.colors.faintText} style={styles.note}>
-						{t('hizbNote')}
-					</CaptionText>
-				) : null}
-				{complete.isError ? (
-					<CaptionText color={theme.colors.danger} style={styles.note}>
-						{t('hrError')}
-					</CaptionText>
-				) : null}
-				{canComplete && assignment ? (
-					<View style={styles.footerRow}>
-						{blockCount > 1 ? (
-							<AppButton
-								accessibilityLabel={t('abPrev')}
-								disabled={previousCursor === undefined || complete.isPending}
-								fullWidth={false}
-								icon='chevronLeft'
-								onPress={() => previousCursor !== undefined && setCursor(previousCursor)}
-								variant='surface'
-							/>
-						) : null}
-						<AppButton
-							title={t('hrMark')}
-							isLoading={complete.isPending}
-							onPress={() => complete.mutate(assignment, { onSuccess: () => navigation.goBack() })}
-							style={styles.navButtonSlot}
-							variant='accent'
-						/>
-					</View>
-				) : (
-					<View style={styles.footerRow}>
-						<AppButton
-							disabled={previousCursor === undefined}
-							icon='chevronLeft'
-							onPress={() => previousCursor !== undefined && setCursor(previousCursor)}
-							style={styles.navButtonSlot}
-							title={t('abPrev')}
-							variant='surface'
-						/>
-						<AppButton
-							disabled={nextCursor === undefined}
-							icon='chevronRight'
-							iconPosition='trailing'
-							onPress={() => nextCursor !== undefined && setCursor(nextCursor)}
-							style={styles.navButtonSlot}
-							title={t('abNext')}
-							variant='primary'
-						/>
-					</View>
-				)}
+				<CaptionText color={theme.colors.faintText} style={styles.note}>
+					{t('hizbNote')}
+				</CaptionText>
+				<View style={styles.footerRow}>
+					<AppButton
+						disabled={previousCursor === undefined}
+						icon='chevronLeft'
+						onPress={() => previousCursor !== undefined && setCursor(previousCursor)}
+						style={styles.navButtonSlot}
+						title={t('abPrev')}
+						variant='surface'
+					/>
+					<AppButton
+						disabled={nextCursor === undefined}
+						icon='chevronRight'
+						iconPosition='trailing'
+						onPress={() => nextCursor !== undefined && setCursor(nextCursor)}
+						style={styles.navButtonSlot}
+						title={t('abNext')}
+						variant='primary'
+					/>
+				</View>
 			</View>
 
 			<TextSizeSheet
