@@ -70,3 +70,19 @@ model BabRead {
     @@index([userId, readAt])
     @@index([groupId, roundIndex])
 }
+
+/** How many times one reader has repeated a part that must be read more than once (Sekine ×19), per round. */
+model GroupPartRepetition {
+    id         String   @id @default(cuid())
+    groupId    String
+    userId     String
+    roundIndex Int
+    partNumber Int
+    count      Int      @default(0)
+    updatedAt  DateTime @updatedAt
+
+    group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+    @@unique([groupId, userId, roundIndex, partNumber])
+    @@index([userId])
+}

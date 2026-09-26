@@ -63,6 +63,7 @@ model Group {
     shareNotices  ShareReadNotice[]
     roundNotices  RoundCompleteNotice[]
     notifications Notification[]
+    repetitions   GroupPartRepetition[]
 
     @@index([ownerUserId])
     @@index([visibility, openToJoin, createdAt])

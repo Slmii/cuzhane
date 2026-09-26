@@ -9,6 +9,7 @@ import { groupReadPush, roundCompletePush, toPushLanguage } from '@utils/pushCop
 import type { Prisma } from '../generated/prisma/client';
 import { requireMembership } from './groupAccess.service';
 import { recordNotification } from './notifications.service';
+import { assertRepetitionsMet } from './repetitions.service';
 import { sendPushToUser } from './push.service';
 import { poolBabNumbers, serializeBab, shareBabNumbersToday } from './groupSerializers';
 import { ensureCurrentRound, ensureCurrentRoundFor } from './rounds.service';
@@ -445,6 +446,16 @@ export const setBabReadForUser = async (
 			throw new HttpError(CONFLICT, 'This bab is not yours to mark today');
 		}
 
+		// Sekine counts only after the reader's own nineteen this round. Undoing never asks.
+		if (read) {
+			await assertRepetitionsMet(tx, {
+				group,
+				userId: normalizedUserId,
+				roundIndex: group.roundIndex,
+				babNumbers: [babNumber]
+			});
+		}
+
 		const where: Prisma.GroupBabWhereInput = isMine
 			? { groupId, number: babNumber }
 			: { groupId, number: babNumber, assignedUserId: normalizedUserId };
@@ -623,6 +634,21 @@ export const setAssignedBabsReadForUser = async (
 			where: read ? { ...mine, readAt: null } : { ...mine, readByUserId: normalizedUserId },
 			select: { number: true }
 		});
+
+		/*
+		 * A share holding Sekine is refused whole while its nineteen are outstanding, rather than
+		 * marked around it: one tap that quietly left a part unread would read as a finished share
+		 * to the person who tapped it. Asked of `affected` only, so a Sekine already read — or a
+		 * re-tap after everything is — is not held to the count again.
+		 */
+		if (read) {
+			await assertRepetitionsMet(tx, {
+				group,
+				userId: normalizedUserId,
+				roundIndex: group.roundIndex,
+				babNumbers: affected.map(bab => bab.number)
+			});
+		}
 
 		await tx.groupBab.updateMany({
 			// Clearing is scoped to the caller's own reads — see the single-bab path.

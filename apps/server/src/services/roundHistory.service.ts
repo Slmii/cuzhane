@@ -5,6 +5,7 @@ import { slotIndexForBab } from '@utils/babs';
 import { partCountFor } from '@utils/groupKinds';
 import { roundEndsAt, roundIndexSince, roundStartedAtFor, type CycleName } from '@utils/rounds';
 import { normalizeUserId } from '@utils/normalizeUserId';
+import { assertRepetitionsMet } from './repetitions.service';
 import { ensureCurrentRoundFor } from './rounds.service';
 import { requireMembership } from './groupAccess.service';
 import { babNumbersInRound, toSplitMode } from './groupSerializers';
@@ -256,6 +257,9 @@ export const coverMissedBabsForUser = async (
 	if (wanted.some(babNumber => !Number.isInteger(babNumber) || babNumber < 1 || babNumber > partCount)) {
 		throw new HttpError(NOT_FOUND, 'Bab not found');
 	}
+
+	// Against the round being covered, not the one open now: nineteen recited today are today's.
+	await assertRepetitionsMet(prisma, { group, userId: normalizedUserId, roundIndex, babNumbers: wanted });
 
 	// `skipDuplicates` rather than a transaction that fails on the first clash: taking on
 	// someone's whole block is a generous act, and having it rejected outright because one
