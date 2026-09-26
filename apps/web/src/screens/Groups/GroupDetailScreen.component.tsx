@@ -1,3 +1,6 @@
+import { BeginnerGuide } from '@/components/BeginnerGuide/BeginnerGuide.component';
+import { ReadingHelpPanel, RequestHelpButton } from '@/components/ReadingHelp/ReadingHelp.component';
+import type { ReadingHelp } from '@/api/readingHelp.api';
 import { HizbPlanGroup } from './HizbPlanGroup.component';
 import { BabGrid } from '@/components/BabGrid/BabGrid.component';
 import { FlexibleReadingPanel } from '@/components/FlexibleReadingPanel/FlexibleReadingPanel.component';
@@ -409,17 +412,45 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 	 * whole of it. Once every pool portion has somebody the card says so rather than offering
 	 * none — and stays, so the way to Havuz doesn't go with the last claim.
 	 */
+	const openHelpReading = (request: ReadingHelp) => {
+		const first = request.remainingNumbers[0] ?? request.babNumbers[0];
+		if (request.assignmentId) {
+			navigation.navigate('HizbPlanReader', { groupId, assignmentId: request.assignmentId });
+		} else if (first !== undefined && request.kind === 'CEVSEN') {
+			navigation.navigate('AllBabs', { babNumber: first });
+		} else if (first !== undefined) {
+			navigation.navigate('HizbReader', {
+				groupId,
+				partNumber: first,
+				...(request.roundIndex !== null ? { roundIndex: request.roundIndex } : {})
+			});
+		}
+	};
+	const helpPanel = (
+		<>
+			{detail.myReadCount < detail.myBabNumbers.length ? (
+				<RequestHelpButton groupId={groupId} target={{ roundIndex: detail.roundIndex ?? 0 }} today />
+			) : null}
+			<ReadingHelpPanel
+				groupId={groupId}
+				onOpen={openHelpReading}
+				{...(!isFlexible ? { onMissed: () => navigation.navigate('MyProgress', { groupId }) } : {})}
+			/>
+		</>
+	);
 	if (detail.splitMode === 'FLEXIBLE') {
 		return (
 			<>
 				<ScreenContainer pullToRefresh={pullToRefresh}>
 					{header}
+					<BeginnerGuide group={detail} />
 					<CardSurface>
 						<TitleText>{t('planFlexible')}</TitleText>
 						<CaptionText>{t('flexibleMembers', { count: detail.memberCount })}</CaptionText>
 						<CaptionText>{`${t('groupProgress')}: ${detail.readCount} / ${detail.partCount}`}</CaptionText>
 						{reset ? <RoundResetRow groupLabel={reset.group} localLabel={reset.local} /> : null}
 					</CardSurface>
+					{helpPanel}
 					<FlexibleReadingPanel
 						group={detail}
 						onOpenReader={number =>
@@ -485,6 +516,7 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 				) : (
 					header
 				)}
+				<BeginnerGuide group={detail} />
 				{/*
 				 * 07 / 07c. One card rather than two loose tiles: the reset line belongs to
 				 * the same fact as the countdown beside it — how long is left, and until when
@@ -639,6 +671,7 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 				 */}
 				{/* No glass while it is closed: the sage fill *is* this panel, and the material
 				    tints itself `surface` and washes over whatever colour arrives in `style`. */}
+				{helpPanel}
 				{isHizb ? (
 					<HizbSharePanel
 						babs={babsQuery.data}

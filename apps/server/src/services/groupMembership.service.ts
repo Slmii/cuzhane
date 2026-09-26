@@ -401,6 +401,15 @@ const removeMember = async (
 			include: { members: { orderBy: { joinedAt: 'asc' } } }
 		});
 		await closeHizbEnrollment(tx, group, userId);
+		await tx.hizbAssignment.updateMany({
+			where: { readingHelp: { groupId, OR: [{ requesterUserId: userId }, { helperUserId: userId }] } },
+			data: { version: { increment: 1 } }
+		});
+		await tx.readingHelp.deleteMany({ where: { groupId, requesterUserId: userId } });
+		await tx.readingHelp.updateMany({
+			where: { groupId, helperUserId: userId },
+			data: { helperUserId: null, version: { increment: 1 } }
+		});
 		if (group.splitMode === 'FLEXIBLE' && group.ownerUserId === userId) {
 			const successor = group.members.find(member => member.userId !== userId);
 			if (successor) {

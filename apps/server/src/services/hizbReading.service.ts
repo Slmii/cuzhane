@@ -46,6 +46,10 @@ export async function expireHizb(tx: Prisma.TransactionClient, group: Group) {
 				enrollment.lastReadDay === null ? enrollment.joinedDay : enrollment.lastReadDay + 1
 			) + group.inactivityDays;
 		if (today >= endDay) {
+			// Unread previews after departure are not outstanding commitments.
+			await tx.hizbAssignment.deleteMany({
+				where: { enrollmentId: enrollment.id, day: { gte: endDay }, completedAt: null }
+			});
 			await tx.hizbEnrollment.update({
 				where: { id: enrollment.id },
 				data: { endDay, reason: 'INACTIVITY', removalDays: group.inactivityDays }
@@ -102,8 +106,13 @@ export async function enrollHizb(userId: string, groupId: string, days?: number)
 	return getHizbState(user, groupId);
 }
 
-async function materialize(tx: Prisma.TransactionClient, group: Group, enrollment: HizbEnrollment) {
-	const lastDay = Math.min(dayOf(group), enrollment.endDay === null ? Infinity : enrollment.endDay - 1);
+async function materialize(
+	tx: Prisma.TransactionClient,
+	group: Group,
+	enrollment: HizbEnrollment,
+	through = dayOf(group)
+) {
+	const lastDay = Math.min(through, enrollment.endDay === null ? Infinity : enrollment.endDay - 1);
 	const anchor = civilDayNumber(group.startedAt ?? group.startsAt, group.timezone);
 	for (let from = enrollment.generatedThrough + 1; from <= lastDay; from += 500) {
 		const until = Math.min(from + 499, lastDay);
@@ -135,6 +144,9 @@ export async function closeHizbEnrollment(tx: Prisma.TransactionClient, group: G
 	for (const enrollment of enrollments) {
 		// Today's existing commitment remains available as historical catch-up.
 		await materialize(tx, group, enrollment);
+		await tx.hizbAssignment.deleteMany({
+			where: { enrollmentId: enrollment.id, day: { gt: dayOf(group) }, completedAt: null }
+		});
 		await tx.hizbEnrollment.update({
 			where: { id: enrollment.id },
 			data: { endDay: dayOf(group) + 1, reason: 'LEFT' }
@@ -155,7 +167,12 @@ export async function getHizbState(userId: string, groupId: string, cursor?: str
 				orderBy: { ordinal: 'desc' }
 			});
 			for (const enrollment of enrollments) {
-				await materialize(tx, group, enrollment);
+				await materialize(
+					tx,
+					group,
+					enrollment,
+					today + (enrollment.endDay === null ? enrollment.planDays : 0)
+				);
 			}
 			const mine = { enrollment: { groupId, userId: user } };
 			const current = enrollments.find(e => e.endDay === null) ?? enrollments[0] ?? null;
@@ -163,20 +180,30 @@ export async function getHizbState(userId: string, groupId: string, cursor?: str
 				current?.endDay === null
 					? await tx.hizbAssignment.findUnique({
 							where: { enrollmentId_day: { enrollmentId: current.id, day: today } },
-							include: { enrollment: true }
+							include: { enrollment: true, readingHelp: true }
 					  })
 					: null;
+			const upcoming =
+				current?.endDay === null
+					? await tx.hizbAssignment.findMany({
+							where: { enrollmentId: current.id, day: { gt: today, lte: today + current.planDays } },
+							include: { enrollment: true, readingHelp: true },
+							orderBy: { day: 'asc' }
+					  })
+					: [];
 			if (cursor && !(await tx.hizbAssignment.findFirst({ where: { ...mine, id: cursor } }))) {
 				throw new HttpError(BAD_REQUEST, 'Invalid history cursor');
 			}
 			const history = await tx.hizbAssignment.findMany({
 				where: { ...mine, day: { lte: today }, ...(assignment ? { id: { not: assignment.id } } : {}) },
-				include: { enrollment: true },
+				include: { enrollment: true, readingHelp: true },
 				orderBy: [{ day: 'desc' }, { id: 'asc' }],
 				take: 101,
 				...(cursor ? { cursor: { id: cursor }, skip: 1 } : {})
 			});
 			const serialize = (a: NonNullable<typeof assignment>) => ({
+				canEdit: !a.readingHelp?.helperUserId || a.readingHelp.helperUserId === user,
+				completedByOther: !!a.completedByUserId && a.completedByUserId !== a.enrollment.userId,
 				id: a.id,
 				day: a.day,
 				date: dateOf(a.day),
@@ -210,7 +237,7 @@ export async function getHizbState(userId: string, groupId: string, cursor?: str
 			const members = await tx.groupMember.findMany({ where: { groupId }, orderBy: { slotIndex: 'asc' } });
 			const reads = await tx.hizbAssignment.findMany({
 				where: { enrollment: { groupId }, day: { gte: today - 29, lte: today }, completedAt: { not: null } },
-				include: { enrollment: true }
+				include: { enrollment: true, readingHelp: true }
 			});
 			const coverage = (day: number) =>
 				coverageFor(
@@ -219,6 +246,7 @@ export async function getHizbState(userId: string, groupId: string, cursor?: str
 			const anchor = civilDayNumber(group.startedAt ?? group.startsAt, group.timezone);
 			return {
 				today: assignment ? serialize(assignment) : null,
+				upcoming: upcoming.map(serialize),
 				enrollment: current
 					? {
 							id: current.id,
@@ -300,136 +328,153 @@ export async function updateHizbAssignment(
 	input: HizbAssignmentUpdate
 ) {
 	const user = normalizeUserId(userId);
-	await prisma.$transaction(async tx => {
-		await lockGroup(tx, groupId);
-		const group = await requireReader(tx, user, groupId);
-		await expireHizb(tx, group);
-		const assignment = await tx.hizbAssignment.findFirst({
-			where: { id: assignmentId, enrollment: { groupId, userId: user } },
-			include: { enrollment: true }
-		});
-		if (!assignment) {
-			throw new HttpError(NOT_FOUND, 'Reading not found');
-		}
-		if (assignment.day > dayOf(group)) {
-			throw new HttpError(BAD_REQUEST, 'This reading is in the future');
-		}
-		if (!Number.isInteger(input.version) || input.version < 0) {
-			throw new HttpError(BAD_REQUEST, 'Invalid version');
-		}
-		if (
-			input.repetitions !== undefined &&
-			(!Number.isInteger(input.repetitions) ||
-				input.repetitions < 0 ||
-				input.repetitions > 19 ||
-				!hasSekine(assignment.enrollment.planDays, assignment.portion))
-		) {
-			throw new HttpError(BAD_REQUEST, 'Invalid repetition count');
-		}
-		if (
-			input.delailRepetitions !== undefined &&
-			(!Number.isInteger(input.delailRepetitions) ||
-				input.delailRepetitions < 0 ||
-				input.delailRepetitions > 3 ||
-				!hasDelailRepetition(assignment.enrollment.planDays, assignment.portion))
-		) {
-			throw new HttpError(BAD_REQUEST, 'Invalid Delail repetition count');
-		}
-		const changesIstighfar = input.istighfarRepetitions !== undefined || input.istighfarTarget !== undefined;
-		if (changesIstighfar && !hasIstighfar(assignment.enrollment.planDays, assignment.portion)) {
-			throw new HttpError(BAD_REQUEST, 'This reading has no opening istighfar');
-		}
-		if (
-			input.istighfarRepetitions !== undefined &&
-			(!Number.isInteger(input.istighfarRepetitions) ||
-				input.istighfarRepetitions < 0 ||
-				input.istighfarRepetitions > 100)
-		) {
-			throw new HttpError(BAD_REQUEST, 'Invalid istighfar repetition count');
-		}
-		if (input.istighfarTarget !== undefined && ![11, 33, 100].includes(input.istighfarTarget)) {
-			throw new HttpError(BAD_REQUEST, 'Choose 11, 33 or 100 istighfar repetitions');
-		}
-		if (
-			input.bookmark !== undefined &&
-			(!Number.isInteger(input.bookmark) || input.bookmark < 0 || input.bookmark > 1000)
-		) {
-			throw new HttpError(BAD_REQUEST, 'Invalid reading position');
-		}
-		if (
-			input.read !== undefined &&
-			input.read === (assignment.completedAt !== null) &&
-			input.repetitions === undefined &&
-			input.delailRepetitions === undefined &&
-			!changesIstighfar &&
-			input.bookmark === undefined
-		) {
-			return;
-		}
-		if (assignment.version !== input.version) {
-			throw new HttpError(CONFLICT, 'Reading changed on another device. Refresh and try again.');
-		}
-		const repetitions = input.repetitions ?? assignment.repetitions;
-		const read = input.read ?? assignment.completedAt !== null;
-		if (read && hasSekine(assignment.enrollment.planDays, assignment.portion) && repetitions < 19) {
-			throw new HttpError(CONFLICT, 'Complete all 19 Sekine repetitions first');
-		}
-		const delailRepetitions = input.delailRepetitions ?? assignment.delailRepetitions;
-		if (
-			read &&
-			hasDelailRepetition(assignment.enrollment.planDays, assignment.portion) &&
-			(assignment.completedAt === null || input.delailRepetitions !== undefined) &&
-			delailRepetitions < 3
-		) {
-			throw new HttpError(CONFLICT, 'Complete all three Delail repetitions first');
-		}
-		const istighfarRepetitions = input.istighfarRepetitions ?? assignment.istighfarRepetitions;
-		const istighfarTarget = input.istighfarTarget ?? assignment.istighfarTarget;
-		// Keep historical completions intact without inventing counts; new completions must meet the target.
-		if (
-			read &&
-			hasIstighfar(assignment.enrollment.planDays, assignment.portion) &&
-			(assignment.completedAt === null || changesIstighfar) &&
-			istighfarRepetitions < istighfarTarget
-		) {
-			throw new HttpError(CONFLICT, 'Complete your selected istighfar repetitions first');
-		}
-		await tx.hizbAssignment.update({
-			where: { id: assignment.id },
-			data: {
-				repetitions,
-				delailRepetitions,
-				istighfarRepetitions,
-				istighfarTarget,
-				bookmark: input.bookmark ?? assignment.bookmark,
-				version: { increment: 1 },
-				completedAt: read ? assignment.completedAt ?? new Date() : null
-			}
-		});
-		if (input.read === true && assignment.completedAt === null) {
-			await tx.hizbEnrollment.updateMany({
-				where: { groupId, userId: user, endDay: null },
-				data: { lastReadDay: dayOf(group) }
-			});
-		}
-		if (input.read === false) {
-			const active = await tx.hizbEnrollment.findFirst({ where: { groupId, userId: user, endDay: null } });
-			if (active) {
-				const last = await tx.hizbAssignment.findFirst({
-					where: {
-						enrollment: { groupId, userId: user },
-						completedAt: { gte: startOfCivilDay(active.joinedDay, group.timezone) }
-					},
-					orderBy: { completedAt: 'desc' }
-				});
-				await tx.hizbEnrollment.update({
-					where: { id: active.id },
-					data: { lastReadDay: last?.completedAt ? civilDayNumber(last.completedAt, group.timezone) : null }
-				});
-			}
+	await prisma.$transaction(tx => updateHizbAssignmentInTransaction(tx, user, groupId, assignmentId, input));
+	return getHizbAssignment(user, groupId, assignmentId);
+}
+
+export async function updateHizbAssignmentInTransaction(
+	tx: Prisma.TransactionClient,
+	user: string,
+	groupId: string,
+	assignmentId: string,
+	input: HizbAssignmentUpdate
+) {
+	await lockGroup(tx, groupId);
+	const group = await requireReader(tx, user, groupId);
+	await expireHizb(tx, group);
+	const assignment = await tx.hizbAssignment.findFirst({
+		where: {
+			id: assignmentId,
+			enrollment: { groupId },
+			OR: [{ enrollment: { userId: user } }, { readingHelp: { helperUserId: user } }]
+		},
+		include: { enrollment: true, readingHelp: true }
+	});
+	if (!assignment) {
+		throw new HttpError(NOT_FOUND, 'Reading not found');
+	}
+	if (assignment.readingHelp?.helperUserId && assignment.readingHelp.helperUserId !== user) {
+		throw new HttpError(CONFLICT, 'A group member has taken over this reading');
+	}
+	if (assignment.enrollment.endDay !== null && assignment.day >= assignment.enrollment.endDay) {
+		throw new HttpError(BAD_REQUEST, 'This reading is outside your enrollment');
+	}
+	if (!Number.isInteger(input.version) || input.version < 0) {
+		throw new HttpError(BAD_REQUEST, 'Invalid version');
+	}
+	if (
+		input.repetitions !== undefined &&
+		(!Number.isInteger(input.repetitions) ||
+			input.repetitions < 0 ||
+			input.repetitions > 19 ||
+			!hasSekine(assignment.enrollment.planDays, assignment.portion))
+	) {
+		throw new HttpError(BAD_REQUEST, 'Invalid repetition count');
+	}
+	if (
+		input.delailRepetitions !== undefined &&
+		(!Number.isInteger(input.delailRepetitions) ||
+			input.delailRepetitions < 0 ||
+			input.delailRepetitions > 3 ||
+			!hasDelailRepetition(assignment.enrollment.planDays, assignment.portion))
+	) {
+		throw new HttpError(BAD_REQUEST, 'Invalid Delail repetition count');
+	}
+	const changesIstighfar = input.istighfarRepetitions !== undefined || input.istighfarTarget !== undefined;
+	if (changesIstighfar && !hasIstighfar(assignment.enrollment.planDays, assignment.portion)) {
+		throw new HttpError(BAD_REQUEST, 'This reading has no opening istighfar');
+	}
+	if (
+		input.istighfarRepetitions !== undefined &&
+		(!Number.isInteger(input.istighfarRepetitions) ||
+			input.istighfarRepetitions < 0 ||
+			input.istighfarRepetitions > 100)
+	) {
+		throw new HttpError(BAD_REQUEST, 'Invalid istighfar repetition count');
+	}
+	if (input.istighfarTarget !== undefined && ![11, 33, 100].includes(input.istighfarTarget)) {
+		throw new HttpError(BAD_REQUEST, 'Choose 11, 33 or 100 istighfar repetitions');
+	}
+	if (
+		input.bookmark !== undefined &&
+		(!Number.isInteger(input.bookmark) || input.bookmark < 0 || input.bookmark > 1000)
+	) {
+		throw new HttpError(BAD_REQUEST, 'Invalid reading position');
+	}
+	if (
+		input.read !== undefined &&
+		input.read === (assignment.completedAt !== null) &&
+		input.repetitions === undefined &&
+		input.delailRepetitions === undefined &&
+		!changesIstighfar &&
+		input.bookmark === undefined
+	) {
+		return;
+	}
+	if (assignment.version !== input.version) {
+		throw new HttpError(CONFLICT, 'Reading changed on another device. Refresh and try again.');
+	}
+	const repetitions = input.repetitions ?? assignment.repetitions;
+	const read = input.read ?? assignment.completedAt !== null;
+	if (read && hasSekine(assignment.enrollment.planDays, assignment.portion) && repetitions < 19) {
+		throw new HttpError(CONFLICT, 'Complete all 19 Sekine repetitions first');
+	}
+	const delailRepetitions = input.delailRepetitions ?? assignment.delailRepetitions;
+	if (
+		read &&
+		hasDelailRepetition(assignment.enrollment.planDays, assignment.portion) &&
+		(assignment.completedAt === null || input.delailRepetitions !== undefined) &&
+		delailRepetitions < 3
+	) {
+		throw new HttpError(CONFLICT, 'Complete all three Delail repetitions first');
+	}
+	const istighfarRepetitions = input.istighfarRepetitions ?? assignment.istighfarRepetitions;
+	const istighfarTarget = input.istighfarTarget ?? assignment.istighfarTarget;
+	// Keep historical completions intact without inventing counts; new completions must meet the target.
+	if (
+		read &&
+		hasIstighfar(assignment.enrollment.planDays, assignment.portion) &&
+		(assignment.completedAt === null || changesIstighfar) &&
+		istighfarRepetitions < istighfarTarget
+	) {
+		throw new HttpError(CONFLICT, 'Complete your selected istighfar repetitions first');
+	}
+	await tx.hizbAssignment.update({
+		where: { id: assignment.id },
+		data: {
+			repetitions,
+			delailRepetitions,
+			istighfarRepetitions,
+			istighfarTarget,
+			bookmark: input.bookmark ?? assignment.bookmark,
+			version: { increment: 1 },
+			completedAt: read ? assignment.completedAt ?? new Date() : null,
+			completedByUserId: read ? (assignment.completedAt ? assignment.completedByUserId : user) : null
 		}
 	});
-	return getHizbAssignment(user, groupId, assignmentId);
+	if (input.read === true && assignment.completedAt === null) {
+		await tx.hizbEnrollment.updateMany({
+			where: { groupId, userId: user, endDay: null },
+			data: { lastReadDay: dayOf(group) }
+		});
+	}
+	if (input.read === false) {
+		const active = await tx.hizbEnrollment.findFirst({ where: { groupId, userId: user, endDay: null } });
+		if (active) {
+			const last = await tx.hizbAssignment.findFirst({
+				where: {
+					enrollment: { groupId },
+					OR: [{ completedByUserId: user }, { completedByUserId: null, enrollment: { userId: user } }],
+					completedAt: { gte: startOfCivilDay(active.joinedDay, group.timezone) }
+				},
+				orderBy: { completedAt: 'desc' }
+			});
+			await tx.hizbEnrollment.update({
+				where: { id: active.id },
+				data: { lastReadDay: last?.completedAt ? civilDayNumber(last.completedAt, group.timezone) : null }
+			});
+		}
+	}
 }
 
 export async function getHizbAssignment(userId: string, groupId: string, id: string) {
@@ -439,13 +484,19 @@ export async function getHizbAssignment(userId: string, groupId: string, id: str
 		const group = await requireReader(tx, user, groupId);
 		await expireHizb(tx, group);
 		const a = await tx.hizbAssignment.findFirst({
-			where: { id, enrollment: { groupId, userId: user } },
-			include: { enrollment: true }
+			where: {
+				id,
+				enrollment: { groupId },
+				OR: [{ enrollment: { userId: user } }, { readingHelp: { helperUserId: user } }]
+			},
+			include: { enrollment: true, readingHelp: true }
 		});
 		if (!a) {
 			throw new HttpError(NOT_FOUND, 'Reading not found');
 		}
 		return {
+			canEdit: !a.readingHelp?.helperUserId || a.readingHelp.helperUserId === user,
+			completedByOther: !!a.completedByUserId && a.completedByUserId !== a.enrollment.userId,
 			id: a.id,
 			day: a.day,
 			date: dateOf(a.day),
@@ -477,7 +528,7 @@ export async function hizbSummary(groupId: string, viewerUserId: string) {
 		const active = await tx.hizbEnrollment.findMany({ where: { groupId, endDay: null } });
 		const reads = await tx.hizbAssignment.findMany({
 			where: { enrollment: { groupId }, day: today, completedAt: { not: null } },
-			include: { enrollment: true }
+			include: { enrollment: true, readingHelp: true }
 		});
 		const coverage = coverageFor(reads.map(a => ({ planDays: a.enrollment.planDays, portion: a.portion })));
 		const mine = active.find(e => e.userId === viewerUserId);

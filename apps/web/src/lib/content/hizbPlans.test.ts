@@ -10,6 +10,19 @@ const textOf = (blocks: typeof HIZB_BLOCKS) =>
 		.join('')
 		.replace(/[\s❁]/gu, '');
 describe('versioned Hizb content', () => {
+	it.each([
+		[1, [0, 1, 2, 3, 4, 5, 6]], // Opening istighfar and Qur'an readings.
+		[2, [7]], // Complete Cevşen, including its closing prayer.
+		[3, [8]], // Evrâd-ı Kudsiyye.
+		[4, [9, 10, 11, 12, 13]], // Delail, Sekine, Münâcât and both İsm-i A'zam prayers.
+		[5, [14]], // Münâcât-ül Kur'an.
+		[6, [15]], // Tahmidiye.
+		[7, [16]] // Hülasat-ül Hülasa, including Tazarru ve Niyaz.
+	] as const)('assigns the complete works to day %i of the seven-day plan', (portion, sections) => {
+		expect(planBlocks(7, portion)).toEqual(
+			HIZB_BLOCKS.filter(ref => (sections as readonly number[]).includes(ref.sectionIndex))
+		);
+	});
 	it('covers every source character once in all three divisions', () => {
 		for (const days of PLAN_DAYS) {
 			const blocks = Array.from({ length: days }, (_, i) => planBlocks(days, i + 1));

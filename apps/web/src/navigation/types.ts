@@ -148,6 +148,7 @@ export type TabStackParamList = RootTabParamList &
 	TabDetailParamList & {
 		Tabs: NavigatorScreenParams<RootTabParamList> | undefined;
 		CreateGroup: undefined;
+		Onboarding: undefined;
 	};
 
 export type RootStackParamList = {

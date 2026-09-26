@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { groupIntroductionDestination, groupIntroductionSteps } from './groupIntroduction';
+import { groupIntroductionDestination, groupIntroductionSteps, groupIntroductionSummary } from './groupIntroduction';
 
 describe('group introduction', () => {
 	it('returns creators to their lobby or active group and joiners to their welcome', () => {
@@ -29,5 +29,29 @@ describe('group introduction', () => {
 		const group = { kind: 'CEVSEN', splitMode: 'ROTATION', status: 'GATHERING' } as const;
 		expect(groupIntroductionSteps(group, 'created')[2].body).toBe('introCreatorWaiting');
 		expect(groupIntroductionSteps(group, 'joined')[2].body).toBe('introMemberWaiting');
+	});
+});
+
+describe('daily reading plan introduction', () => {
+	it.each([0, 7, 15, 33])('explains selecting a %s-day plan, recording reading and returning tomorrow', hizbPlan => {
+		const steps = groupIntroductionSteps(
+			{ kind: 'HIZB', splitMode: 'FLEXIBLE', status: 'RUNNING', hizbPlan },
+			'joined'
+		);
+		expect(steps.map(step => step.body)).toEqual([
+			hizbPlan === 0 ? 'introPlanChoose' : 'introPlanFixed',
+			'introPlanRead',
+			'introPlanReturn'
+		]);
+	});
+});
+
+describe('introduction summary', () => {
+	it('distinguishes private plans, group plans, and shared book portions', () => {
+		const group = { kind: 'HIZB', splitMode: 'FLEXIBLE', status: 'RUNNING' } as const;
+		expect(groupIntroductionSummary({ ...group, hizbPlan: 33, hizbIndividual: true })).toBe('introIndividual');
+		expect(groupIntroductionSummary({ ...group, hizbPlan: 0 })).toBe('introPlan');
+		expect(groupIntroductionSummary(group)).toBe('introHizb');
+		expect(groupIntroductionSummary({ ...group, kind: 'CEVSEN' })).toBe('introCevsen');
 	});
 });

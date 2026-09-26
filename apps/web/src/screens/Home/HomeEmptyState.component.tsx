@@ -1,3 +1,6 @@
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { TabStackParamList } from '@/navigation/types';
 import { BrandMark } from '@/components/ui/BrandMark/BrandMark.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
@@ -32,6 +35,7 @@ const MARK_SIZE = 28;
  * thing in the app's hand.
  */
 export const HomeEmptyState = ({ onCreate, onDiscover, onJoin }: HomeEmptyStateProps) => {
+	const navigation = useNavigation<NativeStackNavigationProp<TabStackParamList>>();
 	const { theme } = useThemeContext();
 	const { t } = useTranslation();
 
@@ -76,6 +80,12 @@ export const HomeEmptyState = ({ onCreate, onDiscover, onJoin }: HomeEmptyStateP
 				</View>
 				<Icon color={theme.colors.faintText} name='chevronRight' size={15} strokeWidth={1.8} />
 			</CardSurface>
+			<AppButton
+				onPress={() => navigation.navigate('Onboarding')}
+				title={t('quickStartTitle')}
+				variant='ghost'
+				style={{ marginTop: 12 }}
+			/>
 		</View>
 	);
 };

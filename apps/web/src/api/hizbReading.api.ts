@@ -1,5 +1,7 @@
 import { wrapperApi } from './wrapper.api';
 export type HizbAssignment = {
+	canEdit?: boolean;
+	completedByOther?: boolean;
 	id: string;
 	day: number;
 	date: string;
@@ -20,6 +22,8 @@ export type HizbAssignment = {
 };
 export type HizbReadingState = {
 	today: HizbAssignment | null;
+	/** Optional during deployment against older servers. */
+	upcoming?: HizbAssignment[];
 	enrollment: {
 		id: string;
 		planDays: number;

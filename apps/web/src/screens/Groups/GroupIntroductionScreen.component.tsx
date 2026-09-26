@@ -6,7 +6,11 @@ import { BodyText, CaptionText, Header1, Header3 } from '@/components/ui/Typogra
 import { useGetGroupById } from '@/lib/hooks/useGroup';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import { groupIntroductionDestination, groupIntroductionSteps } from '@/lib/utils/groupIntroduction';
+import {
+	groupIntroductionDestination,
+	groupIntroductionSteps,
+	groupIntroductionSummary
+} from '@/lib/utils/groupIntroduction';
 import type { TabStackParamList } from '@/navigation/types';
 import { JoinedWelcomeSkeleton } from '@/screens/Join/JoinedWelcomeSkeleton.component';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -44,8 +48,8 @@ export const GroupIntroductionScreen = ({ navigation, route }: Props) => {
 					{detail.name}
 				</CaptionText>
 				<Header1>{t(showExplainer ? 'introGuideTitle' : 'introQuestion')}</Header1>
-				<BodyText color={theme.colors.subtext}>
-					{t(showExplainer ? (detail.kind === 'HIZB' ? 'introHizb' : 'introCevsen') : 'introQuestionHint')}
+				<BodyText style={styles.copy}>
+					{t(showExplainer ? groupIntroductionSummary(detail) : 'introQuestionHint')}
 				</BodyText>
 				{showExplainer
 					? groupIntroductionSteps(detail, source).map((step, index) => (
@@ -54,8 +58,13 @@ export const GroupIntroductionScreen = ({ navigation, route }: Props) => {
 									{t('obStepOf', { step: index + 1, total: 3 })}
 								</CaptionText>
 								<Header3>{t(step.title)}</Header3>
-								<BodyText color={theme.colors.subtext}>
-									{t(step.body, { readAction: t('iRead') })}
+								<BodyText style={styles.copy}>
+									{t(step.body, {
+										readAction: t('markRead'),
+										days: detail.hizbPlan ?? '',
+										openAction: t('hpRead'),
+										finishAction: t('hpFinish')
+									})}
 								</BodyText>
 							</CardSurface>
 					  ))
@@ -79,5 +88,6 @@ const styles = StyleSheet.create({
 	content: { flexGrow: 1, justifyContent: 'space-between' },
 	body: { gap: 16, paddingTop: 24 },
 	card: { gap: 8 },
+	copy: { fontSize: 16, lineHeight: 25 },
 	actions: { gap: 10, marginTop: 24 }
 });

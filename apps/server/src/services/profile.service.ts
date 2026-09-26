@@ -49,7 +49,13 @@ export const getProfileStatsForUser = async (
 	// historical stat here (total read, streak, heatmap, completed rounds) is derived from it.
 	const [personalReads, memberships, userReads] = await Promise.all([
 		prisma.hizbAssignment.findMany({
-			where: { enrollment: { userId: normalizedUserId }, completedAt: { not: null } },
+			where: {
+				completedAt: { not: null },
+				OR: [
+					{ completedByUserId: normalizedUserId },
+					{ completedByUserId: null, enrollment: { userId: normalizedUserId } }
+				]
+			},
 			include: { enrollment: true }
 		}),
 		prisma.groupMember.findMany({

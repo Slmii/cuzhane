@@ -540,3 +540,80 @@ describe('Delail three repetitions', () => {
 		expect(old.delailRepetitions).toBe(0);
 	});
 });
+
+describe('reading ahead', () => {
+	it.each([7, 15, 33])('offers the next %i days without adding them to missed history', async plan => {
+		const group = await create(plan);
+		const state = await getHizbState('owner', group.id);
+		expect(state.upcoming).toHaveLength(plan);
+		expect(state.upcoming[0]).toMatchObject({ day: state.today!.day + 1, portion: 2 });
+		expect(state.upcoming.at(-1)).toMatchObject({ day: state.today!.day + plan, portion: 1 });
+		expect(state.assignments).toEqual([]);
+		expect(state.missedCount).toBe(0);
+	});
+	it('saves early completion, keeps today unchanged and reuses it on its scheduled date', async () => {
+		const group = await create();
+		const first = await getHizbState('owner', group.id);
+		expect(first.upcoming?.length).toBeGreaterThan(0);
+		const tomorrow = first.upcoming[0]!;
+		const done = await updateHizbAssignment('owner', group.id, tomorrow.id, {
+			version: 0,
+			read: true,
+			bookmark: 2
+		});
+		expect(done.completedAt).toBe(start.toISOString());
+		const saved = await getHizbState('owner', group.id);
+		expect(saved.upcoming[0]).toMatchObject({ id: tomorrow.id, completedAt: done.completedAt, bookmark: 2 });
+		expect(saved.today).toEqual(first.today);
+		expect(saved.coverage.covered).toBe(0);
+		expect(saved.personalProgress?.completed).toBe(1);
+		vi.setSystemTime(day(1));
+		const next = await getHizbState('owner', group.id);
+		expect(next.today).toMatchObject({ id: tomorrow.id, completedAt: done.completedAt });
+		expect(next.coverage.covered).toBeGreaterThan(0);
+		vi.setSystemTime(day(2));
+		expect((await getHizbState('owner', group.id)).missedCount).toBe(1);
+	});
+	it('keeps ownership, repetition requirements and undo for future assignments', async () => {
+		const group = await create();
+		await prisma.group.update({ where: { id: group.id }, data: { visibility: 'OPEN' } });
+		await joinGroupForUser('reader', 'Reader', group.id);
+		const state = await getHizbState('owner', group.id);
+		expect(state.upcoming?.length).toBeGreaterThan(0);
+		const a = state.upcoming.find(a => a.requiresSekine)!;
+		await expect(updateHizbAssignment('reader', group.id, a.id, { version: 0, bookmark: 1 })).rejects.toThrow();
+		await expect(updateHizbAssignment('owner', group.id, a.id, { version: 0, read: true })).rejects.toThrow('19');
+		const done = await updateHizbAssignment('owner', group.id, a.id, {
+			version: 0,
+			read: true,
+			repetitions: 19,
+			delailRepetitions: 3
+		});
+		expect(done.completedAt).not.toBeNull();
+		const undone = await updateHizbAssignment('owner', group.id, a.id, { version: done.version, read: false });
+		expect(undone.completedAt).toBeNull();
+	});
+	it('does not turn unused future assignments into missed readings after inactivity', async () => {
+		const group = await create(7, 2);
+		const first = await getHizbState('owner', group.id);
+		expect(first.upcoming?.length).toBeGreaterThan(0);
+		vi.setSystemTime(day(10));
+		const expired = await getHizbState('owner', group.id);
+		expect(expired.upcoming).toEqual([]);
+		expect(expired.missedCount).toBe(2);
+	});
+	it('preserves early completions but cancels unused future commitments after leaving', async () => {
+		const group = await create();
+		await prisma.group.update({ where: { id: group.id }, data: { visibility: 'OPEN' } });
+		await joinGroupForUser('reader', 'Reader', group.id);
+		const first = await getHizbState('reader', group.id);
+		expect(first.upcoming?.length).toBeGreaterThan(0);
+		const a = first.upcoming[0]!;
+		await updateHizbAssignment('reader', group.id, a.id, { version: 0, read: true });
+		await leaveGroupForUser('reader', group.id);
+		expect(await prisma.hizbAssignment.findUnique({ where: { id: a.id } })).toMatchObject({ completedAt: start });
+		vi.setSystemTime(day(10));
+		await joinGroupForUser('reader', 'Reader', group.id);
+		expect((await getHizbState('reader', group.id)).missedCount).toBe(1);
+	});
+});

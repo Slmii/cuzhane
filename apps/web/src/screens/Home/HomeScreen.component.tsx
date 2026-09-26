@@ -1,3 +1,4 @@
+import { BeginnerGuide } from '@/components/BeginnerGuide/BeginnerGuide.component';
 import { ShelfEmptyState } from '@/components/ShelfEmptyState/ShelfEmptyState.component';
 import { TourTarget } from '@/components/Tour/TourTarget.component';
 import { useTourAutoStart } from '@/components/Tour/useTourAutoStart';
@@ -393,6 +394,7 @@ export const HomeScreen = () => {
 										) : null}
 									</TourTarget>
 								)}
+								<BeginnerGuide initiallyExpanded={hasNoGroups} />
 							</ScrollView>
 						</PullToRefresh>
 					</>

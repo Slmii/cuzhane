@@ -1,3 +1,4 @@
+import { BeginnerGuide } from '@/components/BeginnerGuide/BeginnerGuide.component';
 import { DetailsCard } from '@/components/DetailsCard/DetailsCard.component';
 import { InviteQr } from '@/components/InviteQr/InviteQr.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
@@ -203,6 +204,7 @@ export const LobbyScreen = ({ navigation, route }: Props) => {
 						</View>
 					</>
 				)}
+				<BeginnerGuide group={detail} />
 				{fillCard}
 				{isHizb ? (
 					<DetailsCard

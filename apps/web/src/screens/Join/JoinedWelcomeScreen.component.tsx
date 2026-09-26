@@ -1,3 +1,4 @@
+import { BeginnerGuide } from '@/components/BeginnerGuide/BeginnerGuide.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
@@ -116,6 +117,7 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 					{t(detail.hizbPlan != null ? 'hpDailyHint' : 'planFlexibleHint')}
 				</BodyText>
 				<CaptionText>{t('flexibleMembers', { count: detail.memberCount })}</CaptionText>
+				<BeginnerGuide group={detail} />
 				<AppButton
 					title={t(detail.hizbPlan != null ? (detail.hizbPlan ? 'hpRead' : 'hpChoose') : 'flexibleChoose')}
 					onPress={handleStartReading}
@@ -271,6 +273,7 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 					</CardSurface>
 				)}
 			</View>
+			<BeginnerGuide group={detail} />
 			<View style={styles.footer}>
 				{isProvisional ? (
 					<>

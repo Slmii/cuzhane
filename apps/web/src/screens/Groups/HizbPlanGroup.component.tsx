@@ -1,9 +1,11 @@
+import { BeginnerGuide } from '@/components/BeginnerGuide/BeginnerGuide.component';
+import { ReadingHelpPanel, RequestHelpButton } from '@/components/ReadingHelp/ReadingHelp.component';
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { TabStackParamList } from '@/navigation/types';
 import type { GroupDetail } from '@/lib/types/domain';
-import { useHizbReading, useEnrollHizb } from '@/lib/hooks/useHizbReading';
+import { useHizbReading, useEnrollHizb, useUpdateHizbAssignment } from '@/lib/hooks/useHizbReading';
 import { useUpdateGroup } from '@/lib/hooks/useGroup';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useTranslation } from '@/lib/i18n/I18n.context';
@@ -49,9 +51,11 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 		sheetTimer.current = setTimeout(() => navigation.setParams({ sheet: 'members' }), 320);
 	};
 	const data = query.data?.pages[0];
+	const completeToday = useUpdateHizbAssignment(group.id, data?.today?.id ?? '');
 	const [showMembers, setShowMembers] = useState(false);
 	const [showHistory, setShowHistory] = useState(false);
 	const [showCompleted, setShowCompleted] = useState(false);
+	const [showUpcoming, setShowUpcoming] = useState(false);
 	if (query.isError) {
 		return <ErrorState queries={[query]} />;
 	}
@@ -63,8 +67,29 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 	const percent = data.coverage.total ? Math.round((data.coverage.covered * 100) / data.coverage.total) : 0;
 	const open = (id: string) => navigation.navigate('HizbPlanReader', { groupId: group.id, assignmentId: id });
 	const history = query.data!.pages.flatMap(page => page.assignments);
+	const upcoming = data.upcoming ?? [];
+	const nextUnread = upcoming.find(assignment => !assignment.completedAt);
 	const readers = [...data.members].sort((a, b) => Number(b.completed) - Number(a.completed));
 	const visibleReaders = showMembers ? readers : readers.slice(0, 6);
+	const finishToday = () => {
+		const assignment = data.today;
+		if (!assignment || assignment.completedAt || assignment.canEdit === false || completeToday.isPending) {
+			return;
+		}
+		// This action confirms the whole reading, including repetitions done in a physical book.
+		completeToday.mutate(
+			{
+				version: assignment.version,
+				read: true,
+				...(assignment.requiresSekine ? { repetitions: 19 } : {}),
+				...(assignment.requiresDelailRepetition ? { delailRepetitions: 3 } : {}),
+				...(assignment.requiresIstighfar
+					? { istighfarRepetitions: Math.max(assignment.istighfarRepetitions, assignment.istighfarTarget) }
+					: {})
+			},
+			{ onError: () => void query.refetch() }
+		);
+	};
 	return (
 		<>
 			<ScreenContainer pullToRefresh={pullToRefresh}>
@@ -79,6 +104,7 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 							: t('hpMixed')
 					}
 				/>
+				<BeginnerGuide group={group} />
 				{!active ? (
 					<CardSurface style={styles.card}>
 						<TitleText>{t(removed ? 'hpRejoin' : 'hpChoose')}</TitleText>
@@ -193,14 +219,50 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 							{t('hpPortion', { days: data.today.planDays, portion: data.today.portion })}
 						</TitleText>
 						<BodyText>{t(hizbPlanDescriptionKey(data.today.planDays, data.today.portion))}</BodyText>
-						<CaptionText color={theme.colors.accent}>
-							{t(data.today.completedAt ? 'hpTodayDone' : 'hpTodayPending')}
-						</CaptionText>
+						<View
+							accessibilityLiveRegion='polite'
+							style={[
+								styles.readStatus,
+								{
+									backgroundColor: data.today.completedAt
+										? theme.colors.accentSoft
+										: theme.colors.surfaceMuted
+								}
+							]}
+						>
+							<BodyText
+								weight='semibold'
+								color={data.today.completedAt ? theme.colors.accent : theme.colors.subtext}
+							>
+								{t(data.today.completedAt ? 'hpTodayDone' : 'hpTodayPending')}
+							</BodyText>
+						</View>
 						<AppButton
-							title={t(data.today.completedAt ? 'hpComplete' : 'hpRead')}
+							title={t(data.today.completedAt ? 'hpReadAgain' : 'hpRead')}
 							onPress={() => open(data.today!.id)}
 							variant={data.today.completedAt ? 'surface' : 'accent'}
 						/>
+						{!data.today.completedAt && !group.hizbIndividual ? (
+							<RequestHelpButton groupId={group.id} target={{ assignmentId: data.today.id }} today />
+						) : null}
+						{data.today.completedByOther ? (
+							<CaptionText color={theme.colors.accent}>{t('helpCompleted')}</CaptionText>
+						) : null}
+						{!data.today.completedAt ? (
+							<>
+								<AppButton
+									title={t('hpFinishFromOverview')}
+									disabled={data.today.canEdit === false}
+									onPress={finishToday}
+									isLoading={completeToday.isPending}
+									variant='surface'
+								/>
+								<CaptionText color={theme.colors.subtext}>{t('hpFinishFromOverviewHint')}</CaptionText>
+								{completeToday.isError ? (
+									<CaptionText color={theme.colors.danger}>{t('hpError')}</CaptionText>
+								) : null}
+							</>
+						) : null}
 						<CaptionText color={theme.colors.subtext}>
 							{t('hpNextDay', {
 								time: new Date(data.nextDayAt).toLocaleString(language, {
@@ -212,6 +274,44 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 							})}
 						</CaptionText>
 					</CardSurface>
+				) : null}
+				{active && upcoming.length ? (
+					<View style={styles.card}>
+						<TitleText>{t('hpUpcoming')}</TitleText>
+						<CaptionText color={theme.colors.subtext}>{t('hpReadAheadHint')}</CaptionText>
+						{nextUnread ? (
+							<AppButton title={t('hpReadAhead')} onPress={() => open(nextUnread.id)} variant='accent' />
+						) : null}
+						{(showUpcoming ? upcoming : upcoming.slice(0, 3)).map(assignment => (
+							<CardSurface key={assignment.id} style={styles.card} onPress={() => open(assignment.id)}>
+								<CaptionText>
+									{new Date(`${assignment.date}T12:00:00`).toLocaleDateString(language, {
+										weekday: 'long',
+										day: 'numeric',
+										month: 'long'
+									})}
+									{' · '}
+									{t('hpPortion', { days: assignment.planDays, portion: assignment.portion })}
+								</CaptionText>
+								<BodyText>
+									{t(hizbPlanDescriptionKey(assignment.planDays, assignment.portion))}
+								</BodyText>
+								<BodyText
+									weight='semibold'
+									color={assignment.completedAt ? theme.colors.accent : theme.colors.subtext}
+								>
+									{t(assignment.completedAt ? 'hpTodayDone' : 'hpTodayPending')}
+								</BodyText>
+							</CardSurface>
+						))}
+						{upcoming.length > 3 ? (
+							<AppButton
+								title={t(showUpcoming ? 'hpHideUpcoming' : 'hpShowUpcoming')}
+								onPress={() => setShowUpcoming(!showUpcoming)}
+								variant='ghost'
+							/>
+						) : null}
+					</View>
 				) : null}
 				{!group.hizbIndividual ? (
 					<CardSurface style={styles.card}>
@@ -266,6 +366,16 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 				) : (
 					<CaptionText color={theme.colors.subtext}>{t('hpIndividualCountHint')}</CaptionText>
 				)}
+				{!group.hizbIndividual ? (
+					<ReadingHelpPanel
+						groupId={group.id}
+						onOpen={request => {
+							if (request.assignmentId) {
+								open(request.assignmentId);
+							}
+						}}
+					/>
+				) : null}
 				{!group.hizbIndividual ? <HizbPlanOverview data={data} onOpen={open} /> : null}
 				<TitleText>{t('hpCatchup', { count: data.missedCount })}</TitleText>
 				<CaptionText color={theme.colors.subtext}>{t('hpDailyHint')}</CaptionText>
@@ -277,15 +387,23 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 				{history
 					.filter(assignment => showCompleted || (!assignment.completedAt && assignment.date < data.date))
 					.map(assignment => (
-						<CardSurface key={assignment.id} style={styles.card} onPress={() => open(assignment.id)}>
+						<CardSurface key={assignment.id} style={styles.card}>
 							<CaptionText>
 								{assignment.date} ·{' '}
 								{t('hpPortion', { days: assignment.planDays, portion: assignment.portion })}
 							</CaptionText>
 							<BodyText>{t(hizbPlanDescriptionKey(assignment.planDays, assignment.portion))}</BodyText>
 							<CaptionText color={assignment.completedAt ? theme.colors.accent : theme.colors.subtext}>
-								{t(assignment.completedAt ? 'hpComplete' : 'hpRead')}
+								{t(assignment.completedAt ? 'hpTodayDone' : 'hpTodayPending')}
 							</CaptionText>
+							<AppButton
+								title={t(assignment.completedAt ? 'hpReadAgain' : 'hpRead')}
+								variant='surface'
+								onPress={() => open(assignment.id)}
+							/>
+							{!assignment.completedAt && !group.hizbIndividual ? (
+								<RequestHelpButton groupId={group.id} target={{ assignmentId: assignment.id }} />
+							) : null}
 						</CardSurface>
 					))}
 				{query.hasNextPage ? (
@@ -358,6 +476,7 @@ const InactivitySettings = ({ group }: { group: GroupDetail }) => {
 	);
 };
 const styles = StyleSheet.create({
+	readStatus: { padding: 12, borderRadius: 10 },
 	card: { gap: 12 },
 	stats: { flexDirection: 'row', gap: 16 },
 	stat: { flex: 1, gap: 4 },

@@ -1,3 +1,4 @@
+import readingHelpRouter from './readingHelp.route';
 import hizbReadingRouter from './hizbReading.route';
 import { CREATED, OK } from '@config/httpCodes';
 import { ResponseLocals, ResponseLocalsWithBody, ResponseLocalsWithQuery } from '@interfaces/response.types';
@@ -46,6 +47,7 @@ import { NextFunction, Request, Response, Router } from 'express';
 
 const groupsRouter = Router();
 groupsRouter.use('/:groupId/reading', hizbReadingRouter);
+groupsRouter.use('/:groupId/reading-help', readingHelpRouter);
 
 groupsRouter.get('/', async (_req: Request, res: Response<object, ResponseLocals>, next: NextFunction) => {
 	try {

@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { AppButton } from '@/components/ui/Button/Button.component';
 import { BodyText, CaptionText } from '@/components/ui/Typography/Typography.component';
 import { RepetitionCounter } from '@/components/RepetitionCounter/RepetitionCounter.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
@@ -12,9 +13,11 @@ export const IstighfarReading = ({ children, progress }: { children: ReactNode; 
 	const { theme } = useThemeContext();
 	const [localCount, setLocalCount] = useState(0);
 	const [localTarget, setLocalTarget] = useState(11);
+	const [isCounterVisible, setIsCounterVisible] = useState(false);
 	const count = progress?.count ?? localCount;
 	const target = progress?.target ?? localTarget;
 	const disabled = progress?.disabled ?? false;
+	const isComplete = count >= target;
 	const setTarget = (next: number) => {
 		if (progress) {
 			progress.onChange({ istighfarTarget: next });
@@ -64,8 +67,26 @@ export const IstighfarReading = ({ children, progress }: { children: ReactNode; 
 					</Pressable>
 				))}
 			</View>
-			<RepetitionCounter count={count} required={target} isDisabled={disabled} onChange={setCount} />
-			{!progress || progress.sessionOnly ? (
+			<AppButton
+				title={t(isComplete ? 'readDone' : 'iRead')}
+				disabled={disabled || isComplete}
+				onPress={() => setCount(target)}
+				variant={isComplete ? 'surface' : 'accent'}
+			/>
+			<Pressable
+				accessibilityRole='button'
+				accessibilityState={{ expanded: isCounterVisible }}
+				onPress={() => setIsCounterVisible(visible => !visible)}
+				style={styles.counterToggle}
+			>
+				<CaptionText color={theme.colors.accent}>
+					{t(isCounterVisible ? 'hpIstighfarHideCounter' : 'hpIstighfarShowCounter')}
+				</CaptionText>
+			</Pressable>
+			{isCounterVisible ? (
+				<RepetitionCounter count={count} required={target} isDisabled={disabled} onChange={setCount} />
+			) : null}
+			{isCounterVisible && (!progress || progress.sessionOnly) ? (
 				<CaptionText color={theme.colors.subtext}>{t('hpIstighfarSession')}</CaptionText>
 			) : null}
 		</View>
@@ -73,6 +94,7 @@ export const IstighfarReading = ({ children, progress }: { children: ReactNode; 
 };
 const styles = StyleSheet.create({
 	section: { gap: 12, marginBottom: 22 },
+	counterToggle: { minHeight: 44, justifyContent: 'center', alignItems: 'center' },
 	highlight: { borderWidth: 1, borderRadius: 14, padding: 16 },
 	targets: { flexDirection: 'row', gap: 8 },
 	target: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 12 }

@@ -1,3 +1,4 @@
+import { RequestHelpButton } from '@/components/ReadingHelp/ReadingHelp.component';
 import { PeriodStrip } from '@/components/PeriodStrip/PeriodStrip.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
@@ -203,6 +204,7 @@ export const MyProgressScreen = ({ navigation, route }: Props) => {
 									 * grey squares were the majority on a good day, so the thing
 									 * the screen is about was the quieter half of its own list.
 									 */}
+									<RequestHelpButton groupId={groupId} target={{ roundIndex: period.roundIndex }} />
 									<View style={styles.squares}>
 										{period.missedBabs.map(missed => (
 											<View

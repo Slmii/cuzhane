@@ -33,6 +33,8 @@ model HizbAssignment {
     version      Int      @default(0)
     bookmark     Int      @default(0)
     completedAt  DateTime?
+    completedByUserId String?
+    readingHelp ReadingHelp?
     enrollment   HizbEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
 
     @@unique([enrollmentId, day])

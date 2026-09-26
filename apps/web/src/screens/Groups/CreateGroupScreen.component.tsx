@@ -25,6 +25,7 @@ import { deviceTimeZone } from '@/lib/utils/timezone';
 import { RootStackParamList } from '@/navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useMemo, useState } from 'react';
+import type { SubmitErrorHandler } from 'react-hook-form';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { CreateGroupStep, CreateGroupStepHeader, LAST_STEP } from './CreateGroupStepHeader.component';
 import { CreatingGroupStep } from './CreatingGroupStep.component';
@@ -90,6 +91,16 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 	const schema = useMemo(() => createGroupSchema(t), [t]);
 
 	const [step, setStep] = useState<CreateGroupStep>(1);
+
+	const handleInvalid: SubmitErrorHandler<GroupForm> = errors => {
+		// Final submission validates every step, including fields no longer on screen.
+		const invalidStep = ([1, 2, 3, 4] as const).find(current =>
+			FIELDS_BY_STEP[current].some(field => errors[field])
+		);
+		if (invalidStep) {
+			setStep(invalidStep);
+		}
+	};
 
 	/** Dismisses the sheet route, but only while there is still one to dismiss. */
 	/*
@@ -297,10 +308,19 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 											: undefined
 									}
 									onBack={handleBack}
-									onNext={step === LAST_STEP ? handleSubmit(handleCreate) : () => void handleNext()}
+									onNext={
+										step === LAST_STEP
+											? handleSubmit(handleCreate, handleInvalid)
+											: () => void handleNext()
+									}
 									step={step}
 								/>
 							)}
+							{createGroup.isError ? (
+								<View accessibilityRole='alert'>
+									<BodyText color={theme.colors.danger}>{t('groupCreateError')}</BodyText>
+								</View>
+							) : null}
 							{/*
 							 * `flex: 1` on the scroller itself, not just its content: the sheet has a
 							 * fixed height, and a scroll view with no flex inside one takes the height

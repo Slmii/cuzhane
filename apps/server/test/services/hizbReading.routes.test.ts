@@ -127,3 +127,33 @@ it('validates and saves the independent Delail counter through the assignment en
 		requiresDelailRepetition: true
 	});
 });
+
+it('serves group help requests, validates targets and requires the helper to claim before completing', async () => {
+	const group = await create(33);
+	await prisma.groupMember.create({
+		data: { groupId: group.id, userId: 'helper', displayName: 'Helper', slotIndex: 2 }
+	});
+	const reading = (await (await fetch(base + `/groups/${group.id}/reading`, { headers })).json()) as {
+		today: { id: string };
+	};
+	const url = base + `/groups/${group.id}/reading-help`;
+	const post = (body: object) => fetch(url, { headers, method: 'POST', body: JSON.stringify(body) });
+	expect((await post({ assignmentId: reading.today.id, roundIndex: 0 })).status).toBe(400);
+	expect((await post({ roundIndex: -1 })).status).toBe(400);
+	const response = await post({ assignmentId: reading.today.id });
+	expect(response.status).toBe(200);
+	const r = (await response.json()) as { id: string; version: number };
+	const patch = (user: string, action: string, version: number) =>
+		fetch(url + '/' + r.id, {
+			method: 'PATCH',
+			headers: { ...headers, 'x-reader': user },
+			body: JSON.stringify({ action, version })
+		});
+	expect((await patch('helper', 'complete', 0)).status).toBe(403);
+	expect((await patch('outsider', 'claim', 0)).status).toBe(403);
+	expect((await patch('helper', 'claim', 0)).status).toBe(200);
+	expect((await patch('helper', 'complete', 0)).status).toBe(409);
+	expect((await patch('helper', 'complete', 1)).status).toBe(200);
+	const list = await fetch(url, { headers });
+	expect(await list.json()).toEqual([expect.objectContaining({ id: r.id, completed: true, mine: true })]);
+});

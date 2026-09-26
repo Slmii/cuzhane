@@ -18,7 +18,7 @@ describe('personal plan group board', () => {
 	});
 	it('maps a seven-day reading to the canonical portions and does not double count overlaps', () => {
 		const board = hizbPlanBoard([reader(7, 1, true), reader(33, 1, true)], spansFor(7, 1), null);
-		expect(board.filter(cell => cell.state === 'read').map(cell => cell.number)).toEqual([1, 2, 3, 4]);
+		expect(board.filter(cell => cell.state === 'read').map(cell => cell.number)).toEqual([1, 2, 3]);
 	});
 	it('shows partial coverage where a fifteen-day boundary splits a canonical portion', () => {
 		const board = hizbPlanBoard([reader(15, 2, true)], spansFor(15, 2), null);

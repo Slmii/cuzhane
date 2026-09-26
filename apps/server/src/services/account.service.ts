@@ -38,6 +38,15 @@ export const deleteAccountForUser = async (userId: string): Promise<{ success: t
 			});
 		}
 
+		await tx.readingHelp.deleteMany({ where: { requesterUserId: normalizedUserId } });
+		await tx.readingHelp.updateMany({
+			where: { helperUserId: normalizedUserId },
+			data: { helperUserId: null, version: { increment: 1 } }
+		});
+		await tx.hizbAssignment.updateMany({
+			where: { completedByUserId: normalizedUserId },
+			data: { completedByUserId: 'deleted-reader' }
+		});
 		await tx.hizbEnrollment.deleteMany({ where: { userId: normalizedUserId } });
 		await tx.groupMember.deleteMany({ where: { userId: normalizedUserId } });
 

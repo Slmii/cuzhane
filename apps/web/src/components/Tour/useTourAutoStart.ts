@@ -1,9 +1,10 @@
+import { didOnboardThisLaunch } from '@/lib/utils/onboardingLaunch';
 import { useIsFocused } from '@react-navigation/native';
 import { useEffect, useRef } from 'react';
 import { useShouldAutoStartTour, useTour, type TourSubject } from './Tour.context';
 
 /**
- * Opens the tour the first time an account lands on Ana sayfa.
+ * Offers the detailed tour on a later launch; the short guide is enough on first use.
  *
  * **Ana sayfa rather than `AppRoot`, and only while it is focused.** The tour points at things
  * on this screen, so starting it from the root would open it over Onboarding or the sign-in
@@ -37,7 +38,14 @@ export const useTourAutoStart = ({ subject }: { subject: TourSubject | null }) =
 	const hasAutoStarted = useRef(false);
 
 	useEffect(() => {
-		if (isBlocked || !isFocused || !shouldAutoStart || hasAutoStarted.current || isActive) {
+		if (
+			didOnboardThisLaunch() ||
+			isBlocked ||
+			!isFocused ||
+			!shouldAutoStart ||
+			hasAutoStarted.current ||
+			isActive
+		) {
 			return;
 		}
 

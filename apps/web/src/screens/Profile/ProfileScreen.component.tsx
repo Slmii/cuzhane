@@ -402,6 +402,18 @@ export const ProfileScreen = () => {
 					 */}
 					<Pressable
 						accessibilityRole='button'
+						onPress={() => navigation.navigate('Onboarding')}
+						style={({ pressed }) => [styles.settingsRow, { opacity: pressed ? 0.6 : 1 }]}
+					>
+						<View style={styles.settingsCopy}>
+							<BodyStrongText>{t('quickStartTitle')}</BodyStrongText>
+							<CaptionText color={theme.colors.subtext}>{t('quickStartSubtitle')}</CaptionText>
+						</View>
+						<Icon color={theme.colors.subtext} name='chevronRight' size={14} />
+					</Pressable>
+					<Divider />
+					<Pressable
+						accessibilityRole='button'
 						onPress={() => startTour({ isReplay: true })}
 						style={({ pressed }) => [styles.settingsRow, { opacity: pressed ? 0.6 : 1 }]}
 					>

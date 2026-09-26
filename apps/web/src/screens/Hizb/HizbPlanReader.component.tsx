@@ -36,6 +36,7 @@ const AssignmentReader = ({ groupId, id }: { groupId: string; id: string }) => {
 	const settingsQuery = useGetUserSettings();
 	const updateSettings = useUpdateUserSettings();
 	const [settingsOpen, setSettingsOpen] = useState(false);
+	const [previewBookmark, setPreviewBookmark] = useState<number | null>(null);
 	const scroll = useRef<ScrollView>(null);
 	const a = query.data;
 	const planDays = a?.planDays;
@@ -52,13 +53,21 @@ const AssignmentReader = ({ groupId, id }: { groupId: string; id: string }) => {
 	if (!a || !blocks.length) {
 		return <GroupDetailSkeleton />;
 	}
-	const cursor = Math.min(a.bookmark, blocks.length - 1);
+	const cursor = Math.min(previewBookmark ?? a.bookmark, blocks.length - 1);
 	const current = blocks[cursor];
 	const isSekine = current.sectionIndex === 10;
 	// The first lap includes the opening. Later laps resume at Bismillah, not the takbirs.
 	const block =
 		isSekine && a.repetitions > 0 ? { ...current.block, lines: current.block.lines.slice(2) } : current.block;
-	const change = (patch: Omit<HizbAssignmentPatch, 'version'>) =>
+	const change = (patch: Omit<HizbAssignmentPatch, 'version'>) => {
+		if (a.canEdit === false) {
+			if (patch.bookmark !== undefined) {
+				setPreviewBookmark(patch.bookmark);
+				scroll.current?.scrollTo({ y: 0, animated: false });
+			}
+			return;
+		}
+		setPreviewBookmark(null);
 		update.mutate(
 			{ version: a.version, ...patch },
 			{
@@ -69,17 +78,32 @@ const AssignmentReader = ({ groupId, id }: { groupId: string; id: string }) => {
 				}
 			}
 		);
+	};
 	const busy = update.isPending || query.isFetching;
+	const editingDisabled = busy || a.canEdit === false;
 	return (
 		<SafeAreaView
 			edges={['top', 'left', 'right']}
 			style={[styles.screen, { backgroundColor: theme.colors.readerSurface, paddingBottom: tabBarOffset }]}
 		>
 			<View style={styles.heading}>
+				{a.canEdit === false && !a.completedAt ? <CaptionText>{t('helpClaimed')}</CaptionText> : null}
+				{a.completedByOther ? <CaptionText>{t('helpCompleted')}</CaptionText> : null}
 				<CaptionText>
 					{a.date} · {t('hpPortion', { days: a.planDays, portion: a.portion })}
 				</CaptionText>
 				<TitleText>{t(hizbPlanDescriptionKey(a.planDays, a.portion))}</TitleText>
+				<View
+					accessibilityLiveRegion='polite'
+					style={[
+						styles.readStatus,
+						{ backgroundColor: a.completedAt ? theme.colors.accentSoft : theme.colors.surfaceMuted }
+					]}
+				>
+					<BodyText weight='semibold' color={a.completedAt ? theme.colors.accent : theme.colors.subtext}>
+						{t(a.completedAt ? 'hpTodayDone' : 'hpTodayPending')}
+					</BodyText>
+				</View>
 				<CaptionText>
 					{HIZB_SECTIONS[current.sectionIndex].title} ·{' '}
 					{t('hpPage', { page: cursor + 1, total: blocks.length })}
@@ -92,13 +116,13 @@ const AssignmentReader = ({ groupId, id }: { groupId: string; id: string }) => {
 					block={block}
 					delailProgress={{
 						count: a.delailRepetitions,
-						disabled: busy || a.completedAt !== null,
+						disabled: editingDisabled || a.completedAt !== null,
 						onChange: count => change({ delailRepetitions: count })
 					}}
 					istighfarProgress={{
 						count: a.istighfarRepetitions,
 						target: a.istighfarTarget,
-						disabled: busy || a.completedAt !== null,
+						disabled: editingDisabled || a.completedAt !== null,
 						onChange: change
 					}}
 					font={settings.readerArabicFont}
@@ -112,7 +136,7 @@ const AssignmentReader = ({ groupId, id }: { groupId: string; id: string }) => {
 					<RepetitionCounter
 						count={a.repetitions}
 						required={19}
-						isDisabled={busy || a.completedAt !== null}
+						isDisabled={editingDisabled || a.completedAt !== null}
 						onChange={repetitions => change({ repetitions })}
 					/>
 				) : null}
@@ -144,7 +168,7 @@ const AssignmentReader = ({ groupId, id }: { groupId: string; id: string }) => {
 						title={t(a.completedAt ? 'hpUndo' : 'hpFinish')}
 						onPress={() => change({ read: !a.completedAt })}
 						disabled={
-							busy ||
+							editingDisabled ||
 							(!a.completedAt &&
 								((a.requiresSekine && a.repetitions < 19) ||
 									(a.requiresDelailRepetition && a.delailRepetitions < 3) ||
@@ -173,6 +197,7 @@ const AssignmentReader = ({ groupId, id }: { groupId: string; id: string }) => {
 };
 const styles = StyleSheet.create({
 	screen: { flex: 1 },
+	readStatus: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
 	heading: { paddingHorizontal: 20, paddingTop: 52, gap: 6, paddingBottom: 8 },
 	scroll: { flex: 1 },
 	body: { padding: 22, gap: 18 },

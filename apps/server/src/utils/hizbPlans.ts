@@ -6,11 +6,11 @@ export type PlanAnchor = readonly [number, number, number, number];
 export const PLAN_STARTS: Record<PlanDays, readonly PlanAnchor[]> = {
 	'7': [
 		[0, 0, 0, 0],
-		[7, 18, 0, 0],
-		[7, 79, 0, 0],
+		[7, 0, 0, 0],
+		[8, 0, 0, 0],
 		[9, 0, 0, 0],
-		[11, 0, 0, 0],
-		[14, 26, 0, 0],
+		[14, 0, 0, 0],
+		[15, 0, 0, 0],
 		[16, 0, 0, 0]
 	],
 	'15': [
