@@ -61,19 +61,19 @@ export const HizbIndexScreen = ({ navigation, route }: Props) => {
 		[groupId, navigation]
 	);
 
-	const header = (subtitle?: string) => (
-		<ScreenHeader
-			eyebrow={t('kindHizb')}
-			hasBackButton
-			title={t('hizbIndexLink')}
-			{...(subtitle === undefined ? {} : { subtitle })}
-		/>
+	/*
+	 * The caption's counts are the book's own, so it is drawn from the first frame and the heading
+	 * never grows when the data lands; only the round is appended once the group says which.
+	 */
+	const caption = t('hizbIndexSub', { parts: HIZB_PORTION_COUNT, works: HIZB_WORKS.length });
+	const header = (subtitle: string) => (
+		<ScreenHeader eyebrow={t('kindHizb')} hasBackButton subtitle={subtitle} title={t('hizbIndexLink')} />
 	);
 
 	if (groupQuery.isPending || babsQuery.isPending) {
 		return (
 			<ScreenContainer>
-				{header()}
+				{header(caption)}
 				<HizbIndexSkeleton />
 			</ScreenContainer>
 		);
@@ -85,13 +85,7 @@ export const HizbIndexScreen = ({ navigation, route }: Props) => {
 
 	return (
 		<ScreenContainer pullToRefresh={pullToRefresh}>
-			{header(
-				t('hizbIndexSub', {
-					parts: group.partCount,
-					round: (group.roundIndex ?? 0) + 1,
-					works: HIZB_WORKS.length
-				})
-			)}
+			{header(`${caption} · ${t('roundN')} ${(group.roundIndex ?? 0) + 1}`)}
 			<View style={styles.cards}>
 				{works.map(entry => (
 					<HizbWorkCard

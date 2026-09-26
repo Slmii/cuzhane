@@ -10,7 +10,7 @@ import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { Hatch } from '@/components/ui/Hatch/Hatch.component';
 import { BodyStrongText, CaptionText, NumericText, Typography } from '@/components/ui/Typography/Typography.component';
-import { useGetGroupById, useGetPoolSlots, useReleasePoolSlot, useTakePoolSlot } from '@/lib/hooks/useGroup';
+import { useGetPoolSlots, useReleasePoolSlot, useTakePoolSlot } from '@/lib/hooks/useGroup';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useViewerIdentity } from '@/lib/hooks/useViewerIdentity';
 import { useTranslation } from '@/lib/i18n/I18n.context';
@@ -385,15 +385,16 @@ const CevsenPoolScreen = ({ route }: Props) => {
 
 /**
  * One route, two pools: a Cevşen group's is offered a block at a time, a Hizb group's a portion
- * at a time (`HizbPoolScreen`, HZ3). The group decides which. It is already in the cache — the
- * only way here is the group screen's pool card, which is drawn from this very query — so the
- * choice is made on the first frame rather than after a load.
+ * at a time (`HizbPoolScreen`, HZ3).
+ *
+ * **The route carries the kind; nothing is read to find it.** Subscribing to the group for it
+ * added the group's refetch and polling to every Cevşen visit, and reading it off the cache
+ * instead answers nothing on a cold start — a deep link or a restored stack would get the
+ * Cevşen's screen for a Hizb group. A kind is fixed at creation, so the one the caller had
+ * cannot go stale, and the type makes every way here say which.
  */
-export const PoolScreen = (props: Props) => {
-	const groupQuery = useGetGroupById(props.route.params.groupId);
-
-	return groupQuery.data?.kind === 'HIZB' ? <HizbPoolScreen {...props} /> : <CevsenPoolScreen {...props} />;
-};
+export const PoolScreen = (props: Props) =>
+	props.route.params.kind === 'HIZB' ? <HizbPoolScreen {...props} /> : <CevsenPoolScreen {...props} />;
 
 const styles = StyleSheet.create({
 	// Square at 44pt for a short range, widening rather than wrapping for one like

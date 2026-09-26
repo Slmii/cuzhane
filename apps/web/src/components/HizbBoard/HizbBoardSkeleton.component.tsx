@@ -5,10 +5,8 @@ import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { StyleSheet, View } from 'react-native';
 import { HIZB_CELL_RADIUS, HIZB_CELL_SIZE, hizbBoardLayout } from './HizbBoard.component';
 import type { HizbBoardSkeletonProps } from './HizbBoard.types';
+import { HIZB_LEGEND } from './hizbCellPalette';
 import { hizbLegendLayout } from './HizbLegend.component';
-
-/** The legend's four entries. */
-const LEGEND_COUNT = 4;
 
 /**
  * The Hizb board before its cells arrive, in the board's own frame: every work's row with as
@@ -49,7 +47,7 @@ export const HizbBoardSkeleton = ({ style }: HizbBoardSkeletonProps) => {
 						</View>
 					))}
 					<View style={hizbLegendLayout.legend}>
-						{Array.from({ length: LEGEND_COUNT }, (_, index) => (
+						{Array.from({ length: HIZB_LEGEND.length }, (_, index) => (
 							<View key={index} style={hizbLegendLayout.legendEntry}>
 								<Bone height={11} radius={3} width={11} />
 								<Bone height={8} radius={4} tone='soft' width={46} />

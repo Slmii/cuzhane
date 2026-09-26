@@ -1,4 +1,4 @@
-import { hizbCellPalette, HIZB_STATE_LABEL_KEYS } from '@/components/HizbBoard/hizbCellPalette';
+import { HIZB_RING_WIDTH, hizbCellPalette, HIZB_STATE_LABEL_KEYS } from '@/components/HizbBoard/hizbCellPalette';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Collapsible } from '@/components/ui/Collapsible/Collapsible.component';
 import { Hatch } from '@/components/ui/Hatch/Hatch.component';
@@ -17,8 +17,6 @@ import type { HizbWorkCardProps } from './HizbWorkCard.types';
 /** HZ2's 30px tile at the scale the board's 24 became 28 on a phone. */
 const TILE_SIZE = 34;
 const TILE_RADIUS = 10;
-/** The ring on a portion of yours, as on the board's cells. */
-const RING_WIDTH = 1.5;
 /** `Collapsible`'s own duration, so the chevron turns as the rows open. */
 const CHEVRON_DURATION_MS = 240;
 const CHEVRON_OPEN_DEGREES = 90;
@@ -147,9 +145,16 @@ const HizbWorkCardComponent = ({ entry, isOpen, onOpenPart, onToggle }: HizbWork
 				</Animated.View>
 			</Pressable>
 			<Collapsible isOpen={isOpen}>
-				{rows.map(row => (
-					<PortionRow key={row.number} onOpenPart={onOpenPart} row={row} />
-				))}
+				{/* Mounted while shut, so hidden from VoiceOver and TalkBack then too — `Collapsible`
+				    only takes them out of reach of a finger. */}
+				<View
+					accessibilityElementsHidden={!isOpen}
+					importantForAccessibility={isOpen ? 'auto' : 'no-hide-descendants'}
+				>
+					{rows.map(row => (
+						<PortionRow key={row.number} onOpenPart={onOpenPart} row={row} />
+					))}
+				</View>
 			</Collapsible>
 		</CardSurface>
 	);
@@ -195,7 +200,7 @@ const styles = StyleSheet.create({
 	tile: {
 		alignItems: 'center',
 		borderRadius: TILE_RADIUS,
-		borderWidth: RING_WIDTH,
+		borderWidth: HIZB_RING_WIDTH,
 		height: TILE_SIZE,
 		justifyContent: 'center',
 		overflow: 'hidden',

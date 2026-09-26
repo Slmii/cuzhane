@@ -230,24 +230,35 @@ describe('hizbPoolRows', () => {
 		slot(12, [part(31)])
 	];
 
-	it('offers every free portion, in order, across slots', () => {
+	it('offers every free portion and every portion the viewer holds, in order, across slots', () => {
 		expect(hizbPoolRows(slots, new Set())).toEqual([
-			{ isMine: false, number: 24 },
-			{ isMine: false, number: 31 }
+			{ isJustTaken: false, isMine: true, number: 7 },
+			{ isJustTaken: false, isMine: true, number: 8 },
+			{ isJustTaken: false, isMine: false, number: 24 },
+			{ isJustTaken: false, isMine: false, number: 31 }
 		]);
 	});
 
-	it('keeps a portion taken this session in its place, as the viewer’s', () => {
-		expect(hizbPoolRows(slots, new Set([8]))).toEqual([
-			{ isMine: true, number: 8 },
-			{ isMine: false, number: 24 },
-			{ isMine: false, number: 31 }
-		]);
+	it('keeps a claim from before this session, so it can still be handed back', () => {
+		const rows = hizbPoolRows(slots, new Set());
+
+		expect(rows.find(row => row.number === 7)).toEqual({ isJustTaken: false, isMine: true, number: 7 });
 	});
 
-	it('lists neither an earlier claim of the viewer’s nor anybody else’s', () => {
+	it('marks a portion taken this session as just taken', () => {
+		const rows = hizbPoolRows(slots, new Set([8]));
+
+		expect(rows.find(row => row.number === 8)).toEqual({ isJustTaken: true, isMine: true, number: 8 });
+		expect(rows.find(row => row.number === 7)?.isJustTaken).toBe(false);
+	});
+
+	it('lists nobody else’s claim, even one the viewer tried for this session', () => {
 		const rows = hizbPoolRows(slots, new Set([25]));
 
-		expect(rows.map(row => row.number)).toEqual([24, 31]);
+		expect(rows.map(row => row.number)).toEqual([7, 8, 24, 31]);
+	});
+
+	it('does not call a free portion just taken, as after a refused take rolls back', () => {
+		expect(hizbPoolRows(slots, new Set([24])).find(row => row.number === 24)?.isJustTaken).toBe(false);
 	});
 });

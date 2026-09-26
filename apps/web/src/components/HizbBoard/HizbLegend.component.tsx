@@ -4,10 +4,8 @@ import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { StyleSheet, View } from 'react-native';
 import type { HizbLegendProps } from './HizbBoard.types';
-import { HIZB_LEGEND, hizbCellPalette } from './hizbCellPalette';
+import { HIZB_LEGEND, HIZB_RING_WIDTH, hizbCellPalette } from './hizbCellPalette';
 
-/** The ring's width, as on the cells — a swatch keys a cell, so it wears the same border. */
-const RING_WIDTH = 1.5;
 const SWATCH_RADIUS = 3;
 
 /**
@@ -71,7 +69,7 @@ const styles = StyleSheet.create({
 	},
 	swatch: {
 		borderRadius: SWATCH_RADIUS,
-		borderWidth: RING_WIDTH,
+		borderWidth: HIZB_RING_WIDTH,
 		height: 11,
 		overflow: 'hidden',
 		width: 11

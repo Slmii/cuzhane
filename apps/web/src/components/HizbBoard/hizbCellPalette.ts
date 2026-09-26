@@ -6,6 +6,13 @@ import type { HizbBoardCell, HizbBoardCellState } from '@/lib/utils/groups';
 type Translate = (key: StringKey, values?: Record<string, string | number>) => string;
 
 /**
+ * The ring on a portion of yours, and the border every other cell carries in its own fill so
+ * none of them changes size — on the board, the Havuz lattice, the Fihrist's tiles and the
+ * legend's swatches alike.
+ */
+export const HIZB_RING_WIDTH = 1.5;
+
+/**
  * **What a Hizb portion looks like, decided once** — the board on the group screen (HZ1), the
  * Havuz lattice (HZ3) and the Fihrist's number tiles (HZ2) all draw a portion from this, so the
  * three cannot come to disagree about what "read" or "yours" is painted in.

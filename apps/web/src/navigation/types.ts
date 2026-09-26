@@ -1,3 +1,4 @@
+import type { GroupKind } from '@/lib/types/domain';
 import { NavigatorScreenParams } from '@react-navigation/native';
 
 export type AuthStackParamList = {
@@ -50,8 +51,12 @@ export type TabDetailParamList = {
 	/** Where a GATHERING group lives — the creator's start screen, or the member's wait. */
 	Lobby: { groupId: string };
 	/** Shown once, right after the owner opens day 1. */
-	/** The share of the seats nobody took. */
-	Pool: { groupId: string };
+	/**
+	 * The share of the seats nobody took. `kind` picks the screen — a Cevşen block at a time or a
+	 * Hizb portion at a time — and travels with the route because a group's kind never changes,
+	 * so it can't go stale, and the right screen is drawn without waiting on the group's query.
+	 */
+	Pool: { groupId: string; kind: GroupKind };
 	/** HZ2 — a Hizb group's portions, work by work, from the board's "Fihrist ›"; a row opens `HizbReader`. */
 	HizbIndex: { groupId: string };
 	/**

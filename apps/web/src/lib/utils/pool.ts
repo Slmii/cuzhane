@@ -126,20 +126,32 @@ export const hizbPoolCells = (cells: HizbBoardCell[], slots: PoolSlot[]): HizbBo
 	});
 };
 
-/** A row of HZ3's list: a portion on offer, or one the viewer has just taken and can hand back. */
-export type HizbPoolRow = { number: number; isMine: boolean };
+/**
+ * A row of HZ3's list: a portion on offer, or one the viewer holds and can hand back —
+ * `isJustTaken` when that claim was made in this session.
+ */
+export type HizbPoolRow = { number: number; isMine: boolean; isJustTaken: boolean };
 
 /**
- * HZ3's list, in portion order: every portion still free, and the ones the viewer took in this
- * session, which stay in the row they were taken from — with "Geri al" where "Üstlen" was —
- * rather than jumping out of the list under the thumb that took them.
+ * HZ3's list, in portion order: every portion still free, and every one the viewer holds.
  *
- * A claim from before this session is not a row. It is the viewer's work now, other members can
- * see it, and the board above already rings it.
+ * Two questions, kept apart as the Cevşen's rows keep them. *Can* the viewer hand a portion
+ * back — yes, any they hold, for as long as the round is open; this screen is the only place a
+ * portion is released, so gating the row on the session left a claim from before a relaunch
+ * with no way back at all. *Did they just take it* — the sub-line's "az önce üstlendin", which
+ * really is a claim about this session, so `takenHere` decides that and nothing else. A portion
+ * taken here stays in the row it was taken from, "Geri al" where "Üstlen" was.
+ *
+ * `isJustTaken` asks the part as well as the session: a take the server refused rolls back to
+ * somebody else's name, and that row is gone rather than claiming to be the viewer's.
  */
 export const hizbPoolRows = (slots: PoolSlot[], takenHere: ReadonlySet<number>): HizbPoolRow[] =>
 	slots
 		.flatMap(slot => slot.parts)
-		.filter(part => part.takenByUserId === null || (part.takenByMe && takenHere.has(part.number)))
-		.map(part => ({ isMine: part.takenByMe, number: part.number }))
+		.filter(part => part.takenByUserId === null || part.takenByMe)
+		.map(part => ({
+			isJustTaken: part.takenByMe && takenHere.has(part.number),
+			isMine: part.takenByMe,
+			number: part.number
+		}))
 		.sort((a, b) => a.number - b.number);

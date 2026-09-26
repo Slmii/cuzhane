@@ -1,5 +1,5 @@
 import { GridSkeleton } from '@/components/GridSkeleton/GridSkeleton.component';
-import { hizbCellItem } from '@/components/HizbBoard/hizbCellPalette';
+import { HIZB_LEGEND, HIZB_RING_WIDTH, hizbCellItem } from '@/components/HizbBoard/hizbCellPalette';
 import { HizbLegend } from '@/components/HizbBoard/HizbLegend.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
@@ -20,6 +20,7 @@ import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { hizbBoardCells } from '@/lib/utils/groups';
 import { hizbPoolCells, hizbPoolRows, type HizbPoolRow } from '@/lib/utils/pool';
+import { roundTimeLeftLabel } from '@/lib/utils/roundReset';
 import type { TabStackParamList } from '@/navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useMemo, useState } from 'react';
@@ -29,17 +30,14 @@ type Props = NativeStackScreenProps<TabStackParamList, 'Pool'>;
 
 /** HZ3's eleven across, so the 33 come out as three full rows. */
 const GRID_COLUMNS = 11;
-/** The ring on a portion of yours, as on the group screen's board. */
-const RING_WIDTH = 1.5;
-/** The legend's four entries, stubbed while loading. */
-const LEGEND_COUNT = 4;
 /** HZ3's 44pt number tile, the Cevşen row's badge. */
 const TILE_SIZE = 44;
 const TILE_RADIUS = 13;
 
 /**
- * Portions taken since the app started, by group — the rows that keep their place with
- * "Geri al" in them. Module scope rather than state for the reason the Cevşen's
+ * Portions taken since the app started, by group — the rows whose sub-line reads "az önce
+ * üstlendin". It decides the wording and nothing else: whether a row offers "Geri al" follows
+ * from holding the portion (`hizbPoolRows`), so a relaunch can't take the way back away. Module scope rather than state for the reason the Cevşen's
  * `claimedThisSession` gives: "this session" is the app's, not this screen's, and stepping back
  * to the group and returning is the ordinary thing to do. Nothing here is authoritative; the
  * server decides who holds what.
@@ -119,7 +117,7 @@ export const HizbPoolScreen = ({ route }: Props) => {
 			<ScreenContainer>
 				{/* The heading is real; only the board, which is what the requests are for, is stubbed. */}
 				{header}
-				<GridSkeleton cellCount={HIZB_PORTION_COUNT} columns={GRID_COLUMNS} legendCount={LEGEND_COUNT} />
+				<GridSkeleton cellCount={HIZB_PORTION_COUNT} columns={GRID_COLUMNS} legendCount={HIZB_LEGEND.length} />
 				<SkeletonStatusRow label={t('loadingPool')} />
 			</ScreenContainer>
 		);
@@ -131,15 +129,10 @@ export const HizbPoolScreen = ({ route }: Props) => {
 
 	// Free only — what could still be taken on — as the group screen's pool card counts it.
 	const freeCount = slots.flatMap(slot => slot.parts).filter(part => part.takenByUserId === null).length;
-	// Only a DAILY round counts down in hours, as on the group screen's summary card.
-	const left =
-		group.cycle === 'DAILY'
-			? t('hoursLeft', { hours: untilReset.hours, minutes: untilReset.minutes })
-			: group.daysLeft === null
-			? '—'
-			: `${group.daysLeft} ${t('days')}`;
+	// Hours on a DAILY round or a round's last day, days otherwise — the group screen's own value.
+	const left = roundTimeLeftLabel({ cycle: group.cycle, daysLeft: group.daysLeft, ...untilReset }, t);
 
-	const renderRow = ({ isMine, number }: HizbPoolRow) => {
+	const renderRow = ({ isJustTaken, isMine, number }: HizbPoolRow) => {
 		// Matched against the portion in flight: both mutations belong to the whole screen.
 		const isPending =
 			(takePart.isPending && takePart.variables?.babNumber === number) ||
@@ -177,7 +170,7 @@ export const HizbPoolScreen = ({ route }: Props) => {
 					</BodyStrongText>
 					{/* "az önce üstlendin" leads, so the portion's long description can't truncate it away. */}
 					<CaptionText color={theme.colors.subtext} numberOfLines={2} style={styles.rowSub}>
-						{isMine ? `${t('poolUndoHint')} · ${description}` : description}
+						{isJustTaken ? `${t('poolUndoHint')} · ${description}` : description}
 					</CaptionText>
 				</View>
 				{/*
@@ -187,6 +180,8 @@ export const HizbPoolScreen = ({ route }: Props) => {
 				 * double tap can't fire the opposite action; the cell above is the confirmation.
 				 */}
 				<AppButton
+					// "Üstlen: Bölüm 24" — the word alone says nothing about which of the rows it is.
+					accessibilityLabel={`${isMine ? t('poolUndo') : t('poolTake')}: ${t('portion')} ${number}`}
 					disabled={isPending}
 					fullWidth={false}
 					icon={isMine ? 'undo' : 'claim'}
@@ -202,19 +197,25 @@ export const HizbPoolScreen = ({ route }: Props) => {
 	return (
 		<ScreenContainer pullToRefresh={pullToRefresh}>
 			{header}
-			<CardSurface style={styles.summaryCard}>
-				<View style={styles.summaryRow}>
-					<NumericText color={theme.colors.sandText}>{freeCount}</NumericText>
-					<CaptionText color={theme.colors.faintText}>
-						{t(freeCount === 1 ? 'poolPortionsHizbOne' : 'poolPortionsHizb')}
-					</CaptionText>
-					<CaptionText color={theme.colors.faintText} style={styles.summaryNote}>
-						{t('poolLeftHizb', { left })}
-					</CaptionText>
-				</View>
-				<CellGrid borderWidth={RING_WIDTH} columns={GRID_COLUMNS} gap={3} items={items} radius={5} />
-				<HizbLegend />
-			</CardSurface>
+			{/*
+			 * A full group has no pool at all, and the Cevşen's screen says only that: a card
+			 * counting nothing over a board with nothing on offer would be a second way of saying it.
+			 */}
+			{slots.length === 0 ? null : (
+				<CardSurface style={styles.summaryCard}>
+					<View style={styles.summaryRow}>
+						<NumericText color={theme.colors.sandText}>{freeCount}</NumericText>
+						<CaptionText color={theme.colors.faintText}>
+							{t(freeCount === 1 ? 'poolPortionsHizbOne' : 'poolPortionsHizb')}
+						</CaptionText>
+						<CaptionText color={theme.colors.faintText} style={styles.summaryNote}>
+							{t('poolLeftHizb', { left })}
+						</CaptionText>
+					</View>
+					<CellGrid borderWidth={HIZB_RING_WIDTH} columns={GRID_COLUMNS} gap={3} items={items} radius={5} />
+					<HizbLegend />
+				</CardSurface>
+			)}
 			{rows.length === 0 ? (
 				<EmptyState title={t('poolEmptyHizb')} />
 			) : (

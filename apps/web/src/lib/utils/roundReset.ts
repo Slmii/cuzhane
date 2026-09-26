@@ -239,3 +239,27 @@ export const timeUntilReset = (roundEndsAt: string | null, now = new Date()): { 
 		minutes: Math.floor((remaining % 3_600_000) / 60_000)
 	};
 };
+
+/**
+ * How long the round has left, as one value — the group screen's summary card and the Hizb's
+ * Havuz both say it, and said separately they came to disagree.
+ *
+ * Hours and minutes for a DAILY round, and for **any** round on its last day: the server floors
+ * `daysLeft`, so a WEEKLY or MONTHLY round's final day arrives as 0, and "0 gün" reads as a round
+ * already over. A count of days otherwise, with its own word for one — "1 day", not "1 days".
+ * A null `daysLeft` is a legacy group whose `endsAt` was never backfilled, and gets an em dash.
+ */
+export const roundTimeLeftLabel = (
+	{ cycle, daysLeft, hours, minutes }: { cycle: GroupCycle; daysLeft: number | null; hours: number; minutes: number },
+	t: (key: 'dayCount' | 'dayCountOne' | 'hoursLeft', values?: Record<string, string | number>) => string
+): string => {
+	if (cycle === 'DAILY' || daysLeft === 0) {
+		return t('hoursLeft', { hours, minutes });
+	}
+
+	if (daysLeft === null) {
+		return '—';
+	}
+
+	return daysLeft === 1 ? t('dayCountOne') : t('dayCount', { count: daysLeft });
+};

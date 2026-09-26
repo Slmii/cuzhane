@@ -37,6 +37,7 @@ import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { GroupBab, GroupSummary } from '@/lib/types/domain';
 import { formatRun } from '@/lib/utils/babs';
+import { roundTimeLeftLabel } from '@/lib/utils/roundReset';
 import {
 	cycleLabelKey,
 	hizbBoardCells,
@@ -310,11 +311,7 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 	// The slice the reader is on, plus a count of the others — see `shareSlices`.
 	const mySlices = shareSlices(myBabNumbers, detail.myNextBabNumber);
 	const myReadCount = myBabs.filter(bab => bab.readAt !== null).length;
-	// The open-ended cycle is retired and can no longer be created, but a legacy group whose
-	// `endsAt` was never backfilled can still surface a null `daysLeft` here — fall back to
-	// an em dash rather than a removed string.
-	const daysLeftLabel = detail.daysLeft === null ? '—' : `${detail.daysLeft} ${t('days')}`;
-	// Only a DAILY round counts down in hours; WEEKLY and MONTHLY ones count days.
+	// Only a DAILY round is labelled as a countdown to its reset; see the Cevşen card below.
 	const isDaily = detail.cycle === 'DAILY';
 	const isRoundComplete = detail.completedAt !== null;
 	// Newest closed round — the list arrives newest-first with the open one at the head.
@@ -322,9 +319,9 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 	// Undefined while the group is still gathering — the server has no rounds to report
 	// and answers 403 — so the card simply does not appear until the hatim starts.
 	const myProgress = myProgressQuery.data;
-	const leftValue = isDaily
-		? t('hoursLeft', { hours: untilReset.hours, minutes: untilReset.minutes })
-		: daysLeftLabel;
+	// Hours on a DAILY round and on any round's last day, where the floored day count reads 0;
+	// days otherwise, "1 day" for one. Both kinds' cards show it.
+	const leftValue = roundTimeLeftLabel({ cycle: detail.cycle, daysLeft: detail.daysLeft, ...untilReset }, t);
 
 	// One sheet swaps for the other rather than stacking: Yönet's members row is a way
 	// *into* the list, not a second surface on top of the settings it came from.
@@ -851,7 +848,7 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 					// Stop 8 of the first-use tour, guarded the same way as the row above.
 					<TourTarget id='pool'>
 						<CardSurface
-							onPress={() => navigation.navigate('Pool', { groupId })}
+							onPress={() => navigation.navigate('Pool', { groupId, kind: detail.kind })}
 							style={styles.lastRoundCard}
 						>
 							<View style={[styles.lastRoundBadge, { backgroundColor: theme.colors.sand }]}>

@@ -10,7 +10,7 @@ import { memo, useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 import type { HizbBoardProps } from './HizbBoard.types';
-import { hizbCellItem } from './hizbCellPalette';
+import { HIZB_RING_WIDTH, hizbCellItem } from './hizbCellPalette';
 import { HizbLegend } from './HizbLegend.component';
 
 /**
@@ -21,8 +21,6 @@ import { HizbLegend } from './HizbLegend.component';
 export const HIZB_CELL_SIZE = 28;
 export const HIZB_CELL_GAP = 4;
 export const HIZB_CELL_RADIUS = 6;
-/** The ring on a portion of yours — the same 1.5 on every cell, so none changes size. */
-const RING_WIDTH = 1.5;
 
 /**
  * "Grubun ilerlemesi" for a Hizb group (HZ1): a row per work, its portions at the right.
@@ -91,7 +89,7 @@ const HizbBoardComponent = ({ cells, onPressIndex, style }: HizbBoardProps) => {
 						<View style={hizbBoardLayout.cells}>
 							{row.items.map(item => (
 								<Cell
-									borderWidth={RING_WIDTH}
+									borderWidth={HIZB_RING_WIDTH}
 									isReducedMotion={isReducedMotion}
 									item={item}
 									key={item.key}

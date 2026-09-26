@@ -714,6 +714,9 @@ const tr = {
 	poolLeft: 'Sahipsizdi — havuzda kaldı',
 	yourShare: 'senin payın',
 	hoursLeft: '{hours} sa {minutes} dk',
+	// Days left in a round, with a word for one — see `roundTimeLeftLabel`.
+	dayCount: '{count} gün',
+	dayCountOne: '1 gün',
 	pool: 'Ortak havuz',
 	poolBabs: 'sahipsiz bab',
 	poolHint: 'Bu bablar boş kontenjanlara ait. Katılan olursa onlara geçer; olmazsa grup birlikte tamamlar.',
@@ -813,8 +816,9 @@ const tr = {
 	hizbLegendPool: 'Sahipsiz',
 	hizbLegendMine: 'Senin',
 	// The Fihrist (HZ2): every portion, work by work, and who holds it this round. Its title is
-	// `hizbIndexLink`, the word the group screen's link already opens it with.
-	hizbIndexSub: '{parts} bölüm · {works} eser · Tur {round}',
+	// `hizbIndexLink`, the word the group screen's link already opens it with. The caption's
+	// counts are the book's, so it is drawn while loading; the round is appended once known.
+	hizbIndexSub: '{parts} bölüm · {works} eser',
 	hizbWorkSpan: '{a}–{b}. bölüm',
 	hizbWorkSpanOne: '{a}. bölüm',
 	hizbIndexYou: 'Sen',
@@ -1568,6 +1572,8 @@ const en: Strings = {
 	poolLeft: 'Unowned — stayed in the pool',
 	yourShare: 'your share',
 	hoursLeft: '{hours} hr {minutes} min',
+	dayCount: '{count} days',
+	dayCountOne: '1 day',
 	pool: 'Shared pool',
 	poolBabs: 'unclaimed babs',
 	poolHint:
@@ -1656,7 +1662,7 @@ const en: Strings = {
 	hizbLegendTaken: 'Taken',
 	hizbLegendPool: 'Unclaimed',
 	hizbLegendMine: 'Yours',
-	hizbIndexSub: '{parts} portions · {works} works · Round {round}',
+	hizbIndexSub: '{parts} portions · {works} works',
 	hizbWorkSpan: 'Portions {a}–{b}',
 	hizbWorkSpanOne: 'Portion {a}',
 	hizbIndexYou: 'You',
@@ -2375,6 +2381,8 @@ const nl: Strings = {
 	poolLeft: 'Onbeheerd — bleef in de pool',
 	yourShare: 'jouw deel',
 	hoursLeft: '{hours} u {minutes} min',
+	dayCount: '{count} dagen',
+	dayCountOne: '1 dag',
 	pool: 'Gedeelde pool',
 	poolBabs: 'onbeheerde babs',
 	poolHint:
@@ -2463,7 +2471,7 @@ const nl: Strings = {
 	hizbLegendTaken: 'Genomen',
 	hizbLegendPool: 'Zonder eigenaar',
 	hizbLegendMine: 'Van jou',
-	hizbIndexSub: '{parts} gedeelten · {works} werken · Ronde {round}',
+	hizbIndexSub: '{parts} gedeelten · {works} werken',
 	hizbWorkSpan: 'Gedeelten {a}–{b}',
 	hizbWorkSpanOne: 'Gedeelte {a}',
 	hizbIndexYou: 'Jij',

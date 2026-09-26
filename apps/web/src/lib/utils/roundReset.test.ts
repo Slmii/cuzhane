@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cadenceLabel, roundResetLabels, timeUntilReset } from './roundReset';
+import { cadenceLabel, roundResetLabels, roundTimeLeftLabel, timeUntilReset } from './roundReset';
 
 // Stands in for the app's `t`: renders the key with its values substituted, so a test can
 // assert on the pieces that were passed in rather than on Turkish copy.
@@ -177,5 +177,34 @@ describe('cadenceLabel', () => {
 		expect(cadenceLabel('WEEKLY', null, 'Europe/Istanbul', 'tr', t)).toBe('weekly()');
 		expect(cadenceLabel('MONTHLY', null, 'Europe/Istanbul', 'tr', t)).toBe('monthly()');
 		expect(cadenceLabel('MONTHLY', 'not-a-date', 'Europe/Istanbul', 'tr', t)).toBe('monthly()');
+	});
+});
+
+describe('roundTimeLeftLabel', () => {
+	// The key and its values, so each case asserts which string was chosen and with what.
+	const label = (key: string, values?: Record<string, string | number>) =>
+		values ? `${key}(${Object.values(values).join(',')})` : key;
+	const left = (cycle: 'DAILY' | 'WEEKLY' | 'MONTHLY', daysLeft: number | null) =>
+		roundTimeLeftLabel({ cycle, daysLeft, hours: 4, minutes: 12 }, label);
+
+	it('counts a DAILY round down in hours, whatever the day count says', () => {
+		expect(left('DAILY', 1)).toBe('hoursLeft(4,12)');
+	});
+
+	it('counts the last day of a longer round in hours rather than as 0 days', () => {
+		expect(left('WEEKLY', 0)).toBe('hoursLeft(4,12)');
+		expect(left('MONTHLY', 0)).toBe('hoursLeft(4,12)');
+	});
+
+	it('gives one day its own word', () => {
+		expect(left('WEEKLY', 1)).toBe('dayCountOne');
+	});
+
+	it('counts the rest in days', () => {
+		expect(left('MONTHLY', 12)).toBe('dayCount(12)');
+	});
+
+	it('shows a dash for a group with no end on record', () => {
+		expect(left('WEEKLY', null)).toBe('—');
 	});
 });
