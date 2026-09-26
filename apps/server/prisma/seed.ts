@@ -2,7 +2,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/generated/prisma/client';
 import { BAB_COUNT, babNumbersForRound, babNumbersForSlot } from '../src/utils/babs';
 import { INVITE_CODE_ALPHABET } from '../src/utils/inviteCode';
-import { DEFAULT_TIME_ZONE, ROUND_DAYS, roundEndsAt, roundIndexSince, roundStartedAtFor } from '../src/utils/rounds';
+import { DEFAULT_TIME_ZONE, roundEndsAt, roundIndexSince, roundStartedAtFor } from '../src/utils/rounds';
 
 /**
  * Development seed. Builds one group per screen state the app can show, so every
@@ -697,10 +697,9 @@ const seedGroup = async (spec: GroupSeed) => {
 	// Derive the round the calendar says this fixture should already be on, using the same
 	// helpers `ensureCurrentRound` does — otherwise a group "started N days ago" seeds on
 	// round 0 while the first request that opens it rolls forward and wipes the reads below.
-	const roundDays = ROUND_DAYS[spec.cycle];
-	const roundIndex = startedAt ? roundIndexSince(startedAt, roundDays, now, DEFAULT_TIME_ZONE) : 0;
-	const roundStartedAt = startedAt ? roundStartedAtFor(startedAt, roundDays, roundIndex, DEFAULT_TIME_ZONE) : null;
-	const endsAt = roundStartedAt ? roundEndsAt(roundStartedAt, spec.cycle, DEFAULT_TIME_ZONE) : undefined;
+	const roundIndex = startedAt ? roundIndexSince(startedAt, spec.cycle, now, DEFAULT_TIME_ZONE) : 0;
+	const roundStartedAt = startedAt ? roundStartedAtFor(startedAt, spec.cycle, roundIndex, DEFAULT_TIME_ZONE) : null;
+	const endsAt = startedAt ? roundEndsAt(startedAt, spec.cycle, roundIndex, DEFAULT_TIME_ZONE) : undefined;
 
 	const group = await prisma.group.create({
 		data: {

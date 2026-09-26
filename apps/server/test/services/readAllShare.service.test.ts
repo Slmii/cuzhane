@@ -1,7 +1,7 @@
 import prisma from '@db/prisma';
 import { setAssignedBabsReadForUser } from '@services/babs.service';
 import { BAB_COUNT, babNumbersForRound } from '@utils/babs';
-import { DEFAULT_TIME_ZONE, ROUND_DAYS, roundEndsAt, roundStartedAtFor } from '@utils/rounds';
+import { DEFAULT_TIME_ZONE, roundEndsAt, roundStartedAtFor } from '@utils/rounds';
 import { civilDayNumber, startOfCivilDay } from '@utils/rounds';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { assertIsTestDatabase, testDatabaseUrl } from '../support/testDatabase';
@@ -28,7 +28,7 @@ const daysAgo = (days: number): Date => {
 /** A running group where the reader holds their own block and one volunteered from the pool. */
 const createGroup = async () => {
 	const startedAt = daysAgo(ROUND_INDEX);
-	const roundStartedAt = roundStartedAtFor(startedAt, ROUND_DAYS.DAILY, ROUND_INDEX, DEFAULT_TIME_ZONE);
+	const roundStartedAt = roundStartedAtFor(startedAt, 'DAILY', ROUND_INDEX, DEFAULT_TIME_ZONE);
 	const claimed = new Set(blockFor(CLAIMED_SLOT));
 
 	const group = await prisma.group.create({
@@ -47,7 +47,7 @@ const createGroup = async () => {
 			startedAt,
 			roundIndex: ROUND_INDEX,
 			roundStartedAt,
-			endsAt: roundEndsAt(roundStartedAt, 'DAILY', DEFAULT_TIME_ZONE),
+			endsAt: roundEndsAt(startedAt, 'DAILY', ROUND_INDEX, DEFAULT_TIME_ZONE),
 			members: {
 				create: [
 					{ userId: OWNER, displayName: 'Owner', role: 'OWNER', slotIndex: 0 },

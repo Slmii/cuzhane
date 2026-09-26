@@ -1,9 +1,17 @@
 import { BAB_COUNT, rangeForRound } from '@utils/babs';
-import { civilDayNumber, roundEndsAt, roundIndexSince, roundStartedAtFor, startOfCivilDay } from '@utils/rounds';
+import {
+	civilDayNumber,
+	roundEndsAt,
+	roundIndexSince,
+	roundStartedAtFor,
+	startOfCivilDay,
+	type CycleName
+} from '@utils/rounds';
 import { describe, expect, it } from 'vitest';
 
-const DAILY = 1;
-const WEEKLY = 7;
+const DAILY = 'DAILY';
+const WEEKLY = 'WEEKLY';
+const MONTHLY = 'MONTHLY';
 
 const UTC = 'UTC';
 const ISTANBUL = 'Europe/Istanbul';
@@ -124,7 +132,7 @@ describe('time zones', () => {
 		// The week containing the spring-forward is 167 hours long. Measuring it in hours
 		// would end it an hour late, and drift further at every DST change after that.
 		const roundStart = new Date('2027-03-14T18:00:00Z'); // 2027-03-14 14:00 EDT
-		const ends = roundEndsAt(roundStart, 'WEEKLY', NEW_YORK);
+		const ends = roundEndsAt(roundStart, 'WEEKLY', 0, NEW_YORK);
 
 		expect(ends).toEqual(new Date('2027-03-21T04:00:00Z')); // 2027-03-21 00:00 EDT
 		expect(ends.getTime() - startOfCivilDay(civilDayNumber(roundStart, NEW_YORK), NEW_YORK).getTime()).toBe(
@@ -201,5 +209,75 @@ describe('time zones', () => {
 		expect(roundIndexSince(startedAt, DAILY, now, NEW_YORK)).toBe(0);
 		expect(roundIndexSince(startedAt, DAILY, now, UTC)).toBe(1);
 		expect(roundIndexSince(startedAt, DAILY, now, ISTANBUL)).toBe(1);
+	});
+});
+
+describe('roundEndsAt', () => {
+	it.each<CycleName>([DAILY, WEEKLY, MONTHLY])('ends a %s round exactly where the next one starts', cycle => {
+		const startedAt = new Date('2027-01-31T10:00:00Z');
+
+		for (let roundIndex = 0; roundIndex < 14; roundIndex++) {
+			expect(roundEndsAt(startedAt, cycle, roundIndex, NEW_YORK)).toEqual(
+				roundStartedAtFor(startedAt, cycle, roundIndex + 1, NEW_YORK)
+			);
+		}
+	});
+});
+
+describe('MONTHLY', () => {
+	// Started on the 31st, so every short month clamps — which is what decides whether a month
+	// is measured from the anchor or from the previous boundary.
+	const startedAt = new Date('2027-01-31T10:00:00Z');
+
+	it('begins each round on the anchor day of the month, clamped to the month it lands in', () => {
+		expect(roundStartedAtFor(startedAt, MONTHLY, 1, UTC)).toEqual(new Date('2027-02-28T00:00:00Z'));
+		expect(roundStartedAtFor(startedAt, MONTHLY, 2, UTC)).toEqual(new Date('2027-03-31T00:00:00Z'));
+		expect(roundStartedAtFor(startedAt, MONTHLY, 3, UTC)).toEqual(new Date('2027-04-30T00:00:00Z'));
+	});
+
+	it('rolls at the start of the clamped day, not before it', () => {
+		expect(roundIndexSince(startedAt, MONTHLY, new Date('2027-02-27T23:59:00Z'), UTC)).toBe(0);
+		expect(roundIndexSince(startedAt, MONTHLY, new Date('2027-02-28T00:01:00Z'), UTC)).toBe(1);
+	});
+
+	it('measures the next boundary from the anchor, so a clamp in February does not shorten March', () => {
+		expect(roundEndsAt(startedAt, MONTHLY, 0, UTC)).toEqual(new Date('2027-02-28T00:00:00Z'));
+		// Mar 31, not Mar 28 — a month added to the previous boundary would have kept the clamp.
+		expect(roundEndsAt(startedAt, MONTHLY, 1, UTC)).toEqual(new Date('2027-03-31T00:00:00Z'));
+	});
+
+	it('rolls at local midnight in the group’s zone', () => {
+		const istanbulStart = new Date('2026-09-26T15:00:00Z'); // 18:00 on the 26th in Istanbul
+
+		// Midnight on Oct 26 in Istanbul is 21:00Z the evening before.
+		expect(roundStartedAtFor(istanbulStart, MONTHLY, 1, ISTANBUL)).toEqual(new Date('2026-10-25T21:00:00Z'));
+		expect(roundIndexSince(istanbulStart, MONTHLY, new Date('2026-10-25T20:59:00Z'), ISTANBUL)).toBe(0);
+		expect(roundIndexSince(istanbulStart, MONTHLY, new Date('2026-10-25T21:01:00Z'), ISTANBUL)).toBe(1);
+	});
+
+	it('carries into the next year', () => {
+		const decemberStart = new Date('2026-12-15T12:00:00Z');
+
+		expect(roundStartedAtFor(decemberStart, MONTHLY, 1, UTC)).toEqual(new Date('2027-01-15T00:00:00Z'));
+		expect(roundIndexSince(decemberStart, MONTHLY, new Date('2027-01-15T00:01:00Z'), UTC)).toBe(1);
+	});
+
+	it.each([UTC, ISTANBUL, NEW_YORK])('always puts now inside the round it reports, in %s', zone => {
+		// A deterministic LCG, so a failure names the same instant every run.
+		let seed = 20270131;
+		const next = () => {
+			seed = (seed * 1664525 + 1013904223) % 2 ** 32;
+
+			return seed / 2 ** 32;
+		};
+		const threeYears = 3 * 366 * 24 * 60 * 60 * 1000;
+
+		for (let sample = 0; sample < 400; sample++) {
+			const now = new Date(startedAt.getTime() + Math.floor(next() * threeYears));
+			const index = roundIndexSince(startedAt, MONTHLY, now, zone);
+
+			expect(roundStartedAtFor(startedAt, MONTHLY, index, zone).getTime()).toBeLessThanOrEqual(now.getTime());
+			expect(roundEndsAt(startedAt, MONTHLY, index, zone).getTime()).toBeGreaterThan(now.getTime());
+		}
 	});
 });

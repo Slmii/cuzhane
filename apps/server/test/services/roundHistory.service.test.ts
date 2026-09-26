@@ -6,7 +6,7 @@ import {
 	getRoundDetailForUser,
 	listRoundsForUser
 } from '@services/roundHistory.service';
-import { civilDayNumber, DEFAULT_TIME_ZONE, ROUND_DAYS, startOfCivilDay } from '@utils/rounds';
+import { civilDayNumber, DEFAULT_TIME_ZONE, roundIndexSince, startOfCivilDay } from '@utils/rounds';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { assertIsTestDatabase, testDatabaseUrl } from '../support/testDatabase';
 
@@ -43,7 +43,7 @@ const createGroup = async ({
 	splitMode = 'ROTATION' as 'ROTATION' | 'FIXED'
 } = {}) => {
 	const startedAt = daysAgo(startedDaysAgo);
-	const roundIndex = Math.floor(startedDaysAgo / ROUND_DAYS[cycle]);
+	const roundIndex = roundIndexSince(startedAt, cycle, new Date(), DEFAULT_TIME_ZONE);
 
 	const group = await prisma.group.create({
 		data: {

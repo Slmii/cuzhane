@@ -2,7 +2,7 @@ import prisma from '@db/prisma';
 import { joinGroupForUser } from '@services/groupMembership.service';
 import { markPoolReleasesSeenForUser } from '@services/pool.service';
 import { BAB_COUNT, babNumbersForRound } from '@utils/babs';
-import { DEFAULT_TIME_ZONE, ROUND_DAYS, roundEndsAt, roundStartedAtFor } from '@utils/rounds';
+import { DEFAULT_TIME_ZONE, roundEndsAt, roundStartedAtFor } from '@utils/rounds';
 import { civilDayNumber, startOfCivilDay } from '@utils/rounds';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { assertIsTestDatabase, testDatabaseUrl } from '../support/testDatabase';
@@ -36,7 +36,7 @@ const blockFor = (slotIndex: number) => babNumbersForRound(slotIndex, SPOTS, ROU
 /** A running group with three members, three empty seats, and two claimed pool blocks. */
 const createGroup = async ({ readBabs = [] }: { readBabs?: number[] } = {}) => {
 	const startedAt = daysAgo(ROUND_INDEX);
-	const roundStartedAt = roundStartedAtFor(startedAt, ROUND_DAYS.DAILY, ROUND_INDEX, DEFAULT_TIME_ZONE);
+	const roundStartedAt = roundStartedAtFor(startedAt, 'DAILY', ROUND_INDEX, DEFAULT_TIME_ZONE);
 	const claimed = new Set([...blockFor(JOINED_SLOT), ...blockFor(UNTOUCHED_SLOT)]);
 
 	const group = await prisma.group.create({
@@ -55,7 +55,7 @@ const createGroup = async ({ readBabs = [] }: { readBabs?: number[] } = {}) => {
 			startedAt,
 			roundIndex: ROUND_INDEX,
 			roundStartedAt,
-			endsAt: roundEndsAt(roundStartedAt, 'DAILY', DEFAULT_TIME_ZONE),
+			endsAt: roundEndsAt(startedAt, 'DAILY', ROUND_INDEX, DEFAULT_TIME_ZONE),
 			members: {
 				create: [
 					{ userId: OWNER, displayName: 'Owner', role: 'OWNER', slotIndex: 0 },

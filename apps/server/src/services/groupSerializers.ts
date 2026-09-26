@@ -384,8 +384,8 @@ export const toGroupSummary = (
 		startedAt: group.startedAt ? group.startedAt.toISOString() : null,
 		roundIndex,
 		roundStartedAt: group.roundStartedAt ? group.roundStartedAt.toISOString() : null,
-		roundEndsAt: group.roundStartedAt
-			? roundEndsAt(group.roundStartedAt, group.cycle, group.timezone).toISOString()
+		roundEndsAt: group.startedAt
+			? roundEndsAt(group.startedAt, group.cycle, group.roundIndex, group.timezone).toISOString()
 			: null,
 		mySlotIndex,
 		myBabNumbers,
@@ -560,8 +560,8 @@ export const toInvitePreview = (
 			.filter(bab => poolNumbersForPreview.has(bab.number))
 			.map(bab => bab.number)
 			.sort((a, b) => a - b),
-		roundEndsAt: group.roundStartedAt
-			? roundEndsAt(group.roundStartedAt, group.cycle, group.timezone).toISOString()
+		roundEndsAt: group.startedAt
+			? roundEndsAt(group.startedAt, group.cycle, group.roundIndex, group.timezone).toISOString()
 			: null,
 		roundDayIndex: group.roundStartedAt
 			? civilDayNumber(new Date(), group.timezone) - civilDayNumber(group.roundStartedAt, group.timezone) + 1

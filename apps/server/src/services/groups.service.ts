@@ -143,7 +143,7 @@ export const createGroupForUser = async (
 	const startsAt = new Date();
 	// A placeholder until the owner starts: `startGroupForUser` recomputes it from the
 	// moment round 0 actually begins, so gathering time doesn't eat into the round.
-	const endsAt = roundEndsAt(startsAt, input.cycle, input.timezone);
+	const endsAt = roundEndsAt(startsAt, input.cycle, 0, input.timezone);
 
 	// Resolve the invite code BEFORE opening the transaction. Postgres aborts the whole
 	// transaction on a unique violation, so retrying `create` inside one can never
@@ -276,7 +276,7 @@ export const startGroupForUser = async (userId: string, groupId: string): Promis
 			// and treat the very first round as overdue.
 			roundIndex: 0,
 			roundStartedAt: startedAt,
-			endsAt: roundEndsAt(startedAt, group.cycle, group.timezone)
+			endsAt: roundEndsAt(startedAt, group.cycle, 0, group.timezone)
 		}
 	});
 
@@ -320,7 +320,7 @@ export const autoStartIfFull = async (tx: Prisma.TransactionClient, groupId: str
 			startedAt,
 			roundIndex: 0,
 			roundStartedAt: startedAt,
-			endsAt: roundEndsAt(startedAt, group.cycle, group.timezone)
+			endsAt: roundEndsAt(startedAt, group.cycle, 0, group.timezone)
 		}
 	});
 

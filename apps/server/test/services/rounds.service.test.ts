@@ -1,14 +1,7 @@
 import prisma from '@db/prisma';
 import { ensureCurrentRound, expectedRoundIndex } from '@services/rounds.service';
 import { BAB_COUNT, rangeForRound } from '@utils/babs';
-import {
-	civilDayNumber,
-	DEFAULT_TIME_ZONE,
-	ROUND_DAYS,
-	roundEndsAt,
-	roundStartedAtFor,
-	startOfCivilDay
-} from '@utils/rounds';
+import { civilDayNumber, DEFAULT_TIME_ZONE, roundEndsAt, roundStartedAtFor, startOfCivilDay } from '@utils/rounds';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { assertIsTestDatabase, testDatabaseUrl } from '../support/testDatabase';
 
@@ -58,7 +51,7 @@ const createGroup = async (options: GroupOptions = {}) => {
 	} = options;
 
 	const startedAt = status === 'RUNNING' && startedDaysAgo !== null ? daysAgo(startedDaysAgo) : null;
-	const roundStartedAt = startedAt ? roundStartedAtFor(startedAt, ROUND_DAYS[cycle], roundIndex, timezone) : null;
+	const roundStartedAt = startedAt ? roundStartedAtFor(startedAt, cycle, roundIndex, timezone) : null;
 
 	const group = await prisma.group.create({
 		data: {
@@ -76,7 +69,7 @@ const createGroup = async (options: GroupOptions = {}) => {
 			startedAt,
 			roundIndex,
 			roundStartedAt,
-			endsAt: roundStartedAt ? roundEndsAt(roundStartedAt, cycle, timezone) : null,
+			endsAt: startedAt ? roundEndsAt(startedAt, cycle, roundIndex, timezone) : null,
 			completedAt: completed ? new Date() : null
 		}
 	});
@@ -224,10 +217,11 @@ describe('ensureCurrentRound', () => {
 
 		await roll(group.id);
 		const rolled = await reload(group.id);
-		const expectedStart = roundStartedAtFor(daysAgo(startedDaysAgo), ROUND_DAYS.DAILY, 3, DEFAULT_TIME_ZONE);
+		const anchor = daysAgo(startedDaysAgo);
+		const expectedStart = roundStartedAtFor(anchor, 'DAILY', 3, DEFAULT_TIME_ZONE);
 
 		expect(rolled.roundStartedAt).toEqual(expectedStart);
-		expect(rolled.endsAt).toEqual(roundEndsAt(expectedStart, 'DAILY', DEFAULT_TIME_ZONE));
+		expect(rolled.endsAt).toEqual(roundEndsAt(anchor, 'DAILY', 3, DEFAULT_TIME_ZONE));
 	});
 
 	it('lands a seat on the block the skipped-to round owes it', async () => {

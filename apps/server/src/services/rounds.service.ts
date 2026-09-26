@@ -1,5 +1,5 @@
 import prisma from '@db/prisma';
-import { ROUND_DAYS, roundEndsAt, roundIndexSince, roundStartedAtFor } from '@utils/rounds';
+import { roundEndsAt, roundIndexSince, roundStartedAtFor } from '@utils/rounds';
 import type { Prisma } from '../generated/prisma/client';
 import type { Group } from '../generated/prisma/client';
 
@@ -14,7 +14,7 @@ export const expectedRoundIndex = (
 	now = new Date()
 ) =>
 	group.status === 'RUNNING' && group.startedAt
-		? roundIndexSince(group.startedAt, ROUND_DAYS[group.cycle], now, group.timezone)
+		? roundIndexSince(group.startedAt, group.cycle, now, group.timezone)
 		: 0;
 
 /**
@@ -56,7 +56,7 @@ export const ensureCurrentRound = async (tx: Prisma.TransactionClient, groupId: 
 		return false;
 	}
 
-	const startedAt = roundStartedAtFor(group.startedAt, ROUND_DAYS[group.cycle], target, group.timezone);
+	const startedAt = roundStartedAtFor(group.startedAt, group.cycle, target, group.timezone);
 
 	// Guarded on the round we believe we are leaving, so two requests arriving together
 	// after a boundary cannot both roll — the loser matches zero rows and stops here
@@ -66,7 +66,7 @@ export const ensureCurrentRound = async (tx: Prisma.TransactionClient, groupId: 
 		data: {
 			roundIndex: target,
 			roundStartedAt: startedAt,
-			endsAt: roundEndsAt(startedAt, group.cycle, group.timezone),
+			endsAt: roundEndsAt(group.startedAt, group.cycle, target, group.timezone),
 			// A finished round's stamp belongs to that round, not to the fresh one.
 			completedAt: null
 		}

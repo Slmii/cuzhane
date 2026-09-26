@@ -2,7 +2,7 @@ import { CONFLICT, FORBIDDEN, NOT_FOUND } from '@config/httpCodes';
 import { HttpError } from '@config/httpError';
 import prisma from '@db/prisma';
 import { BAB_COUNT, slotIndexForBab } from '@utils/babs';
-import { ROUND_DAYS, roundEndsAt, roundIndexSince, roundStartedAtFor, type CycleName } from '@utils/rounds';
+import { roundEndsAt, roundIndexSince, roundStartedAtFor, type CycleName } from '@utils/rounds';
 import { normalizeUserId } from '@utils/normalizeUserId';
 import { ensureCurrentRoundFor } from './rounds.service';
 import { requireMembership } from './groupAccess.service';
@@ -73,9 +73,9 @@ const boundsFor = (group: Group, roundIndex: number) => {
 	// A group cannot have history before it started, so `startedAt` is non-null on every
 	// path that reaches here — the callers all guard on RUNNING first.
 	const startedAt = group.startedAt as Date;
-	const start = roundStartedAtFor(startedAt, ROUND_DAYS[group.cycle], roundIndex, group.timezone);
+	const start = roundStartedAtFor(startedAt, group.cycle, roundIndex, group.timezone);
 
-	return { startedAt: start, endsAt: roundEndsAt(start, group.cycle, group.timezone) };
+	return { startedAt: start, endsAt: roundEndsAt(startedAt, group.cycle, roundIndex, group.timezone) };
 };
 
 const loadRunningGroup = async (userId: string, groupId: string) => {
@@ -369,12 +369,7 @@ export const getMyProgressForUser = async (userId: string, groupId: string): Pro
 	 * misses; this screen puts a number against one person, so being wrong reads as an
 	 * accusation.
 	 */
-	const joinedRoundIndex = roundIndexSince(
-		group.startedAt as Date,
-		ROUND_DAYS[group.cycle],
-		member.joinedAt,
-		group.timezone
-	);
+	const joinedRoundIndex = roundIndexSince(group.startedAt as Date, group.cycle, member.joinedAt, group.timezone);
 	const oldestRoundIndex = Math.max(0, joinedRoundIndex);
 
 	/*
