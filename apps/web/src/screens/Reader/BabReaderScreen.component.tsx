@@ -757,7 +757,9 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 								style={styles.babMapRow}
 							>
 								<ReaderBabMap
-									count={readableTotal}
+									// The group's part count whenever `spots` goes with it — the map's own rule,
+									// since its pool blocks are cut from that split. The text's hundred until then.
+									count={groupQuery.data?.partCount ?? readableTotal}
 									currentBab={displayBab}
 									scrubRatio={scrubRatio}
 									myBabNumbers={myBabNumbers}

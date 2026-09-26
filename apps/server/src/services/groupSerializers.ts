@@ -166,6 +166,13 @@ export type GroupInvitePreview = {
 	/** When the current round rolls, so the preview can say what a joiner is joining into. */
 	roundEndsAt: string | null;
 	/**
+	 * When the hatim began, null while it is still gathering. A MONTHLY group rolls on this day of
+	 * every month, and `roundEndsAt` alone cannot say which: clamped to a short month, a group
+	 * started on the 31st rolls on the 28th, and the preview would name a different day from the
+	 * group screen's.
+	 */
+	startedAt: string | null;
+	/**
 	 * Which day of the current round today is, 1-based — "Tur 3. gününde". Always 1 for a
 	 * DAILY group, and null while the group is still gathering. Derived here rather than on
 	 * the client: the boundary is a local midnight in the group's zone, and that maths is
@@ -579,6 +586,7 @@ export const toInvitePreview = (
 		roundEndsAt: group.startedAt
 			? roundEndsAt(group.startedAt, group.cycle, group.roundIndex, group.timezone).toISOString()
 			: null,
+		startedAt: group.startedAt ? group.startedAt.toISOString() : null,
 		roundDayIndex: group.roundStartedAt
 			? civilDayNumber(new Date(), group.timezone) - civilDayNumber(group.roundStartedAt, group.timezone) + 1
 			: null,

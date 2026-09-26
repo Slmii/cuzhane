@@ -1,6 +1,6 @@
 import type { PoolSlot, PoolSlotPart } from '@/lib/types/domain';
 import { describe, expect, it } from 'vitest';
-import { withPoolPartReleased, withPoolPartTaken } from './pool';
+import { withPoolPartReleased, withPoolPartTaken, withPoolSlotReleased, withPoolSlotTaken } from './pool';
 
 const ME = 'user_me';
 const OTHER = 'user_other';
@@ -113,5 +113,74 @@ describe('withPoolPartReleased', () => {
 		const slots = [slot(4, [part(13, { ...taken(OTHER, 'Ayşe'), isRead: true })])];
 
 		expect(withPoolPartReleased(slots, 13)).toEqual(slots);
+	});
+});
+
+describe('withPoolSlotTaken', () => {
+	it('gives the viewer every part of a free slot, and the slot with them', () => {
+		const [result] = withPoolSlotTaken([slot(4, [part(13), part(14), part(15)])], 4, ME);
+
+		expect(result?.parts.every(candidate => candidate.takenByMe && candidate.takenByUserId === ME)).toBe(true);
+		expect(result?.takenByUserId).toBe(ME);
+		expect(result?.takenByMe).toBe(true);
+	});
+
+	it('takes only what is still free, as the server does — a portion someone holds stays theirs', () => {
+		const [result] = withPoolSlotTaken([slot(4, [part(13, taken(OTHER, 'Ayşe')), part(14), part(15)])], 4, ME);
+
+		expect(result?.parts.map(candidate => candidate.takenByUserId)).toEqual([OTHER, ME, ME]);
+		// The slot keeps naming its first claimant.
+		expect(result?.takenByUserId).toBe(OTHER);
+	});
+
+	it('changes nothing when nothing in the slot is free — the server would refuse it', () => {
+		const slots = [slot(4, [part(13, taken(OTHER, 'Ayşe'))])];
+
+		expect(withPoolSlotTaken(slots, 4, ME)).toEqual(slots);
+	});
+
+	it('touches no other slot', () => {
+		const other = slot(7, [part(22)]);
+		const [, untouched] = withPoolSlotTaken([slot(4, [part(13)]), other], 4, ME);
+
+		expect(untouched).toBe(other);
+	});
+
+	it('leaves the parts in step, so a portion released before the refetch keeps the rest of the claim', () => {
+		const takenWhole = withPoolSlotTaken([slot(4, [part(13), part(14), part(15)])], 4, ME);
+		const [result] = withPoolPartReleased(takenWhole, 14);
+
+		expect(result?.parts.map(candidate => candidate.takenByMe)).toEqual([true, false, true]);
+		expect(result?.takenByMe).toBe(true);
+	});
+});
+
+describe('withPoolSlotReleased', () => {
+	it('frees every part the viewer holds, with their reads', () => {
+		const [result] = withPoolSlotReleased(
+			[slot(4, [part(13, { ...taken(ME, 'Ben'), isRead: true }), part(14, taken(ME, 'Ben'))])],
+			4
+		);
+
+		expect(result?.parts).toEqual([part(13), part(14)]);
+		expect(result?.takenByUserId).toBeNull();
+		expect(result?.readCount).toBe(0);
+	});
+
+	it('leaves somebody else’s portions of the block where they are', () => {
+		const [result] = withPoolSlotReleased(
+			[slot(4, [part(13, taken(ME, 'Ben')), part(14, { ...taken(OTHER, 'Ayşe'), isRead: true })])],
+			4
+		);
+
+		expect(result?.parts[1]?.takenByUserId).toBe(OTHER);
+		expect(result?.takenByUserId).toBe(OTHER);
+		expect(result?.readBabNumbers).toEqual([14]);
+	});
+
+	it('changes nothing in a slot the viewer holds none of', () => {
+		const slots = [slot(4, [part(13, taken(OTHER, 'Ayşe'))])];
+
+		expect(withPoolSlotReleased(slots, 4)).toEqual(slots);
 	});
 });

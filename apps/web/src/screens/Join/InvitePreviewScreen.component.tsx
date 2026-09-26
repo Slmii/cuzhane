@@ -52,6 +52,7 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 	const reset = useRoundReset({
 		cycle: preview.data?.cycle ?? 'WEEKLY',
 		roundEndsAt: preview.data?.roundEndsAt ?? null,
+		startedAt: preview.data?.startedAt ?? null,
 		timezone: preview.data?.timezone ?? 'UTC'
 	});
 

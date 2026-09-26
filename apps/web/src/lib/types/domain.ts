@@ -156,6 +156,11 @@ export type GroupInvitePreview = {
 	 */
 	poolBabNumbers: number[];
 	roundEndsAt: string | null;
+	/**
+	 * When the hatim began, null while gathering — names a MONTHLY group's day of the month,
+	 * which `roundEndsAt` cannot once a short month has clamped it. See `roundResetLabels`.
+	 */
+	startedAt: string | null;
 	/** 1-based day within the current round — "Tur 3. gününde". Null while gathering. */
 	roundDayIndex: number | null;
 	timezone: string;

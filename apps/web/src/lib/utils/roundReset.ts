@@ -132,8 +132,9 @@ export const roundResetLabels = (
 		values: Record<string, string>
 	) => string,
 	/**
-	 * When the hatim began — a MONTHLY group rolls on this day of every month. Optional because
-	 * not every payload carries it (`GroupInvitePreview` does not); see the MONTHLY branch.
+	 * When the hatim began — a MONTHLY group rolls on this day of every month. Every group
+	 * payload carries it, the invite preview included, and every screen passes it; without one
+	 * the boundary's own day stands in (see the MONTHLY branch).
 	 */
 	startedAt: string | null = null
 ): RoundResetLabels | null => {

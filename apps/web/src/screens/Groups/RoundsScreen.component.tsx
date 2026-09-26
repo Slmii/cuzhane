@@ -51,7 +51,7 @@ const roundPercent = (round: RoundSummary) =>
 export const RoundsScreen = ({ navigation, route }: Props) => {
 	const { groupId } = route.params;
 	const { theme } = useThemeContext();
-	const { t } = useTranslation();
+	const { language, t } = useTranslation();
 
 	const groupQuery = useGetGroupById(groupId);
 	const roundsQuery = useGetRounds(groupId);
@@ -63,9 +63,19 @@ export const RoundsScreen = ({ navigation, route }: Props) => {
 	 * return a skeleton or an error, where none of this is read.
 	 */
 	const cycle: GroupCycle = groupQuery.data?.cycle ?? 'DAILY';
+	const timezone = groupQuery.data?.timezone ?? 'UTC';
 	const rounds = roundsQuery.data ?? NO_ROUNDS;
 	const openRound = rounds.find(round => round.isOpen);
 	const pastRounds = useMemo(() => rounds.filter(round => !round.isOpen), [rounds]);
+	/*
+	 * In the **group's** zone and the app's language, not the device's. A round opens at midnight
+	 * where the group is, so read from further west it began the evening before — and a monthly
+	 * round opening on 1 March in Istanbul was dated the last day of February in New York.
+	 */
+	const roundDate = useMemo(
+		() => new Intl.DateTimeFormat(language, { day: 'numeric', month: 'short', timeZone: timezone }),
+		[language, timezone]
+	);
 
 	// The design labels rounds by cadence rather than by date: a daily group's previous
 	// round is "dün", a weekly one's is "geçen hafta", a monthly one's "geçen ay".
@@ -80,15 +90,12 @@ export const RoundsScreen = ({ navigation, route }: Props) => {
 			if (!isPrevious) {
 				// Anything older than one round back is dated — "4 turdan önce" would make the
 				// reader count backwards.
-				return new Date(round.startedAt).toLocaleDateString(undefined, {
-					day: 'numeric',
-					month: 'short'
-				});
+				return roundDate.format(new Date(round.startedAt));
 			}
 
 			return t(WHEN_LABELS[cycle].previous);
 		},
-		[cycle, openRound, t]
+		[cycle, openRound, roundDate, t]
 	);
 
 	const keyExtractor = useCallback((round: RoundSummary) => String(round.roundIndex), []);

@@ -1,10 +1,18 @@
 import type { PoolSlot, PoolSlotPart } from '@/lib/types/domain';
 
 /**
- * A slot whose `takenBy*` fields follow its parts again: the first held part names the slot,
- * which is how `listPoolSlotsForUser` builds it on the server. Recomputed rather than patched,
- * so a portion taken or released in the middle of a block leaves the slot saying what the next
- * fetch will say.
+ * The optimistic halves of the four pool writes — a whole slot or one Hizb portion, taken or
+ * handed back. **All four go through `changeParts`**, so a slot's parts and its slot-level
+ * fields always move together: a whole-slot take that left the parts looking free would have a
+ * portion write, arriving before the refetch, rebuild the slot from those stale parts and wipe
+ * the claim.
+ */
+
+/**
+ * A slot whose `takenBy*` and read fields follow its parts again: the first held part names the
+ * slot, which is how `listPoolSlotsForUser` builds it on the server. Recomputed rather than
+ * patched, so a portion taken or released in the middle of a block leaves the slot saying what
+ * the next fetch will say.
  */
 const withParts = (slot: PoolSlot, parts: PoolSlotPart[]): PoolSlot => {
 	const holder = parts.find(part => part.takenByUserId !== null);
@@ -22,69 +30,71 @@ const withParts = (slot: PoolSlot, parts: PoolSlotPart[]): PoolSlot => {
 	};
 };
 
+/** Applies `change` to every part `select` picks; a slot with nothing picked is returned as it was. */
+const changeParts = (
+	slots: PoolSlot[],
+	select: (part: PoolSlotPart, slot: PoolSlot) => boolean,
+	change: (part: PoolSlotPart) => PoolSlotPart
+): PoolSlot[] =>
+	slots.map(slot =>
+		slot.parts.some(part => select(part, slot))
+			? withParts(
+					slot,
+					slot.parts.map(part => (select(part, slot) ? change(part) : part))
+			  )
+			: slot
+	);
+
 /**
- * The cached pool with one Hizb portion taken by the viewer — the optimistic half of
- * `useTakePoolPart`.
- *
- * Only a portion nobody holds changes hands, which is the server's own conditional update: a
- * portion somebody already has stays theirs, the request comes back 409, and the rollback has
- * nothing to undo. The viewer's name and photo are left to the refetch, as `useTakePoolSlot`
- * leaves them — `takenByMe` is what a screen draws the viewer's claim from.
+ * A part the viewer now holds. Their name and photo are left to the refetch, as they always
+ * were — `takenByMe` is what a screen draws the viewer's claim from.
  */
+const heldBy =
+	(viewerUserId: string) =>
+	(part: PoolSlotPart): PoolSlotPart => ({
+		...part,
+		takenByDisplayName: null,
+		takenByImageUrl: null,
+		takenByMe: true,
+		takenByUserId: viewerUserId
+	});
+
+/**
+ * A part handed back, and the read with it — both release paths take the caller's read off
+ * along with the claim. Nobody else can have read a part the viewer holds: it is in no one's
+ * share, and marking a pool part is what claims it, so a read on it is the viewer's.
+ */
+const handedBack = (part: PoolSlotPart): PoolSlotPart => ({
+	...part,
+	isRead: false,
+	takenByDisplayName: null,
+	takenByImageUrl: null,
+	takenByMe: false,
+	takenByUserId: null
+});
+
+// Only a free part changes hands, which is the server's own conditional update: a part somebody
+// already holds stays theirs, the write comes back 409, and the rollback has nothing to undo.
+const isFree = (part: PoolSlotPart) => part.takenByUserId === null;
+// Only the caller's own claim comes off; a release of somebody else's is left as it is.
+const isMine = (part: PoolSlotPart) => part.takenByMe;
+
+/**
+ * `useTakePoolSlot`: the slot's free parts become the viewer's. "Whole" means whatever of it is
+ * still free — in a Hizb block somebody may already hold a portion — exactly as
+ * `takePoolSlotForUser` claims it.
+ */
+export const withPoolSlotTaken = (slots: PoolSlot[], slotIndex: number, viewerUserId: string): PoolSlot[] =>
+	changeParts(slots, (part, slot) => slot.slotIndex === slotIndex && isFree(part), heldBy(viewerUserId));
+
+/** `useReleasePoolSlot`: every part of the slot the viewer holds goes back, with their reads. */
+export const withPoolSlotReleased = (slots: PoolSlot[], slotIndex: number): PoolSlot[] =>
+	changeParts(slots, (part, slot) => slot.slotIndex === slotIndex && isMine(part), handedBack);
+
+/** `useTakePoolPart`: one free Hizb portion becomes the viewer's. */
 export const withPoolPartTaken = (slots: PoolSlot[], number: number, viewerUserId: string): PoolSlot[] =>
-	slots.map(slot => {
-		const target = slot.parts.find(part => part.number === number);
+	changeParts(slots, part => part.number === number && isFree(part), heldBy(viewerUserId));
 
-		if (!target || target.takenByUserId !== null) {
-			return slot;
-		}
-
-		return withParts(
-			slot,
-			slot.parts.map(part =>
-				part === target
-					? {
-							...part,
-							takenByDisplayName: null,
-							takenByImageUrl: null,
-							takenByMe: true,
-							takenByUserId: viewerUserId
-					  }
-					: part
-			)
-		);
-	});
-
-/**
- * The cached pool with one of the viewer's portions handed back — the optimistic half of
- * `useReleasePoolPart`.
- *
- * The read comes off with the claim, as `releasePoolPartForUser` takes it off. Nobody else can
- * have read a portion the viewer holds — it is in no one's share, and marking a pool portion is
- * what claims it — so a read on it is the viewer's. Somebody else's portion is left as it is,
- * which is what the server does with a release of a portion the caller does not hold.
- */
+/** `useReleasePoolPart`: one of the viewer's portions goes back, with their read of it. */
 export const withPoolPartReleased = (slots: PoolSlot[], number: number): PoolSlot[] =>
-	slots.map(slot => {
-		const target = slot.parts.find(part => part.number === number);
-
-		if (!target || !target.takenByMe) {
-			return slot;
-		}
-
-		return withParts(
-			slot,
-			slot.parts.map(part =>
-				part === target
-					? {
-							...part,
-							isRead: false,
-							takenByDisplayName: null,
-							takenByImageUrl: null,
-							takenByMe: false,
-							takenByUserId: null
-					  }
-					: part
-			)
-		);
-	});
+	changeParts(slots, part => part.number === number && isMine(part), handedBack);

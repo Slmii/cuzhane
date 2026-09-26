@@ -7,8 +7,11 @@ type ResetInput = {
 	roundEndsAt: string | null;
 	cycle: GroupCycle;
 	timezone: string;
-	/** Names a MONTHLY group's day of the month — see `roundResetLabels`. Absent on an invite preview. */
-	startedAt?: string | null;
+	/**
+	 * Names a MONTHLY group's day of the month — see `roundResetLabels`. Required, so a screen
+	 * cannot quietly name the clamped day where the group screen names the start's.
+	 */
+	startedAt: string | null;
 };
 
 /**
@@ -17,12 +20,7 @@ type ResetInput = {
  * `Intl` formatters are not cheap to build and a Groups list makes one card per group, so
  * the labels are memoised on the inputs that can actually change them.
  */
-export const useRoundReset = ({
-	cycle,
-	roundEndsAt,
-	startedAt = null,
-	timezone
-}: ResetInput): RoundResetLabels | null => {
+export const useRoundReset = ({ cycle, roundEndsAt, startedAt, timezone }: ResetInput): RoundResetLabels | null => {
 	const { language, t } = useTranslation();
 
 	return useMemo(

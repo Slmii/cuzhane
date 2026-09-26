@@ -25,7 +25,7 @@ import {
 import { useCurrentUserId } from '@/lib/hooks/useCurrentUserId';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import type { GroupSummary, PoolSlot } from '@/lib/types/domain';
-import { withPoolPartReleased, withPoolPartTaken } from '@/lib/utils/pool';
+import { withPoolPartReleased, withPoolPartTaken, withPoolSlotReleased, withPoolSlotTaken } from '@/lib/utils/pool';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert } from 'react-native';
 import { useLiveRefetchInterval } from './useLiveRefetchInterval';
@@ -206,14 +206,16 @@ export const useGetPoolSlots = (groupId: string) => {
  * time, and waiting on the round trip to start it made the tap feel like it had missed. The
  * same cancel/snapshot/rollback shape as `useSetBabRead`.
  *
- * Only the slot's own three fields are written. Everything else the claim touches — the
- * board, the group's pool counts — is left to the invalidation, because a slot is taken whole
- * and those are derived from it rather than guessable here. Two people racing for one slot is
- * settled by the server's conditional update; the loser's optimistic fill is rolled back and
- * the refetch puts the winner's name on it.
+ * Only the pool cache is written — the slot and its parts, together (`withPoolSlotTaken`), so a
+ * portion write landing before the refetch works from the claim rather than wiping it.
+ * Everything else the claim touches — the board, the group's pool counts — is left to the
+ * invalidation, because those are derived from the claim rather than guessable here. Two people
+ * racing for one slot is settled by the server's conditional update; the loser's optimistic
+ * fill is rolled back and the refetch puts the winner's name on it.
  */
 export const useTakePoolSlot = () => {
 	const queryClient = useQueryClient();
+	const userId = useCurrentUserId();
 
 	return useMutation({
 		mutationFn: (input: TakePoolSlotInput) => takePoolSlot(input),
@@ -225,9 +227,8 @@ export const useTakePoolSlot = () => {
 			if (previousSlots) {
 				queryClient.setQueryData<PoolSlot[]>(
 					groupQueryKeys.pool(groupId),
-					previousSlots.map(slot =>
-						slot.slotIndex === slotIndex ? { ...slot, takenByMe: true, takenByUserId: 'optimistic' } : slot
-					)
+					// 'optimistic' stands in for the viewer when Clerk has no session to name.
+					withPoolSlotTaken(previousSlots, slotIndex, userId ?? 'optimistic')
 				);
 			}
 
@@ -264,11 +265,7 @@ export const useReleasePoolSlot = () => {
 			if (previousSlots) {
 				queryClient.setQueryData<PoolSlot[]>(
 					groupQueryKeys.pool(groupId),
-					previousSlots.map(slot =>
-						slot.slotIndex === slotIndex
-							? { ...slot, takenByDisplayName: null, takenByMe: false, takenByUserId: null }
-							: slot
-					)
+					withPoolSlotReleased(previousSlots, slotIndex)
 				);
 			}
 
@@ -307,7 +304,7 @@ export const useTakePoolPart = () => {
 			if (previousSlots) {
 				queryClient.setQueryData<PoolSlot[]>(
 					groupQueryKeys.pool(groupId),
-					// The same stand-in id the slot hook uses when Clerk has no session to name.
+					// The same stand-in the slot hook uses when Clerk has no session to name.
 					withPoolPartTaken(previousSlots, babNumber, userId ?? 'optimistic')
 				);
 			}
