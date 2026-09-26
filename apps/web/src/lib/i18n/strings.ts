@@ -411,7 +411,7 @@ const tr = {
 	hizbPage: 's. {page}',
 	hizbPages: 's. {from}–{to}',
 	hizbNote: 'Burada okuduğun hiçbir şey gruba işlenmez. Sıra, süre, tamamlama yok — sadece Hizb-ül Hakaik.',
-	// Hizbü'l-Hakaik — works and portions (hizbPortions.ts)
+	// Hizb-ül Hakaik — works and portions (hizbPortions.ts)
 	hizbWorkQuran: 'Kur’an bölümü',
 	hizbWorkCevsen: 'Cevşenü’l-Kebîr',
 	hizbWorkEvrad: 'Evrâd-ı Kudsiye',
@@ -1222,7 +1222,7 @@ const en: Strings = {
 	hizbPages: 'pp. {from}–{to}',
 	hizbNote:
 		'Nothing you read here is written to a group. No turn, no timer, no completion — just the Hizb-ül Hakaik.',
-	// Hizbü'l-Hakaik — works and portions (hizbPortions.ts)
+	// Hizb-ül Hakaik — works and portions (hizbPortions.ts)
 	hizbWorkQuran: 'Qur’an portion',
 	hizbWorkCevsen: 'Cevşenü’l-Kebîr',
 	hizbWorkEvrad: 'Evrâd-ı Kudsiye',
@@ -1956,7 +1956,7 @@ const nl: Strings = {
 	hizbPages: 'blz. {from}–{to}',
 	hizbNote:
 		'Niets wat je hier leest wordt aan een groep toegeschreven. Geen beurt, geen tijd, geen voltooiing — alleen de Hizb-ül Hakaik.',
-	// Hizbü'l-Hakaik — works and portions (hizbPortions.ts)
+	// Hizb-ül Hakaik — works and portions (hizbPortions.ts)
 	hizbWorkQuran: 'Koran-gedeelte',
 	hizbWorkCevsen: 'Cevşenü’l-Kebîr',
 	hizbWorkEvrad: 'Evrâd-ı Kudsiye',

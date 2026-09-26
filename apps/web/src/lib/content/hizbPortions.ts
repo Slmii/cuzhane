@@ -53,6 +53,7 @@ export type HizbPortion = {
 	repetitions?: number;
 };
 
+// Mirrors PART_COUNT.HIZB in apps/server/src/utils/groupKinds.ts — change both together.
 export const HIZB_PORTION_COUNT = 33;
 
 export const HIZB_WORKS: HizbWork[] = [
@@ -69,9 +70,12 @@ export const HIZB_WORKS: HizbWork[] = [
 ];
 
 /**
- * Where each portion begins. Verified against the data on 2026-09-26 — the opening words at
- * every anchor are pinned in `hizbPortions.test.ts`, so a regenerated JSON that shifts a line
- * fails there rather than silently handing someone the wrong du'a.
+ * Where each portion begins, checked on 2026-09-26 against the photographed book's markers.
+ * `hizbPortions.test.ts` pins every portion's exact footprint — the blocks it is cut from and
+ * the lines in each — and its opening words, long enough that no other block opens with them
+ * (the second line too, where the first is the besmele). An anchor edited one block or line
+ * off, or a regenerated JSON that moves one, fails there rather than silently handing someone
+ * the wrong du'a.
  */
 export const HIZB_PORTIONS: HizbPortion[] = [
 	{ number: 1, work: 'quran', descriptionKey: 'hizbPart1Desc', start: { section: 0 } },
@@ -179,8 +183,13 @@ const markOffset = (text: string, index: number) => text.split(INVOCATION_MARK, 
  * the head ends on the last word of N−1 and the tail opens on the first word of N. Only the
  * whitespace at the cut edges is trimmed, never a character of the text, so head, that one ❁
  * with its spaces, and tail concatenate back to the source line byte for byte.
+ *
+ * A half left holding a single invocation has no ❁ in it any more, and so no `invocations`
+ * either — the parser's rule, that a line carries them exactly when its text has a mark.
+ *
+ * Exported for its tests; screens take a portion through `portionBlocks`.
  */
-const cutLine = (line: HizbLine, from: number, to: number | undefined): HizbLine => {
+export const cutLine = (line: HizbLine, from: number, to: number | undefined): HizbLine => {
 	if (from === 0 && to === undefined) {
 		return line;
 	}
@@ -191,7 +200,7 @@ const cutLine = (line: HizbLine, from: number, to: number | undefined): HizbLine
 	const trimmedStart = from === 0 ? piece : piece.trimStart();
 	const cut: HizbLine = { page: line.page, text: to === undefined ? trimmedStart : trimmedStart.trimEnd() };
 
-	if (line.invocations) {
+	if (line.invocations && cut.text.includes(INVOCATION_MARK)) {
 		cut.invocations = line.invocations.slice(from, to);
 	}
 
@@ -234,6 +243,10 @@ const spanOfLine = (
  *
  * Lines outside the portion are dropped from a block, and a block left with none is dropped
  * with them. A portion spanning several sections simply returns their blocks in order.
+ *
+ * **Section and block do not identify a returned block.** Consecutive portions can be cut from
+ * the same source block — parts 9–13 all return block 8/0 (the Evrâd is one block), and 30–33
+ * all return 16/28 — so a React key needs the portion number beside them.
  */
 export const portionBlocks = (number: number): HizbBlockRef[] => {
 	const start = positionOf(portion(number).start);
