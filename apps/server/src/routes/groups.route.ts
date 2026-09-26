@@ -15,6 +15,7 @@ import {
 	UpdateGroupBody,
 	UpdateGroupBodySchema
 } from '@schemas/group.schema';
+import { filterGroupsForClient } from '@services/clientCompatibility.service';
 import {
 	createGroupForUser,
 	deleteGroupForUser,
@@ -68,7 +69,9 @@ groupsRouter.get(
 			} = res.locals;
 
 			const groups = await discoverGroups(userId, validatedQuery);
-			res.status(OK).json(groups);
+			// Search asks this same endpoint, so one filter keeps a Hizb group out of both
+			// for a build that can't draw it — see `clientCompatibility.service.ts`.
+			res.status(OK).json(filterGroupsForClient(res, groups));
 		} catch (error) {
 			next(error);
 		}

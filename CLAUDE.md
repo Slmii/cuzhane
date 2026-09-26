@@ -1508,6 +1508,22 @@ sizes="300px">` emits WebP and a `srcset`, so the 300px variant a phone actually
     Clerk still reports *signed in*: `AppNavigator` runs the settings query before it checks
     `isSignedIn`, so a signed-out app makes token-less requests too, and signing out on those
     would clear, refetch and loop. Once per episode, guarded by `isSigningOut`.
+-   **A build declares the group kinds it can draw, and the server hides the rest from it.**
+    `wrapper.api.ts` sends `X-Cuzhane-Kinds: CEVSEN,HIZB` (`CLIENT_KINDS`) on every request;
+    `clientCapabilities.middleware.ts` parses it into `res.locals.clientKinds`, and a request
+    **without** it — every build older than `Group.kind` — is taken to know the Cevşen alone. Such
+    a build reads any group as a hundred babs: it would join a Hizb group and mark "bab 7" read,
+    which marks portion 7 and corrupts the round, and an OTA update narrows that window without
+    closing it. So the routes that let someone *find or enter* a group consult
+    `clientCompatibility.service.ts`: Discover (and Search, which asks the same endpoint) drops
+    the kinds the caller didn't list (`filterGroupsForClient`), and both previews and both joins
+    (`/memberships/preview/code/:code`, `/preview/group/:groupId`, `/join/code`, `/join/:groupId`)
+    answer **426** "Update the app to open this group" (`assertClientCanUseGroup`) — the join
+    sheet has no branch for it and lands on its not-found step. It is applied at the route
+    layer, not in the services. It guards the doors, not the rooms: a group someone is already
+    in is not hidden from their own list. **A new group kind must be added to `CLIENT_KINDS` —
+    once the build can draw it, not before — and is then refused to every build that doesn't
+    list it, with no further server change.**
 -   Shared versions (`package.json` `overrides`): `react`/`react-dom` pinned to `19.1.0`,
     `@react-navigation/native` to `7.2.2`.
 -   Formatting: Prettier, tabs, width 120, single quotes, no trailing commas. ESLint 9 flat configs per app.
