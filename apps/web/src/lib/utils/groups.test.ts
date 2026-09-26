@@ -8,6 +8,7 @@ import {
 	emptyBabCells,
 	partLabelKey,
 	partUnitKey,
+	planPreviewRows,
 	staggerWithinRuns,
 	toBabCells,
 	toPoolCells
@@ -214,5 +215,47 @@ describe('emptyBabCells', () => {
 		expect(cells).toHaveLength(33);
 		expect(cells[0]).toEqual({ number: 1, state: 'open' });
 		expect(cells[32]).toEqual({ number: 33, state: 'open' });
+	});
+});
+
+describe('planPreviewRows', () => {
+	const ranges = (rows: ReturnType<typeof planPreviewRows>) => rows.map(row => `${row.start}–${row.end}`);
+
+	it('walks the Hizb forward a block a round, the first seat carrying the odd portion', () => {
+		// 33 over 16: seat 0 holds three (33 % 16 = 1), every other seat two.
+		const rows = planPreviewRows({ maxRounds: 4, partCount: 33, slotIndex: 0, splitMode: 'ROTATION', spots: 16 });
+
+		expect(ranges(rows)).toEqual(['1–3', '4–5', '6–7', '8–9']);
+		expect(rows.map(row => row.roundIndex)).toEqual([0, 1, 2, 3]);
+		expect(rows[0]?.offset).toBe(0);
+		expect(rows[0]?.width).toBeCloseTo((3 / 33) * 100);
+		expect(rows[1]?.offset).toBeCloseTo((3 / 33) * 100);
+	});
+
+	it('never shows more rounds than there are seats', () => {
+		const rows = planPreviewRows({ maxRounds: 4, partCount: 33, slotIndex: 0, splitMode: 'ROTATION', spots: 2 });
+
+		expect(ranges(rows)).toEqual(['1–17', '18–33']);
+	});
+
+	it('gives a lone seat the whole book in one row', () => {
+		const rows = planPreviewRows({ maxRounds: 4, partCount: 33, slotIndex: 0, splitMode: 'ROTATION', spots: 1 });
+
+		expect(ranges(rows)).toEqual(['1–33']);
+		expect(rows[0]?.width).toBe(100);
+	});
+
+	it('holds one unmoving range under FIXED', () => {
+		const rows = planPreviewRows({ maxRounds: 4, partCount: 33, slotIndex: 0, splitMode: 'FIXED', spots: 11 });
+
+		expect(ranges(rows)).toEqual(['1–3']);
+	});
+
+	it('draws the Cevşen as it always has', () => {
+		const rows = planPreviewRows({ maxRounds: 4, partCount: 100, slotIndex: 0, splitMode: 'ROTATION', spots: 20 });
+
+		expect(ranges(rows)).toEqual(['1–5', '6–10', '11–15', '16–20']);
+		expect(rows.map(row => row.offset)).toEqual([0, 5, 10, 15]);
+		expect(rows.map(row => row.width)).toEqual([5, 5, 5, 5]);
 	});
 });

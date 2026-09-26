@@ -18,12 +18,12 @@ const FILL_MS = 2400;
 const STEP_DOT = 22;
 
 /**
- * C1 · Grup kuruluyor — the create flow's fourth step.
+ * C1 · Grup kuruluyor — what the create flow shows after its last step.
  *
  * It **replaces** the form inside the same sheet rather than covering it. As an overlay it
  * drew its own backdrop and grabber inside a sheet that already had both, so it read as a
  * second sheet stacked on the first — two grabbers, and a dim that stopped at the sheet's
- * edge instead of covering the page. The flow is already stepped (1/3, 2/3, 3/3); this is
+ * edge instead of covering the page. The flow is already stepped (1/4 … 4/4); this is
  * simply what the sheet shows once there is nothing left to fill in.
  *
  * Creating a group writes the group, its hundred babs and the owner's seat in one

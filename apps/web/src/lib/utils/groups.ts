@@ -3,7 +3,7 @@ import type { ChipTone } from '@/components/ui/Chip/Chip.types';
 import type { IconName } from '@/components/ui/Icon/Icon.types';
 import type { StringKey } from '@/lib/i18n/strings';
 import type { GroupBab, GroupCycle, GroupKind, GroupSplitMode, GroupVisibility } from '@/lib/types/domain';
-import { babRuns, formatRun } from '@/lib/utils/babs';
+import { babRuns, formatRun, rangeForRound, rangeForSlot } from '@/lib/utils/babs';
 import { CYCLES_FOR_KIND } from '@/lib/utils/groupKinds';
 
 /** The cycles the create sheet offers a kind — the Hizb's month is not the Cevşen's to choose. */
@@ -281,3 +281,54 @@ export const shareSlices = (babNumbers: number[], nextBabNumber: number | null):
 /** Placeholder board for the loading state so the card doesn't jump when data lands — one cell per part. */
 export const emptyBabCells = (total: number) =>
 	Array.from({ length: total }, (_, index) => ({ number: index + 1, state: 'open' as BabCellState }));
+
+/** One round of the create sheet's plan preview: the range a seat reads, and where it sits in the text. */
+export type PlanPreviewRow = {
+	/** 0-based. Also the row's React key, so a bar keeps its identity while `spots` moves. */
+	roundIndex: number;
+	start: number;
+	end: number;
+	/** How much of the whole text comes before the range, 0–100 — where the bar starts. */
+	offset: number;
+	/** How much of the whole text the range covers, 0–100. */
+	width: number;
+};
+
+/**
+ * What `PlanPreview` draws. Under ROTATION, the first `maxRounds` rounds of one seat — never more
+ * rounds than there are seats, because after `spots` of them the seat is back where it began.
+ * Under FIXED, the one range it holds every round. Percentages of `partCount`, so a bar reads as
+ * a position on the whole book, the hundred babs or the Hizb's 33 portions alike.
+ */
+export const planPreviewRows = ({
+	maxRounds,
+	partCount,
+	slotIndex,
+	splitMode,
+	spots
+}: {
+	maxRounds: number;
+	partCount: number;
+	slotIndex: number;
+	splitMode: GroupSplitMode;
+	spots: number;
+}): PlanPreviewRow[] => {
+	const isRotation = splitMode === 'ROTATION';
+	const roundCount = isRotation ? Math.min(maxRounds, spots) : 1;
+
+	return Array.from({ length: roundCount }, (_, roundIndex) =>
+		isRotation ? rangeForRound(slotIndex, spots, roundIndex, partCount) : rangeForSlot(slotIndex, spots, partCount)
+	).flatMap((range, roundIndex) =>
+		range
+			? [
+					{
+						end: range.end,
+						offset: ((range.start - 1) / partCount) * 100,
+						roundIndex,
+						start: range.start,
+						width: ((range.end - range.start + 1) / partCount) * 100
+					}
+			  ]
+			: []
+	);
+};

@@ -1,16 +1,21 @@
 import { PlanPreview } from '@/components/PlanPreview/PlanPreview.component';
 import { AppBottomSheet } from '@/components/ui/BottomSheet/BottomSheet.component';
+import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Field } from '@/components/ui/Form/Field/Field.component';
 import { Form } from '@/components/ui/Form/Form.component';
+import { FormKindOptionGroup } from '@/components/ui/Form/KindOptionGroup/KindOptionGroup.component';
 import { FormOptionGroup } from '@/components/ui/Form/OptionGroup/OptionGroup.component';
 import { Select } from '@/components/ui/Form/Select/Select.component';
 import { FormStepper } from '@/components/ui/Form/Stepper/Stepper.component';
+import { Icon } from '@/components/ui/Icon/Icon.component';
 import { SpotsGrid } from '@/components/ui/SpotsGrid/SpotsGrid.component';
-import { CaptionText, FieldLabelText } from '@/components/ui/Typography/Typography.component';
+import { BodyText, CaptionText, FieldLabelText } from '@/components/ui/Typography/Typography.component';
 import { useCreateGroup } from '@/lib/hooks/useGroup';
 import { useTranslation } from '@/lib/i18n/I18n.context';
+import type { StringKey } from '@/lib/i18n/strings';
 import { createGroupSchema, type GroupForm } from '@/lib/schemas/group.schema';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
+import type { GroupKind } from '@/lib/types/domain';
 import { babsPerPerson } from '@/lib/utils/babs';
 import { CREATE_DEFAULTS_FOR_KIND, partCountFor, SPOTS_FOR_KIND } from '@/lib/utils/groupKinds';
 import { cycleLabelKey, cycleOptionsFor } from '@/lib/utils/groups';
@@ -19,7 +24,7 @@ import { RootStackParamList } from '@/navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { CreateGroupStep, CreateGroupStepHeader } from './CreateGroupStepHeader.component';
+import { CreateGroupStep, CreateGroupStepHeader, LAST_STEP } from './CreateGroupStepHeader.component';
 import { CreatingGroupStep } from './CreatingGroupStep.component';
 
 type CreateGroupScreenProps = NativeStackScreenProps<RootStackParamList, 'CreateGroup'>;
@@ -27,42 +32,54 @@ type CreateGroupScreenProps = NativeStackScreenProps<RootStackParamList, 'Create
 /**
  * What each step is allowed to be wrong about.
  *
- * The schema is one flat `createGroupSchema` covering all three steps, so validating on the way
- * forward has to be scoped by hand — `handleSubmit` would fail step 1 on fields that are still
- * two screens away and set errors under inputs nobody has seen. Naming the fields is what keeps
- * the message under the control it belongs to.
+ * The schema is one flat `createGroupSchema` covering every step, so validating on the way
+ * forward has to be scoped by hand — `handleSubmit` would fail an early step on fields that are
+ * still screens away and set errors under inputs nobody has seen. Naming the fields is what
+ * keeps the message under the control it belongs to.
  */
 const FIELDS_BY_STEP: Record<CreateGroupStep, (keyof GroupForm)[]> = {
-	1: ['name', 'dedication', 'visibility'],
-	2: ['spots', 'splitMode'],
-	3: ['cycle']
+	1: ['kind'],
+	2: ['name', 'dedication', 'visibility'],
+	3: ['spots', 'splitMode'],
+	4: ['cycle']
 };
 
 /**
- * **One height for all three steps, and it never changes.** Sized for step 2, which is the
- * tallest — the seat stepper, the hundred-cell grid, the plan options and their preview.
+ * **One height for every step, and it never changes.** Sized for step 3, which is the tallest —
+ * the seat stepper, the seat lattice, the plan options and their preview. Choosing the Hizb at
+ * step 1 makes step 3 taller still (a 33-seat lattice); the scroll view takes the difference,
+ * never the sheet.
  *
  * Two reasons it is a single constant rather than something per step.
  *
  * The first is a bug. `@expo/ui`'s `BottomSheetView.swift` chooses between fitting to content and
  * honouring detents with a SwiftUI `if props.fitToContents`, which is a *structural* branch:
  * flipping it swaps `_ConditionalContent` arms, so SwiftUI tears down one arm and builds the
- * other, **taking the hosted React Native surface with it**. Giving step 2 alone a detent
+ * other, **taking the hosted React Native surface with it**. Giving the seats step alone a detent
  * therefore remounted the whole form on the way in and again on the way out, reverting the name
- * and dedication to their defaults — which then blocked creating the group at step 3.
+ * and dedication to their defaults — which then blocked creating the group at the last step.
+ * The kind step raises the stakes: a remount would also drop the book chosen at step 1.
  *
  * The second is that a resize between steps cannot be made to look like anything. The fitted
  * detent is assigned outside any animation transaction, so the sheet jumps rather than settling,
  * and no JS reaches that — `withAnimation` only covers `useNativeState`. A sheet that does not
  * change height has no transition to get wrong, and the steps read as pages of one sheet rather
- * than as three sheets of different sizes.
+ * than as four sheets of different sizes.
  *
- * The cost is accepted deliberately: steps 1 and 3 carry some room below their last control.
+ * The cost is accepted deliberately: the other steps carry some room below their last control.
  */
 const SHEET_HEIGHT_RATIO = 0.82;
 
-/** The tallest the seat lattice ever gets, which is the height it always reserves. */
-const MAX_SPOTS = Math.max(...SPOTS_FOR_KIND.CEVSEN);
+/** The tallest each kind's seat lattice gets, which is the height it always reserves. */
+const MAX_SPOTS_FOR_KIND: Record<GroupKind, number> = {
+	CEVSEN: Math.max(...SPOTS_FOR_KIND.CEVSEN),
+	HIZB: Math.max(...SPOTS_FOR_KIND.HIZB)
+};
+
+/** Ten a row for the Cevşen's twenty, eleven for the Hizb — its 33 fill three whole rows. */
+const SPOTS_COLUMNS_FOR_KIND: Record<GroupKind, number> = { CEVSEN: 10, HIZB: 11 };
+
+const SPOTS_NOTE_KEY_FOR_KIND: Record<GroupKind, StringKey> = { CEVSEN: 'spotsNote', HIZB: 'spotsNoteHizb' };
 
 export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 	const { theme } = useThemeContext();
@@ -163,7 +180,8 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 				 * the field is right, which is the only way it ever goes away here.
 				 */
 				mode='onChange'
-				// Only the Cevşen can be created from this sheet until the kind gets a step of its own.
+				// The Cevşen's, because its card is the one selected on arrival; choosing the Hizb at
+				// step 1 swaps the kind's own three in (`handleKindChange`).
 				defaultValues={{
 					...CREATE_DEFAULTS_FOR_KIND.CEVSEN,
 					dedication: '',
@@ -173,9 +191,33 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 				}}
 				isDisabled={createGroup.isPending}
 				schema={schema}
-				render={({ handleSubmit, trigger, watch }) => {
+				render={({ handleSubmit, setValue, trigger, watch }) => {
 					const spots = watch('spots');
 					const kind = watch('kind');
+					const perPart = babsPerPerson(spots, partCountFor(kind));
+					// The Hizb's line names its own unit, and "1 portion" is its own line — see
+					// `perPersonHizbOne`. The Cevşen's is the one it has always had.
+					const spotsCaption =
+						kind === 'HIZB'
+							? t(perPart === 1 ? 'perPersonHizbOne' : 'perPersonHizb', { perPart, spots })
+							: t('perPersonTr', { perBab: perPart, spots });
+
+					/*
+					 * **A new kind starts from that kind's own defaults.** Everything after step 2
+					 * depends on the book: a size picked for the Cevşen is not a Hizb default (and
+					 * most Hizb sizes are not Cevşen sizes at all), and a month chosen for the Hizb
+					 * is a cycle the Cevşen refuses. Resetting all three is what keeps a trip back to
+					 * step 1 from carrying a value the new kind's controls cannot show. Only on an
+					 * actual change — `FormKindOptionGroup` doesn't call this for the card already
+					 * chosen — so re-tapping it keeps what was set.
+					 */
+					const handleKindChange = (next: GroupKind) => {
+						const defaults = CREATE_DEFAULTS_FOR_KIND[next];
+
+						setValue('spots', defaults.spots);
+						setValue('splitMode', defaults.splitMode);
+						setValue('cycle', defaults.cycle);
+					};
 
 					/*
 					 * **Forward is a validation, not just a state change.** The step buttons used
@@ -218,7 +260,7 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 							) : (
 								<CreateGroupStepHeader
 									onBack={handleBack}
-									onNext={step === 3 ? handleSubmit(handleCreate) : () => void handleNext()}
+									onNext={step === LAST_STEP ? handleSubmit(handleCreate) : () => void handleNext()}
 									step={step}
 								/>
 							)}
@@ -234,6 +276,36 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 								style={styles.scroller}
 							>
 								{!createGroup.isPending && step === 1 ? (
+									<>
+										<BodyText color={theme.colors.subtext}>{t('stepKindSub')}</BodyText>
+										<FormKindOptionGroup name='kind' onChange={handleKindChange} />
+										{/*
+										 * Only under the Hizb: the note explains the book just chosen, and
+										 * the Cevşen is the one everybody arriving here already knows. It
+										 * sits below the cards, so appearing moves nothing above it.
+										 */}
+										{kind === 'HIZB' ? (
+											<CardSurface>
+												<View style={styles.kindNote}>
+													<Icon
+														color={theme.colors.accent}
+														name='info'
+														size={17}
+														strokeWidth={1.8}
+													/>
+													<CaptionText
+														color={theme.colors.subtext}
+														style={styles.kindNoteText}
+													>
+														{t('kindHizbNote')}
+													</CaptionText>
+												</View>
+											</CardSurface>
+										) : null}
+									</>
+								) : null}
+
+								{!createGroup.isPending && step === 2 ? (
 									<>
 										<Field
 											label={t('groupName')}
@@ -258,28 +330,33 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 									</>
 								) : null}
 
-								{!createGroup.isPending && step === 2 ? (
+								{!createGroup.isPending && step === 3 ? (
 									<>
 										<FieldLabelText style={styles.fieldLabel}>{t('spots')}</FieldLabelText>
 										<View style={styles.spotsCard}>
-											{/* Three sizes, not a range: 5, 10 and 20 each divide the hundred
-										    evenly, so +/- walk the list rather than adding a constant. */}
+											{/* The kind's own sizes: the Cevşen's three (5, 10 and 20 each
+										    divide the hundred evenly), the Hizb's every count from 1 to
+										    33 — so +/- walk the list rather than adding a constant. */}
 											<FormStepper
-												caption={t('perPersonTr', {
-													perBab: babsPerPerson(spots, partCountFor(kind)),
-													spots
-												})}
+												caption={spotsCaption}
 												name='spots'
 												style={styles.stepper}
 												values={SPOTS_FOR_KIND[kind]}
 											/>
 											{/* Every seat is a seat that will be filled — the grid shows the
 										    capacity being chosen, not who has joined yet. */}
-											{/* Sized for the largest option, so stepping 20 → 10 doesn't drop a
-										    row out from under the plan options below it. */}
-											<SpotsGrid filled={spots} maxTotal={MAX_SPOTS} total={spots} />
+											{/* Sized for the kind's largest option, so stepping down doesn't
+										    drop a row out from under the plan options below it. */}
+											<SpotsGrid
+												columns={SPOTS_COLUMNS_FOR_KIND[kind]}
+												filled={spots}
+												maxTotal={MAX_SPOTS_FOR_KIND[kind]}
+												total={spots}
+											/>
 										</View>
-										<CaptionText color={theme.colors.faintText}>{t('spotsNote')}</CaptionText>
+										<CaptionText color={theme.colors.faintText}>
+											{t(SPOTS_NOTE_KEY_FOR_KIND[kind])}
+										</CaptionText>
 										<FieldLabelText style={styles.fieldLabel}>{t('readingPlan')}</FieldLabelText>
 										<FormOptionGroup
 											direction='column'
@@ -293,15 +370,11 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 												{ hint: t('planFixedHint'), title: t('planFixed'), value: 'FIXED' }
 											]}
 										/>
-										<PlanPreview
-											splitMode={watch('splitMode')}
-											spots={spots}
-											total={partCountFor(kind)}
-										/>
+										<PlanPreview kind={kind} splitMode={watch('splitMode')} spots={spots} />
 									</>
 								) : null}
 
-								{!createGroup.isPending && step === 3 ? (
+								{!createGroup.isPending && step === 4 ? (
 									<>
 										<FieldLabelText style={styles.fieldLabel}>{t('cycle')}</FieldLabelText>
 										<Select
@@ -347,6 +420,15 @@ const styles = StyleSheet.create({
 	/** Header above, the form scrolling in what is left — the sheet gives the column its height. */
 	fieldLabel: {
 		marginBottom: 8
+	},
+	// Glyph beside the text, both from the top: the note runs three lines and the glyph marks the first.
+	kindNote: {
+		alignItems: 'flex-start',
+		flexDirection: 'row',
+		gap: 12
+	},
+	kindNoteText: {
+		flex: 1
 	},
 	/**
 	 * **The same 12 below the last section as between any two sections**, on every step.

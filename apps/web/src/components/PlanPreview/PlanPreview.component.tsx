@@ -2,7 +2,8 @@ import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { CaptionText, EyebrowText, MonoText, Typography } from '@/components/ui/Typography/Typography.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import { rangeForRound, rangeForSlot } from '@/lib/utils/babs';
+import { partCountFor } from '@/lib/utils/groupKinds';
+import { partUnitKey, planPreviewRows } from '@/lib/utils/groups';
 import { StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import type { PlanPreviewProps } from './PlanPreview.types';
@@ -59,38 +60,29 @@ const PlanRow = ({ label, offset, range, width }: PlanRowProps) => {
  * Shows what the chosen plan actually means, round by round: the range and where it sits
  * across the whole text — the hundred babs, or the Hizb's 33 portions. A ROTATION group walks
  * forward one seat each round, so the bar marches left to right; a FIXED group is one
- * unmoving row.
+ * unmoving row. The rows themselves are `planPreviewRows`, tested; this only labels them.
  */
-export const PlanPreview = ({ slotIndex = 0, splitMode, spots, style, total }: PlanPreviewProps) => {
+export const PlanPreview = ({ kind, slotIndex = 0, splitMode, spots, style }: PlanPreviewProps) => {
 	const { theme } = useThemeContext();
 	const { t } = useTranslation();
 
 	const isRotation = splitMode === 'ROTATION';
-	const roundCount = isRotation ? Math.min(PREVIEW_ROUNDS, spots) : 1;
+	const total = partCountFor(kind);
 
-	const rows = Array.from({ length: roundCount }, (_, day) => {
-		const range = isRotation ? rangeForRound(slotIndex, spots, day, total) : rangeForSlot(slotIndex, spots, total);
-
-		if (!range) {
-			return null;
-		}
-
-		const size = range.end - range.start + 1;
-
-		return {
-			// Keyed by the day alone. Including the range would give the row a new identity
+	const rows = planPreviewRows({ maxRounds: PREVIEW_ROUNDS, partCount: total, slotIndex, splitMode, spots }).map(
+		row => ({
+			// Keyed by the round alone. Including the range would give the row a new identity
 			// every time `spots` changes, remounting it — and a remounted bar can't animate
 			// from where the old one was.
-			key: day,
+			key: row.roundIndex,
 			// Rounds, not days: this step comes before the cycle is chosen, so "gün" would be
 			// a guess — and a wrong one for a weekly group, which holds its range all week.
-			label: isRotation ? t('roundShort', { n: day + 1 }) : t('everyRoundLabel'),
-			range: `${range.start}–${range.end}`,
-			// Percentages of the whole text, so the bar reads as a position on the board.
-			offset: ((range.start - 1) / total) * 100,
-			width: (size / total) * 100
-		};
-	}).filter(row => row !== null);
+			label: isRotation ? t('roundShort', { n: row.roundIndex + 1 }) : t('everyRoundLabel'),
+			range: `${row.start}–${row.end}`,
+			offset: row.offset,
+			width: row.width
+		})
+	);
 
 	return (
 		/*
@@ -109,8 +101,12 @@ export const PlanPreview = ({ slotIndex = 0, splitMode, spots, style, total }: P
 				</EyebrowText>
 				<CaptionText color={theme.colors.faintText}>
 					{/* `spots` rounds is how long a full rotation takes — after that a seat is
-					    back where it started, having read the whole Cevşen. */}
-					{isRotation ? t('roundsToFullCycle', { count: spots }) : t('everyRoundLabel')}
+					    back where it started, having read the whole book. A lone seat (the Hizb
+					    allows one) reads all of it every round, which is what "Her tur" says —
+					    and "1 rounds" is what the count would have said. */}
+					{isRotation && spots > 1
+						? t('roundsToFullCycle', { count: spots, total, unit: t(partUnitKey(kind)) })
+						: t('everyRoundLabel')}
 				</CaptionText>
 			</View>
 			<View style={styles.rows}>

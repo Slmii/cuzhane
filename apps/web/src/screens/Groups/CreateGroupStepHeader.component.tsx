@@ -5,7 +5,7 @@ import { useTranslation } from '@/lib/i18n/I18n.context';
 import type { StringKey } from '@/lib/i18n/strings';
 import { StyleSheet, View } from 'react-native';
 
-export type CreateGroupStep = 1 | 2 | 3;
+export type CreateGroupStep = 1 | 2 | 3 | 4;
 
 interface CreateGroupStepHeaderProps {
 	onBack: () => void;
@@ -15,18 +15,18 @@ interface CreateGroupStepHeaderProps {
 }
 
 /** The step after which there is nothing left to fill in. */
-const LAST_STEP: CreateGroupStep = 3;
+export const LAST_STEP: CreateGroupStep = 4;
 
-const EYEBROW_KEY_BY_STEP: Record<CreateGroupStep, StringKey> = {
-	1: 'step1of3',
-	2: 'step2of3',
-	3: 'step3of3'
-};
-
+/**
+ * Which book, then the group's name, then how the book is shared, then how often. The kind comes
+ * first because the two steps after the name depend on it: the sizes, the plan's unit and the
+ * cycles on offer are all the kind's own.
+ */
 const TITLE_KEY_BY_STEP: Record<CreateGroupStep, StringKey> = {
-	1: 'stepDefine',
-	2: 'stepSpots',
-	3: 'stepCycle'
+	1: 'stepKind',
+	2: 'stepDefine',
+	3: 'stepSpots',
+	4: 'stepCycle'
 };
 
 export const CreateGroupStepHeader = ({ onBack, onNext, step }: CreateGroupStepHeaderProps) => {
@@ -63,8 +63,8 @@ export const CreateGroupStepHeader = ({ onBack, onNext, step }: CreateGroupStepH
 					variant='accent'
 				/>
 			</View>
-			<StepProgress current={step} style={styles.progress} total={3} />
-			<EyebrowText style={styles.eyebrow}>{t(EYEBROW_KEY_BY_STEP[step])}</EyebrowText>
+			<StepProgress current={step} style={styles.progress} total={LAST_STEP} />
+			<EyebrowText style={styles.eyebrow}>{t('stepOfTotal', { step, total: LAST_STEP })}</EyebrowText>
 			<Header1>{t(TITLE_KEY_BY_STEP[step])}</Header1>
 		</View>
 	);
