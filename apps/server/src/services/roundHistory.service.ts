@@ -54,7 +54,7 @@ export type RoundDetail = {
  * stores who owed what, exactly as nothing stores who reads what.
  */
 const owedSlotForBab = (group: Pick<Group, 'spots' | 'splitMode'>, babNumber: number, roundIndex: number) => {
-	const blockIndex = slotIndexForBab(babNumber, group.spots);
+	const blockIndex = slotIndexForBab(babNumber, group.spots, BAB_COUNT);
 
 	if (blockIndex === null) {
 		return null;

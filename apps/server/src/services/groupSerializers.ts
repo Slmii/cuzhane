@@ -1,4 +1,11 @@
-import { babNumbersForRound, babNumbersForSlot, progressPercent, rangeForRound, rangeForSlot } from '@utils/babs';
+import {
+	BAB_COUNT,
+	babNumbersForRound,
+	babNumbersForSlot,
+	progressPercent,
+	rangeForRound,
+	rangeForSlot
+} from '@utils/babs';
 import { formatInviteCode } from '@utils/inviteCode';
 import { FALLBACK_DISPLAY_NAME, type MemberProfile } from '@utils/memberProfiles';
 import { civilDayNumber, roundEndsAt } from '@utils/rounds';
@@ -209,18 +216,18 @@ type PlanShape = Pick<Group, 'spots' | 'splitMode'>;
 export const babNumbersInRound = (group: PlanShape, slotIndex: number, roundIndex: number | null): number[] => {
 	if (roundIndex === null) {
 		// Still gathering: the seat's own block is what has been reserved for them.
-		return babNumbersForSlot(slotIndex, group.spots);
+		return babNumbersForSlot(slotIndex, group.spots, BAB_COUNT);
 	}
 
 	return toSplitMode(group.splitMode) === 'ROTATION'
-		? babNumbersForRound(slotIndex, group.spots, roundIndex)
-		: babNumbersForSlot(slotIndex, group.spots);
+		? babNumbersForRound(slotIndex, group.spots, roundIndex, BAB_COUNT)
+		: babNumbersForSlot(slotIndex, group.spots, BAB_COUNT);
 };
 
 const rangeInRound = (group: PlanShape, slotIndex: number, roundIndex: number): BabRange | null =>
 	toSplitMode(group.splitMode) === 'ROTATION'
-		? rangeForRound(slotIndex, group.spots, roundIndex)
-		: rangeForSlot(slotIndex, group.spots);
+		? rangeForRound(slotIndex, group.spots, roundIndex, BAB_COUNT)
+		: rangeForSlot(slotIndex, group.spots, BAB_COUNT);
 
 /**
  * The block a member reads today. Exported because the write paths need the same answer

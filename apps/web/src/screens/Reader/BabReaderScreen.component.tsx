@@ -181,8 +181,8 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 		}
 
 		return group.splitMode === 'ROTATION'
-			? babNumbersForRound(group.mySlotIndex, group.spots, coveredRoundIndex)
-			: babNumbersForSlot(group.mySlotIndex, group.spots);
+			? babNumbersForRound(group.mySlotIndex, group.spots, coveredRoundIndex, BAB_COUNT)
+			: babNumbersForSlot(group.mySlotIndex, group.spots, BAB_COUNT);
 	}, [coveredRoundIndex, groupQuery.data]);
 
 	/** "12 Eylül Cuma" in the reader's language, in the group's zone. */

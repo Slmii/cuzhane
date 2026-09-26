@@ -11,7 +11,7 @@ import { useCreateGroup } from '@/lib/hooks/useGroup';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { createGroupSchema, SPOTS_VALUES, type GroupForm } from '@/lib/schemas/group.schema';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import { babsPerPerson } from '@/lib/utils/babs';
+import { BAB_COUNT, babsPerPerson } from '@/lib/utils/babs';
 import { CYCLE_OPTIONS, cycleLabelKey } from '@/lib/utils/groups';
 import { deviceTimeZone } from '@/lib/utils/timezone';
 import { RootStackParamList } from '@/navigation/types';
@@ -262,7 +262,10 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 											{/* Three sizes, not a range: 5, 10 and 20 each divide the hundred
 										    evenly, so +/- walk the list rather than adding a constant. */}
 											<FormStepper
-												caption={t('perPersonTr', { perBab: babsPerPerson(spots), spots })}
+												caption={t('perPersonTr', {
+													perBab: babsPerPerson(spots, BAB_COUNT),
+													spots
+												})}
 												name='spots'
 												style={styles.stepper}
 												values={SPOTS_VALUES}

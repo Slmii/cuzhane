@@ -1,6 +1,6 @@
 import prisma from '@db/prisma';
 import { ensureCurrentRound, expectedRoundIndex } from '@services/rounds.service';
-import { rangeForRound } from '@utils/babs';
+import { BAB_COUNT, rangeForRound } from '@utils/babs';
 import {
 	civilDayNumber,
 	DEFAULT_TIME_ZONE,
@@ -237,7 +237,9 @@ describe('ensureCurrentRound', () => {
 
 		// Seat 0 after three rounds reads seat 3's block — the same place it would have
 		// reached had it rolled each midnight.
-		expect(rangeForRound(0, SPOTS, (await reload(group.id)).roundIndex)).toEqual(rangeForRound(3, SPOTS, 0));
+		expect(rangeForRound(0, SPOTS, (await reload(group.id)).roundIndex, BAB_COUNT)).toEqual(
+			rangeForRound(3, SPOTS, 0, BAB_COUNT)
+		);
 	});
 
 	it('is idempotent — a second pass finds nothing to do', async () => {

@@ -1,5 +1,5 @@
 import prisma from '@db/prisma';
-import { babNumbersForRound } from '@utils/babs';
+import { BAB_COUNT, babNumbersForRound } from '@utils/babs';
 import {
 	coverMissedBabsForUser,
 	getMyProgressForUser,
@@ -310,7 +310,8 @@ describe('covering a closed round is silent', () => {
 	 *
 	 * So these assert on the rows the notify paths would leave behind, not on a mock.
 	 */
-	const readsOf = (slotIndex: number, roundIndex: number) => babNumbersForRound(slotIndex, SPOTS, roundIndex);
+	const readsOf = (slotIndex: number, roundIndex: number) =>
+		babNumbersForRound(slotIndex, SPOTS, roundIndex, BAB_COUNT);
 
 	it('files no inbox rows and claims no notice when a whole share is covered', async () => {
 		const group = await createGroup({ startedDaysAgo: 3 });

@@ -201,7 +201,7 @@ export const ReaderBabMap = ({
 		const bySlot = new Map<number, number[]>();
 
 		for (const n of poolBabNumbers) {
-			const slot = slotIndexForBab(n, spots);
+			const slot = slotIndexForBab(n, spots, BAB_COUNT);
 
 			if (slot === null) {
 				continue;

@@ -1,7 +1,7 @@
 import prisma from '@db/prisma';
 import { joinGroupForUser } from '@services/groupMembership.service';
 import { markPoolReleasesSeenForUser } from '@services/pool.service';
-import { babNumbersForRound } from '@utils/babs';
+import { BAB_COUNT, babNumbersForRound } from '@utils/babs';
 import { DEFAULT_TIME_ZONE, ROUND_DAYS, roundEndsAt, roundStartedAtFor } from '@utils/rounds';
 import { civilDayNumber, startOfCivilDay } from '@utils/rounds';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
@@ -31,7 +31,7 @@ const daysAgo = (days: number): Date => {
 	return new Date(startOfCivilDay(today - days, DEFAULT_TIME_ZONE).getTime() + 12 * 60 * 60 * 1000);
 };
 
-const blockFor = (slotIndex: number) => babNumbersForRound(slotIndex, SPOTS, ROUND_INDEX);
+const blockFor = (slotIndex: number) => babNumbersForRound(slotIndex, SPOTS, ROUND_INDEX, BAB_COUNT);
 
 /** A running group with three members, three empty seats, and two claimed pool blocks. */
 const createGroup = async ({ readBabs = [] }: { readBabs?: number[] } = {}) => {

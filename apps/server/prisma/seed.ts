@@ -666,8 +666,8 @@ const isOccupiedSlot = (spec: GroupSeed, slotIndex: number) => (spec.members[slo
 /** Which babs a seat reads in a given round: rotated for ROTATION groups, standing for FIXED. */
 const babNumbersForSeatRound = (spec: GroupSeed, slotIndex: number, roundIndex: number) =>
 	spec.splitMode === 'ROTATION'
-		? babNumbersForRound(slotIndex, spec.spots, roundIndex)
-		: babNumbersForSlot(slotIndex, spec.spots);
+		? babNumbersForRound(slotIndex, spec.spots, roundIndex, BAB_COUNT)
+		: babNumbersForSlot(slotIndex, spec.spots, BAB_COUNT);
 
 const seedGroup = async (spec: GroupSeed) => {
 	if (spec.slotUserIds?.[0]) {

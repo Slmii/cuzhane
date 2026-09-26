@@ -68,7 +68,9 @@ export const PlanPreview = ({ slotIndex = 0, splitMode, spots, style }: PlanPrev
 	const roundCount = isRotation ? Math.min(PREVIEW_ROUNDS, spots) : 1;
 
 	const rows = Array.from({ length: roundCount }, (_, day) => {
-		const range = isRotation ? rangeForRound(slotIndex, spots, day) : rangeForSlot(slotIndex, spots);
+		const range = isRotation
+			? rangeForRound(slotIndex, spots, day, BAB_COUNT)
+			: rangeForSlot(slotIndex, spots, BAB_COUNT);
 
 		if (!range) {
 			return null;

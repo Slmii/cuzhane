@@ -1,6 +1,6 @@
 import prisma from '@db/prisma';
 import { setAssignedBabsReadForUser } from '@services/babs.service';
-import { babNumbersForRound } from '@utils/babs';
+import { BAB_COUNT, babNumbersForRound } from '@utils/babs';
 import { DEFAULT_TIME_ZONE, ROUND_DAYS, roundEndsAt, roundStartedAtFor } from '@utils/rounds';
 import { civilDayNumber, startOfCivilDay } from '@utils/rounds';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -17,7 +17,7 @@ const ROUND_INDEX = 2;
 /** Empty seats — their blocks are the pool this round. */
 const CLAIMED_SLOT = 4;
 
-const blockFor = (slotIndex: number) => babNumbersForRound(slotIndex, SPOTS, ROUND_INDEX);
+const blockFor = (slotIndex: number) => babNumbersForRound(slotIndex, SPOTS, ROUND_INDEX, BAB_COUNT);
 
 const daysAgo = (days: number): Date => {
 	const today = civilDayNumber(new Date(), DEFAULT_TIME_ZONE);

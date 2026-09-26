@@ -1,4 +1,4 @@
-import { rangeForRound } from '@utils/babs';
+import { BAB_COUNT, rangeForRound } from '@utils/babs';
 import { civilDayNumber, roundEndsAt, roundIndexSince, roundStartedAtFor, startOfCivilDay } from '@utils/rounds';
 import { describe, expect, it } from 'vitest';
 
@@ -60,7 +60,8 @@ describe('roundStartedAtFor', () => {
 
 	it('holds a WEEKLY seat on one range all week, then moves it on', () => {
 		const startedAt = new Date('2026-08-26T10:00:00Z');
-		const rangeOn = (now: string) => rangeForRound(0, 20, roundIndexSince(startedAt, WEEKLY, new Date(now), UTC));
+		const rangeOn = (now: string) =>
+			rangeForRound(0, 20, roundIndexSince(startedAt, WEEKLY, new Date(now), UTC), BAB_COUNT);
 
 		// Week 1 — the range does not budge from day to day.
 		expect(rangeOn('2026-08-26T10:00:00Z')).toEqual({ start: 1, end: 5 });
