@@ -1,0 +1,192 @@
+---
+import { Image } from 'astro:assets';
+import quranGroupShot from '../assets/12-quran-group.png';
+import quranReaderShot from '../assets/10-quran-reader.png';
+import { copyFor, type Locale } from '../i18n/copy';
+
+interface Props {
+	locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = copyFor(locale);
+---
+
+{/*
+  The Kur'an hatim — the design's sand card between the pool and the three steps. Its own
+  colour, sand rather than sage, so it reads as the second kind of reading rather than more of
+  the Cevşen's story. Two phones: the group's cüz grid in front, the Mushaf behind and lower.
+*/}
+<div class="shell">
+<section id="hatim" class="quran">
+	<div class="copy">
+		<p class="eyebrow reveal">{t.quranEyebrow}</p>
+		<h2 class="reveal">{t.quranTitle}</h2>
+		<p class="lede reveal">{t.quranBody}</p>
+
+		<ul class="bullets">
+			{
+				t.quranBullets.map(bullet => (
+					<li class="reveal">
+						<span class="tick" aria-hidden="true">
+							<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+								<path d="M5 12.6l4.4 4.4L19 7.4" />
+							</svg>
+						</span>
+						<span>{bullet}</span>
+					</li>
+				))
+			}
+		</ul>
+
+		<div class="stats">
+			{
+				t.quranStats.map(stat => (
+					<div class="stat reveal">
+						<span class="stat-v">{stat.v}</span>
+						<span class="stat-l">{stat.l}</span>
+					</div>
+				))
+			}
+		</div>
+	</div>
+
+	<div class="stage">
+		<Image
+			class="phone front reveal"
+			src={quranGroupShot}
+			alt={t.shotQuranGroup}
+			widths={[250, 500, 750]}
+			sizes="250px"
+		/>
+		<Image
+			class="phone back reveal"
+			src={quranReaderShot}
+			alt={t.shotQuranReader}
+			widths={[230, 460, 690]}
+			sizes="230px"
+		/>
+	</div>
+</section>
+</div>
+
+<style>
+	.quran {
+		margin-top: 78px;
+		background: var(--sand);
+		border: 1px solid var(--line);
+		border-radius: 30px;
+		padding: clamp(34px, 4vw, 56px) clamp(22px, 3.4vw, 48px);
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+		gap: 44px;
+		align-items: center;
+	}
+
+	.eyebrow {
+		color: var(--sand-ink);
+	}
+
+	h2 {
+		font-size: clamp(28px, 3.4vw, 40px);
+		line-height: 1.14;
+		margin: 12px 0 0;
+		max-width: 460px;
+	}
+
+	.lede {
+		max-width: 440px;
+	}
+
+	.bullets {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		margin: 24px 0 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.bullets li {
+		display: flex;
+		gap: 11px;
+		align-items: flex-start;
+		font: 400 13.5px/1.6 var(--sans);
+		color: rgba(28, 29, 26, 0.72);
+		text-wrap: pretty;
+	}
+
+	.tick {
+		flex: none;
+		width: 20px;
+		height: 20px;
+		border-radius: 6px;
+		background: #e6dcc8;
+		color: var(--sand-ink);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		margin-top: 1px;
+	}
+
+	.stats {
+		display: flex;
+		gap: 26px;
+		flex-wrap: wrap;
+		margin-top: 28px;
+	}
+
+	.stat {
+		display: flex;
+		flex-direction: column;
+		gap: 5px;
+	}
+
+	.stat-v {
+		font: 400 30px/1 var(--serif);
+		color: var(--sand-ink);
+	}
+
+	.stat-l {
+		font: 500 10.5px var(--sans);
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		color: rgba(28, 29, 26, 0.55);
+	}
+
+	/* The group in front, the Mushaf tucked behind it and lower — the design's overlap. */
+	.stage {
+		display: flex;
+		justify-content: center;
+		align-items: flex-start;
+		padding: 10px 0 30px;
+	}
+
+	.phone {
+		flex: none;
+		height: auto;
+		display: block;
+		position: relative;
+	}
+
+	.front {
+		width: 250px;
+		max-width: 48%;
+		border-radius: 30px;
+		box-shadow:
+			0 22px 54px rgba(28, 29, 26, 0.18),
+			0 0 0 7px #16171a;
+		z-index: 2;
+	}
+
+	.back {
+		width: 230px;
+		max-width: 44%;
+		margin: 48px 0 0 -34px;
+		border-radius: 28px;
+		box-shadow:
+			0 22px 54px rgba(28, 29, 26, 0.16),
+			0 0 0 7px #16171a;
+		z-index: 1;
+	}
+</style>

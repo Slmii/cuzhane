@@ -39,25 +39,43 @@ export const OG_LOCALES: Record<Locale, string> = {
 
 const tr = {
 	// Head — not shown on the page, but the most-read words on it.
-	metaTitle: 'Cüzhane · Cevşen gruplarında payını oku, turu tamamla',
+	metaTitle: "Cüzhane · Cevşen ve Kur'an gruplarında payını oku, turu tamamla",
 	metaDescription:
-		"Cüzhane, Cevşen'in 100 babını grubuna paylar hâlinde dağıtır. Sahipsiz bablar havuzda durur, herkes gücü kadarını üstlenir, tur birlikte kapanır. iOS ve Android için ücretsiz.",
+		"Cüzhane, Cevşen'in 100 babını ve Kur'an'ın 30 cüzünü grubuna paylar hâlinde dağıtır. Sahipsiz paylar havuzda durur, herkes gücü kadarını üstlenir, tur birlikte kapanır. iOS ve Android için ücretsiz.",
 
 	navPool: 'Havuz',
+	navQuran: "Kur'an hatmi",
 	navHow: 'Nasıl çalışır',
 	navFeat: 'Özellikler',
 	navFaq: 'Sorular',
 	skipToContent: 'İçeriğe geç',
 
-	heroEyebrow: 'Cevşen grupları için',
+	heroEyebrow: "Cevşen ve Kur'an grupları için",
 	heroTitle: 'Payını oku, turu tamamla.',
 	heroBody:
-		"Cüzhane, Cevşen'in 100 babını gruba paylar hâlinde dağıtır ve turun nerede olduğunu tek ekranda gösterir. Kim hangi babı üstlendi, ne kadar kaldı, kim kaldığı yerden devam ediyor.",
+		"Cüzhane, Cevşen'in 100 babını ve Kur'an'ın 30 cüzünü gruba paylar hâlinde dağıtır. Bugün ne okuyacağın tek listede, sıradaki en üstte; kim neyi üstlendi, ne kadar kaldı, bir bakışta.",
 	ctaGet: 'Ücretsiz indir',
 	ctaJoin: 'Kodla katıl',
 	heroMeta: 'iOS ve Android · Türkçe, English, Nederlands · reklamsız',
 
-	shotHome: 'Cüzhane ana ekranı: seri, hafta şeridi ve grup satırları',
+	shotHome: "Cüzhane ana ekranı: Cevşen ve Kur'an payları tek listede, sıradaki en üstte",
+	// The Kur'an hatim — its own section between the pool and the three steps.
+	quranEyebrow: "Kur'an hatmi",
+	quranTitle: 'Otuz cüz, bir hatim, birlikte.',
+	quranBody:
+		"Kırk günlük hatim, bir yakının için hatim ya da her gün bir cüz. Grubu kur, bitiş tarihini seç; cüzler havuza düşer, herkes gücü kadarını alır. Okuma Mushaf'ta, kaldığın sayfada devam eder.",
+	quranBullets: [
+		'Cüz ızgarası: okunan, başkasının, havuzdaki ve senin cüzün tek bakışta',
+		'Bitiş tarihine göre geri sayım; günlük cüz grupları her gece yenilenir',
+		'Mushaf okuyucu: sure başlıkları, ayet işaretleri, «Kaldığım yeri işaretle»'
+	],
+	quranStats: [
+		{ v: '30', l: 'cüz · bir hatim' },
+		{ v: '604', l: 'sayfa' },
+		{ v: '1 liste', l: "Cevşen + Kur'an" }
+	],
+	shotQuranGroup: "Cüzhane Kur'an grubu — Kırk Günlük Hatim, cüz ızgarası",
+	shotQuranReader: 'Cüzhane Mushaf okuyucu — Bakara suresi',
 	shotGroup: 'Cüzhane grup ekranı: yüz bablık pano ve üyelerin payları',
 	shotReader: 'Cüzhane okuma ekranı: bab şeridi, Arapça metin ve okundu işareti',
 	ogImageAlt: 'Cüzhane uygulamasının grup okuma ekranı',
@@ -137,6 +155,10 @@ const tr = {
 	faq: [
 		{ q: 'Ücretli mi?', a: 'Hayır. Cüzhane ücretsiz ve reklamsız.' },
 		{
+			q: "Kur'an hatmi de yapılabiliyor mu?",
+			a: "Evet. Grup kurarken Kur'an'ı seç; 30 cüz havuza düşer, bitiş tarihi ya da günlük cüz seçilebilir. Cevşen ve Kur'an okumaların aynı ana ekranda sıralanır."
+		},
+		{
 			q: 'Hesap açmam gerekir mi?',
 			a: 'Evet. Cüzhane hesapla çalışır — gruba katılmak, bab üstlenmek ve ilerlemeni saklamak için ücretsiz bir hesap gerekir.'
 		},
@@ -166,23 +188,41 @@ const tr = {
 const en: typeof tr = {
 	metaTitle: 'Cüzhane · Read your share, finish the round',
 	metaDescription:
-		'Cüzhane hands the 100 babs of the Cevşen out to your group as shares. Unclaimed babs sit in an open pool, everyone takes what they can carry, and the round closes together. Free on iOS and Android.',
+		'Cüzhane hands the 100 babs of the Cevşen and the 30 juz of the Quran out to your group as shares. Unclaimed shares sit in an open pool, everyone takes what they can carry, and the round closes together. Free on iOS and Android.',
 
 	navPool: 'The pool',
+	navQuran: 'Quran hatim',
 	navHow: 'How it works',
 	navFeat: 'Features',
 	navFaq: 'Questions',
 	skipToContent: 'Skip to content',
 
-	heroEyebrow: 'For group Cevşen readings',
+	heroEyebrow: 'For group Cevşen and Quran readings',
 	heroTitle: 'Read your share, finish the round.',
 	heroBody:
-		"Cüzhane hands the 100 babs of the Cevşen out to your group as shares and shows where the round stands on one screen. Who took which bab, what's left, who's picking up where they stopped.",
+		"Cüzhane hands the 100 babs of the Cevşen and the 30 juz of the Quran out to your group as shares. Today's readings sit in one list with the next one on top — who took what and what's left, at a glance.",
 	ctaGet: 'Download free',
 	ctaJoin: 'Join with a code',
 	heroMeta: 'iOS and Android · Türkçe, English, Nederlands · no ads',
 
-	shotHome: "Cüzhane's home screen: streak, week strip and group rows",
+	shotHome: "Cüzhane's home screen: Cevşen and Quran shares in one list, the next one on top",
+	// The Kur'an hatim — its own section between the pool and the three steps.
+	quranEyebrow: 'Quran hatim',
+	quranTitle: 'Thirty juz, one hatim, together.',
+	quranBody:
+		"A forty-day hatim, a hatim for someone you've lost, or a juz a day. Start a group and pick an end date; the juz go into the pool and everyone takes what they can. Reading happens in the Mushaf, right where you stopped.",
+	quranBullets: [
+		'Juz grid: read, taken, in the pool and yours — at a glance',
+		'Countdown to the end date; daily juz groups reset every night',
+		'Mushaf reader with surah headers, verse marks and “Mark my place”'
+	],
+	quranStats: [
+		{ v: '30', l: 'juz · one hatim' },
+		{ v: '604', l: 'pages' },
+		{ v: '1 list', l: 'Cevşen + Quran' }
+	],
+	shotQuranGroup: 'Cüzhane Quran group — forty-day hatim, juz grid',
+	shotQuranReader: 'Cüzhane Mushaf reader — Al-Baqarah',
 	shotGroup: "Cüzhane's group screen: the hundred-bab board and each member's share",
 	shotReader: "Cüzhane's reader: the bab strip, Arabic text and the mark-as-read action",
 	ogImageAlt: 'Group reading screen of the Cüzhane app',
@@ -265,6 +305,10 @@ const en: typeof tr = {
 	faq: [
 		{ q: 'Does it cost anything?', a: 'No. Cüzhane is free and ad-free.' },
 		{
+			q: 'Can we do a Quran hatim too?',
+			a: 'Yes. Choose Quran when you create a group; the 30 juz go into the pool, with an end date or a juz a day. Cevşen and Quran readings share the same home screen.'
+		},
+		{
 			q: 'Do I need an account?',
 			a: 'Yes. Cüzhane runs on accounts — you need a free account to join a group, claim babs and keep your progress.'
 		},
@@ -294,23 +338,41 @@ const en: typeof tr = {
 const nl: typeof tr = {
 	metaTitle: 'Cüzhane · Lees je deel, maak de ronde af',
 	metaDescription:
-		'Cüzhane verdeelt de 100 babs van de Cevşen als delen over je groep. Vrije babs liggen open in de pool, ieder neemt wat hij kan dragen, en de ronde wordt samen afgemaakt. Gratis voor iOS en Android.',
+		'Cüzhane verdeelt de 100 babs van de Cevşen en de 30 juz van de Koran als delen over je groep. Vrije delen liggen open in de pool, ieder neemt wat hij kan dragen, en de ronde sluit samen. Gratis voor iOS en Android.',
 
 	navPool: 'De pool',
+	navQuran: 'Koran-hatim',
 	navHow: 'Hoe het werkt',
 	navFeat: 'Functies',
 	navFaq: 'Vragen',
 	skipToContent: 'Naar de inhoud',
 
-	heroEyebrow: 'Voor Cevşen-lezingen in groep',
+	heroEyebrow: 'Voor Cevşen- en Koranlezingen in groep',
 	heroTitle: 'Lees je deel, maak de ronde af.',
 	heroBody:
-		'Cüzhane verdeelt de 100 babs van de Cevşen als delen over je groep en laat op één scherm zien waar de ronde staat. Wie welke bab nam, wat er over is, wie verdergaat waar hij stopte.',
+		'Cüzhane verdeelt de 100 babs van de Cevşen en de 30 juz van de Koran als delen over je groep. De lezingen van vandaag staan in één lijst, de volgende bovenaan — wie wat nam en wat er over is, in één oogopslag.',
 	ctaGet: 'Gratis downloaden',
 	ctaJoin: 'Meedoen met code',
 	heroMeta: 'iOS en Android · Türkçe, English, Nederlands · geen advertenties',
 
-	shotHome: 'Het beginscherm van Cüzhane: reeks, weekstrook en groepsrijen',
+	shotHome: 'Het beginscherm van Cüzhane: Cevşen- en Korandelen in één lijst, de volgende bovenaan',
+	// The Kur'an hatim — its own section between the pool and the three steps.
+	quranEyebrow: 'Koran-hatim',
+	quranTitle: 'Dertig juz, één hatim, samen.',
+	quranBody:
+		'Een hatim van veertig dagen, een hatim voor een dierbare, of elke dag een juz. Start een groep en kies een einddatum; de juz gaan de pool in en ieder neemt wat hij kan. Je leest in de Mushaf, precies waar je stopte.',
+	quranBullets: [
+		'Juz-raster: gelezen, van een ander, in de pool en van jou — in één oogopslag',
+		'Aftelling tot de einddatum; dagelijkse juz-groepen beginnen elke nacht opnieuw',
+		'Mushaf-lezer met soera-koppen, versmarkeringen en ‘Mijn plek markeren’'
+	],
+	quranStats: [
+		{ v: '30', l: 'juz · één hatim' },
+		{ v: '604', l: "pagina's" },
+		{ v: '1 lijst', l: 'Cevşen + Koran' }
+	],
+	shotQuranGroup: 'Cüzhane Koran-groep — hatim van veertig dagen, juz-raster',
+	shotQuranReader: 'Cüzhane Mushaf-lezer — Al-Baqarah',
 	shotGroup: 'Het groepsscherm van Cüzhane: het bord van honderd babs en ieders deel',
 	shotReader: 'Het leesscherm van Cüzhane: de babstrook, Arabische tekst en de afvinkknop',
 	ogImageAlt: 'Groepsleesscherm van de Cüzhane-app',
@@ -395,6 +457,10 @@ const nl: typeof tr = {
 	faqTitle: 'Veelgestelde vragen',
 	faq: [
 		{ q: 'Kost het iets?', a: 'Nee. Cüzhane is gratis en zonder advertenties.' },
+		{
+			q: 'Kunnen we ook een Koran-hatim doen?',
+			a: 'Ja. Kies Koran bij het maken van een groep; de 30 juz gaan de pool in, met een einddatum of één juz per dag. Cevşen- en Koranlezingen staan op hetzelfde startscherm.'
+		},
 		{
 			q: 'Heb ik een account nodig?',
 			a: 'Ja. Cüzhane werkt met accounts — je hebt een gratis account nodig om mee te doen, babs te nemen en je voortgang te bewaren.'
