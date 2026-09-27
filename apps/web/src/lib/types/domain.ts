@@ -214,6 +214,8 @@ export type GroupInvitePreview = {
 	poolBabNumbers: number[];
 	/** Which cüz are read — hatim only, for QJ1/QJ2's map. Empty on a Cevşen preview. */
 	readBabNumbers: number[];
+	/** Legacy, always empty — kept for the 1.2.0 app. See the server's `GroupInvitePreview`. */
+	memberNames: [];
 	/*
 	 * No holder names: the preview answers someone who is not in the group, so who is
 	 * reading which cüz is not theirs to see. The map says which are gone, and that is what

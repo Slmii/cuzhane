@@ -210,6 +210,12 @@ export type GroupInvitePreview = {
 	 * a bar. Thirty numbers at most; a Cevşen preview shows a percentage and gets `[]`.
 	 */
 	readBabNumbers: number[];
+	/**
+	 * **Legacy, and always empty.** The 1.2.0 app reads `memberNames.length` on the invite preview
+	 * and crashed without it once names were taken off; an empty list keeps that build working and
+	 * still names nobody. Drop it once no 1.2.0 install is left.
+	 */
+	memberNames: [];
 	/*
 	 * **Who holds which cüz is deliberately absent.** The frame writes a holder's name under
 	 * every taken cell on QJ3, and it was built that way and taken out again: this payload
@@ -663,6 +669,7 @@ export const toInvitePreview = (
 		percent: progressPercent(readCount, babs.length),
 		daysLeft: daysLeftFrom(group.endsAt),
 		isMember: members.some(member => member.userId === viewerUserId),
+		memberNames: [],
 		status: group.status,
 		/**
 		 * **The whole pool here, unlike `GroupSummary.poolBabNumbers`** — every bab belonging

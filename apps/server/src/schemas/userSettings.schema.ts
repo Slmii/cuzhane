@@ -22,6 +22,11 @@ export const UpdateUserSettingsBodySchema = z
 		hatimGroupReadsEnabled: z.boolean().optional(),
 		hatimRoundCompleteEnabled: z.boolean().optional(),
 		hatimPoolClaimEnabled: z.boolean().optional(),
+		// The same three Cevşen switches under their 1.2.0 names — that build still sends them.
+		// See `serializeSettings`; the new name wins when both arrive.
+		groupReadsEnabled: z.boolean().optional(),
+		roundCompleteEnabled: z.boolean().optional(),
+		poolClaimEnabled: z.boolean().optional(),
 		memberJoinedEnabled: z.boolean().optional(),
 		memberLeftEnabled: z.boolean().optional(),
 		hasSeenOnboarding: z.boolean().optional(),
