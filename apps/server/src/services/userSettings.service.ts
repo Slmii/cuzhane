@@ -4,21 +4,20 @@ import { normalizeUserId } from '@utils/normalizeUserId';
 import type { UserSettings } from '../generated/prisma/client';
 
 /**
- * `madinah` is retired but still a value in the database enum, so a row written before it went
- * can still carry it — exactly the situation `toSplitMode` handles for `FREE`.
- *
- * It went because of one mark: that face drew the subscript alef, the edition's own long î and
- * 549 of them across seventy babs, more than twice as wide as it is tall. `uthman` is the face
- * that replaced it and the reader's default, so it is the honest reading of such a row.
+ * The row as the client's `UserSettings` expects it — as stored, plus the three Cevşen switches
+ * under their **1.2.0 names**. That build reads and writes `groupReadsEnabled`,
+ * `roundCompleteEnabled` and `poolClaimEnabled`; without them it showed all three off and could
+ * not change them. Same columns, old names — drop once no 1.2.0 install is left.
  */
-export const toReaderArabicFont = (font: UserSettings['readerArabicFont']) =>
-	font === 'naskh' || font === 'amiri' ? font : 'uthman';
-
-/** The row as the client's `UserSettings` expects it — see `toReaderArabicFont`. */
 const serializeSettings = (settings: UserSettings) => ({
 	...settings,
-	readerArabicFont: toReaderArabicFont(settings.readerArabicFont)
+	groupReadsEnabled: settings.cevsenGroupReadsEnabled,
+	poolClaimEnabled: settings.cevsenPoolClaimEnabled,
+	roundCompleteEnabled: settings.cevsenRoundCompleteEnabled
 });
+
+/** A 1.2.0 name stands in for its Cevşen column when the new name is not sent too. */
+const cevsenSwitch = (current: boolean | undefined, legacy: boolean | undefined) => current ?? legacy;
 
 export const getUserSettingsForUser = async (userId: string) => {
 	const normalizedUserId = normalizeUserId(userId);
@@ -35,12 +34,21 @@ export const getUserSettingsForUser = async (userId: string) => {
 export const updateUserSettingsForUser = async (userId: string, input: UpdateUserSettingsBody) => {
 	const normalizedUserId = normalizeUserId(userId);
 
+	const cevsenGroupReadsEnabled = cevsenSwitch(input.cevsenGroupReadsEnabled, input.groupReadsEnabled);
+	const cevsenRoundCompleteEnabled = cevsenSwitch(input.cevsenRoundCompleteEnabled, input.roundCompleteEnabled);
+	const cevsenPoolClaimEnabled = cevsenSwitch(input.cevsenPoolClaimEnabled, input.poolClaimEnabled);
+
 	const updateData = {
 		...(input.language !== undefined ? { language: input.language } : {}),
 		...(input.reminderEnabled !== undefined ? { reminderEnabled: input.reminderEnabled } : {}),
-		...(input.groupReadsEnabled !== undefined ? { groupReadsEnabled: input.groupReadsEnabled } : {}),
-		...(input.roundCompleteEnabled !== undefined ? { roundCompleteEnabled: input.roundCompleteEnabled } : {}),
-		...(input.poolClaimEnabled !== undefined ? { poolClaimEnabled: input.poolClaimEnabled } : {}),
+		...(cevsenGroupReadsEnabled !== undefined ? { cevsenGroupReadsEnabled } : {}),
+		...(cevsenRoundCompleteEnabled !== undefined ? { cevsenRoundCompleteEnabled } : {}),
+		...(cevsenPoolClaimEnabled !== undefined ? { cevsenPoolClaimEnabled } : {}),
+		...(input.hatimGroupReadsEnabled !== undefined ? { hatimGroupReadsEnabled: input.hatimGroupReadsEnabled } : {}),
+		...(input.hatimRoundCompleteEnabled !== undefined
+			? { hatimRoundCompleteEnabled: input.hatimRoundCompleteEnabled }
+			: {}),
+		...(input.hatimPoolClaimEnabled !== undefined ? { hatimPoolClaimEnabled: input.hatimPoolClaimEnabled } : {}),
 		...(input.memberJoinedEnabled !== undefined ? { memberJoinedEnabled: input.memberJoinedEnabled } : {}),
 		...(input.memberLeftEnabled !== undefined ? { memberLeftEnabled: input.memberLeftEnabled } : {}),
 		...(input.reminderTime !== undefined ? { reminderTime: input.reminderTime } : {}),

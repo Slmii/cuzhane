@@ -2,8 +2,14 @@ import type { IconName } from '@/components/ui/Icon/Icon.types';
 import type { ReactNode } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import type { ChipTone } from '@/components/ui/Chip/Chip.types';
+import type { GroupKind } from '@/lib/types/domain';
 
 export interface GroupCardProps {
+	/**
+	 * What the group reads. Decides the type chip, and the denominator and unit word on the
+	 * progress line — a hatim counts to thirty cüz, not a hundred babs.
+	 */
+	kind: GroupKind;
 	name: string;
 	subtitle?: string;
 	badgeLabel: string;
@@ -23,6 +29,8 @@ export interface GroupCardProps {
 	resetRow?: ReactNode;
 	/** Footer: label + caption on the left, an action on the right. */
 	footerLabel?: string;
+	/** The share's other slices or cüz, as a chip beside `footerLabel` — one slice plus a count. */
+	footerMoreCount?: number;
 	footerCaption?: string;
 	footerLeading?: ReactNode;
 	actionLabel?: string;

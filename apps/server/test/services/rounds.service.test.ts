@@ -70,13 +70,14 @@ const createGroup = async (options: GroupOptions = {}) => {
 				.slice(-7)}`,
 			spots: SPOTS,
 			cycle,
+			roundDays: ROUND_DAYS[cycle],
 			timezone,
 			splitMode,
 			status,
 			startedAt,
 			roundIndex,
 			roundStartedAt,
-			endsAt: roundStartedAt ? roundEndsAt(roundStartedAt, cycle, timezone) : null,
+			endsAt: roundStartedAt ? roundEndsAt(roundStartedAt, ROUND_DAYS[cycle], timezone) : null,
 			completedAt: completed ? new Date() : null
 		}
 	});
@@ -132,6 +133,7 @@ describe('expectedRoundIndex', () => {
 	it('is 0 for a GATHERING group however long ago it was created', () => {
 		const group = {
 			cycle: 'DAILY' as const,
+			roundDays: 1,
 			startedAt: daysAgo(30),
 			status: 'GATHERING' as const,
 			timezone: DEFAULT_TIME_ZONE
@@ -142,6 +144,7 @@ describe('expectedRoundIndex', () => {
 	it('is 0 for a RUNNING group that somehow has no start stamp', () => {
 		const group = {
 			cycle: 'DAILY' as const,
+			roundDays: 1,
 			startedAt: null,
 			status: 'RUNNING' as const,
 			timezone: DEFAULT_TIME_ZONE
@@ -152,6 +155,7 @@ describe('expectedRoundIndex', () => {
 	it('jumps straight to the round the calendar is on after a quiet stretch', () => {
 		const group = {
 			cycle: 'DAILY' as const,
+			roundDays: 1,
 			startedAt: daysAgo(3),
 			status: 'RUNNING' as const,
 			timezone: DEFAULT_TIME_ZONE
@@ -162,6 +166,7 @@ describe('expectedRoundIndex', () => {
 	it('counts a WEEKLY group in weeks, not days', () => {
 		const group = {
 			cycle: 'WEEKLY' as const,
+			roundDays: 7,
 			startedAt: daysAgo(20),
 			status: 'RUNNING' as const,
 			timezone: DEFAULT_TIME_ZONE
@@ -227,7 +232,7 @@ describe('ensureCurrentRound', () => {
 		const expectedStart = roundStartedAtFor(daysAgo(startedDaysAgo), ROUND_DAYS.DAILY, 3, DEFAULT_TIME_ZONE);
 
 		expect(rolled.roundStartedAt).toEqual(expectedStart);
-		expect(rolled.endsAt).toEqual(roundEndsAt(expectedStart, 'DAILY', DEFAULT_TIME_ZONE));
+		expect(rolled.endsAt).toEqual(roundEndsAt(expectedStart, 1, DEFAULT_TIME_ZONE));
 	});
 
 	it('lands a seat on the block the skipped-to round owes it', async () => {

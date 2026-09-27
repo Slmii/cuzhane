@@ -32,6 +32,26 @@ model PoolClaimRelease {
     @@index([groupId, roundIndex])
 }
 
+/// A group event already announced — somebody taking a pool slot or cüz, joining, or leaving.
+///
+/// Each is said once per actor, per round, per subject (the slot or cüz taken; empty for a join
+/// or a leave). Without it, taking and releasing in a loop — or joining and leaving an open
+/// group — filed an inbox row for every member and pushed to them on every turn. The unique key
+/// settles two requests at once; the next round announces itself again.
+model GroupEventNotice {
+    id          String   @id @default(cuid())
+    groupId     String
+    actorUserId String
+    kind        String
+    roundIndex  Int
+    subject     String   @default("")
+    createdAt   DateTime @default(now())
+
+    group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+    @@unique([groupId, actorUserId, kind, roundIndex, subject])
+}
+
 model ShareReadNotice {
     id         String   @id @default(cuid())
     groupId    String
@@ -69,4 +89,70 @@ model BabRead {
     @@unique([groupId, roundIndex, babNumber])
     @@index([userId, readAt])
     @@index([groupId, roundIndex])
+}
+
+/// Who holds which cüz, in which round — a **hatim's** answer to "whose is this?".
+///
+/// **Stored, because it cannot be derived**, and that is the one structural difference
+/// between the two reading types. A Cevşen share falls out of `slotIndex + roundIndex`:
+/// contiguous, equal, and written down nowhere. A hatim's holdings are none of those —
+/// the design shows members on 1,2 · 10,12 · 17,19 · 7,22, and the *same* member on
+/// 9,30 then 3,15 then 7,22 across three rounds. No arithmetic produces that.
+///
+/// **Not `GroupBab.assignedUserId`.** That column means exactly one thing — "I volunteered
+/// for this out of the pool, this round" — the rollover clears it wholesale, it keeps no
+/// history, and four services read it as a claim over a seat-derived block. Holdings need
+/// all three of the opposites: their own meaning, survival across a boundary under KEEP,
+/// and a per-round record, because "Geçen tur · 2 eksik" and the whole progress screen ask
+/// what was held *then*.
+///
+/// Keyed by round, so a boundary is a copy-forward (KEEP) or an absence (REPICK) rather
+/// than a mutation, and last round's answer stays readable after this round has moved on.
+model CuzHolding {
+    id         String   @id @default(cuid())
+    groupId    String
+    roundIndex Int
+    cuzNumber  Int
+    userId     String
+    takenAt    DateTime @default(now())
+
+    /// Taken out of the havuz mid-round rather than chosen on the way in — **a loan**.
+    ///
+    /// A loan covers the round it was made in and nothing more: it goes back to the havuz at
+    /// the boundary whatever `Group.boundaryPolicy` says, because "I'll cover this spare cüz
+    /// this time round" is not the same promise as the cüz you joined with. That is the same
+    /// rule a Cevşen pool claim follows, where the rollover clears `assignedUserId` outright.
+    ///
+    /// Everything else — the owner's first pick, a joiner's selection — is `false` and is
+    /// what `KEEP` carries forward.
+    isLoan Boolean @default(false)
+
+    group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+    /// One holder per cüz per round — the guard a concurrent take loses against, the same
+    /// shape `takePoolSlotForUser` relies on rather than a read-then-write.
+    @@unique([groupId, roundIndex, cuzNumber])
+    /// "What do I hold this round", and the cap check that rides with it.
+    @@index([groupId, roundIndex, userId])
+    @@index([userId])
+}
+
+/// A member sitting one round of a hatim out — QR1's "Bu turu atla".
+///
+/// A member of a running hatim must hold a cüz to open the group: the round-start screen will
+/// not let them past with nothing. Skipping is the one chosen way through — their cüz go back
+/// to the havuz, the group opens with nothing to read, and the next round asks again, since
+/// this row belongs to its own round and nothing carries it forward. Stored on the server so
+/// the choice holds on every device the member uses.
+model CuzRoundSkip {
+    id         String   @id @default(cuid())
+    groupId    String
+    userId     String
+    roundIndex Int
+    createdAt  DateTime @default(now())
+
+    group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+    @@unique([groupId, userId, roundIndex])
+    @@index([userId])
 }

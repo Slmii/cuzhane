@@ -1,75 +1,96 @@
 import { ShelfEmptyState } from '@/components/ShelfEmptyState/ShelfEmptyState.component';
-import { TourTarget } from '@/components/Tour/TourTarget.component';
 import { useTourAutoStart } from '@/components/Tour/useTourAutoStart';
 import { AppButton } from '@/components/ui/Button/Button.component';
+import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
-import { PullToRefresh } from '@/components/ui/PullToRefresh/PullToRefresh.component';
 import { CaptionText, Typography } from '@/components/ui/Typography/Typography.component';
+import { mushafCuzPages } from '@/lib/content/mushaf';
+import { cuzPages } from '@/lib/content/quran';
+import { useCurrentUserId } from '@/lib/hooks/useCurrentUserId';
+import { cuzProgressId, useCuzPagesRead } from '@/lib/hooks/useCuzPagesRead';
 import { useGetGroups } from '@/lib/hooks/useGroup';
 import { useNotificationPermissionPrompt } from '@/lib/hooks/useNotificationPermissionPrompt';
 import { useGetProfileStats } from '@/lib/hooks/useProfileStats';
-import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
+import { useGetUserSettings } from '@/lib/hooks/useUserSettings';
+import { useWhatsNew } from '@/lib/hooks/useWhatsNew';
 import { useTranslation } from '@/lib/i18n/I18n.context';
+import { pluralKey } from '@/lib/i18n/plural';
+import type { StringKey } from '@/lib/i18n/strings';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import { toAlphaColor } from '@/lib/theme/tokens';
-import { shareSlices } from '@/lib/utils/groups';
+import {
+	buildHomeTasks,
+	homeStateFor,
+	isDueToday,
+	nextBoundaryAfter,
+	timeLeftUntil,
+	tomorrowTask,
+	turkishAblativeSuffix,
+	type HomeTask,
+	type TimeLeft,
+	type TurkishAblativeSuffix
+} from '@/lib/utils/homeTasks';
+import { weekStrip } from '@/lib/utils/weekStrip';
 import { TabBarOffsetContext } from '@/navigation/TabBarOffsetContext';
 import { TabStackParamList } from '@/navigation/types';
 import { JoinByCodeSheet } from '@/screens/Join/JoinByCodeSheet.component';
 import { WhatsNewSheet } from '@/screens/WhatsNew/WhatsNewSheet.component';
-import { useWhatsNew } from '@/lib/hooks/useWhatsNew';
 import { useUser } from '@clerk/expo';
-import { useNavigation } from '@react-navigation/native';
+import { useIsFocused, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useContext, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Circle } from 'react-native-svg';
-import { HomeEmptyState } from './HomeEmptyState.component';
+import { useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { HomeAllReadCard } from './HomeAllReadCard.component';
+import { HomeDoneCard } from './HomeDoneCard.component';
+import { HomeFirstStepCard } from './HomeFirstStepCard.component';
+import { HomeFooterLinks } from './HomeFooterLinks.component';
 import { HomeGroupRow } from './HomeGroupRow.component';
-import type { HomeGroupRowGroup } from './HomeGroupRow.types';
+import { HomeHeader } from './HomeHeader.component';
+import { HomeNextCard } from './HomeNextCard.component';
+import { HomeReadRow } from './HomeReadRow.component';
 import { HomeSkeleton } from './HomeSkeleton.component';
-import { StreakCard } from './StreakCard.component';
 
 type HomeNavigationProp = NativeStackNavigationProp<TabStackParamList, 'Home'>;
 
 /** The paper layer's corner. */
 const SHEET_RADIUS = 32;
-/** The heading's small ring: a 60-unit circle drawn at 24pt, so `2πr` is 163.4. */
-const RING_SIZE = 24;
-const RING_VIEWBOX = 60;
-const RING_RADIUS = 26;
-const RING_WIDTH = 7;
-const RING_CIRCUMFERENCE = 163.4;
+/** How far the green runs on above the page, for iOS's bounce at the top. */
+const BAND_OVERSCROLL = 1000;
+const MINUTE_MS = 60_000;
+/** The discover row's 30pt tile and the 17pt compass in it. */
+const DISCOVER_TILE_SIZE = 30;
+/** "Bab 22’den devam" — a key per Turkish ablative ending; see `homeContinueFromDen`. */
+const CONTINUE_FROM_KEY: Record<TurkishAblativeSuffix, StringKey> = {
+	dan: 'homeContinueFromDan',
+	den: 'homeContinueFromDen',
+	tan: 'homeContinueFromTan',
+	ten: 'homeContinueFromTen'
+};
 
 /**
- * **H1 — two layers.** A coloured top the greeting sits on, and a paper sheet rounded over it
- * holding the streak and its week, then the groups that owe the reader something today.
+ * **B8 — the day as tasks.** A coloured band with the greeting, the day's state ("3 görev
+ * kaldı") and the streak compact beside the account; on it, one card for the share to read now;
+ * under it, a paper sheet with what comes after and what is already read, and the ways to read
+ * outside a group at its foot — the only ones, so no card repeats them.
  *
- * **Only the rows scroll.** The streak card and the "Gruplarım" heading are pinned above them,
- * the way the search screen pins its field and scope: with five groups the list is the part
- * that moves, and scrolling the week out of sight to reach the third group made the card feel
- * like a banner rather than the state of things.
+ * - **Sıradaki** is the owed share with the soonest deadline. The rest follow under "Sonra" in
+ *   the same order — "teslim sırasına göre" — in one row style for Cevşen and Kur'an.
+ * - **Mid-day (B8c)** — the card picks the share up where it was left, and what is finished today
+ *   gathers under "Bugün okunanlar", below "Sonra" — always as that section, however few.
+ * - **Done (B8b)** — "Bugünün payı" full, and what tomorrow opens with.
+ * - **All read (B9b)** — nothing owed and nothing read today, but every share this round done:
+ *   "Bu turdaki payların tamam", with a new group as the way on.
+ * - **No group (B9)** — "İlk adım" in the card's place, and Keşfet on the sheet.
  *
- * It replaces the docking ring (01g), which showed one group at a time with the others listed
- * under it. Here every group is a row of the same kind and the ring survives only as the small
- * dial beside the heading — the summary, not the subject.
- *
- * **With no group at all it is H1-E** (`HomeEmptyState`): the two layers stay, the sheet becomes
- * the two ways into a group, and the streak card goes with the list.
- *
- * **Nothing on this screen marks a bab read.** The old ring committed a whole share from here;
- * a row opens the group and its button opens the reader, which is where a read has always been
- * a read. The account (and search, on Android) is the navigator's own bar item, floating over
- * the coloured layer beside the greeting.
+ * **Nothing here marks anything read.** Every way in opens the reading, where a read is a read.
+ * The account (and search, on Android) is the navigator's bar item, over the band's right.
  */
 export const HomeScreen = () => {
 	const navigation = useNavigation<HomeNavigationProp>();
 	const { theme } = useThemeContext();
-	const { t } = useTranslation();
+	const { language, t } = useTranslation();
 	const { user } = useUser();
-	const insets = useSafeAreaInsets();
+	const userId = useCurrentUserId();
 	const tabBarHeight = useContext(TabBarOffsetContext);
 	// Asked here rather than at launch or in onboarding: this is the screen the reminder is
 	// about, so the dialog arrives next to the thing it is for. Fires once, and only when
@@ -78,94 +99,379 @@ export const HomeScreen = () => {
 
 	const groupsQuery = useGetGroups();
 	const statsQuery = useGetProfileStats();
-	const pullToRefresh = usePullToRefresh(groupsQuery, statsQuery);
-	const { data: groups, isError, isPending } = groupsQuery;
+	const settingsQuery = useGetUserSettings();
+	const { data: groups, dataUpdatedAt, isFetching, refetch } = groupsQuery;
+	/*
+	 * **An error only when there is nothing to show instead.** The list keeps the last answer it
+	 * had, so a background poll that fails — a phone waking without a network, a token refreshed
+	 * a moment late — leaves the day on screen rather than trading it for "Bir şeyler ters gitti".
+	 * And a query that failed once stays `isError` through its next attempt: shown on that alone,
+	 * Ana sayfa opened on the error and only then drew the data the retry brought. So: the error
+	 * when there is no list and no attempt in flight, the skeleton while one is.
+	 */
+	const isFailed = groups === undefined && groupsQuery.isError && !isFetching;
 
 	const [isJoinSheetOpen, setIsJoinSheetOpen] = useState(false);
 
-	// Only a running group owes the reader anything today.
-	const rows = useMemo<HomeGroupRowGroup[]>(
-		() =>
-			(groups ?? [])
-				.filter(group => group.status === 'RUNNING' && group.myBabNumbers.length > 0)
-				.map(group => {
-					// One slice large, the rest counted — a share held in several pieces would
-					// otherwise spell three ranges across a row built for one.
-					const slices = shareSlices(group.myBabNumbers, group.myNextBabNumber);
-
-					return {
-						done: group.myReadCount,
-						id: group.id,
-						moreCount: slices.moreCount,
-						name: group.name,
-						range: slices.current,
-						total: group.myBabNumbers.length
-					};
-				}),
-		[groups]
-	);
-
-	// Finished groups sink to the bottom, so whatever is still owed stays at the top.
-	const ordered = useMemo(
-		() => [...rows].sort((a, b) => Number(a.done >= a.total) - Number(b.done >= b.total)),
-		[rows]
-	);
-
 	/*
-	 * The group the first-use tour walks through, and the bab it opens in the reader: the
-	 * topmost row, which is also the one whose Read button the tour points at. Null while the
-	 * shelf is empty or still loading, which keeps the later stops on their centred cards.
+	 * "Now" for the day's arithmetic, **ticking once a minute while Ana sayfa is in view.** A
+	 * refetch that brings nothing new keeps the same data and renders nothing, so without the tick
+	 * the "2 sa 30 dk kaldı" badge froze, and a share finished yesterday stayed under "Bugün
+	 * okunanlar" past midnight. Coming back to the tab renders anew anyway, on the focus change.
 	 */
-	const tourSubject = useMemo(() => {
-		const first = ordered[0];
+	const isFocused = useIsFocused();
+	const [, setTick] = useState(0);
 
-		if (first === undefined) {
-			return null;
+	useEffect(() => {
+		if (!isFocused) {
+			return;
 		}
 
-		const group = (groups ?? []).find(candidate => candidate.id === first.id);
-		const babNumber = group?.myNextBabNumber ?? group?.myBabNumbers[0];
+		const timer = setInterval(() => setTick(tick => tick + 1), MINUTE_MS);
 
-		return babNumber === undefined ? null : { babNumber, groupId: first.id };
-	}, [groups, ordered]);
+		return () => clearInterval(timer);
+	}, [isFocused]);
+
+	const now = new Date();
+	// The memos below follow the minute rather than the render, so the arrays keep their identity
+	// between ticks — `tourSubject` and the bookmark keys hang off them.
+	const minute = Math.floor(now.getTime() / MINUTE_MS);
+	const tasks = useMemo(() => buildHomeTasks(groups ?? [], new Date(minute * MINUTE_MS)), [groups, minute]);
+	const { finishedCount, pending, readToday } = tasks;
+	const tomorrow = useMemo(() => tomorrowTask(groups ?? [], new Date(minute * MINUTE_MS)), [groups, minute]);
+
+	/*
+	 * **Past a round boundary, fetch the list again.** The server rolls a group over lazily, on
+	 * the first request after its boundary, and the list only polls every thirty seconds while in
+	 * view — so at midnight Ana sayfa held last round's shares until something asked. The minute
+	 * after the earliest boundary since the last fetch, it asks — **once per boundary, and only in
+	 * view.** The boundary moves only on a successful fetch, so asking again whenever the last
+	 * attempt ended looped offline, on every tab; the poll carries the retrying.
+	 */
+	const nextBoundary = useMemo(() => nextBoundaryAfter(groups ?? [], dataUpdatedAt), [dataUpdatedAt, groups]);
+	const askedBoundaryRef = useRef<number | null>(null);
+
+	useEffect(() => {
+		if (
+			isFocused &&
+			nextBoundary !== null &&
+			nextBoundary !== askedBoundaryRef.current &&
+			minute * MINUTE_MS >= nextBoundary
+		) {
+			askedBoundaryRef.current = nextBoundary;
+			void refetch();
+		}
+	}, [isFocused, minute, nextBoundary, refetch]);
+
+	// Pages read in the cüz each hatim share is on, for "4/20 s" — see `cuzPagesRead`.
+	const isHusrev = settingsQuery.data?.readerArabicFont === 'husrev';
+	const cuzKeys = useMemo(
+		() =>
+			pending
+				.filter(task => task.kind === 'HATIM' && task.nextNumber !== null && task.roundIndex !== null)
+				.map(task => ({
+					cuzNumber: task.nextNumber ?? 0,
+					groupId: task.groupId,
+					roundIndex: task.roundIndex ?? 0
+				})),
+		[pending]
+	);
+	const pagesRead = useCuzPagesRead(userId, cuzKeys, isHusrev ? 'husrev' : 'text');
+
+	/*
+	 * The group the first-use tour walks through, and the unit it opens: "Sıradaki", whose card and
+	 * button the tour points at. Null while there is nothing owed, which keeps the later stops on
+	 * their centred cards.
+	 */
+	const tourSubject = useMemo(() => {
+		const first = pending[0];
+
+		return first?.nextNumber === undefined || first.nextNumber === null
+			? null
+			: { babNumber: first.nextNumber, groupId: first.groupId };
+	}, [pending]);
 
 	// Opens the tour on a first launch, and tells it which group to walk through.
 	useTourAutoStart({ subject: tourSubject });
 	const whatsNew = useWhatsNew();
 
-	const openReader = (groupId: string) => {
-		const group = (groups ?? []).find(candidate => candidate.id === groupId);
-		// Where they left off, or the start of the share once it is finished — the reader
-		// opens on a bab either way, and the group screen is the fallback for neither.
-		const babNumber = group?.myNextBabNumber ?? group?.myBabNumbers[0];
+	const clock = useMemo(
+		() => new Intl.DateTimeFormat(language, { hour: '2-digit', hourCycle: 'h23', minute: '2-digit' }),
+		[language]
+	);
 
-		if (babNumber === undefined) {
-			navigation.navigate('GroupDetail', { groupId });
+	// Nothing to draw yet and nothing wrong yet: the first load, or a retry after a failed one.
+	if (groups === undefined && !isFailed) {
+		return <HomeSkeleton />;
+	}
+
+	// Only a list that arrived empty — a failed first load has no list, and is not B9.
+	const hasNoGroups = groups !== undefined && groups.length === 0;
+	const state = homeStateFor(!hasNoGroups, tasks);
+	const stats = statsQuery.data;
+	const next = pending[0];
+	const later = pending.slice(1);
+
+	const openTask = (task: HomeTask) => {
+		/*
+		 * Holding no cüz yet: **through the group's front door**, not straight to the pick. The
+		 * group screen's gate (`useHatimRoundGate`) sends it on to the pick — after the late
+		 * celebration when the last round finished, which opened straight on the pick came after it.
+		 */
+		if (task.mustPick) {
+			navigation.navigate('GroupDetail', { groupId: task.groupId });
 
 			return;
 		}
 
-		navigation.navigate('BabReader', { babNumber, groupId });
+		const unit = task.nextNumber ?? task.unitNumbers[0] ?? 1;
+
+		// A hatim's cüz opens its own page (Q4): the reader is the Cevşen's, and on a cüz number
+		// it would show a bab of the wrong text.
+		if (task.kind === 'HATIM') {
+			navigation.navigate('CuzDetail', { cuzNumber: unit, groupId: task.groupId });
+
+			return;
+		}
+
+		navigation.navigate('BabReader', { babNumber: unit, groupId: task.groupId });
 	};
 
-	/*
-	 * **Two different empty screens, and the difference is real.** Belonging to no group at
-	 * all is H1-E: the screen becomes an invitation, and the streak card goes with the list
-	 * because a run of days is a record of shares taken. Belonging to groups that simply owe
-	 * nothing today — all gathering, or all finished — keeps the streak and says so.
-	 */
-	const hasNoGroups = (groups ?? []).length === 0;
-	const doneGroups = rows.filter(row => row.done >= row.total).length;
-	const isAllDone = rows.length > 0 && doneGroups === rows.length;
-	const doneBabs = rows.reduce((sum, row) => sum + row.done, 0);
-	const totalBabs = rows.reduce((sum, row) => sum + row.total, 0);
-	const ringOffset = totalBabs === 0 ? RING_CIRCUMFERENCE : RING_CIRCUMFERENCE * (1 - doneBabs / totalBabs);
-	const onHeader = theme.colors.onHeaderSurface;
-	const stats = statsQuery.data;
+	const timeLeftLabel = (left: TimeLeft) =>
+		'days' in left
+			? t(pluralKey(language, left.days, 'countDaysOne', 'countDaysOther'), { count: left.days })
+			: t('hoursLeft', { hours: left.hours, minutes: left.minutes });
 
-	if (isPending) {
-		return <HomeSkeleton />;
-	}
+	const headingOf = (task: HomeTask) =>
+		t(task.kind === 'HATIM' ? 'homeCuzRange' : 'homeBabRange', { range: task.range });
+
+	/** The cüz's pages in the saved face's pagination, and how many of them have been read. */
+	const pagesOf = (task: HomeTask) => {
+		const cuzNumber = task.nextNumber ?? 0;
+		const total = (isHusrev ? mushafCuzPages(cuzNumber) : cuzPages(cuzNumber)).length;
+		const read =
+			task.roundIndex === null
+				? 0
+				: pagesRead[cuzProgressId({ cuzNumber, groupId: task.groupId, roundIndex: task.roundIndex })] ?? 0;
+
+		return { page: Math.min(read, total), total };
+	};
+
+	const isBegun = (task: HomeTask) => (task.kind === 'HATIM' ? pagesOf(task).page > 0 : task.done > 0);
+
+	const nextCard = next
+		? (() => {
+				const left = timeLeftUntil(next.roundEndsAt, now);
+				const deadline = left ? t('homeTimeLeft', { time: timeLeftLabel(left) }) : null;
+				const isUrgent = isDueToday(next.roundEndsAt, now);
+
+				// A hatim waiting for its cüz: nothing read or to count yet, and the way in is the pick.
+				if (next.mustPick) {
+					return (
+						<HomeNextCard
+							actionLabel={t('homePickCuzAction')}
+							caption={`${next.groupName} · ${t('homePickCuzSub')}`}
+							deadline={deadline}
+							fraction={0}
+							heading={t('homePickCuz')}
+							isDueToday={isUrgent}
+							kind={next.kind}
+							moreCount={0}
+							onPress={() => openTask(next)}
+						/>
+					);
+				}
+
+				const pages = next.kind === 'HATIM' ? pagesOf(next) : null;
+				const place =
+					next.kind === 'HATIM'
+						? t('homeCuzRange', { range: next.nextNumber ?? '' })
+						: t('homeBabRange', { range: next.nextNumber ?? '' });
+
+				return (
+					<HomeNextCard
+						actionLabel={
+							isBegun(next)
+								? t(CONTINUE_FROM_KEY[turkishAblativeSuffix(next.nextNumber ?? 0)], { place })
+								: t('startReading')
+						}
+						caption={[
+							next.groupName,
+							pages
+								? t('homePagesOf', pages)
+								: next.done > 0
+								? t('homeReadOf', { done: next.done, total: next.total })
+								: t(pluralKey(language, next.total, 'countBabsOne', 'countBabsOther'), {
+										count: next.total
+								  })
+						].join(' · ')}
+						deadline={deadline}
+						heading={headingOf(next)}
+						isDueToday={isUrgent}
+						kind={next.kind}
+						moreCount={next.moreCount}
+						onPress={() => openTask(next)}
+						{...(pages
+							? { fraction: pages.total === 0 ? 0 : pages.page / pages.total }
+							: { segments: { filled: next.done, total: next.total } })}
+					/>
+				);
+		  })()
+		: null;
+
+	const readRow = (task: HomeTask) => (
+		<HomeReadRow
+			key={task.groupId}
+			moreCount={task.moreCount}
+			time={task.doneAt ? clock.format(new Date(task.doneAt)) : ''}
+			title={`${task.groupName} · ${headingOf(task)}`}
+		/>
+	);
+
+	const sectionHead = (title: string, caption: string | null, isSpaced = false) => (
+		<View style={[styles.sectionHead, isSpaced && styles.sectionHeadSpaced]}>
+			<Typography style={styles.sectionTitle} weight='medium'>
+				{title}
+			</Typography>
+			{caption === null ? null : (
+				<Typography color={theme.colors.faintText} style={styles.sectionCaption}>
+					{caption}
+				</Typography>
+			)}
+		</View>
+	);
+
+	// None while there is no list at all: a failed first load has no day to describe.
+	const title = isFailed
+		? null
+		: {
+				allRead: t('homeAllRead'),
+				dayDone: t('homeDayDone'),
+				next: t('homeTasksLeft', { count: pending.length }),
+				noGroups: t('homeNoTasks'),
+				waiting: t('homeNoTasks')
+		  }[state];
+
+	const topCard = isFailed ? null : state === 'noGroups' ? (
+		<HomeFirstStepCard
+			onCreate={() => navigation.navigate('CreateGroup')}
+			onJoin={() => setIsJoinSheetOpen(true)}
+		/>
+	) : state === 'next' ? (
+		nextCard
+	) : state === 'dayDone' ? (
+		<HomeDoneCard count={readToday.length} tomorrow={tomorrow} />
+	) : state === 'allRead' ? (
+		<HomeAllReadCard count={finishedCount} onNewGroup={() => navigation.navigate('CreateGroup')} />
+	) : null;
+
+	const sheetContent =
+		state === 'noGroups' ? (
+			<>
+				{sectionHead(t('homeEmptyOr'), null)}
+				<CardSurface onPress={() => navigation.navigate('Discover')} style={styles.discoverRow}>
+					<View style={[styles.discoverTile, { backgroundColor: theme.colors.sand }]}>
+						<Icon color={theme.colors.sandText} name='tabDiscover' size={17} strokeWidth={1.8} />
+					</View>
+					<View style={styles.discoverCopy}>
+						<Typography style={styles.discoverTitle} weight='semibold'>
+							{t('homeEmptyDiscoverTitle')}
+						</Typography>
+						<CaptionText color={theme.colors.subtext} style={styles.discoverSub}>
+							{t('homeEmptyDiscoverSub')}
+						</CaptionText>
+					</View>
+					<Icon color={theme.colors.faintText} name='chevronRight' size={15} strokeWidth={1.8} />
+				</CardSurface>
+			</>
+		) : state === 'waiting' ? (
+			/*
+			 * In groups, with nothing to count: every group still gathering, a round sat out, or a
+			 * one-off that ran out unfinished. The reader is already in groups, so the way on is to them
+			 * — not the invitation to join one that a reader with no group gets.
+			 */
+			<ShelfEmptyState
+				actions={
+					<AppButton onPress={() => navigation.navigate('Groups')} title={t('myGroups')} variant='surface' />
+				}
+				description={t('homeWaitingBody')}
+				title={t('homeWaitingTitle')}
+			/>
+		) : (
+			<>
+				{later.length > 0 ? (
+					<>
+						{sectionHead(t('homeLater'), t('homeByDeadline'))}
+						{later.map(task => {
+							const deadline = timeLeftUntil(task.roundEndsAt, now);
+
+							if (task.mustPick) {
+								return (
+									<HomeGroupRow
+										actionLabel={t('homePick')}
+										fraction={0}
+										heading={t('homePickCuz')}
+										key={task.groupId}
+										kind={task.kind}
+										meta={deadline ? timeLeftLabel(deadline) : ''}
+										moreCount={0}
+										name={task.groupName}
+										onPress={() => openTask(task)}
+									/>
+								);
+							}
+
+							const pages = task.kind === 'HATIM' ? pagesOf(task) : null;
+
+							return (
+								<HomeGroupRow
+									actionLabel={isBegun(task) ? t('homeContinue') : t('read')}
+									heading={task.kind === 'HATIM' ? headingOf(task) : task.range}
+									key={task.groupId}
+									kind={task.kind}
+									meta={
+										pages
+											? [t('homePagesOf', pages), deadline ? timeLeftLabel(deadline) : null]
+													.filter(Boolean)
+													.join(' · ')
+											: `${task.done}/${task.total}`
+									}
+									moreCount={task.moreCount}
+									name={task.groupName}
+									onPress={() => openTask(task)}
+									{...(pages
+										? { fraction: pages.total === 0 ? 0 : pages.page / pages.total }
+										: { segments: { filled: task.done, total: task.total } })}
+								/>
+							);
+						})}
+					</>
+				) : null}
+
+				{/*
+				 * B8e — one share left and nothing else: no later list and nothing read today, so the
+				 * sheet says so rather than standing empty under the card.
+				 */}
+				{state === 'next' && later.length === 0 && readToday.length === 0 ? (
+					<View style={styles.lastReading}>
+						<Typography style={styles.lastReadingTitle} textAlign='center' variant='title' weight='regular'>
+							{t('homeLastTitle')}
+						</Typography>
+						<CaptionText color={theme.colors.subtext} textAlign='center'>
+							{t('homeLastBody')}
+						</CaptionText>
+					</View>
+				) : null}
+
+				{/* What is already read, under what is still to come (B8c). */}
+				{readToday.length > 0 ? (
+					<>
+						{sectionHead(t('homeReadToday'), String(readToday.length), later.length > 0)}
+						{readToday.map(task => readRow(task))}
+					</>
+				) : null}
+			</>
+		);
 
 	return (
 		<View style={[styles.screen, { backgroundColor: theme.colors.headerSurface }]}>
@@ -184,293 +490,183 @@ export const HomeScreen = () => {
 					navigation.navigate('ReleaseNotes');
 				}}
 			/>
-			{/* The greeting only. The account — and search on Android — is the navigator's bar
-			    item, which floats over this layer at the right of the same row. */}
-			<View style={[styles.header, { paddingTop: insets.top + theme.spacing.xs }]}>
-				<View style={styles.greeting}>
-					{/* "Hoş geldin" rather than "Selâm, X" while there is no group: the line
-					    below it welcomes them, and greeting someone by name into an empty
-					    screen was the design's own distinction. */}
-					<Typography color={toAlphaColor(onHeader, 0.6)} style={styles.greetingLabel} weight='medium'>
-						{hasNoGroups ? t('homeEmptyGreet') : t('greet', { name: user?.firstName ?? '' })}
-					</Typography>
-					<Typography color={onHeader} style={styles.welcome} variant='header2' weight='regular'>
-						{t('homeTogether')}
-					</Typography>
+
+			{/*
+			 * **The greeting band stays put; the card and the paper scroll together under it.** The
+			 * band sits under the navigator's transparent bar, and iOS 26 fades whatever scrolls there
+			 * — a scroll view reaching up behind the bar veiled the greeting, and `scrollEdgeEffects`
+			 * did not reach this one to hide it. So the scroll starts below the band. No pull to
+			 * refresh: the list polls while in view and refetches at each round boundary.
+			 */}
+			<HomeHeader
+				greeting={
+					hasNoGroups
+						? t('homeEmptyGreet')
+						: // Without a first name — an Apple relay, an email sign-up — "Selâm" on its own, not "Selâm, ".
+						user?.firstName?.trim()
+						? t('greet', { name: user.firstName.trim() })
+						: t('greetNoName')
+				}
+				title={title}
+				// B9 has no streak — a run of days is a record of shares taken — and it is absent
+				// rather than zeroed while the stats are coming or have failed.
+				{...(stats && !hasNoGroups
+					? {
+							streak: {
+								days: stats.streakDays,
+								week: weekStrip(stats.last30Days, todayOf(stats.last30Days))
+							}
+					  }
+					: {})}
+			/>
+
+			{/*
+			 * **Paper behind the scroll, green in it.** iOS 26 fades the content above the tab bar
+			 * into whatever is behind the scroll view — green, from the screen, tinted the list's
+			 * foot. So the scroll view is paper (which also covers the bounce at the bottom), and the
+			 * green the card sits on is the content's own, carried on above it for the top bounce.
+			 */}
+			<ScrollView
+				contentContainerStyle={[styles.page, { backgroundColor: theme.colors.headerSurface }]}
+				showsVerticalScrollIndicator={false}
+				style={{ backgroundColor: theme.colors.background }}
+			>
+				<View style={[styles.bandOverscroll, { backgroundColor: theme.colors.headerSurface }]} />
+				{topCard ? <View style={styles.topCard}>{topCard}</View> : null}
+
+				{/* The paper layer. The error state lives *in* here rather than replacing the screen, so
+			    the coloured layer stays — `AppStatusBar` reads the route, and a light bar over
+			    `ErrorState`'s pale page would be unreadable. */}
+				<View style={[styles.sheet, { backgroundColor: theme.colors.background }]}>
+					{isFailed ? (
+						<ErrorState queries={[groupsQuery, statsQuery]} />
+					) : (
+						<View
+							style={[
+								styles.sheetContent,
+								state === 'dayDone' && styles.sheetContentTight,
+								{ paddingBottom: tabBarHeight + 22 }
+							]}
+						>
+							{sheetContent}
+							<HomeFooterLinks />
+						</View>
+					)}
 				</View>
-				{/* Reading outside a share, which belongs on the coloured layer with the greeting:
-				    it is the one thing here that is not about a group. */}
-				<Pressable
-					accessibilityRole='button'
-					onPress={() => navigation.navigate('AllBabs')}
-					style={({ pressed }) => [
-						styles.freeRead,
-						{
-							backgroundColor: toAlphaColor(onHeader, 0.14),
-							borderColor: toAlphaColor(onHeader, 0.2),
-							opacity: pressed ? 0.8 : 1
-						}
-					]}
-				>
-					<View style={[styles.freeReadBadge, { backgroundColor: toAlphaColor(onHeader, 0.18) }]}>
-						<Icon color={onHeader} name='book' size={16} strokeWidth={1.8} />
-					</View>
-					<View style={styles.freeReadCopy}>
-						<Typography color={onHeader} style={styles.freeReadTitle} weight='semibold'>
-							{t('allBabs')}
-						</Typography>
-						<Typography color={toAlphaColor(onHeader, 0.62)} style={styles.freeReadSub}>
-							{t('allBabsSub')}
-						</Typography>
-					</View>
-					<Icon color={toAlphaColor(onHeader, 0.6)} name='chevronRight' size={15} strokeWidth={1.8} />
-				</Pressable>
-			</View>
-
-			{/* The paper layer. `overflow: hidden` is what makes the corner a corner: the list
-			    inside would otherwise paint its own background square over it.
-
-			    The error state lives *in* here rather than replacing the screen, so the coloured
-			    layer stays — `AppStatusBar` reads the route, and a light bar over `ErrorState`'s
-			    pale page would be unreadable. */}
-			<View style={[styles.sheet, { backgroundColor: theme.colors.background }]}>
-				{isError ? (
-					<ErrorState queries={[groupsQuery, statsQuery]} />
-				) : (
-					<>
-						{/* Nothing is pinned on H1-E: the sheet is a single column from its own
-						    top, and the streak card is part of what the empty state promises. */}
-						{hasNoGroups ? null : (
-							<View style={styles.pinned}>
-								{/* Absent rather than zeroed while the stats are still coming, and
-								    if they fail: "0" and an empty week are a claim about the
-								    reader's month, and the groups below are what this screen is
-								    for. */}
-								{stats ? (
-									<TourTarget id='streak'>
-										<StreakCard
-											last30Days={stats.last30Days}
-											longestStreakDays={stats.longestStreakDays}
-											streakDays={stats.streakDays}
-										/>
-									</TourTarget>
-								) : null}
-
-								{rows.length === 0 ? null : (
-									<View style={styles.groupsHead}>
-										<View style={styles.groupsCopy}>
-											<Typography style={styles.groupsTitle} weight='medium'>
-												{t('myGroups')}
-											</Typography>
-											<CaptionText color={theme.colors.faintText} style={styles.groupsSummary}>
-												{t('groupsDone', { done: doneGroups, total: rows.length })}
-											</CaptionText>
-										</View>
-										{/* The docking ring's descendant: the day's whole share as
-										    one dial, rotated so it fills from the top. */}
-										<Svg
-											height={RING_SIZE}
-											style={styles.ring}
-											viewBox={`0 0 ${RING_VIEWBOX} ${RING_VIEWBOX}`}
-											width={RING_SIZE}
-										>
-											<Circle
-												cx={RING_VIEWBOX / 2}
-												cy={RING_VIEWBOX / 2}
-												fill='none'
-												r={RING_RADIUS}
-												stroke={theme.colors.border}
-												strokeWidth={RING_WIDTH}
-											/>
-											<Circle
-												cx={RING_VIEWBOX / 2}
-												cy={RING_VIEWBOX / 2}
-												fill='none'
-												r={RING_RADIUS}
-												stroke={theme.colors.accent}
-												strokeDasharray={RING_CIRCUMFERENCE}
-												strokeDashoffset={ringOffset}
-												strokeLinecap='round'
-												strokeWidth={RING_WIDTH}
-											/>
-										</Svg>
-									</View>
-								)}
-							</View>
-						)}
-
-						<PullToRefresh {...pullToRefresh}>
-							<ScrollView
-								contentContainerStyle={[
-									styles.list,
-									{ paddingBottom: tabBarHeight + theme.spacing.xl }
-								]}
-								showsVerticalScrollIndicator={false}
-							>
-								{hasNoGroups ? (
-									<HomeEmptyState
-										onCreate={() => navigation.navigate('CreateGroup')}
-										onDiscover={() => navigation.navigate('Discover')}
-										onJoin={() => setIsJoinSheetOpen(true)}
-									/>
-								) : rows.length === 0 ? (
-									/*
-									 * In groups, but none of them owes anything today — every one
-									 * still gathering, or every one already finished. A different
-									 * sentence from H1-E's, and the streak card above it stays.
-									 */
-									<ShelfEmptyState
-										actions={
-											<>
-												<AppButton
-													onPress={() => navigation.navigate('CreateGroup')}
-													title={t('emptyMyCreate')}
-												/>
-												<AppButton
-													onPress={() => setIsJoinSheetOpen(true)}
-													title={t('emptyMyJoin')}
-													variant='surface'
-												/>
-												<AppButton
-													onPress={() => navigation.navigate('Discover')}
-													title={t('emptyMyBrowse')}
-													variant='ghost'
-												/>
-											</>
-										}
-										description={t('emptyHomeSub')}
-										title={t('emptyHomeTitle')}
-									/>
-								) : (
-									<TourTarget id='groups' style={styles.groupRows}>
-										{ordered.map((group, index) => (
-											<HomeGroupRow
-												group={group}
-												isTourTarget={index === 0}
-												key={group.id}
-												onOpenReader={() => openReader(group.id)}
-												onPress={() =>
-													navigation.navigate('GroupDetail', { groupId: group.id })
-												}
-											/>
-										))}
-
-										{isAllDone ? (
-											<Typography
-												color={theme.colors.accent}
-												style={styles.cheer}
-												variant='title'
-											>
-												{t('homeAllDone')}
-											</Typography>
-										) : null}
-									</TourTarget>
-								)}
-							</ScrollView>
-						</PullToRefresh>
-					</>
-				)}
-			</View>
+			</ScrollView>
 		</View>
 	);
 };
 
+/*
+ * **Today is the payload's last day, not the device clock**: the server bucketed `last30Days`
+ * in the zone the client asked for, and reading the clock instead lets the strip and the streak
+ * disagree about which day is today.
+ */
+const todayOf = (last30Days: readonly { date: string }[]) => {
+	const last = last30Days[last30Days.length - 1];
+
+	if (last === undefined) {
+		return new Date();
+	}
+
+	const [year, month, day] = last.date.split('-').map(Number);
+
+	// Local midnight of that day: `new Date('YYYY-MM-DD')` would parse as UTC and slide.
+	return new Date(year ?? 0, (month ?? 1) - 1, day ?? 1);
+};
+
 const styles = StyleSheet.create({
-	cheer: {
-		paddingHorizontal: 4,
-		paddingTop: 2
+	bandOverscroll: {
+		bottom: '100%',
+		height: BAND_OVERSCROLL,
+		left: 0,
+		position: 'absolute',
+		right: 0
 	},
-	freeRead: {
+	discoverCopy: {
+		flex: 1,
+		gap: 3,
+		minWidth: 0
+	},
+	discoverRow: {
 		alignItems: 'center',
-		borderRadius: 15,
-		borderWidth: StyleSheet.hairlineWidth,
 		flexDirection: 'row',
-		gap: 11,
+		gap: 12,
 		paddingHorizontal: 14,
 		paddingVertical: 12
 	},
-	freeReadBadge: {
-		alignItems: 'center',
-		borderRadius: 9,
-		height: 30,
-		justifyContent: 'center',
-		width: 30
-	},
-	freeReadCopy: {
-		flex: 1,
-		gap: 2,
-		minWidth: 0
-	},
-	freeReadSub: {
-		fontSize: 10.5,
+	discoverSub: {
+		fontSize: 11,
 		lineHeight: 14
 	},
-	freeReadTitle: {
+	discoverTile: {
+		alignItems: 'center',
+		borderRadius: 9,
+		height: DISCOVER_TILE_SIZE,
+		justifyContent: 'center',
+		width: DISCOVER_TILE_SIZE
+	},
+	discoverTitle: {
 		fontSize: 12.5,
 		lineHeight: 16
 	},
-	greeting: {
-		gap: 2,
-		// The bar's item sits at the right of this same row, so the greeting stops short of it.
-		paddingRight: 56
+	page: {
+		flexGrow: 1
 	},
-	greetingLabel: {
-		fontSize: 12,
-		lineHeight: 15
-	},
-	// The gap the rows used to get from `list`, now that a `TourTarget` stands between them.
-	groupRows: {
-		gap: 10
-	},
-	groupsCopy: {
-		flex: 1,
-		minWidth: 0
-	},
-	groupsHead: {
-		alignItems: 'flex-end',
-		flexDirection: 'row',
-		gap: 10,
-		paddingHorizontal: 3,
-		paddingTop: 12
-	},
-	groupsSummary: {
-		marginTop: 3
-	},
-	groupsTitle: {
-		fontSize: 13.5,
-		lineHeight: 17
-	},
-	header: {
-		gap: 18,
-		paddingBottom: 20,
-		paddingHorizontal: 20
-	},
-	list: {
-		// So the empty state can take the height it centres itself in.
+	// Fills the sheet above the footer links, so the two lines sit in its middle as the frame has them.
+	lastReading: {
 		flexGrow: 1,
-		gap: 11,
-		paddingHorizontal: 17,
-		paddingTop: 11
+		gap: 6,
+		justifyContent: 'center',
+		paddingHorizontal: 24
 	},
-	pinned: {
-		paddingHorizontal: 17,
-		paddingTop: 16
-	},
-	ring: {
-		// The arc starts at three o'clock; a quarter turn back puts it at the top.
-		transform: [{ rotate: '-90deg' }]
+	lastReadingTitle: {
+		fontSize: 19,
+		lineHeight: 24
 	},
 	screen: {
 		flex: 1
 	},
+	sectionCaption: {
+		fontSize: 11,
+		lineHeight: 14
+	},
+	sectionHead: {
+		alignItems: 'baseline',
+		flexDirection: 'row',
+		gap: 10,
+		justifyContent: 'space-between',
+		paddingBottom: 1,
+		paddingHorizontal: 3
+	},
+	sectionHeadSpaced: {
+		paddingTop: 12
+	},
+	sectionTitle: {
+		fontSize: 13.5,
+		lineHeight: 17
+	},
+	// Grows to the rest of the page, so a short day still fills the screen with paper.
 	sheet: {
 		borderTopLeftRadius: SHEET_RADIUS,
 		borderTopRightRadius: SHEET_RADIUS,
-		flex: 1,
+		flexGrow: 1,
 		overflow: 'hidden'
 	},
-	welcome: {
-		fontSize: 23,
-		lineHeight: 26
+	// Grows to the sheet's height, so the footer links' `marginTop: 'auto'` reaches the bottom.
+	sheetContent: {
+		flexGrow: 1,
+		gap: 9,
+		paddingHorizontal: 17,
+		paddingTop: 18
+	},
+	// B8b sets its read list a point tighter than the others.
+	sheetContentTight: {
+		gap: 8
+	},
+	topCard: {
+		paddingBottom: 18,
+		paddingHorizontal: 17
 	}
 });

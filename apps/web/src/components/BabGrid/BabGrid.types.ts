@@ -1,3 +1,4 @@
+import type { GroupKind } from '@/lib/types/domain';
 import type { StyleProp, ViewStyle } from 'react-native';
 
 /**
@@ -11,6 +12,8 @@ export interface BabGridProps {
 	/** Exactly BAB_COUNT entries expected, but the grid renders whatever it is given. */
 	cells: { number: number; state: BabCellState }[];
 	columns?: number;
+	/** Names each cell for VoiceOver/TalkBack — "Bab 12" or "Juz 12". */
+	kind: GroupKind;
 	onPressBab?: (babNumber: number) => void;
 	style?: StyleProp<ViewStyle>;
 }

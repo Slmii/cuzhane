@@ -1,26 +1,26 @@
 import { BAD_REQUEST, INTERNAL_SERVER_ERROR } from '@config/httpCodes';
 import { HttpError } from '@config/httpError';
 import prisma from '@db/prisma';
-import { BAB_COUNT } from '@utils/babs';
 import { formatInviteCode, generateInviteCode } from '@utils/inviteCode';
 import { normalizeUserId } from '@utils/normalizeUserId';
-import { roundEndsAt } from '@utils/rounds';
+import { ROUND_DAYS, roundEndsAt } from '@utils/rounds';
+import { CUZ_COUNT, unitCountFor } from '@utils/units';
+import type { CuzBoundaryPolicy, CuzDistribution } from '../generated/prisma/client';
 import type { Prisma } from '../generated/prisma/client';
 import { getMemberProfiles } from '@utils/memberProfiles';
 import { requireMembership, requireOwner } from './groupAccess.service';
 import { toGroupDetail, toGroupSummary } from './groupSerializers';
 import { ensureCurrentRoundFor, ensureCurrentRoundsFor } from './rounds.service';
+import { holdingsByGroupFor, holdingsFor } from './unitPlan';
 import type { GroupCycle, GroupDetail, GroupSplitMode, GroupSummary, GroupVisibility } from './groupSerializers';
 
 // `exactOptionalPropertyTypes` is on, so optional fields must admit `undefined`
 // explicitly — Zod's inferred output types always include it on optional keys.
-export type CreateGroupInput = {
+/** What both kinds are told. The halves that differ are the two branches below. */
+type CreateGroupCommon = {
 	name: string;
 	dedication?: string | null | undefined;
 	visibility: GroupVisibility;
-	splitMode: GroupSplitMode;
-	cycle: GroupCycle;
-	spots: number;
 	reminderEnabled: boolean;
 	reminderTime: string;
 	autoStartWhenFull?: boolean | undefined;
@@ -31,6 +31,76 @@ export type CreateGroupInput = {
 	 */
 	timezone: string;
 };
+
+/**
+ * A union, mirroring `CreateGroupBodySchema` — see the note there on why the two kinds are
+ * not one object with optional halves. Every one of these settings is immutable after
+ * creation, so a field quietly ignored because it belonged to the other kind would be
+ * wrong for the life of the group.
+ */
+export type CreateGroupInput =
+	| (CreateGroupCommon & {
+			kind: 'CEVSEN';
+			splitMode: GroupSplitMode;
+			/**
+			 * **Only the two the body schema admits.** `GroupCycle` gained MONTHLY and CUSTOM for
+			 * the hatim flow, and CUSTOM is not a preset at all — it means "the creator typed a
+			 * number", which `ROUND_DAYS` cannot answer for. A Cevşen group never types one.
+			 */
+			cycle: Exclude<GroupCycle, 'MONTHLY' | 'CUSTOM'>;
+			spots: number;
+	  })
+	| (CreateGroupCommon & {
+			kind: 'HATIM';
+			distribution: CuzDistribution;
+			/** Null when QC2's optional cap is switched off, which is the default. */
+			maxPerMember: number | null;
+			boundaryPolicy: CuzBoundaryPolicy;
+			/** The round's length in days, straight from QC3 — 7, 30, or whatever was typed. */
+			roundDays: number;
+			/** The cüz the creator takes (QC4). At least one — see the body schema. */
+			cuzNumbers: number[];
+	  });
+
+/**
+ * The columns that differ by kind, resolved once so the `create` below reads as one shape.
+ *
+ * **A hatim's `cycle` is derived from its length, not asked for.** The length is the real
+ * setting (QC3 offers 1, 7, 30 or a number); the cadence is a label the shelf filters and
+ * the round-reset copy still read, so the three presets keep their names and anything else
+ * is CUSTOM. **And its `spots` is pinned at thirty**: a hatim is full when all thirty cüz are
+ * taken rather than when thirty people have joined, so the seat cap is only the ceiling
+ * `slotIndex` needs, never a divisor of anything. `splitMode` is inert for the same reason —
+ * there are no blocks to rotate — so it records the value that never moves.
+ */
+const planColumnsFor = (input: CreateGroupInput) =>
+	input.kind === 'HATIM'
+		? {
+				boundaryPolicy: input.boundaryPolicy,
+				cycle: (input.roundDays === 1
+					? 'DAILY'
+					: input.roundDays === 7
+					? 'WEEKLY'
+					: input.roundDays === 30
+					? 'MONTHLY'
+					: 'CUSTOM') as GroupCycle,
+				distribution: input.distribution,
+				kind: 'HATIM' as const,
+				maxPerMember: input.maxPerMember,
+				roundDays: input.roundDays,
+				splitMode: 'FIXED' as GroupSplitMode,
+				spots: CUZ_COUNT
+		  }
+		: {
+				boundaryPolicy: null,
+				cycle: input.cycle as GroupCycle,
+				distribution: null,
+				kind: 'CEVSEN' as const,
+				maxPerMember: null,
+				roundDays: ROUND_DAYS[input.cycle],
+				splitMode: input.splitMode,
+				spots: input.spots
+		  };
 
 export type UpdateGroupInput = {
 	name?: string | undefined;
@@ -101,7 +171,33 @@ export const listGroupsForUser = async (userId: string): Promise<GroupSummary[]>
 		include: { members: true, babs: true }
 	});
 
-	return groups.map(group => toGroupSummary(group, group.babs, group.members, normalizedUserId));
+	// One query for the whole shelf, not one per group — and none at all when it holds no
+	// hatim. See `holdingsByGroupFor`.
+	const holdingsByGroupId = await holdingsByGroupFor(prisma, groups);
+	// Which hatims the viewer is sitting out this round — what tells "must pick" from "skipped".
+	const hatims = groups.filter(group => group.kind === 'HATIM');
+	const skips =
+		hatims.length === 0
+			? []
+			: await prisma.cuzRoundSkip.findMany({
+					select: { groupId: true },
+					where: {
+						OR: hatims.map(group => ({ groupId: group.id, roundIndex: group.roundIndex })),
+						userId: normalizedUserId
+					}
+			  });
+	const skippedGroupIds = new Set(skips.map(skip => skip.groupId));
+
+	return groups.map(group =>
+		toGroupSummary(
+			group,
+			group.babs,
+			group.members,
+			normalizedUserId,
+			holdingsByGroupId.get(group.id) ?? [],
+			skippedGroupIds.has(group.id)
+		)
+	);
 };
 
 export const getGroupDetailForUser = async (userId: string, groupId: string): Promise<GroupDetail> => {
@@ -117,11 +213,13 @@ export const getGroupDetailForUser = async (userId: string, groupId: string): Pr
 			cheers: true,
 			// Only this viewer's, and only what they haven't acknowledged — the serializer
 			// narrows further to the round in progress.
-			poolReleases: { where: { userId: normalizedUserId, seenAt: null } }
+			poolReleases: { where: { userId: normalizedUserId, seenAt: null } },
+			roundSkips: { select: { roundIndex: true }, where: { userId: normalizedUserId } }
 		}
 	});
 
 	const profiles = await getMemberProfiles(group.members.map(member => member.userId));
+	const holdings = await holdingsFor(prisma, group, group.roundIndex);
 
 	return toGroupDetail(
 		group,
@@ -130,7 +228,9 @@ export const getGroupDetailForUser = async (userId: string, groupId: string): Pr
 		group.cheers,
 		normalizedUserId,
 		group.poolReleases,
-		profiles
+		profiles,
+		holdings,
+		group.roundSkips.map(skip => skip.roundIndex)
 	);
 };
 
@@ -143,7 +243,13 @@ export const createGroupForUser = async (
 	const startsAt = new Date();
 	// A placeholder until the owner starts: `startGroupForUser` recomputes it from the
 	// moment round 0 actually begins, so gathering time doesn't eat into the round.
-	const endsAt = roundEndsAt(startsAt, input.cycle, input.timezone);
+	/*
+	 * **The cadence is a label; the calendar wants a number.** A Cevşen cycle maps to a fixed
+	 * length, so the preset answers for it — a hatim's round can be any number of days, which
+	 * no enum carries, and that is why `roundDays` is stored rather than looked up.
+	 */
+	const plan = planColumnsFor(input);
+	const endsAt = roundEndsAt(startsAt, plan.roundDays, input.timezone);
 
 	// Resolve the invite code BEFORE opening the transaction. Postgres aborts the whole
 	// transaction on a unique violation, so retrying `create` inside one can never
@@ -157,9 +263,7 @@ export const createGroupForUser = async (
 				name: input.name,
 				dedication: input.dedication ?? null,
 				visibility: input.visibility,
-				splitMode: input.splitMode,
-				cycle: input.cycle,
-				spots: input.spots,
+				...plan,
 				// The owner's zone becomes the group's day. Everyone's board resets on this
 				// clock, which is why it is captured once and never changed.
 				timezone: input.timezone,
@@ -180,8 +284,32 @@ export const createGroupForUser = async (
 		// which block falls out of the seat and the round, and `assignedUserId` is reserved
 		// for pool volunteering.
 		await tx.groupBab.createMany({
-			data: Array.from({ length: BAB_COUNT }, (_, index) => ({ groupId: group.id, number: index + 1 }))
+			// One row per unit — a hundred babs, or thirty cüz. See `unitCountFor`.
+			data: Array.from({ length: unitCountFor(group) }, (_, index) => ({ groupId: group.id, number: index + 1 }))
 		});
+
+		/*
+		 * **The creator's cüz, written in the same transaction as the group.**
+		 *
+		 * A hatim has no derivable share: `CuzHolding` rows *are* the answer to "what do you
+		 * read", so a group created without them would exist with its owner holding nothing —
+		 * the state the join flow refuses and the one `resolveUnitPlan` would report as an
+		 * entirely free pool. Round 0 because that is the round a gathering group is on.
+		 *
+		 * De-duplicated: the picker cannot select a cüz twice, but the unique key would abort
+		 * the whole transaction if a client ever sent one, and refusing to create a group over
+		 * a repeated number is a worse answer than taking it once.
+		 */
+		if (input.kind === 'HATIM') {
+			await tx.cuzHolding.createMany({
+				data: [...new Set(input.cuzNumbers)].map(cuzNumber => ({
+					cuzNumber,
+					groupId: group.id,
+					roundIndex: 0,
+					userId: normalizedUserId
+				}))
+			});
+		}
 
 		await tx.groupMember.create({
 			data: {
@@ -192,6 +320,10 @@ export const createGroupForUser = async (
 				slotIndex: 0
 			}
 		});
+
+		// A hatim's owner can take all thirty on the way in — full before anyone else arrives,
+		// so it starts now rather than waiting for a join that can never come.
+		await autoStartIfFull(tx, group.id);
 
 		return group.id;
 	});
@@ -260,7 +392,7 @@ export const startGroupForUser = async (userId: string, groupId: string): Promis
 
 	const group = await prisma.group.findUniqueOrThrow({
 		where: { id: groupId },
-		select: { cycle: true, timezone: true }
+		select: { roundDays: true, timezone: true }
 	});
 	const startedAt = new Date();
 
@@ -276,7 +408,7 @@ export const startGroupForUser = async (userId: string, groupId: string): Promis
 			// and treat the very first round as overdue.
 			roundIndex: 0,
 			roundStartedAt: startedAt,
-			endsAt: roundEndsAt(startedAt, group.cycle, group.timezone)
+			endsAt: roundEndsAt(startedAt, group.roundDays, group.timezone)
 		}
 	});
 
@@ -288,9 +420,15 @@ export const startGroupForUser = async (userId: string, groupId: string): Promis
 };
 
 /**
- * Starts a gathering group the moment its last seat is taken, when the owner asked for
- * that. Called from inside the join transaction, so the new member sees a running group
- * rather than a lobby that flips a second later.
+ * Starts a gathering group the moment it is full, when the owner asked for that. Called from
+ * inside the join transaction (and the create one), so the member who filled it sees a running
+ * group rather than a lobby that flips a second later.
+ *
+ * **Full is a different question per kind.** A Cevşen group is full when every seat is taken.
+ * A hatim is full when all thirty cüz are held — its `spots` is thirty only because `slotIndex`
+ * needs a ceiling, so counting members against it waited for thirty *people*, and a hatim of
+ * five members holding every cüz never started. `CuzHolding` is unique per cüz per round, so its
+ * count for the round is the number of distinct cüz taken.
  */
 export const autoStartIfFull = async (tx: Prisma.TransactionClient, groupId: string): Promise<{ started: boolean }> => {
 	const group = await tx.group.findUnique({
@@ -299,13 +437,25 @@ export const autoStartIfFull = async (tx: Prisma.TransactionClient, groupId: str
 			spots: true,
 			status: true,
 			cycle: true,
+			kind: true,
+			roundDays: true,
+			roundIndex: true,
 			timezone: true,
 			autoStartWhenFull: true,
 			_count: { select: { members: true } }
 		}
 	});
 
-	if (!group || group.status !== 'GATHERING' || !group.autoStartWhenFull || group._count.members < group.spots) {
+	if (!group || group.status !== 'GATHERING' || !group.autoStartWhenFull) {
+		return { started: false };
+	}
+
+	const isFull =
+		group.kind === 'HATIM'
+			? (await tx.cuzHolding.count({ where: { groupId, roundIndex: group.roundIndex } })) >= CUZ_COUNT
+			: group._count.members >= group.spots;
+
+	if (!isFull) {
 		return { started: false };
 	}
 
@@ -320,7 +470,7 @@ export const autoStartIfFull = async (tx: Prisma.TransactionClient, groupId: str
 			startedAt,
 			roundIndex: 0,
 			roundStartedAt: startedAt,
-			endsAt: roundEndsAt(startedAt, group.cycle, group.timezone)
+			endsAt: roundEndsAt(startedAt, group.roundDays, group.timezone)
 		}
 	});
 
@@ -387,7 +537,13 @@ export const discoverGroups = async (userId: string, query: DiscoverGroupsQuery)
 		include: { members: true, babs: true }
 	});
 
-	return groups.map(group => toGroupSummary(group, group.babs, group.members, normalizedUserId));
+	// One query for the whole shelf, not one per group — and none at all when it holds no
+	// hatim. See `holdingsByGroupFor`.
+	const holdingsByGroupId = await holdingsByGroupFor(prisma, groups);
+
+	return groups.map(group =>
+		toGroupSummary(group, group.babs, group.members, normalizedUserId, holdingsByGroupId.get(group.id) ?? [])
+	);
 };
 
 export const regenerateInviteCodeForUser = async (userId: string, groupId: string): Promise<{ inviteCode: string }> => {

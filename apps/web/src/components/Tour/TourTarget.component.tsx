@@ -30,9 +30,13 @@ type TourTargetProps = {
  * card is absent until the stats land, and it arrives *above* the group rows, pushing them down
  * without altering their box inside the scroller. Measuring again at the moment a rect is
  * actually needed is what keeps the spotlight off the gap the card left behind.
+ *
+ * **And again at every step**, for the same reason one screen later: the Cevşen reader's strip
+ * is measured as the reader lays out, before its top inset lands, and the header's safe area
+ * moving it down leaves its own box untouched — its stop cut the hole a status bar too high.
  */
 export const TourTarget = ({ children, id, style }: TourTargetProps) => {
-	const { isActive, registerTarget } = useTour();
+	const { isActive, registerTarget, stepIndex } = useTour();
 	const isFocused = useIsFocused();
 	const ref = useRef<View | null>(null);
 
@@ -57,7 +61,7 @@ export const TourTarget = ({ children, id, style }: TourTargetProps) => {
 		}
 
 		measure();
-	}, [id, isActive, isFocused, measure, registerTarget]);
+	}, [id, isActive, isFocused, measure, registerTarget, stepIndex]);
 
 	useEffect(() => () => registerTarget(id, null), [id, registerTarget]);
 

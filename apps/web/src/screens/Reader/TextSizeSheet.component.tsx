@@ -21,7 +21,7 @@ interface TextSizeSheetProps extends ReaderSettingsProps {
 	onClose: () => void;
 }
 
-export const TextSizeSheet = ({ isVisible, onChange, onClose, settings }: TextSizeSheetProps) => {
+export const TextSizeSheet = ({ hasMushafPages, isVisible, onChange, onClose, settings }: TextSizeSheetProps) => {
 	const { t } = useTranslation();
 
 	return (
@@ -31,7 +31,7 @@ export const TextSizeSheet = ({ isVisible, onChange, onClose, settings }: TextSi
 			onClose={onClose}
 			title={t('readerSettings')}
 		>
-			<ReaderSettings onChange={onChange} settings={settings} />
+			<ReaderSettings hasMushafPages={hasMushafPages} onChange={onChange} settings={settings} />
 		</AppBottomSheet>
 	);
 };

@@ -8,8 +8,13 @@ export const OptionCard = ({ hint, isSelected, onPress, style, title }: OptionCa
 
 	return (
 		<Pressable
+			// Named outright: iOS doesn't gather a pressable's text into its label, so VoiceOver
+			// said only "radio button". The hint goes in the label, not `accessibilityHint` — it
+			// carries the option's facts ("11 ve 12 senin kalır"), which hints-off would drop.
+			// A radio's on-state is `checked`, not `selected`.
+			accessibilityLabel={hint ? `${title}, ${hint}` : title}
 			accessibilityRole='radio'
-			accessibilityState={{ selected: isSelected }}
+			accessibilityState={{ checked: isSelected }}
 			onPress={onPress}
 			style={({ pressed }) => [
 				styles.card,

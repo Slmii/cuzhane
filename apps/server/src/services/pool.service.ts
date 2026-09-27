@@ -5,6 +5,7 @@ import { normalizeUserId } from '@utils/normalizeUserId';
 import { lockGroup, syncCompletedAt } from './babs.service';
 import { getMemberProfiles } from '@utils/memberProfiles';
 import { notifyGroupMembers } from './groupEvents.service';
+import { settingFor } from '@utils/notificationSettings';
 import { poolClaimPush } from '@utils/pushCopy';
 import { babRuns, formatRun } from '@utils/babs';
 import { requireMembership } from './groupAccess.service';
@@ -134,6 +135,16 @@ export const takePoolSlotForUser = async (
 			throw new HttpError(BAD_REQUEST, 'The pool opens when the hatim starts');
 		}
 
+		/*
+		 * **A hatim's havuz is `cuzPool.service`, not this.** This path hands out a seat's block of
+		 * the hundred, and on thirty cüz that maths means nothing — yet it went through: the app
+		 * never called it for a hatim, but a direct request could, and the next joiner then
+		 * "released" the claim in bab wording. Refused at the door instead.
+		 */
+		if (group.kind === 'HATIM') {
+			throw new HttpError(BAD_REQUEST, 'A hatim takes cüz from its cüz havuz, not seats from this pool');
+		}
+
 		const babNumbers = poolBlockFor(group, group.members, slotIndex);
 
 		if (!babNumbers) {
@@ -167,12 +178,20 @@ export const takePoolSlotForUser = async (
 			// a name the same way rather than one of them doing it properly and two not.
 			build: ({ actorName, groupName: name }) => ({
 				payload: { kind: 'POOL_BAB_CLAIMED', range, takerName: actorName },
-				push: language => poolClaimPush(language, { groupName: name, range, takerName: actorName })
+				push: language =>
+					poolClaimPush(language, { groupName: name, kind: 'CEVSEN', range, takerName: actorName })
 			}),
 			excludeUserIds: [normalizedUserId],
 			groupId,
 			pushKind: 'pool-claim',
-			setting: 'poolClaimEnabled'
+			/*
+			 * **Hard-coded to the Cevşen switch, because this path is seat machinery.** The whole
+			 * of `pool.service` works in `slotIndex` and blocks, which a hatim does not have — its
+			 * spare cüz are taken a different way (Q3, unbuilt). When that lands it calls
+			 * `settingFor('poolClaim', kind)` rather than adding a branch here.
+			 */
+			setting: settingFor('poolClaim', 'CEVSEN'),
+			subject: String(slotIndex)
 		});
 	}
 

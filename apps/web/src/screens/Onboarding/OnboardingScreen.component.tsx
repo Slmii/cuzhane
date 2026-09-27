@@ -94,14 +94,8 @@ export const OnboardingScreen = ({ navigation }: Props) => {
 					exiting={isReducedMotion ? undefined : FadeOut.duration(120)}
 					key={pageIndex}
 				>
-					<View
-						style={[
-							styles.artCard,
-							{ backgroundColor: toAlphaColor(theme.colors.text, 0.04), borderColor: theme.colors.border }
-						]}
-					>
-						<page.Art />
-					</View>
+					{/* Each page draws its own container — the frames do not share one. */}
+					<page.Art />
 
 					<View style={styles.copy}>
 						<Header1 style={styles.title}>{t(page.titleKey)}</Header1>
@@ -167,11 +161,6 @@ export const OnboardingScreen = ({ navigation }: Props) => {
 const styles = StyleSheet.create({
 	actions: {
 		gap: 8
-	},
-	artCard: {
-		borderRadius: 20,
-		borderWidth: 1,
-		padding: 18
 	},
 	content: {
 		flexGrow: 1,

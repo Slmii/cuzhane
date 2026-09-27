@@ -63,6 +63,22 @@ const resolveAuthToken = async () => {
 	return null;
 };
 
+/**
+ * The session's `Authorization` header, for a request that does not go through `wrapperApi`
+ * — the mushaf's page downloads. No token is handled exactly as `wrapperApi` handles it: the
+ * app signs out, and the caller gets a 401 to fail on.
+ */
+export const authorizationHeader = async (): Promise<{ Authorization: string }> => {
+	const token = await resolveAuthToken();
+
+	if (!token) {
+		_onMissingToken?.();
+		throw new WrapperApiError({ code: 401, message: 'Authentication token is not ready. Please retry.' }, 401);
+	}
+
+	return { Authorization: `Bearer ${token}` };
+};
+
 export const wrapperApi = async <T>(endpoint: string, init?: RequestInit): Promise<T> => {
 	const isFormData = init?.body instanceof FormData;
 	const token = await resolveAuthToken();

@@ -1,3 +1,4 @@
+import { WrapperApiError } from '@/api/wrapper.api';
 import { TourTarget } from '@/components/Tour/TourTarget.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
@@ -8,12 +9,13 @@ import { READER_FONT_SIZE_DEFAULT } from '@/lib/content/cevsen';
 import { useGetBabs, useSetBabRead } from '@/lib/hooks/useBab';
 import { useGetGroupById, useGetPoolSlots, useTakePoolSlot } from '@/lib/hooks/useGroup';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
-import { WrapperApiError } from '@/api/wrapper.api';
 import { useCoverBabs, useGetRoundDetail } from '@/lib/hooks/useRounds';
 import { useGetUserSettings, useUpdateUserSettings } from '@/lib/hooks/useUserSettings';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
+import { textFontFor } from '@/lib/types/domain';
 import { BAB_COUNT, babNumbersForRound, babNumbersForSlot } from '@/lib/utils/babs';
+import { tapBack } from '@/lib/utils/haptics';
 import { TabBarOffsetContext } from '@/navigation/TabBarOffsetContext';
 import type { TabStackParamList } from '@/navigation/types';
 import { MealSheet } from '@/screens/Reader/MealSheet.component';
@@ -22,7 +24,6 @@ import { ReaderBody, readerFaces } from '@/screens/Reader/ReaderBody.component';
 import { TextSizeSheet } from '@/screens/Reader/TextSizeSheet.component';
 import { textSizeSheet } from '@/screens/Reader/textSizeSheet';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import * as Haptics from 'expo-haptics';
 import { useKeepAwake } from 'expo-keep-awake';
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
@@ -32,20 +33,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ReaderSkeleton } from './ReaderSkeleton.component';
 
 type Props = NativeStackScreenProps<TabStackParamList, 'BabReader'>;
-
-/**
- * Marking a bab read is the screen's one committing action, so it gets a tap back.
- *
- * `impactAsync`, not `notificationAsync`: the success notification is a three-beat pattern
- * meant for the end of something, and a share can run to forty babs. Undoing is deliberately
- * silent — a correction shouldn't feel like an achievement.
- *
- * Swallowed rather than awaited. Haptics are unavailable on web and on a device with the
- * system setting off, where this rejects; a reading screen must not care.
- */
-const tapBack = () => {
-	void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
-};
 
 /**
  * How far across the page counts as turning it.
@@ -340,7 +327,8 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 	const readerSettings = {
 		// Must match `ReaderArabicFont`'s Prisma default — this only stands in for the frame
 		// before settings arrive, and a different guess would repaint the page underneath.
-		readerArabicFont: settingsQuery.data?.readerArabicFont ?? 'uthman',
+		// Hüsrev is the Kuran's page images; the Cevşen sets text, so it falls back to a font.
+		readerArabicFont: textFontFor(settingsQuery.data?.readerArabicFont ?? 'uthman'),
 		readerFontSize: settingsQuery.data?.readerFontSize ?? READER_FONT_SIZE_DEFAULT,
 		readerNumerals: settingsQuery.data?.readerNumerals ?? 'arabic'
 	} as const;
@@ -660,13 +648,18 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 					showsVerticalScrollIndicator={false}
 					stickyHeaderIndices={[0]}
 				>
-					<View style={[styles.header, { borderBottomColor: theme.colors.readerRule }]}>
+					<View
+						style={[
+							styles.header,
+							{ backgroundColor: theme.colors.readerSurface, borderBottomColor: theme.colors.readerRule }
+						]}
+					>
 						{/*
-						 * The translucent surface alone — there was a `BlurView` under it, and it was
-						 * doing almost nothing for a real cost. `readerSurface` is 94% opaque and laid
-						 * over it edge to edge, so the blur could contribute at most six percent of the
-						 * colour, while live blur re-samples and composites the Arabic scrolling beneath
-						 * it every frame. Measured on the simulator: the reader's body scroll held a
+						 * The surface alone, painted on the header itself (see `styles.header`) — there
+						 * was a `BlurView` under it, and it was doing almost nothing for a real cost.
+						 * The surface was then 94% opaque and laid over it edge to edge, so the blur
+						 * could contribute at most six percent of the colour, while live blur re-samples
+						 * and composites the Arabic scrolling beneath it every frame. Measured on the simulator: the reader's body scroll held a
 						 * 20.0ms median gap against 16.7ms on Home, with the blur the only material
 						 * difference between them.
 						 *
@@ -680,7 +673,6 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 						 * insets — a layout change, not a swap. The 94% here is not an imitation of glass;
 						 * it is a tint over a solid background, and it only ever had to be that.
 						 */}
-						<View style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.readerSurface }]} />
 						<View style={styles.headerTopRow}>
 							<View style={styles.headerSide}>
 								{/*
@@ -748,24 +740,26 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 						 * Drag or tap anywhere along it to jump — the arrows step one bab, which is
 						 * ninety-nine taps end to end.
 						 */}
-						<GestureDetector gesture={railGesture}>
-							<View
-								accessibilityRole='adjustable'
-								accessibilityValue={{ max: BAB_COUNT, min: 1, now: babNumber }}
-								onLayout={event => setRailWidth(event.nativeEvent.layout.width)}
-								style={styles.babMapRow}
-							>
-								<ReaderBabMap
-									currentBab={displayBab}
-									scrubRatio={scrubRatio}
-									myBabNumbers={myBabNumbers}
-									poolBabNumbers={poolBabNumbers}
-									readBabNumbers={readBabNumbers}
-									// What chunks the pool ticks into the blocks a seat actually offers.
-									{...(groupQuery.data ? { spots: groupQuery.data.spots } : {})}
-								/>
-							</View>
-						</GestureDetector>
+						{/* Stop 9 of the first-use tour — the strip, and that it can be dragged. */}
+						<TourTarget id='readerMap' style={styles.babMapRow}>
+							<GestureDetector gesture={railGesture}>
+								<View
+									accessibilityRole='adjustable'
+									accessibilityValue={{ max: BAB_COUNT, min: 1, now: babNumber }}
+									onLayout={event => setRailWidth(event.nativeEvent.layout.width)}
+								>
+									<ReaderBabMap
+										currentBab={displayBab}
+										scrubRatio={scrubRatio}
+										myBabNumbers={myBabNumbers}
+										poolBabNumbers={poolBabNumbers}
+										readBabNumbers={readBabNumbers}
+										// What chunks the pool ticks into the blocks a seat actually offers.
+										{...(groupQuery.data ? { spots: groupQuery.data.spots } : {})}
+									/>
+								</View>
+							</GestureDetector>
+						</TourTarget>
 					</View>
 
 					<GestureDetector gesture={swipe}>
@@ -813,7 +807,7 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 						{readHint}
 					</Typography>
 				) : null}
-				{/* Stop 10 of the first-use tour: Okudum and the two arrows, as one row. */}
+				{/* Stop 8 of the first-use tour: Okudum and the two arrows, as one row. */}
 				<TourTarget id='readerActions'>
 					<View style={styles.footerRow}>
 						<AppButton
@@ -985,6 +979,12 @@ const styles = StyleSheet.create({
 		overflow: 'hidden',
 		paddingBottom: 12,
 		paddingHorizontal: 20,
+		// **The ground goes on this view, never on an absolute child.** A sticky header's own style,
+		// padding included, is moved onto the wrapper React Native puts around it, and the view
+		// itself becomes a plain fill inside that padding. A surface drawn as an absolute child
+		// covered only the inside, so the padding stayed see-through and the scrolling text showed
+		// between the strip and the divider. That wrapper also sets its own `zIndex: 10`, so a
+		// `zIndex` here never took effect.
 		paddingTop: 8
 	},
 	headerBottomRow: {

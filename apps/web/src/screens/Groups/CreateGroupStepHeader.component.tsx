@@ -3,35 +3,68 @@ import { StepProgress } from '@/components/ui/StepProgress/StepProgress.componen
 import { EyebrowText, Header1 } from '@/components/ui/Typography/Typography.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import type { StringKey } from '@/lib/i18n/strings';
+import type { GroupKind } from '@/lib/types/domain';
 import { StyleSheet, View } from 'react-native';
 
-export type CreateGroupStep = 1 | 2 | 3;
+/**
+ * **The first step is Q1 — what the group reads — and the flow is a different length after
+ * it.** A Cevşen group is three steps and a hatim four.
+ *
+ * That is not an asymmetry for its own sake. A Cevşen group's cadence is two chips, which sit
+ * under the seat picker on step 3 with room to spare, so a fourth step would have held one
+ * control. A hatim needs three more questions of its own: how its cüz are handed out (QC2),
+ * how long a round runs (QC3), and **which cüz the creator takes** (QC4) — the last of which
+ * has no Cevşen counterpart at all, because a Cevşen share is derived from a seat and a
+ * hatim's has to be chosen.
+ *
+ * The design numbers its frames from zero ("Adım 0 / 4" on Q1, up to QC4) because it drew
+ * five; QC4 is out of scope. Steps are numbered from 1 here so the last one is always
+ * "N / N" — a counter reading "3 / 4" on the final step says there is something after it.
+ */
+export type CreateGroupStep = 1 | 2 | 3 | 4 | 5;
+
+/** Where each kind stops. Also the total the progress bar and the eyebrows count to. */
+export const LAST_STEP_BY_KIND: Record<GroupKind, CreateGroupStep> = { CEVSEN: 3, HATIM: 5 };
 
 interface CreateGroupStepHeaderProps {
+	/**
+	 * Blocks the forward action. Used only where a step's answer is not a form field and so
+	 * cannot be validated into a message — QC4's picker, which has no control to hang one on.
+	 */
+	isNextDisabled?: boolean;
+	/** What the group reads, chosen at step 1 — steps 3 and 4 are different questions for each. */
+	kind: GroupKind;
 	onBack: () => void;
 	/** Validates the step and moves on; on the last one it creates the group. */
 	onNext: () => void;
 	step: CreateGroupStep;
 }
 
-/** The step after which there is nothing left to fill in. */
-const LAST_STEP: CreateGroupStep = 3;
-
-const EYEBROW_KEY_BY_STEP: Record<CreateGroupStep, StringKey> = {
-	1: 'step1of3',
-	2: 'step2of3',
-	3: 'step3of3'
+const EYEBROW_KEY_BY_STEP: Record<GroupKind, Record<CreateGroupStep, StringKey>> = {
+	// Steps 4 and 5 are unreachable for a Cevşen group; the keys are here to keep the record total.
+	CEVSEN: { 1: 'step1of3', 2: 'step2of3', 3: 'step3of3', 4: 'step3of3', 5: 'step3of3' },
+	HATIM: { 1: 'step1of5', 2: 'step2of5', 3: 'step3of5', 4: 'step4of5', 5: 'step5of5' }
 };
 
-const TITLE_KEY_BY_STEP: Record<CreateGroupStep, StringKey> = {
-	1: 'stepDefine',
-	2: 'stepSpots',
-	3: 'stepCycle'
+/**
+ * Steps 1 and 2 ask both kinds the same thing. Steps 3 and 4 do not: a Cevşen group is asked
+ * for seats and a cadence, a hatim for how its thirty cüz are handed out and how long a round
+ * runs — so the heading has to name the question actually on screen.
+ */
+const TITLE_KEY_BY_STEP: Record<GroupKind, Record<CreateGroupStep, StringKey>> = {
+	CEVSEN: { 1: 'qWhatRead', 2: 'stepDefine', 3: 'stepSpots', 4: 'stepCycle', 5: 'stepCycle' },
+	HATIM: { 1: 'qWhatRead', 2: 'stepDefine', 3: 'qDistTitle', 4: 'qDurTitle', 5: 'qLobbyTitle' }
 };
 
-export const CreateGroupStepHeader = ({ onBack, onNext, step }: CreateGroupStepHeaderProps) => {
+export const CreateGroupStepHeader = ({
+	isNextDisabled = false,
+	kind,
+	onBack,
+	onNext,
+	step
+}: CreateGroupStepHeaderProps) => {
 	const { t } = useTranslation();
-	const isLastStep = step === LAST_STEP;
+	const isLastStep = step === LAST_STEP_BY_KIND[kind];
 	const isFirstStep = step === 1;
 
 	return (
@@ -57,15 +90,16 @@ export const CreateGroupStepHeader = ({ onBack, onNext, step }: CreateGroupStepH
 				 */}
 				<AppButton
 					accessibilityLabel={isLastStep ? t('createGroup') : t('next')}
+					disabled={isNextDisabled}
 					fullWidth={false}
 					icon={isLastStep ? 'check' : 'chevronRight'}
 					onPress={onNext}
 					variant='accent'
 				/>
 			</View>
-			<StepProgress current={step} style={styles.progress} total={3} />
-			<EyebrowText style={styles.eyebrow}>{t(EYEBROW_KEY_BY_STEP[step])}</EyebrowText>
-			<Header1>{t(TITLE_KEY_BY_STEP[step])}</Header1>
+			<StepProgress current={step} style={styles.progress} total={LAST_STEP_BY_KIND[kind]} />
+			<EyebrowText style={styles.eyebrow}>{t(EYEBROW_KEY_BY_STEP[kind][step])}</EyebrowText>
+			<Header1>{t(TITLE_KEY_BY_STEP[kind][step])}</Header1>
 		</View>
 	);
 };

@@ -1,9 +1,10 @@
 import { MenuAction } from '@/components/ui/MenuAction/MenuAction.component';
 import type { MenuActionItem } from '@/components/ui/MenuAction/MenuAction.types';
 import { useTranslation } from '@/lib/i18n/I18n.context';
-import type { GroupCycle } from '@/lib/types/domain';
+import type { GroupCycle, GroupKind } from '@/lib/types/domain';
 import {
 	CYCLE_FILTER_OPTIONS,
+	KIND_FILTER_OPTIONS,
 	emptyGroupBrowseState,
 	GROUP_SORT_OPTIONS,
 	isGroupBrowseMenuActive,
@@ -14,6 +15,8 @@ import { useGroupBrowse } from './GroupBrowse.context';
 
 /** The "all cadences" option has no cycle of its own, and a menu needs a value to tick. */
 const ANY_CYCLE = 'any';
+/** Distinct from `ANY_CYCLE`: the two choices sit on one level and share no values. */
+const ANY_KIND = 'anyKind';
 
 /**
  * Narrowing and ordering a list of groups, as one pull-down in the navigator's bar. It holds what
@@ -77,6 +80,31 @@ export const GroupBrowseMenu = () => {
 					})),
 					value: browse.cycle ?? ANY_CYCLE,
 					icon: 'calendar'
+				},
+				/*
+				 * **Its own choice, above the status toggles.** The cadence narrows *when* a
+				 * group reads and this narrows *what* — two independent answers, so they cannot
+				 * share one list of options without reading as alternatives to each other.
+				 *
+				 * **No `section` row above it.** A choice already draws its own label as an
+				 * eyebrow, so a section carrying the same words printed "OKUMA TÜRÜ" twice, one
+				 * under the other. Sections head runs of *toggles*, which have no label of their
+				 * own — which is why the status one below stays and the cadence choice above
+				 * never had one.
+				 */
+				{
+					icon: 'book',
+					kind: 'choice',
+					label: t('filterKind'),
+					onChange: value =>
+						setBrowse({ ...browse, kind: value === ANY_KIND ? undefined : (value as GroupKind) }),
+					options: KIND_FILTER_OPTIONS.map(option => ({
+						// Not `allGroups` — that is the cadence level's "Tüm açık gruplar", and
+						// borrowing it put the same row at the head of two different questions.
+						label: option ? t(option === 'HATIM' ? 'qHatim' : 'qCevsen') : t('filterAnyKind'),
+						value: option ?? ANY_KIND
+					})),
+					value: browse.kind ?? ANY_KIND
 				},
 				{ kind: 'section', label: t('filterStatus') },
 				{

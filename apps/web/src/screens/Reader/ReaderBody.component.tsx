@@ -3,7 +3,7 @@ import { ayahMark, BISMILLAH, CEVSEN_AFTER_HUNDREDTH, clampReaderFontSize, getBa
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { arabicReaderFonts, arabicReaderFontScale } from '@/lib/theme/fonts';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import type { ReaderArabicFont } from '@/lib/types/domain';
+import type { ReaderTextFont } from '@/lib/types/domain';
 import { BAB_COUNT } from '@/lib/utils/babs';
 import { Fragment, type ReactNode, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -21,13 +21,12 @@ import type { ReaderBodyProps } from './ReaderBody.types';
  * glyphs from two different fonts can never combine. Look at a real bab before adding a face.
  *
  * `uthman` is listed on the strength of its sibling rather than its own inspection: it carries
- * the mark at 0.708 × 0.855 em, the same standalone proportions the Madinah face had. Take it
- * out and look at a bab if that is worth checking — it is one word either way.
+ * the mark at 0.708 × 0.855 em, the same standalone proportions the since-removed Madinah face
+ * had. Take it out and look at a bab if that is worth checking — it is one word either way.
  */
-const FACES_WITHOUT_ENCLOSING_MARK = new Set<ReaderArabicFont>(['uthman']);
+const FACES_WITHOUT_ENCLOSING_MARK = new Set<ReaderTextFont>(['uthman']);
 
-const ornamentFaceFor = (font: ReaderArabicFont) =>
-	FACES_WITHOUT_ENCLOSING_MARK.has(font) ? ('naskh' as const) : font;
+const ornamentFaceFor = (font: ReaderTextFont) => (FACES_WITHOUT_ENCLOSING_MARK.has(font) ? ('naskh' as const) : font);
 
 /**
  * The divine name, set in the page's red the way the printed edition does.
@@ -40,9 +39,19 @@ const ornamentFaceFor = (font: ReaderArabicFont) =>
  * (`اللّٰهُ`, `اللّٰهِ`, `اَللّٰهُ`) and nothing else: 16 occurrences, counted across the data.
  *
  * The mark class is spelled out rather than `\p{M}`, which needs Unicode property escapes.
+ *
+ * **The first letter may be the wasla alef (`ٱ`, U+0671)** as well as the plain one: the
+ * Kuran's Uthmani text writes the name `ٱللَّهِ`, and the cüz reader colours it by this same
+ * rule. The Cevşen's Ottoman text never uses the wasla form, so nothing there changes.
  */
 const ARABIC_MARKS = '[\\u064B-\\u065F\\u0670\\u06D6-\\u06ED]';
-const DIVINE_NAME = new RegExp(`^ا${ARABIC_MARKS}*ل${ARABIC_MARKS}*ل${ARABIC_MARKS}*ه${ARABIC_MARKS}*$`, 'u');
+const DIVINE_NAME = new RegExp(
+	`^[\\u0627\\u0671]${ARABIC_MARKS}*ل${ARABIC_MARKS}*ل${ARABIC_MARKS}*ه${ARABIC_MARKS}*$`,
+	'u'
+);
+
+/** Whether a whole token is the divine name — the rule both readers colour it by. */
+export const isDivineName = (token: string) => DIVINE_NAME.test(token);
 
 /**
  * Arabic split into runs so the divine name can carry its own colour.
@@ -59,13 +68,22 @@ const DIVINE_NAME = new RegExp(`^ا${ARABIC_MARKS}*ل${ARABIC_MARKS}*ل${ARABIC_
  * The spans re-declare the face and size because a nested `Typography` otherwise applies
  * its own variant's `fontSize` and drops the Arabic back to body size — the same reason
  * the verse ornaments below set theirs explicitly.
+ *
+ * **And the line height — every nested span in this body does.** A nested `Typography` brings
+ * its variant's 21pt line, and Android measured the whole paragraph by it while drawing the
+ * paragraph's own 46: the du'a after the hundredth was laid out as 36 lines of 21pt, drawn
+ * at 46, and everything past the first sixteen was clipped — the text simply stopped, at every
+ * face and size. The spans now carry the paragraph's line, so there is only one to measure by.
  */
-const withDivineName = (text: string, style: { color: string; fontFamily: string; fontSize: number }) => {
+const withDivineName = (
+	text: string,
+	style: { color: string; fontFamily: string; fontSize: number; lineHeight: number }
+) => {
 	const runs: ReactNode[] = [];
 	let plain = '';
 
 	text.split(/(\s+)/u).forEach((token, index) => {
-		if (!DIVINE_NAME.test(token)) {
+		if (!isDivineName(token)) {
 			plain += token;
 
 			return;
@@ -79,7 +97,7 @@ const withDivineName = (text: string, style: { color: string; fontFamily: string
 			<Typography
 				color={style.color}
 				key={`name-${index}`}
-				style={{ fontFamily: style.fontFamily, fontSize: style.fontSize }}
+				style={{ fontFamily: style.fontFamily, fontSize: style.fontSize, lineHeight: style.lineHeight }}
 			>
 				{token}
 			</Typography>
@@ -105,7 +123,7 @@ const splitOnOrnament = (text: string) => text.split(new RegExp(`(${RUB_EL_HIZB}
  * and both readers open it. Derived rather than stored: the reader's setting is one size in
  * points, and each face carries its own scale so that 24pt looks like 24pt in all of them.
  */
-export const readerFaces = (font: ReaderArabicFont, chosenSize: number) => {
+export const readerFaces = (font: ReaderTextFont, chosenSize: number) => {
 	const baseFontSize = clampReaderFontSize(chosenSize);
 	const ornamentFace = ornamentFaceFor(font);
 
@@ -163,13 +181,14 @@ export const ReaderBody = ({
 
 		// Re-derived in here rather than closed over: the faces come out of a call, and the
 		// React Compiler will not preserve a manual memo whose deps it can't prove stable.
-		const { arabicFont: face, arabicFontSize: size } = readerFaces(font, chosenSize);
+		const { arabicFont: face, arabicFontSize: size, baseFontSize: base } = readerFaces(font, chosenSize);
 
 		for (const invocation of cevsenBab?.invocations ?? []) {
 			runs[invocation.n] = withDivineName(invocation.text, {
 				color: theme.colors.danger,
 				fontFamily: face,
-				fontSize: size
+				fontSize: size,
+				lineHeight: base * 2
 			});
 		}
 
@@ -275,7 +294,11 @@ export const ReaderBody = ({
 						<Typography
 							color={theme.colors.accent}
 							onLongPress={() => onLongPressInvocation(invocation)}
-							style={{ fontFamily: ornamentFont, fontSize: ornamentFontSize }}
+							style={{
+								fontFamily: ornamentFont,
+								fontSize: ornamentFontSize,
+								lineHeight: baseFontSize * 2
+							}}
 							suppressHighlighting
 						>
 							{ayahMark(invocation.n, numerals)}
@@ -315,7 +338,7 @@ export const ReaderBody = ({
 				 */}
 				<Typography
 					color={theme.colors.danger}
-					style={{ fontFamily: ornamentFont, fontSize: ornamentFontSize }}
+					style={{ fontFamily: ornamentFont, fontSize: ornamentFontSize, lineHeight: baseFontSize * 2 }}
 				>
 					{ayahMark(cevsenBab.closing.n, numerals)}
 				</Typography>
@@ -364,7 +387,11 @@ export const ReaderBody = ({
 							part === RUB_EL_HIZB ? (
 								<Typography
 									key={`orn-${index}`}
-									style={{ fontFamily: ornamentFont, fontSize: ornamentFontSize }}
+									style={{
+										fontFamily: ornamentFont,
+										fontSize: ornamentFontSize,
+										lineHeight: baseFontSize * 2
+									}}
 								>
 									{part}
 								</Typography>
@@ -373,7 +400,8 @@ export const ReaderBody = ({
 									{withDivineName(part, {
 										color: theme.colors.danger,
 										fontFamily: arabicFont,
-										fontSize
+										fontSize,
+										lineHeight: baseFontSize * 2
 									})}
 								</Fragment>
 							)

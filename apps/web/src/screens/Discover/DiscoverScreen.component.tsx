@@ -103,6 +103,7 @@ export const DiscoverScreen = () => {
 			 */
 			<Animated.View layout={cardLayout}>
 				<GroupCard
+					kind={item.kind}
 					badgeLabel={t(cycleLabelKey(item.cycle))}
 					badgeTone={badgeToneForCycle(item.cycle)}
 					// Cycle, then whether it has started. The design also has a "Kurucu" chip

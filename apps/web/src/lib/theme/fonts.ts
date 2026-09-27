@@ -32,17 +32,27 @@ export const arabicReaderFonts = {
 	 * should be: 0.080 × 0.254 em, which is the reference every other face here was measured
 	 * against.
 	 *
-	 * **It replaced KFGQPC Uthmanic Script HAFS**, the Madinah mushaf's face, which drew that
-	 * same mark 0.304 × 0.210 em — wider than it is tall, and in two pieces. The `madinah` key
-	 * is gone from this table and its font file with it; the database enum keeps the value
-	 * because dropping one is destructive, and `toReaderArabicFont` on the server reads a
-	 * legacy row as this face.
+	 * **It replaced KFGQPC Uthmanic Script HAFS as the default**, because that face draws the
+	 * same mark 0.304 × 0.210 em — wider than it is tall, and in two pieces.
 	 *
-	 * **It lacks exactly one character the text uses**: `U+06DE`, the rub el hizb mark, which
-	 * appears once — in the du'a after the hundredth bab, where it separates the phrases. iOS
-	 * substitutes it from a system face there.
+	 * **It lacks two characters the Kuran uses**: `U+0671`, the alef wasla — the alef of
+	 * ٱللَّه, 13,483 times in 4,798 of the 6,236 ayahs — and `U+06DE`, the rub el hizb mark.
+	 * iOS borrows both from a system face, and a borrowed glyph takes no part in this face's
+	 * mark positioning, so the harakah on and around it sit wrong. Fine for the Cevşen, whose
+	 * Ottoman orthography has neither; not for a cüz.
 	 */
 	uthman: 'UthmanTahaNaskh_400Regular'
+	/*
+	 * KFGQPC Uthmanic Script HAFS ("Medine Mushafı") was offered for the Kuran and removed
+	 * before release. It was the only face cut for the King Fahd Complex's own encoding, so the
+	 * bundled text carried every word twice to feed it; with it gone the text is Unicode only.
+	 */
+	/*
+	 * Hüsrev Hattı was tried here as two fonts, Arabic and Ottoman cuts, and dropped: both
+	 * leaned on thirty-seven private `zz` features that only their publisher's app applies, and
+	 * without them the marks sat wrong. The Kuran reader shows the Hüsrev mushaf as page images
+	 * instead — see `ReaderTextFont`.
+	 */
 } as const;
 
 /**
@@ -63,6 +73,6 @@ export const arabicReaderFonts = {
 export const arabicReaderFontScale: Record<keyof typeof arabicReaderFonts, number> = {
 	naskh: 1.12,
 	amiri: 1.04,
-	// Alef, lam, kaf and tah average 0.698 em in this face, the shortest of the three.
+	// Alef, lam, kaf and tah average 0.698 em in this face.
 	uthman: 1.15
 };

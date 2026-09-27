@@ -9,6 +9,8 @@ export const groupQueryKeys = {
 	members: (groupId: string) => [...groupQueryKeys.root(), 'members', groupId] as const,
 	babs: (groupId: string) => [...groupQueryKeys.root(), 'babs', groupId] as const,
 	pool: (groupId: string) => [...groupQueryKeys.root(), 'pool', groupId] as const,
+	/** The hatim's havuz — a different shape from the seat pool, so a key of its own. */
+	poolCuz: (groupId: string) => [...groupQueryKeys.root(), 'pool-cuz', groupId] as const,
 	rounds: (groupId: string) => [...groupQueryKeys.root(), 'rounds', groupId] as const,
 	round: (groupId: string, roundIndex: number) => [...groupQueryKeys.root(), 'rounds', groupId, roundIndex] as const,
 	myProgress: (groupId: string) => [...groupQueryKeys.root(), 'my-progress', groupId] as const,
@@ -49,6 +51,16 @@ export const notificationQueryKeys = {
 	list: () => [...notificationQueryKeys.root(), 'list'] as const,
 	/** Its own key so Ana sayfa's bell can refetch a number without pulling the whole inbox. */
 	unreadCount: () => [...notificationQueryKeys.root(), 'unread-count'] as const
+} as const;
+
+/** A Hüsrev mushaf page or du'a page, by its path — resolves to the file on this device once it is there. */
+export const mushafQueryKeys = {
+	page: (path: string) => ['mushaf', 'page', path] as const
+} as const;
+
+/** A verse's meal, per interface language — fetched live, see `useVerseTranslation`. */
+export const quranQueryKeys = {
+	translation: (verseKey: string, language: string) => ['quran', 'translation', verseKey, language] as const
 } as const;
 
 export const profileQueryKeys = {

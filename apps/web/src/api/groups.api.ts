@@ -1,13 +1,20 @@
 import { wrapperApi } from '@/api/wrapper.api';
-import { GroupCycle, GroupDetail, GroupSplitMode, GroupSummary, GroupVisibility, PoolSlot } from '@/lib/types/domain';
+import {
+	CuzBoundaryPolicy,
+	CuzDistribution,
+	GroupCycle,
+	GroupDetail,
+	GroupSplitMode,
+	GroupSummary,
+	GroupVisibility,
+	PoolCuz,
+	PoolSlot
+} from '@/lib/types/domain';
 
-export type CreateGroupInput = {
+type CreateGroupCommon = {
 	name: string;
 	dedication?: string;
 	visibility: GroupVisibility;
-	splitMode: GroupSplitMode;
-	cycle: GroupCycle;
-	spots: number;
 	reminderEnabled: boolean;
 	reminderTime: string;
 	autoStartWhenFull?: boolean;
@@ -17,6 +24,28 @@ export type CreateGroupInput = {
 	 */
 	timezone?: string;
 };
+
+/**
+ * Mirrors the server's `CreateGroupBodySchema`, union and all. A Cevşen group divides a
+ * hundred babs by seat and a hatim divides thirty cüz by choice, so neither kind's settings
+ * mean anything to the other — and since all of them are immutable after creation, sending
+ * one from the wrong half would be wrong for the life of the group.
+ *
+ * A hatim sends no `spots`: it is full when all thirty cüz are taken, not when thirty people
+ * have joined, so the server pins the seat cap itself.
+ */
+export type CreateGroupInput =
+	| (CreateGroupCommon & { kind: 'CEVSEN'; splitMode: GroupSplitMode; cycle: GroupCycle; spots: number })
+	| (CreateGroupCommon & {
+			kind: 'HATIM';
+			distribution: CuzDistribution;
+			/** Null when QC2's optional cap is switched off — the default. */
+			maxPerMember: number | null;
+			boundaryPolicy: CuzBoundaryPolicy;
+			roundDays: number;
+			/** The cüz the creator takes (QC4). The server requires at least one. */
+			cuzNumbers: number[];
+	  });
 
 // Mirrors the server's UpdateGroupBodySchema. `spots`, `splitMode` and `cycle` are
 // immutable once the group exists and are deliberately absent — the server rejects them.
@@ -34,6 +63,12 @@ export type UpdateGroupInput = {
 export type TakePoolSlotInput = {
 	groupId: string;
 	slotIndex: number;
+};
+
+/** A hatim's havuz is addressed one cüz at a time — there are no slots to take whole. */
+export type PoolCuzInput = {
+	groupId: string;
+	cuzNumber: number;
 };
 
 export type DiscoverGroupsParams = {
@@ -90,6 +125,26 @@ export const takePoolSlot = async ({ groupId, slotIndex }: TakePoolSlotInput) =>
 
 export const releasePoolSlot = async ({ groupId, slotIndex }: TakePoolSlotInput) =>
 	wrapperApi<{ success: boolean }>(`/groups/${groupId}/pool/${slotIndex}`, { method: 'DELETE' });
+
+export const getPoolCuz = async (groupId: string) =>
+	wrapperApi<PoolCuz[]>(`/groups/${groupId}/pool-cuz`, { method: 'GET' });
+
+export const takePoolCuz = async ({ cuzNumber, groupId }: PoolCuzInput) =>
+	wrapperApi<{ success: boolean }>(`/groups/${groupId}/pool-cuz/${cuzNumber}`, { method: 'POST' });
+
+export const releasePoolCuz = async ({ cuzNumber, groupId }: PoolCuzInput) =>
+	wrapperApi<{ success: boolean }>(`/groups/${groupId}/pool-cuz/${cuzNumber}`, { method: 'DELETE' });
+
+/** QR1's pick: the member's own cüz for the round in progress — not a havuz loan. */
+export const pickRoundCuz = async ({ cuzNumbers, groupId }: { cuzNumbers: number[]; groupId: string }) =>
+	wrapperApi<{ success: boolean }>(`/groups/${groupId}/round-cuz`, {
+		method: 'POST',
+		body: JSON.stringify({ cuzNumbers })
+	});
+
+/** QR1's "Bu turu atla": the member's cüz go back to the havuz and the round is sat out. */
+export const skipRound = async (groupId: string) =>
+	wrapperApi<{ success: boolean }>(`/groups/${groupId}/round-skip`, { method: 'POST' });
 
 /** Acknowledges the "a joiner took over the block you volunteered for" notices in a group. */
 export const markPoolReleasesSeen = async (groupId: string) =>

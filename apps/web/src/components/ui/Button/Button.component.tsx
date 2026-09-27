@@ -161,6 +161,11 @@ export const AppButton = ({
 			borderColor: theme.colors.accent,
 			textColor: theme.colors.accent
 		},
+		outline: {
+			backgroundColor: theme.colors.transparent,
+			borderColor: theme.colors.text,
+			textColor: theme.colors.text
+		},
 		surface: {
 			backgroundColor: theme.colors.surface,
 			borderColor: theme.colors.borderStrong,

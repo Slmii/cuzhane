@@ -39,6 +39,7 @@ const row = (id: string, createdAt: Date): AppNotification => ({
 	kind: 'ROUND_COMPLETE',
 	groupId: 'g1',
 	groupName: 'Şifa Hatmi',
+	groupKind: 'CEVSEN',
 	payload: { roundNumber: 3 },
 	isRead: false,
 	createdAt: createdAt.toISOString()

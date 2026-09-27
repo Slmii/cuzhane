@@ -1,6 +1,7 @@
-# The droplet's whole stack. Lives at /opt/cuzhane on the server, beside a `.env` built from
-# `.env.example` in this folder. CI copies this file up on every deploy, so it is the source of
-# truth — never edit the copy on the box.
+# The droplet's stack — everything but preview's API, which is `compose.preview.yml`. Lives at
+# /opt/cuzhane on the server, beside a `.env` built from `.env.example` in this folder, whose
+# `COMPOSE_FILE` merges the two for every compose command there. CI copies this file up **from
+# `main`** on every deploy, so it is the source of truth — never edit the copy on the box.
 #
 #   docker compose pull api && docker compose up -d --wait
 #
@@ -49,9 +50,11 @@ services:
                 # trace per error — and a full disk stops Postgres accepting writes.
                 max-size: '10m'
                 max-file: '3'
+        # Only `api`: this file must stand alone (`backup.sh` runs it with `-f`), and preview's API
+        # is in the other one. It is start-up order and nothing more — Caddy retries a backend
+        # that is not up yet.
         depends_on:
             - api
-            - api-preview
 
     api:
         # **No `:-latest` fallback.** It used to have one, and that is how a development
@@ -73,6 +76,12 @@ services:
             CLERK_PUBLISHABLE_KEY: ${CLERK_PUBLISHABLE_KEY}
             CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
             APP_STORE_URL: ${APP_STORE_URL:-}
+            # The verse meal, fetched live from the Quran Foundation. Unset, the API still boots
+            # and only the meal answers 503 — see `quranTranslation.service.ts`.
+            QURAN_CLIENT_ID: ${QURAN_CLIENT_ID:-}
+            QURAN_CLIENT_SECRET: ${QURAN_CLIENT_SECRET:-}
+        volumes:
+            - ./mushaf:/app/apps/server/mushaf:ro
         networks:
             - front
             - back
@@ -111,68 +120,8 @@ services:
             postgres:
                 condition: service_healthy
 
-    # **Preview: the same image, a second database, a quarter of the memory.**
-    #
-    # It exists so the `development` branch — and the Expo `preview` channel that points at it —
-    # can be exercised against something that is not production. Before this, `preview` builds
-    # resolved `EXPO_PUBLIC_API_URL` to the production host and read and wrote live rows.
-    #
-    # **One Postgres, two databases, not two Postgres.** This is a 2 GB droplet and the
-    # production pair already caps at 768m + 640m; a second instance would not fit beside them.
-    # A second *database* costs almost nothing and still isolates what matters — a preview
-    # migration cannot touch a production row. What it does not isolate is the process: a
-    # preview query storm or a Postgres crash takes production down with it. That is the trade,
-    # and it holds only while preview traffic is a couple of developers. The answer when it
-    # stops holding is a second droplet, not a second container here.
-    #
-    # `cuzhane_preview` is created by hand once (see deploy/README.md) rather than by an init
-    # script: `POSTGRES_DB` only runs on an empty data directory, and this volume is long past
-    # that.
-    #
-    # **Clerk is production's, deliberately.** Preview is for developers, so sharing the user
-    # directory means signing in with your own account — and because identity is Clerk's, the
-    # preview database keys its own rows off the same user ids. No preview-only secret exists.
-    api-preview:
-        image: ghcr.io/slmii/cuzhane-api:${PREVIEW_IMAGE_TAG:?set by CI, or pin it in .env}
-        restart: unless-stopped
-        environment:
-            NODE_ENV: production
-            PORT: 3001
-            CORS_ORIGIN: ${CORS_ORIGIN:-*}
-            DATABASE_URL: postgresql://cuzhane:${POSTGRES_PASSWORD}@postgres:5432/cuzhane_preview
-            CLERK_PUBLISHABLE_KEY: ${CLERK_PUBLISHABLE_KEY}
-            CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
-            APP_STORE_URL: ${APP_STORE_URL:-}
-        networks:
-            - front
-            - back
-        healthcheck:
-            test:
-                [
-                    'CMD',
-                    'node',
-                    '-e',
-                    "fetch('http://127.0.0.1:3001/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
-                ]
-            interval: 10s
-            timeout: 5s
-            retries: 6
-            start_period: 60s
-        read_only: true
-        tmpfs:
-            - /tmp
-        security_opt:
-            - no-new-privileges:true
-        cap_drop:
-            - ALL
-        # Half of production's, and the reason the pair fits on this box at all. Preview serves
-        # two people; production must never lose memory to it.
-        mem_limit: 384m
-        pids_limit: 256
-        logging: *logging
-        depends_on:
-            postgres:
-                condition: service_healthy
+    # `api-preview` lives in `compose.preview.yml` — the one part of the stack a `development`
+    # deploy ships. See that file.
 
     postgres:
         image: postgres:17.11-alpine

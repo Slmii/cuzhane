@@ -11,6 +11,10 @@
 **/.env.*
 !**/.env.example
 
+# .md files
+CLAUDE.local.md
+*.local.md
+
 # Dependencies
 node_modules
 **/node_modules

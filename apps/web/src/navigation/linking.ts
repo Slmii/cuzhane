@@ -14,6 +14,16 @@ const detailPaths: PathConfigMap<TabDetailParamList> = {
 	...(Platform.OS === 'android' ? { Search: 'search' } : {}),
 	JoinedWelcome: 'welcome/:groupId',
 	GroupDetail: 'groups/:groupId',
+	// Q4. Parsed for the same reason `babNumber` below is: the screen finds the cüz among
+	// the member's holdings by identity, and a string "22" is not among numbers.
+	CuzReader: {
+		path: 'groups/:groupId/cuz/:cuzNumber/read',
+		parse: { cuzNumber: Number, page: Number }
+	},
+	CuzDetail: {
+		path: 'groups/:groupId/cuz/:cuzNumber',
+		parse: { cuzNumber: Number }
+	},
 	BabReader: {
 		path: 'groups/:groupId/babs/:babNumber',
 		// Same reason as `roundIndex` below, and it bites harder here: the reader looks the

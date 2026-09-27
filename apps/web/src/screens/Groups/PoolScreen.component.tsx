@@ -1,3 +1,4 @@
+import { useRequireRoundCuz } from '@/lib/hooks/useHatimRoundGate';
 import { GridSkeleton } from '@/components/GridSkeleton/GridSkeleton.component';
 import { SkeletonStatusRow } from '@/components/Skeleton/SkeletonStatusRow.component';
 import { PoolGrid } from '@/components/PoolGrid/PoolGrid.component';
@@ -10,7 +11,9 @@ import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { Hatch } from '@/components/ui/Hatch/Hatch.component';
 import { BodyStrongText, CaptionText, NumericText, Typography } from '@/components/ui/Typography/Typography.component';
-import { useGetPoolSlots, useReleasePoolSlot, useTakePoolSlot } from '@/lib/hooks/useGroup';
+import { useCachedGroup } from '@/lib/hooks/useCachedGroup';
+import { useGetGroupById, useGetPoolSlots, useReleasePoolSlot, useTakePoolSlot } from '@/lib/hooks/useGroup';
+import { CuzPoolScreen } from './CuzPoolScreen.component';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useViewerIdentity } from '@/lib/hooks/useViewerIdentity';
 import { useTranslation } from '@/lib/i18n/I18n.context';
@@ -78,11 +81,33 @@ const forgetClaim = (groupId: string, slotIndex: number) => {
  * a bab with no owner. A slot someone has already taken is dimmed and shows who has it.
  */
 // No `navigation`: going back is the navigator's own header button now.
-export const PoolScreen = ({ route }: Props) => {
+export const PoolScreen = ({ navigation, route }: Props) => {
 	const { groupId } = route.params;
+	// Holding no cüz this round means QR1 comes first, however this screen was reached.
+	useRequireRoundCuz(groupId, navigation);
+	/*
+	 * **A hatim's havuz is a different screen, not a branch of this one.** Everything below
+	 * works in `slotIndex` — a slot is an empty *seat's* block, offered whole — and a hatim has
+	 * no seats that divide anything: its havuz is loose cüz, taken one at a time. See
+	 * `CuzPoolScreen`, which is this screen's shape with that one substitution made.
+	 *
+	 * Seeded off the shelf's cache by `useGetGroupById`, so arriving from the group screen
+	 * costs no extra wait and the right screen is drawn on the first frame.
+	 */
+	const group = useGetGroupById(groupId);
+	// Before the group answers — opened cold, from a push — a list may still know the kind, so a
+	// hatim holds the havuz's own skeleton rather than this screen's.
+	const cachedKind = useCachedGroup(groupId)?.kind;
+	const isHatim = (group.data?.kind ?? cachedKind) === 'HATIM';
 	const { theme } = useThemeContext();
 	const { t } = useTranslation();
-	const pool = useGetPoolSlots(groupId);
+	/*
+	 * Dormant for a hatim, which `CuzPoolScreen` below serves. This hook still runs for one — it
+	 * sits above that early return — and on the live interval it polled the seat pool the whole
+	 * time the cüz havuz was open. An unknown kind still asks, so a Cevşen pool opened cold
+	 * never waits on the group first.
+	 */
+	const pool = useGetPoolSlots(groupId, { isEnabled: !isHatim });
 	// Your own name and photo: a row you just claimed can draw your avatar before the server
 	// echoes the name back, and it draws the picture you actually set rather than a generated
 	// face — see `useViewerIdentity`.
@@ -192,6 +217,10 @@ export const PoolScreen = ({ route }: Props) => {
 	 */
 	const drainingSlotIndexes = useMemo(() => (drainingSlot === null ? [] : [drainingSlot]), [drainingSlot]);
 
+	if (isHatim) {
+		return <CuzPoolScreen groupId={groupId} />;
+	}
+
 	if (pool.isLoading) {
 		return (
 			<ScreenContainer shouldIncludeTabBarOffset>
@@ -235,7 +264,10 @@ export const PoolScreen = ({ route }: Props) => {
 		 */
 		const canUndo = isTaken && slot.takenByMe;
 		const isJustTaken = canUndo && takenHere.includes(slot.slotIndex);
-		const takerLabel = slot.takenByMe ? t('poolMine') : `${slot.takenByDisplayName ?? ''} ${t('takenBy')}`.trim();
+		// A sentence, to sit beside "Ali üstlendi" — not the legend's one-word `legendMine`.
+		const takerLabel = slot.takenByMe
+			? t('poolTakenByYou')
+			: `${slot.takenByDisplayName ?? ''} ${t('takenBy')}`.trim();
 		/*
 		 * Matched against the slot actually in flight. Both mutations belong to the whole screen,
 		 * so read bare they would dim every free row's button at once — a crowded pool would look

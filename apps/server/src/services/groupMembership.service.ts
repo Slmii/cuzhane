@@ -3,18 +3,22 @@ import { HttpError } from '@config/httpError';
 import prisma from '@db/prisma';
 import { normalizeInviteCode } from '@utils/inviteCode';
 import { normalizeUserId } from '@utils/normalizeUserId';
-import { syncCompletedAt } from './babs.service';
+import { CUZ_COUNT } from '@utils/units';
+import type { Group, Prisma } from '../generated/prisma/client';
+import { lockGroup, syncCompletedAt } from './babs.service';
 import { autoStartIfFull } from './groups.service';
 import { requireMembership, requireOwner } from './groupAccess.service';
 import { getMemberProfiles } from '@utils/memberProfiles';
 import { toGroupDetail, toGroupMember, toInvitePreview } from './groupSerializers';
 import { poolBlockFor } from './pool.service';
+import { holdingsFor, roundIndexFor } from './unitPlan';
 import { recordNotification } from './notifications.service';
 import { notifyGroupMembers } from './groupEvents.service';
 import { memberJoinedPush, memberLeftPush } from '@utils/pushCopy';
 import { sendPushToUser } from './push.service';
 import { poolClaimReleasedPush, pushLanguageFor } from '@utils/pushCopy';
 import type { GroupDetail, GroupInvitePreview, GroupMember } from './groupSerializers';
+import { ensureCurrentRoundFor } from './rounds.service';
 
 const loadDetail = async (groupId: string, viewerUserId: string): Promise<GroupDetail> => {
 	const group = await prisma.group.findUniqueOrThrow({
@@ -25,13 +29,26 @@ const loadDetail = async (groupId: string, viewerUserId: string): Promise<GroupD
 			cheers: true,
 			// Only this viewer's, and only what they haven't acknowledged — the serializer
 			// narrows further to the round in progress.
-			poolReleases: { where: { userId: viewerUserId, seenAt: null } }
+			poolReleases: { where: { userId: viewerUserId, seenAt: null } },
+			roundSkips: { select: { roundIndex: true }, where: { userId: viewerUserId } }
 		}
 	});
 
 	const profiles = await getMemberProfiles(group.members.map(member => member.userId));
 
-	return toGroupDetail(group, group.babs, group.members, group.cheers, viewerUserId, group.poolReleases, profiles);
+	const holdings = await holdingsFor(prisma, group, group.roundIndex);
+
+	return toGroupDetail(
+		group,
+		group.babs,
+		group.members,
+		group.cheers,
+		viewerUserId,
+		group.poolReleases,
+		profiles,
+		holdings,
+		group.roundSkips.map(skip => skip.roundIndex)
+	);
 };
 
 export const previewGroupByCode = async (userId: string, rawCode: string): Promise<GroupInvitePreview> => {
@@ -47,7 +64,10 @@ export const previewGroupByCode = async (userId: string, rawCode: string): Promi
 		throw new HttpError(NOT_FOUND, 'Group not found');
 	}
 
-	return toInvitePreview(group, group.babs, group.members, normalizedUserId);
+	// Without the holdings a hatim preview reports every cüz free — see `toInvitePreview`.
+	const holdings = await holdingsFor(prisma, group, group.roundIndex);
+
+	return toInvitePreview(group, group.babs, group.members, normalizedUserId, holdings);
 };
 
 export const previewGroupById = async (userId: string, groupId: string): Promise<GroupInvitePreview> => {
@@ -68,13 +88,69 @@ export const previewGroupById = async (userId: string, groupId: string): Promise
 		throw new HttpError(NOT_FOUND, 'Group not found');
 	}
 
-	return toInvitePreview(group, group.babs, group.members, normalizedUserId);
+	// Without the holdings a hatim preview reports every cüz free — see `toInvitePreview`.
+	const holdings = await holdingsFor(prisma, group, group.roundIndex);
+
+	return toInvitePreview(group, group.babs, group.members, normalizedUserId, holdings);
 };
 
 const MAX_SLOT_ATTEMPTS = 5;
 
 const isUniqueConstraintError = (error: unknown): boolean =>
 	typeof error === 'object' && error !== null && 'code' in error && (error as { code?: string }).code === 'P2002';
+
+/**
+ * What a joiner has to bring, and what the group has to have left.
+ *
+ * **A hatim is joined by taking cüz, not by taking a seat.** Its `spots` is thirty because
+ * `slotIndex` needs a ceiling, so the seat check below would let a thirty-first person in
+ * only after twenty-nine others — while the group is *actually* full the moment the last
+ * cüz is spoken for, which can happen with five members. And a member holding nothing is a
+ * member who reads nothing: the board would list them with an empty share for ever.
+ *
+ * Every check runs inside the join's own transaction, against the holdings as they are at
+ * that instant — two people reaching for cüz 7 together is settled by the unique key, and
+ * the loser is told so rather than silently joining with one cüz fewer than they chose.
+ */
+const assertCuzSelectionIsValid = async (
+	tx: Prisma.TransactionClient,
+	group: Pick<Group, 'id' | 'kind' | 'maxPerMember' | 'roundIndex'>,
+	cuzNumbers: number[] | undefined
+): Promise<number[]> => {
+	if (group.kind !== 'HATIM') {
+		return [];
+	}
+
+	// Deduplicated before counting, or picking cüz 7 twice would spend two of a cap of three.
+	const chosen = [...new Set(cuzNumbers ?? [])];
+
+	if (chosen.length === 0) {
+		throw new HttpError(BAD_REQUEST, 'Pick at least one cüz to join this hatim');
+	}
+
+	if (group.maxPerMember !== null && chosen.length > group.maxPerMember) {
+		throw new HttpError(BAD_REQUEST, `This hatim allows at most ${group.maxPerMember} cüz per person`);
+	}
+
+	const held = await tx.cuzHolding.findMany({
+		select: { cuzNumber: true },
+		where: { groupId: group.id, roundIndex: group.roundIndex }
+	});
+
+	if (held.length >= CUZ_COUNT) {
+		// The hatim's own kind of full: every cüz taken, whatever the seat count says.
+		throw new HttpError(CONFLICT, 'This group is full');
+	}
+
+	const heldNumbers = new Set(held.map(holding => holding.cuzNumber));
+	const clash = chosen.find(cuzNumber => heldNumbers.has(cuzNumber));
+
+	if (clash !== undefined) {
+		throw new HttpError(CONFLICT, `Cüz ${clash} has already been taken`);
+	}
+
+	return chosen;
+};
 
 /**
  * `viaInviteCode` distinguishes the two ways a join can start. Knowing a group id is not
@@ -85,7 +161,8 @@ const attemptJoin = async (
 	normalizedUserId: string,
 	displayName: string,
 	groupId: string,
-	viaInviteCode: boolean
+	viaInviteCode: boolean,
+	cuzNumbers?: number[]
 ): Promise<void> => {
 	/*
 	 * Whose claim the join released, and over which babs — collected inside the transaction
@@ -118,6 +195,10 @@ const attemptJoin = async (
 			throw new HttpError(FORBIDDEN, 'This group is not accepting members');
 		}
 
+		// Before a seat is taken: a hatim can be full while seats are free, and a joiner who
+		// picked a cüz somebody else has just taken must be told, not quietly seated.
+		const chosenCuz = await assertCuzSelectionIsValid(tx, group, cuzNumbers);
+
 		const taken = new Set(group.members.map(member => member.slotIndex));
 		let slotIndex: number | null = null;
 
@@ -141,6 +222,25 @@ const attemptJoin = async (
 				slotIndex
 			}
 		});
+
+		/*
+		 * The cüz they came for, in the round the group is on.
+		 *
+		 * No `skipDuplicates`: the unique key on `(groupId, roundIndex, cuzNumber)` is the
+		 * last word on two people reaching for the same cüz at once, and the loser has to
+		 * fail the whole join rather than get a seat and a share one short of what they
+		 * chose. The check above catches the ordinary case; this catches the same instant.
+		 */
+		if (chosenCuz.length > 0) {
+			await tx.cuzHolding.createMany({
+				data: chosenCuz.map(cuzNumber => ({
+					cuzNumber,
+					groupId,
+					roundIndex: group.roundIndex,
+					userId: normalizedUserId
+				}))
+			});
+		}
 
 		// Joining assigns no babs. Which block a member reads is derived from their seat and
 		// the round, so writing their name onto a block here would only duplicate that — and
@@ -237,7 +337,9 @@ const performJoin = async (
 	userId: string,
 	displayName: string,
 	groupId: string,
-	viaInviteCode: boolean
+	viaInviteCode: boolean,
+	/** The cüz picked on QJ3. Ignored by a Cevşen group, required by a hatim. */
+	cuzNumbers?: number[]
 ): Promise<GroupDetail> => {
 	const normalizedUserId = normalizeUserId(userId);
 
@@ -246,7 +348,7 @@ const performJoin = async (
 	// not a real conflict — re-read and take the next free seat instead of 500-ing.
 	for (let attempt = 0; attempt < MAX_SLOT_ATTEMPTS; attempt++) {
 		try {
-			await attemptJoin(normalizedUserId, displayName, groupId, viaInviteCode);
+			await attemptJoin(normalizedUserId, displayName, groupId, viaInviteCode, cuzNumbers);
 
 			/*
 			 * After the seat is taken, so the count in the message is the one that now includes
@@ -282,13 +384,18 @@ const performJoin = async (
 	throw new HttpError(CONFLICT, 'Could not join this group, please try again');
 };
 
-export const joinGroupForUser = async (userId: string, displayName: string, groupId: string): Promise<GroupDetail> =>
-	performJoin(userId, displayName, groupId, false);
+export const joinGroupForUser = async (
+	userId: string,
+	displayName: string,
+	groupId: string,
+	cuzNumbers?: number[]
+): Promise<GroupDetail> => performJoin(userId, displayName, groupId, false, cuzNumbers);
 
 export const joinGroupByCodeForUser = async (
 	userId: string,
 	displayName: string,
-	rawCode: string
+	rawCode: string,
+	cuzNumbers?: number[]
 ): Promise<GroupDetail> => {
 	const code = normalizeInviteCode(rawCode);
 	const group = await prisma.group.findUnique({
@@ -300,7 +407,7 @@ export const joinGroupByCodeForUser = async (
 		throw new HttpError(NOT_FOUND, 'Group not found');
 	}
 
-	return performJoin(userId, displayName, group.id, true);
+	return performJoin(userId, displayName, group.id, true, cuzNumbers);
 };
 
 // Unassigns the member's babs (clearing any progress they made on them) and removes their seat.
@@ -315,6 +422,16 @@ const removeMember = async (
 	notice: { displayName: string; excludeUserIds: string[] }
 ): Promise<void> => {
 	await prisma.$transaction(async tx => {
+		/*
+		 * **The group lock before anything else**, the order every mutating path keeps. This
+		 * took it last (inside `syncCompletedAt`), after deleting the member's holdings — so a
+		 * round skip, which locks the group and then deletes the same holdings, could take the
+		 * two in the opposite order and deadlock against it; and a round pick could slip in
+		 * after this had swept the holdings, leaving cüz held by someone no longer in the group.
+		 * Locked first, those paths either finish before this starts or find no member at all.
+		 */
+		await lockGroup(tx, groupId);
+
 		// Delete the membership FIRST. Unassigning before deleting leaves a window in
 		// which the member — still a member as far as a concurrent request is concerned —
 		// claims another bab that the cleanup has already swept past, stranding it
@@ -324,21 +441,33 @@ const removeMember = async (
 			where: { groupId_userId: { groupId, userId } }
 		});
 
-		// Clearing progress is scoped to reads this member actually made. Under ROTATION
-		// their seat's block is read by a different member each day, so wiping every read on
-		// the babs merely *assigned* to them would delete other people's work.
-		await tx.groupBab.updateMany({
-			where: { groupId, assignedUserId: userId, readByUserId: userId },
-			data: { readByUserId: null, readAt: null }
-		});
-
+		/*
+		 * **A read stands after the reader leaves.** It used to be cleared — scoped to this
+		 * member's own reads, which at least spared everyone else's work — and that was still
+		 * wrong: the read *happened*. Undoing it takes a bab that was finished and puts it
+		 * back on the board as outstanding, so the group is told to read something that has
+		 * already been read, and a round that was complete silently isn't any more.
+		 *
+		 * `BabRead` was keeping the history through all of this, which is exactly why the
+		 * damage was invisible: the record was right and the board disagreed with it.
+		 */
 		await tx.groupBab.updateMany({
 			where: { groupId, assignedUserId: userId },
 			data: { assignedUserId: null }
 		});
 
-		// Freeing their babs can un-complete the round, so the flag is reconciled here rather
-		// than left disagreeing with the board.
+		/*
+		 * The **claim** does come off, and so do a hatim's holdings. Those say "I will read
+		 * this", which a departed member will not — so the cüz go back to the pool for
+		 * somebody else to take, in the round in progress and in any the group has already
+		 * rolled into. Their reads in those rounds are untouched by this: a holding is a
+		 * promise, a read is a fact.
+		 */
+		await tx.cuzHolding.deleteMany({ where: { groupId, userId } });
+
+		// Nothing above can clear a read any more, so this can only ever *complete* a round —
+		// the last bab of a departed member's claim being released does not un-read anything.
+		// Kept because `completedAt` must never be decided anywhere but here.
 		await syncCompletedAt(tx, groupId);
 	});
 
@@ -399,6 +528,9 @@ export const removeMemberForUser = async (
 export const listMembersForUser = async (userId: string, groupId: string): Promise<GroupMember[]> => {
 	const normalizedUserId = normalizeUserId(userId);
 	await requireMembership(normalizedUserId, groupId);
+	// Roll the round first, as every other read path does — otherwise the first request after
+	// a boundary lists the round that just closed, its reads and (for a hatim) its holdings.
+	await ensureCurrentRoundFor(groupId);
 
 	// The group itself is needed now: which block a member is reading depends on the plan
 	// and the day, not just on the bab rows.
@@ -411,7 +543,11 @@ export const listMembersForUser = async (userId: string, groupId: string): Promi
 
 	// Photos come from Clerk, not the database — the app never copies them. Cached briefly,
 	// because this list polls every 30 seconds while anyone has it open.
-	const profiles = await getMemberProfiles(members.map(member => member.userId));
+	const [profiles, holdings] = await Promise.all([
+		getMemberProfiles(members.map(member => member.userId)),
+		// A hatim member's numbers are the cüz they hold this round — see `toGroupMember`.
+		holdingsFor(prisma, group, roundIndexFor(group) ?? 0)
+	]);
 
-	return members.map(member => toGroupMember(group, member, babs, cheers, normalizedUserId, profiles));
+	return members.map(member => toGroupMember(group, member, babs, cheers, normalizedUserId, profiles, holdings));
 };

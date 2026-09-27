@@ -1,10 +1,19 @@
 import type { StringKey } from '@/lib/i18n/strings';
-import type { GroupCycle, GroupStatus } from '@/lib/types/domain';
+import type { GroupCycle, GroupKind, GroupStatus } from '@/lib/types/domain';
 
 export type GroupSortKey = 'newest' | 'seats' | 'soon';
 
 /** The design's filter sheet: "all" first, then the cadences. */
 export const CYCLE_FILTER_OPTIONS: (GroupCycle | undefined)[] = [undefined, 'DAILY', 'WEEKLY'];
+
+/**
+ * What a group reads, as a filter — "all" first, then each kind.
+ *
+ * **Its own level in the menu, not more cadence rows.** The cadences narrow *when* a group
+ * reads and this narrows *what*; a list that mixed them would let someone pick "Günlük" and
+ * "Kuran" as if they were alternatives, when they are a pair of independent answers.
+ */
+export const KIND_FILTER_OPTIONS: (GroupKind | undefined)[] = [undefined, 'CEVSEN', 'HATIM'];
 
 /** Order matches the sort sheet: newest, most seats free, starting soon. */
 export const GROUP_SORT_OPTIONS: { key: GroupSortKey; labelKey: StringKey }[] = [
@@ -17,6 +26,8 @@ export const DEFAULT_GROUP_SORT: GroupSortKey = 'newest';
 
 export type GroupBrowseState = {
 	cycle: GroupCycle | undefined;
+	/** Cevşen or hatim; `undefined` is both. */
+	kind: GroupKind | undefined;
 	isNotStartedOnly: boolean;
 	hasSeatsOnly: boolean;
 	sortKey: GroupSortKey;
@@ -24,6 +35,7 @@ export type GroupBrowseState = {
 
 export const emptyGroupBrowseState: GroupBrowseState = {
 	cycle: undefined,
+	kind: undefined,
 	hasSeatsOnly: false,
 	isNotStartedOnly: false,
 	sortKey: DEFAULT_GROUP_SORT
@@ -31,7 +43,7 @@ export const emptyGroupBrowseState: GroupBrowseState = {
 
 /** Anything narrowing the list — what decides whether "clear" is worth offering. */
 export const isGroupBrowseNarrowed = (state: GroupBrowseState) =>
-	state.cycle !== undefined || state.isNotStartedOnly || state.hasSeatsOnly;
+	state.cycle !== undefined || state.kind !== undefined || state.isNotStartedOnly || state.hasSeatsOnly;
 
 export const isGroupSortActive = (state: GroupBrowseState) => state.sortKey !== DEFAULT_GROUP_SORT;
 
@@ -44,14 +56,21 @@ export const isGroupSortActive = (state: GroupBrowseState) => state.sortKey !== 
  * once complicated this is gone — searching is the Ara tab's job now.)
  */
 export const isGroupBrowseMenuActive = (state: GroupBrowseState) =>
-	state.cycle !== undefined || state.isNotStartedOnly || state.hasSeatsOnly || isGroupSortActive(state);
+	state.cycle !== undefined ||
+	state.kind !== undefined ||
+	state.isNotStartedOnly ||
+	state.hasSeatsOnly ||
+	isGroupSortActive(state);
 
 /** The minimum a group must carry to be browsed. Both screens' rows satisfy it. */
 type BrowsableGroup = {
 	name: string;
 	cycle: GroupCycle;
+	kind: GroupKind;
 	status: GroupStatus;
 	spotsLeft: number;
+	/** Whether the group has room at all — decided per kind by the server. */
+	isFull: boolean;
 	createdAt: string;
 };
 
@@ -70,11 +89,24 @@ export const applyGroupBrowse = <T extends BrowsableGroup>(groups: T[] | undefin
 			return false;
 		}
 
+		if (state.kind !== undefined && group.kind !== state.kind) {
+			return false;
+		}
+
 		if (state.isNotStartedOnly && group.status !== 'GATHERING') {
 			return false;
 		}
 
-		if (state.hasSeatsOnly && group.spotsLeft <= 0) {
+		/*
+		 * **"Room to join" is not "seats left" on a hatim.** Its `spots` is thirty as a
+		 * ceiling on `slotIndex` and divides nothing, so a group whose thirty cüz are all
+		 * taken still reports twenty-eight seats free — and "Boş kontenjan" kept listing
+		 * groups whose own card said "Dolu · 30/30" two lines below the filter.
+		 *
+		 * `isFull` is the question both kinds can answer, and the server already decides it
+		 * per kind: seats for a Cevşen group, unclaimed cüz for a hatim.
+		 */
+		if (state.hasSeatsOnly && group.isFull) {
 			return false;
 		}
 

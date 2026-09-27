@@ -8,6 +8,8 @@ import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { ProgressBar } from '@/components/ui/ProgressBar/ProgressBar.component';
 import { CaptionText, NumericText, TitleText } from '@/components/ui/Typography/Typography.component';
 import { useGetGroupById } from '@/lib/hooks/useGroup';
+import { cycleLabelKey } from '@/lib/utils/groups';
+import { unitCountFor, unitLabelKey } from '@/lib/utils/units';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useGetRounds } from '@/lib/hooks/useRounds';
 import { useTranslation } from '@/lib/i18n/I18n.context';
@@ -23,8 +25,6 @@ type Props = NativeStackScreenProps<TabStackParamList, 'Rounds'>;
 
 /** One array for the empty case, so the list's memo isn't invalidated by a new `[]`. */
 const NO_ROUNDS: RoundSummary[] = [];
-
-const BAB_TOTAL = 100;
 
 /**
  * 10. Every pass the group has made at the hundred, newest first.
@@ -49,6 +49,13 @@ export const RoundsScreen = ({ navigation, route }: Props) => {
 	 * return a skeleton or an error, where none of this is read.
 	 */
 	const cycle: GroupCycle = groupQuery.data?.cycle ?? 'DAILY';
+	/*
+	 * The round's denominator, from the group rather than a constant — a hatim's rounds are
+	 * thirty cüz. Defaulted like `cycle` above, and for the same reason: this sits above the
+	 * guards, and the fallback is only ever read on the paths that render a skeleton.
+	 */
+	const unitCount = unitCountFor(groupQuery.data?.kind ?? 'CEVSEN');
+	const unitLabel = t(unitLabelKey(groupQuery.data?.kind ?? 'CEVSEN'));
 	const rounds = roundsQuery.data ?? NO_ROUNDS;
 	const openRound = rounds.find(round => round.isOpen);
 	const pastRounds = useMemo(() => rounds.filter(round => !round.isOpen), [rounds]);
@@ -57,13 +64,17 @@ export const RoundsScreen = ({ navigation, route }: Props) => {
 	// round is "dün", a weekly one's is "geçen hafta".
 	const whenLabel = useCallback(
 		(round: RoundSummary, isOpenRound: boolean) => {
-			if (isOpenRound) {
+			// Only a day and a week have words of their own; a monthly or one-off round is dated,
+			// or its open round read "bu hafta".
+			const hasCadenceWords = cycle === 'DAILY' || cycle === 'WEEKLY';
+
+			if (isOpenRound && hasCadenceWords) {
 				return cycle === 'DAILY' ? t('todayLabel') : t('thisWeekLabel');
 			}
 
 			const isPrevious = openRound !== undefined && round.roundIndex === openRound.roundIndex - 1;
 
-			if (!isPrevious) {
+			if (isOpenRound || !isPrevious || !hasCadenceWords) {
 				// Anything older than one round back is dated — "4 turdan önce" would make the
 				// reader count backwards.
 				return new Date(round.startedAt).toLocaleDateString(undefined, {
@@ -86,12 +97,12 @@ export const RoundsScreen = ({ navigation, route }: Props) => {
 				label={`${t('roundN')} ${item.roundIndex + 1}`}
 				missedLabel={item.missedCount === 0 ? t('roundComplete') : `${item.missedCount} ${t('missedN')}`}
 				onPress={() => navigation.navigate('RoundDetail', { groupId, roundIndex: item.roundIndex })}
-				percent={Math.round((item.readCount / BAB_TOTAL) * 100)}
-				readLabel={`${item.readCount}/${BAB_TOTAL}`}
+				percent={Math.round((item.readCount / unitCount) * 100)}
+				readLabel={`${item.readCount}/${unitCount}`}
 				whenText={whenLabel(item, false)}
 			/>
 		),
-		[groupId, navigation, t, whenLabel]
+		[groupId, navigation, t, unitCount, whenLabel]
 	);
 
 	if (groupQuery.isPending || roundsQuery.isPending) {
@@ -110,9 +121,10 @@ export const RoundsScreen = ({ navigation, route }: Props) => {
 		<>
 			<ScreenHeader
 				hasBackButton
-				subtitle={t('roundsSub')}
+				// A hatim's cüz don't advance by five the way a Cevşen range does.
+				subtitle={t(groupQuery.data?.kind === 'HATIM' ? 'roundsSubCuz' : 'roundsSub')}
 				title={t('rounds')}
-				titleTrailing={<Chip label={t(cycle === 'DAILY' ? 'daily' : 'weekly')} tone='accent' />}
+				titleTrailing={<Chip label={t(cycleLabelKey(cycle))} tone='accent' />}
 			/>
 			{openRound ? (
 				<CardSurface style={[styles.openCard, { borderColor: theme.colors.accent }]}>
@@ -127,12 +139,12 @@ export const RoundsScreen = ({ navigation, route }: Props) => {
 					</View>
 					<View style={styles.openCounts}>
 						<NumericText color={theme.colors.accent}>{openRound.readCount}</NumericText>
-						<CaptionText color={theme.colors.faintText}>{`/ ${BAB_TOTAL} ${t('babs')}`}</CaptionText>
+						<CaptionText color={theme.colors.faintText}>{`/ ${unitCount} ${unitLabel}`}</CaptionText>
 						<CaptionText color={theme.colors.faintText} style={styles.openMine}>
 							{`${openRound.myReadCount}/${openRound.myOwedCount} ${t('yourShare')}`}
 						</CaptionText>
 					</View>
-					<ProgressBar percent={Math.round((openRound.readCount / BAB_TOTAL) * 100)} />
+					<ProgressBar percent={Math.round((openRound.readCount / unitCount) * 100)} />
 				</CardSurface>
 			) : null}
 		</>

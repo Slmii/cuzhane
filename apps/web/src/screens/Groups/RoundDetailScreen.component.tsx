@@ -8,6 +8,7 @@ import type { CellGridItem } from '@/components/ui/CellGrid/CellGrid.types';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { Hatch } from '@/components/ui/Hatch/Hatch.component';
 import { CaptionText, NumericText, StatText } from '@/components/ui/Typography/Typography.component';
+import { useCachedGroup } from '@/lib/hooks/useCachedGroup';
 import { useCurrentUserId } from '@/lib/hooks/useCurrentUserId';
 import { useGetGroupById } from '@/lib/hooks/useGroup';
 import { useGetGroupMembers } from '@/lib/hooks/useMembership';
@@ -18,6 +19,7 @@ import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { AppTheme } from '@/lib/theme/tokens';
 import { formatBabRange } from '@/lib/utils/babs';
 import { staggerWithinRuns } from '@/lib/utils/groups';
+import { unitCountFor } from '@/lib/utils/units';
 import { roundCellStates, roundRows, type RoundCellState, type RoundRow } from '@/lib/utils/rounds';
 import type { TabStackParamList } from '@/navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -101,6 +103,8 @@ export const RoundDetailScreen = ({ route }: Props) => {
 	const viewerUserId = useCurrentUserId();
 
 	const groupQuery = useGetGroupById(groupId);
+	// The board's size while it loads: the group's kind once known, else what the list said.
+	const cachedKind = useCachedGroup(groupId)?.kind;
 	const roundQuery = useGetRoundDetail(groupId, roundIndex);
 	const membersQuery = useGetGroupMembers(groupId);
 	const coverBabs = useCoverBabs();
@@ -146,7 +150,7 @@ export const RoundDetailScreen = ({ route }: Props) => {
 				 * cells feel like the screen arriving twice.
 				 */}
 				<ScreenHeader eyebrow={`${t('roundN')} ${roundIndex + 1}`} hasBackButton title={t('missedTitle')} />
-				<RoundDetailSkeleton />
+				<RoundDetailSkeleton cellCount={unitCountFor(groupQuery.data?.kind ?? cachedKind ?? 'CEVSEN')} />
 			</ScreenContainer>
 		);
 	}
@@ -158,6 +162,9 @@ export const RoundDetailScreen = ({ route }: Props) => {
 	const round = roundQuery.data;
 	const members = membersQuery.data ?? [];
 	const rows = roundRows(round, members, viewerUserId);
+	// "5. bab" or "5. cüz" — a hatim's missed units are cüz.
+	const isHatim = groupQuery.data.kind === 'HATIM';
+	const unitWord = t(isHatim ? 'cuz' : 'bab');
 
 	/**
 	 * Who did the covering, from the reader's point of view: "devraldığın" on your own row,
@@ -190,14 +197,14 @@ export const RoundDetailScreen = ({ route }: Props) => {
 			case 'poolLeft':
 				return `${row.rangeLabel} · ${t('poolLeft')}`;
 			case 'wholeBlock':
-				return `${row.rangeLabel}. ${t('bab')}`;
+				return `${row.rangeLabel}. ${unitWord}`;
 			default:
 				// Both halves are ranges of the same shape, and the second sits *inside* the
 				// first — "1–17 · 3–17" reads as one mistyped range unless each says which
 				// question it answers.
 				return `${t('assignedLbl')} ${row.rangeLabel} · ${t('missingLbl')} ${formatBabRange(
 					row.outstanding
-				)}. ${t('bab')}`;
+				)}. ${unitWord}`;
 		}
 	};
 
@@ -217,7 +224,7 @@ export const RoundDetailScreen = ({ route }: Props) => {
 				<CardSurface style={styles.statCard}>
 					<NumericText color={theme.colors.missed}>{round.missedCount}</NumericText>
 					<StatText color={theme.colors.faintText} style={styles.statLabel}>
-						{t('missedBabs')}
+						{t(isHatim ? 'missedCuz' : 'missedBabs')}
 					</StatText>
 				</CardSurface>
 				<CardSurface style={styles.statCard}>
@@ -247,27 +254,34 @@ export const RoundDetailScreen = ({ route }: Props) => {
 				 * Runs are keyed on state, since a cover changes a contiguous stretch.
 				 */}
 				<CellGrid borderWidth={2} columns={10} items={cells} />
-			</CardSurface>
 
-			<View style={styles.legend}>
-				{legend.map(entry => (
-					<View key={entry.state} style={styles.legendItem}>
-						{/* The same table the cells use, so a swatch cannot drift from what it keys. */}
-						<View
-							style={[
-								styles.legendSwatch,
-								{
-									backgroundColor: appearanceFor(entry.state, theme).backgroundColor,
-									borderColor: appearanceFor(entry.state, theme).borderColor
-								}
-							]}
-						>
-							{entry.state === 'pool' ? <Hatch /> : null}
+				{/*
+				 * **Inside the card, with the board it keys.** It sat below the card as a loose
+				 * row, which read as a footnote to the screen rather than as the key to the
+				 * grid directly above it — and left the only board in the app whose legend was
+				 * not on the same surface as its cells. The group board and the pool both keep
+				 * theirs in.
+				 */}
+				<View style={styles.legend}>
+					{legend.map(entry => (
+						<View key={entry.state} style={styles.legendItem}>
+							{/* The same table the cells use, so a swatch cannot drift from what it keys. */}
+							<View
+								style={[
+									styles.legendSwatch,
+									{
+										backgroundColor: appearanceFor(entry.state, theme).backgroundColor,
+										borderColor: appearanceFor(entry.state, theme).borderColor
+									}
+								]}
+							>
+								{entry.state === 'pool' ? <Hatch /> : null}
+							</View>
+							<CaptionText color={theme.colors.subtext}>{entry.label}</CaptionText>
 						</View>
-						<CaptionText color={theme.colors.subtext}>{entry.label}</CaptionText>
-					</View>
-				))}
-			</View>
+					))}
+				</View>
+			</CardSurface>
 
 			<StatText color={theme.colors.faintText} style={styles.rowsHeading}>
 				{t('missedTitle')}
@@ -299,7 +313,7 @@ export const RoundDetailScreen = ({ route }: Props) => {
 								<CaptionText color={theme.colors.accent} style={styles.rowDetail}>
 									{/* Your row reads "devraldığın · 18, 19. bab"; someone else's
 									    names who stepped in: "Hasan T. devraldı · 18, 19. bab". */}
-									{`${coveredByLabel(row)} · ${formatBabRange(row.covered.babNumbers)}. ${t('bab')}`}
+									{`${coveredByLabel(row)} · ${formatBabRange(row.covered.babNumbers)}. ${unitWord}`}
 								</CaptionText>
 							) : null}
 						</View>
@@ -349,11 +363,19 @@ const styles = StyleSheet.create({
 		marginBottom: 11,
 		padding: 13
 	},
+	/**
+	 * The same 11 `PoolGrid` puts between its board and its key.
+	 *
+	 * It had a `marginBottom: 20` and no top margin, which was right while it sat *below* the
+	 * card — the gap was to the next section. Inside the card those are both wrong: the key
+	 * ends up flush against the last row of cells, and the bottom margin adds to the card's
+	 * own padding.
+	 */
 	legend: {
 		columnGap: 14,
 		flexDirection: 'row',
 		flexWrap: 'wrap',
-		marginBottom: 20,
+		marginTop: 11,
 		rowGap: 8
 	},
 	legendItem: {

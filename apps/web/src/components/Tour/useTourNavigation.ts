@@ -2,24 +2,17 @@ import { navigationRef } from '@/navigation/navigationRef';
 import { CommonActions, StackActions, type NavigationState, type PartialState } from '@react-navigation/native';
 import { useEffect, useMemo, useRef } from 'react';
 import { useTour, WELCOME_STEP } from './Tour.context';
-import { TOUR_DEMO_SUBJECT } from './tourDemoData';
+import { TOUR_DEMO_HATIM_SUBJECT, TOUR_DEMO_SUBJECT } from './tourDemoData';
 import { TOUR_STEPS, type TourPlace } from './tourSteps';
 
 type AnyNavigationState = NavigationState | PartialState<NavigationState>;
 
 /**
- * The `Tab.Screen` each tab-rooted place is.
- *
- * Two of the five places are tabs of their own rather than screens pushed onto one, so reaching
- * them is a different move: unwind whatever the tour pushed, then switch tab. The group screen,
- * the reader, Hatırlatma and Profil are all pushed *inside* whichever tab is current, and go
- * through `navigate` instead.
- *
- * **Ana sayfa and the inbox are the two tabs.** Hatırlatma was the second until the bell tab
- * was given to the notification inbox and its settings moved one push in — so the inbox took
- * its place here and the settings are now reached the way Profil's stops are.
+ * The one tab-rooted place. Reaching it is a different move from the rest: unwind whatever the
+ * tour pushed, then switch tab. The group screens, the cüz page, the readers and Profil are all
+ * pushed *inside* whichever tab is current, and go through `navigate` instead.
  */
-const TAB_BY_PLACE = { home: 'Home', inbox: 'Notifications' } as const;
+const HOME_TAB = 'Home';
 
 /**
  * The two handles on the tree that "go to Ana sayfa" needs: the deepest focused stack that has
@@ -52,7 +45,7 @@ const focusedBranch = () => {
 };
 
 /**
- * Puts the reader on one of the tour's two tab-rooted screens: Ana sayfa, or Hatırlatma.
+ * Puts the reader back on Ana sayfa, the tour's one tab-rooted screen.
  *
  * **Both halves are load-bearing, and each was a bug on its own.**
  *
@@ -71,7 +64,7 @@ const focusedBranch = () => {
  * The tab switch covers the other half of that: on Android Profil *is* a tab, and on iOS it is
  * pushed inside whichever tab you were on — so popping alone can land on Gruplarım.
  */
-const goToTourTab = (tab: (typeof TAB_BY_PLACE)[keyof typeof TAB_BY_PLACE]) => {
+const goToTourHome = () => {
 	const { pushedStackKey, tabs } = focusedBranch();
 
 	if (pushedStackKey !== undefined) {
@@ -84,30 +77,30 @@ const goToTourTab = (tab: (typeof TAB_BY_PLACE)[keyof typeof TAB_BY_PLACE]) => {
 
 	const focusedTab = tabs.routes[tabs.index ?? tabs.routes.length - 1]?.name;
 
-	if (focusedTab !== tab) {
+	if (focusedTab !== HOME_TAB) {
 		// Leaving a tab pops its stack (`resetTabStack`'s `blur`), so the tab being left tidies
 		// itself up whether or not the pop above was the one that reached it.
-		navigationRef.dispatch({ ...CommonActions.navigate(tab), target: tabs.key });
+		navigationRef.dispatch({ ...CommonActions.navigate(HOME_TAB), target: tabs.key });
 	}
 };
 
 /**
  * Walks the app while the tour walks its stops.
  *
- * Eleven of the fourteen stops are on a group's screen, in the reader, on Hatırlatma or on Profil, so the tour has to
- * take the reader there. It drives `navigationRef` rather than a screen's own `navigation`
+ * Thirteen of the fifteen stops are on a group's screen, a cüz page, a reader or Profil, so the
+ * tour has to take the reader there. It drives `navigationRef` rather than a screen's own `navigation`
  * because the overlay deliberately lives outside every navigator — the same reason the
  * rectangles live in a context.
  *
- * **It navigates on the change of screen, not on every step.** Four pairs of stops share a
- * screen (two on the group, two in the reader, three on Profil), and re-navigating for the
+ * **It navigates on the change of screen, not on every step.** Stops share a screen in runs
+ * (five on the Cevşen group, two on the Kur'an one, two in the Cevşen reader, two on Profil), and re-navigating for the
  * second of a pair would push a duplicate and re-run the screen's entrance under the scrim.
  *
  * **Everything is pushed inside the tab the tour is running in, and unwound in one move.**
- * `sharedTabScreens` registers the group screen, the reader and Profil in all five tabs, so each
- * `navigate` pushes onto that tab's own stack and `goToTourTab` unwinds the lot — at the welcome
- * card, so the tour begins on Ana sayfa wherever it was started from, at the Hatırlatma stop, and
- * again before the closing card, which is where its two actions make sense from.
+ * `sharedTabScreens` registers the group screen, the readers and Profil in all five tabs, so each
+ * `navigate` pushes onto that tab's own stack and `goToTourHome` unwinds the lot — at stop 1, so
+ * the tour begins on Ana sayfa wherever it was started from, and again before the closing card,
+ * which is where its two actions make sense from.
  *
  * **The group it walks is always a stand-in** — see `useIsTourDemo`. The tour opens straight
  * after onboarding, when the reader belongs to nothing at all, so there is often no group of
@@ -132,7 +125,7 @@ export const useTourNavigation = () => {
 		if (!isActive) {
 			/*
 			 * **Ending the tour has to bring the reader back, not just stop drawing.** "Atla" is
-			 * reachable from every card, and six of the fourteen stops stand on a screen belonging
+			 * reachable from every card, and eleven of the fifteen stops stand on a screen belonging
 			 * to a **stand-in** group — so skipping from stop 4 left someone on `GroupDetail` for
 			 * `tour-demo-group-1`, whose queries flip to the real keys the instant `isActive`
 			 * drops, are refused by the server, and land on `ErrorState` with a "Tekrar dene" that
@@ -144,7 +137,7 @@ export const useTourNavigation = () => {
 			 * straight back off.
 			 */
 			if (currentPlace.current !== null && currentPlace.current !== 'home') {
-				goToTourTab(TAB_BY_PLACE.home);
+				goToTourHome();
 			}
 
 			currentPlace.current = null;
@@ -179,17 +172,16 @@ export const useTourNavigation = () => {
 			return;
 		}
 
-		// Nothing to open, so nothing is opened — see the note above.
-		if (subject === null && place !== 'home' && place !== 'inbox' && place !== 'reminders') {
+		// Nothing to open, so nothing is opened — see the note above. The Kur'an leg always opens
+		// its own demo group, so only the Cevşen leg depends on a nominated subject.
+		if (subject === null && (place === 'group' || place === 'reader')) {
 			return;
 		}
 
 		currentPlace.current = place;
 
-		const tab = place === 'home' || place === 'inbox' ? TAB_BY_PLACE[place] : undefined;
-
-		if (tab !== undefined) {
-			goToTourTab(tab);
+		if (place === 'home') {
+			goToTourHome();
 
 			return;
 		}
@@ -208,8 +200,23 @@ export const useTourNavigation = () => {
 			return;
 		}
 
-		if (place === 'reminders') {
-			navigate('Reminders', {});
+		/*
+		 * The Kur'an leg: its own demo group, then that group's unread cüz — its page, then the
+		 * reader. Each is a push onto the same stack, over the Cevşen reader; the closing card's
+		 * `popToTop` unwinds the lot.
+		 */
+		if (place === 'hatimGroup') {
+			navigate('GroupDetail', { groupId: TOUR_DEMO_HATIM_SUBJECT.groupId });
+			return;
+		}
+
+		if (place === 'cuz') {
+			navigate('CuzDetail', TOUR_DEMO_HATIM_SUBJECT);
+			return;
+		}
+
+		if (place === 'cuzReader') {
+			navigate('CuzReader', TOUR_DEMO_HATIM_SUBJECT);
 			return;
 		}
 
