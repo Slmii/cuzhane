@@ -67,13 +67,14 @@ const createGroup = async ({
 			kind,
 			spots: SPOTS,
 			cycle: 'DAILY',
+			roundDays: 1,
 			timezone: DEFAULT_TIME_ZONE,
 			splitMode: 'ROTATION',
 			status,
 			startedAt: isRunning ? startedAt : null,
 			roundIndex: isRunning ? ROUND_INDEX : 0,
-			roundStartedAt: isRunning ? roundStartedAtFor(startedAt, 'DAILY', ROUND_INDEX, DEFAULT_TIME_ZONE) : null,
-			endsAt: isRunning ? roundEndsAt(startedAt, 'DAILY', ROUND_INDEX, DEFAULT_TIME_ZONE) : null,
+			roundStartedAt: isRunning ? roundStartedAtFor(startedAt, 1, ROUND_INDEX, DEFAULT_TIME_ZONE) : null,
+			endsAt: isRunning ? roundEndsAt(startedAt, 1, ROUND_INDEX, DEFAULT_TIME_ZONE) : null,
 			members: {
 				create: [
 					{ userId: OWNER, displayName: 'Owner', role: 'OWNER', slotIndex: 0 },

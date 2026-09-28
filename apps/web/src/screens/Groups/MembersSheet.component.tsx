@@ -1,6 +1,7 @@
 import { MemberRow } from '@/components/MemberRow/MemberRow.component';
 import type { MemberRowRemoveProps } from '@/components/MemberRow/MemberRow.types';
 import { AppBottomSheet } from '@/components/ui/BottomSheet/BottomSheet.component';
+import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
 import { CaptionText, Header2 } from '@/components/ui/Typography/Typography.component';
@@ -79,18 +80,25 @@ export const MembersSheet = ({ groupId, isVisible, onClose }: MembersSheetProps)
 			confirmDestructive({
 				cancelLabel: t('cancel'),
 				confirmLabel: t('removeConfirm'),
-				message: `${member.displayName} ${t('removeBody')}`,
+				// A hatim member's cüz go back to the pool; a Cevşen member's range frees up.
+				message: `${member.displayName} ${t(
+					groupQuery.data?.kind === 'HATIM' ? 'removeBodyCuz' : 'removeBody'
+				)}`,
 				onConfirm: () => removeGroupMember.mutate({ groupId, memberUserId: member.userId }),
 				title: t('removeTitle')
 			});
 		},
-		[groupId, removeGroupMember, t]
+		[groupId, groupQuery.data?.kind, removeGroupMember, t]
 	);
 
 	const rows = useMemo(
 		() =>
-			members.map(cachedMember => {
-				const member = visibleMemberIdentity(cachedMember, detail, userId, t('anonymousMember'));
+			members.map((cachedMember, index) => {
+				const member = visibleMemberIdentity(cachedMember, detail, userId, t('hpAnonymousReader'));
+				// Hidden by the group (S4): the server sends a stand-in id for anyone whose name is withheld.
+				const isAnonymous =
+					cachedMember.userId.startsWith('anonymous:') ||
+					(detail?.hideMemberNames === true && !detail.isOwner && cachedMember.userId !== userId);
 				// Spread as a pair: the remove button is a bare glyph, so its accessibility label
 				// travels with the handler rather than being optional beside it. Annotated rather
 				// than inlined so the conditional keeps the union instead of widening to two
@@ -106,10 +114,14 @@ export const MembersSheet = ({ groupId, isVisible, onClose }: MembersSheetProps)
 				return (
 					<MemberRow
 						imageUrl={member.imageUrl}
+						isAnonymous={isAnonymous}
 						key={member.id}
 						name={member.displayName}
 						percent={member.percent}
 						rangeLabel={formatBabRange(member.babNumbers)}
+						// The card's own edge closes the list; a hairline under the last row
+						// would draw a second one just inside it.
+						style={index === members.length - 1 ? styles.lastRow : undefined}
 						tag={member.userId === userId ? t('you') : member.role === 'OWNER' ? t('admin') : undefined}
 						{...removeProps}
 					/>
@@ -165,7 +177,19 @@ export const MembersSheet = ({ groupId, isVisible, onClose }: MembersSheetProps)
 									: `${detail.memberCount} / ${detail.spots} · ${detail.spotsLeft} ${t('spotsLeft')}`}
 							</CaptionText>
 
-							<View>{rows}</View>
+							{/* S4, as on Okuyanlar: members are told names are hidden; the owner, that only they see them. */}
+							{detail.hideMemberNames ? (
+								<View style={[styles.hiddenNote, { backgroundColor: theme.colors.sand }]}>
+									<Icon color={theme.colors.sandText} name='lock' size={16} strokeWidth={1.8} />
+									<CaptionText color={theme.colors.sandText} style={styles.hiddenNoteText}>
+										{t(detail.isOwner ? 'hpNamesHiddenOwner' : 'hpNamesHiddenMember')}
+									</CaptionText>
+								</View>
+							) : null}
+
+							{/* One panel for the whole list, so it reads as its own surface against the
+							    sheet — a card, not a card per member. */}
+							<CardSurface isFlush>{rows}</CardSurface>
 
 							{detail.isOwner ? (
 								<View style={styles.ownerHint}>
@@ -184,6 +208,17 @@ export const MembersSheet = ({ groupId, isVisible, onClose }: MembersSheetProps)
 };
 
 const styles = StyleSheet.create({
+	// Okuyanlar's (T5) note, measure for measure.
+	hiddenNote: {
+		alignItems: 'center',
+		borderRadius: 14,
+		flexDirection: 'row',
+		gap: 10,
+		marginBottom: 12,
+		paddingHorizontal: 14,
+		paddingVertical: 11
+	},
+	hiddenNoteText: { flex: 1, fontSize: 11.5, lineHeight: 16.7 },
 	body: {
 		flexGrow: 1,
 		paddingBottom: 26
@@ -195,6 +230,9 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		flex: 1,
 		justifyContent: 'center'
+	},
+	lastRow: {
+		borderBottomWidth: 0
 	},
 	ownerDot: {
 		borderRadius: 4,

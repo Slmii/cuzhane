@@ -13,6 +13,8 @@ export type MemberRowProps = MemberRowRemoveProps & {
 	name: string;
 	/** The member's own photo, when they have one. Falls back to the generated avatar. */
 	imageUrl?: string | null;
+	/** A name hidden by the group: a lock in the avatar's place, as on the readers screen. */
+	isAnonymous?: boolean;
 	/** "you" / "owner" pill next to the name. */
 	tag?: string;
 	rangeLabel: string;

@@ -1,11 +1,11 @@
 import { coverageFor } from '@utils/hizbPlans';
 import prisma from '@db/prisma';
-import { partCountFor } from '@utils/groupKinds';
+import { unitCountFor } from '@utils/units';
 import { normalizeUserId } from '@utils/normalizeUserId';
 import { civilDayNumber, DEFAULT_TIME_ZONE } from '@utils/rounds';
 
 export type ProfileStats = {
-	/** Cevşen babs only — the label says babs, and a Hizb portion is not one. */
+	/** Cevşen babs (and a hatim's cüz) — the label says babs, and a Hizb portion is not one. */
 	babsRead: number;
 	/** Every group's completed rounds, whatever it reads. */
 	roundsCompleted: number;
@@ -69,10 +69,16 @@ export const getProfileStatsForUser = async (
 	 */
 	const groupIds = [...new Set(userReads.map(read => read.groupId))];
 
-	// A round is "completed" once every part of a (groupId, roundIndex) has been read by
-	// anyone — 100 for a Cevşen group, 33 for a Hizb one. We only check rounds this user
-	// actually contributed a read to, then ask how many BabRead rows exist in total for each
-	// of those rounds.
+	/*
+	 * A round is "completed" once every unit of a (groupId, roundIndex) has been read by
+	 * anyone. We only check rounds this user actually contributed a read to, then ask how many
+	 * `BabRead` rows exist in total for each of those rounds.
+	 *
+	 * **How many "every" is depends on the group**, which is why the kinds are fetched below:
+	 * a hundred babs, thirty cüz or 33 Hizb portions (`unitCountFor`). This was a literal
+	 * `=== 100`, and against a hatim it would never have matched — the number would simply
+	 * have stopped rising, with nothing to say why.
+	 */
 	const roundKeys = new Map<string, { groupId: string; roundIndex: number }>();
 	for (const read of userReads) {
 		roundKeys.set(`${read.groupId}:${read.roundIndex}`, { groupId: read.groupId, roundIndex: read.roundIndex });
@@ -97,14 +103,14 @@ export const getProfileStatsForUser = async (
 	 * **Babs are the Cevşen's.** The screen labels this number "bab", and a Hizb portion is
 	 * a different unit and a far longer one, so adding the two would make the total mean
 	 * neither. Hizb reading still shows in the streak and the heatmap below, which count
-	 * reading days rather than babs.
+	 * reading days rather than babs. A hatim's cüz still count, as they always have.
 	 */
-	const babsRead = userReads.filter(read => kindByGroupId.get(read.groupId) === 'CEVSEN').length;
+	const babsRead = userReads.filter(read => kindByGroupId.get(read.groupId) !== 'HIZB').length;
 
 	let roundsCompleted = roundCounts.filter(round => {
 		const kind = kindByGroupId.get(round.groupId);
 
-		return kind !== undefined && round._count._all === partCountFor(kind);
+		return kind !== undefined && round._count._all === unitCountFor({ kind });
 	}).length;
 
 	const contributed = [

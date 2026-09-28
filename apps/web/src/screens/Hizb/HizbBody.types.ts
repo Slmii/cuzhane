@@ -8,14 +8,18 @@ export type IstighfarProgress = {
 	disabled: boolean;
 	onChange: (patch: { istighfarRepetitions?: number; istighfarTarget?: number }) => void;
 };
-export type DelailProgress = {
+/** A fixed-target count: the Delâil salavat's 3, Sekine's 19. */
+export type RepetitionProgress = {
 	count: number;
 	disabled: boolean;
 	sessionOnly?: boolean;
 	onChange: (count: number) => void;
 };
+export type DelailProgress = RepetitionProgress;
 export interface HizbBodyProps {
 	delailProgress?: DelailProgress;
+	/** Given on a Sekine page: the whole page is the repeated text. */
+	sekineProgress?: RepetitionProgress;
 	istighfarProgress?: IstighfarProgress;
 	block: HizbBlock;
 	/**

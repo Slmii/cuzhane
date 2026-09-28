@@ -13,6 +13,8 @@ model GroupMember {
     role        GroupMemberRole @default(MEMBER)
     slotIndex   Int
     joinedAt    DateTime        @default(now())
+    // "Bu grupta hep kitaptan okuyorum": on a Hizb plan, the book button leads and the reader is a link.
+    readsFromBook Boolean       @default(false)
 
     group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
 

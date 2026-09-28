@@ -74,6 +74,16 @@ export type Release = {
  */
 export const RELEASES: Release[] = [
 	{
+		id: '2026-09-quran',
+		entries: [
+			{ bodyKey: 'rn130HatimBody', icon: 'book', isNew: true, titleKey: 'rn130HatimTitle' },
+			{ bodyKey: 'rn130MushafBody', icon: 'readInApp', isNew: true, titleKey: 'rn130MushafTitle' },
+			{ bodyKey: 'rn130GoBody', icon: 'goTo', isNew: true, titleKey: 'rn130GoTitle' }
+		],
+		releasedOn: '2026-09-26',
+		version: APP_VERSION
+	},
+	{
 		id: '2026-09-my-progress',
 		entries: [
 			{ bodyKey: 'rn120ProgressBody', icon: 'calendar', isNew: true, titleKey: 'rn120ProgressTitle' },
@@ -81,7 +91,7 @@ export const RELEASES: Release[] = [
 			{ bodyKey: 'rn120NotificationBody', icon: 'bell', isNew: false, titleKey: 'rn120NotificationTitle' }
 		],
 		releasedOn: '2026-09-20',
-		version: APP_VERSION
+		version: '1.2.0'
 	},
 	{
 		id: '2026-09-notifications',
@@ -117,8 +127,7 @@ export const EARLIER_RELEASES = RELEASES.slice(1).filter(
  * "20 Eylül 2026" — the release's day, in the reader's language.
  *
  * **Parsed field by field, not handed to `new Date('2026-09-20')`.** That form is treated as
- * UTC, so for anybody west of Greenwich it formats as the day before — the same trap
- * `StreakCard` records for its own `YYYY-MM-DD` keys.
+ * UTC, so for anybody west of Greenwich it formats as the day before.
  */
 export const releaseDateLabel = (releasedOn: string, language: string): string => {
 	const [year, month, day] = releasedOn.split('-').map(Number);

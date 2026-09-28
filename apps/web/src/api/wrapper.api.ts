@@ -23,12 +23,12 @@ export class WrapperApiError extends Error {
  * The group kinds this build can draw, sent on every request as a **capability declaration**.
  * The server's compatibility guard (`clientCapabilities.middleware.ts` +
  * `clientCompatibility.service.ts`) reads it to decide which groups this client may find,
- * preview or join. Builds that predate `Group.kind` don't send it, and are treated as knowing
- * only the Cevşen — so a Hizb group never reaches a build that would read it as a hundred babs.
+ * preview or join. Builds that don't send it are treated as knowing the Cevşen and the Kur'an
+ * hatim — so a Hizb group never reaches a build that would read it as a hundred babs.
  * List a new kind here only once this build can actually draw it.
  */
 export const CLIENT_KINDS_HEADER = 'X-Cuzhane-Kinds';
-export const CLIENT_KINDS = 'CEVSEN,HIZB';
+export const CLIENT_KINDS = 'CEVSEN,HATIM,HIZB';
 
 /** Holds a reference to the Clerk `getToken` function, set at app startup. */
 let _getToken: (() => Promise<string | null>) | null = null;
@@ -72,6 +72,22 @@ const resolveAuthToken = async () => {
 	}
 
 	return null;
+};
+
+/**
+ * The session's `Authorization` header, for a request that does not go through `wrapperApi`
+ * — the mushaf's page downloads. No token is handled exactly as `wrapperApi` handles it: the
+ * app signs out, and the caller gets a 401 to fail on.
+ */
+export const authorizationHeader = async (): Promise<{ Authorization: string }> => {
+	const token = await resolveAuthToken();
+
+	if (!token) {
+		_onMissingToken?.();
+		throw new WrapperApiError({ code: 401, message: 'Authentication token is not ready. Please retry.' }, 401);
+	}
+
+	return { Authorization: `Bearer ${token}` };
 };
 
 export const wrapperApi = async <T>(endpoint: string, init?: RequestInit): Promise<T> => {

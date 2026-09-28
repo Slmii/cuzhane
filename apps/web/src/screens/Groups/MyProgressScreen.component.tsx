@@ -7,7 +7,9 @@ import { Chip } from '@/components/ui/Chip/Chip.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { StatTile } from '@/components/ui/StatTile/StatTile.component';
 import { CaptionText, TitleText, Typography } from '@/components/ui/Typography/Typography.component';
+import { useCachedGroup } from '@/lib/hooks/useCachedGroup';
 import { useGetGroupById } from '@/lib/hooks/useGroup';
+import { useRequireRoundCuz } from '@/lib/hooks/useHatimRoundGate';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useGetMyProgress } from '@/lib/hooks/useRounds';
 import { useTranslation } from '@/lib/i18n/I18n.context';
@@ -15,6 +17,8 @@ import type { StringKey } from '@/lib/i18n/strings';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { GroupCycle, MyProgressPeriod } from '@/lib/types/domain';
 import type { TabStackParamList } from '@/navigation/types';
+import { HatimProgress } from '@/screens/Groups/HatimProgress.component';
+import { HatimProgressSkeleton } from '@/screens/Groups/HatimProgressSkeleton.component';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -32,7 +36,9 @@ const LEGEND = ['mpLegendFull', 'mpLegendPart', 'mpLegendNone', 'mpLegendOpen'] 
 const PERIOD_COPY: Record<GroupCycle, { heading: StringKey; ago: StringKey; open: StringKey }> = {
 	DAILY: { heading: 'mpLast7', ago: 'mpDaysAgo', open: 'mpToday' },
 	WEEKLY: { heading: 'mpLast8', ago: 'mpWeeksAgo', open: 'mpThisWeek' },
-	MONTHLY: { heading: 'mpLast6', ago: 'mpMonthsAgo', open: 'mpThisMonth' }
+	MONTHLY: { heading: 'mpLast6', ago: 'mpMonthsAgo', open: 'mpThisMonth' },
+	// Only a hatim is ever a one-off, and a hatim's record is `HatimProgress` — never this strip.
+	CUSTOM: { heading: 'mpLast8', ago: 'mpWeeksAgo', open: 'mpThisWeek' }
 };
 
 /**
@@ -47,11 +53,15 @@ const PERIOD_COPY: Record<GroupCycle, { heading: StringKey; ago: StringKey; open
  */
 export const MyProgressScreen = ({ navigation, route }: Props) => {
 	const { groupId } = route.params;
+	// Holding no cüz this round means QR1 comes first, however this screen was reached.
+	useRequireRoundCuz(groupId, navigation);
 	const { language, t } = useTranslation();
 	const { theme } = useThemeContext();
 
 	const groupQuery = useGetGroupById(groupId);
 	const progressQuery = useGetMyProgress(groupId);
+	// Which record is on its way, before the group has answered — from the list that led here.
+	const cachedKind = useCachedGroup(groupId)?.kind;
 	const pullToRefresh = usePullToRefresh(groupQuery, progressQuery);
 
 	const progress = progressQuery.data;
@@ -66,11 +76,15 @@ export const MyProgressScreen = ({ navigation, route }: Props) => {
 	);
 
 	if (groupQuery.isPending || progressQuery.isPending) {
+		const isHatim = (groupQuery.data?.kind ?? cachedKind) === 'HATIM';
+
 		// The heading is known before the data is, so it stays put rather than the screen
-		// arriving blank and growing a title a moment later.
+		// arriving blank and growing a title a moment later. A hatim's record has bones under it
+		// (Q6l); a Cevşen one keeps the bare heading, having no loading frame of its own.
 		return (
 			<ScreenContainer>
-				<ScreenHeader hasBackButton subtitle={t('mpSub')} title={t('myProgress')} />
+				<ScreenHeader hasBackButton subtitle={t(isHatim ? 'qMpSub' : 'mpSub')} title={t('myProgress')} />
+				{isHatim ? <HatimProgressSkeleton /> : null}
 			</ScreenContainer>
 		);
 	}
@@ -80,6 +94,22 @@ export const MyProgressScreen = ({ navigation, route }: Props) => {
 	}
 
 	const group = groupQuery.data;
+
+	// Q6: a hatim's record is cüz per round, not a strip of seat shares.
+	if (group.kind === 'HATIM') {
+		return (
+			<ScreenContainer isScrollable pullToRefresh={pullToRefresh}>
+				<ScreenHeader hasBackButton subtitle={t('qMpSub')} title={t('myProgress')} />
+				<HatimProgress
+					cycle={group.cycle}
+					onOpenPool={() => navigation.navigate('Pool', { groupId })}
+					onReadCuz={cuzNumber => navigation.navigate('CuzReader', { cuzNumber, groupId })}
+					progress={progress}
+					roundDays={group.roundDays}
+				/>
+			</ScreenContainer>
+		);
+	}
 	const isHizb = group.kind === 'HIZB';
 	const periodCopy = PERIOD_COPY[progress.cycle];
 	const openPeriod = progress.periods.at(-1);

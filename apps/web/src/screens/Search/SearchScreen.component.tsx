@@ -13,12 +13,18 @@ import {
 	Header2
 } from '@/components/ui/Typography/Typography.component';
 import { getBab } from '@/lib/content/cevsen';
+import { suraNameFor } from '@/lib/content/cuz';
+import type { MushafVerse } from '@/lib/content/mushaf';
+import { type MushafPlace, searchQuran } from '@/lib/content/mushafPlaces';
 import { useDiscoverGroups, useGetGroups } from '@/lib/hooks/useGroup';
+import { useGetUserSettings } from '@/lib/hooks/useUserSettings';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import type { StringKey } from '@/lib/i18n/strings';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { toAlphaColor } from '@/lib/theme/tokens';
 import type { GroupSummary } from '@/lib/types/domain';
+import type { CuzPagination } from '@/lib/utils/cuzPagesRead';
+import { kindLabelKey } from '@/lib/utils/groups';
 import { addRecentSearch, useRecentSearches } from '@/lib/utils/recentSearches';
 import { highlightMatch, searchCevsen, searchGroups } from '@/lib/utils/search';
 import { forceTabBarHidden } from '@/navigation/tabBarVisibility';
@@ -27,30 +33,33 @@ import { useUser } from '@clerk/expo';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import type { SearchInputHandle } from '@/components/ui/SearchInput/SearchInput.types';
 import { SearchField } from './SearchField.component';
 
 type SearchNavigationProp = NativeStackNavigationProp<TabStackParamList, 'Search'>;
 
 /** K2's scope bar, in its order. `all` is the union; the rest are the four corpora. */
-type Scope = 'all' | 'mine' | 'open' | 'babs' | 'text';
-const SCOPES: readonly Scope[] = ['all', 'mine', 'open', 'babs', 'text'];
+type Scope = 'all' | 'mine' | 'open' | 'babs' | 'text' | 'quran';
+const SCOPES: readonly Scope[] = ['all', 'mine', 'open', 'babs', 'text', 'quran'];
 const SCOPE_LABEL_KEYS: Record<Scope, StringKey> = {
 	all: 'searchScopeAll',
 	babs: 'searchScopeBabs',
 	mine: 'searchScopeMine',
 	open: 'discover',
+	quran: 'qHatim',
 	text: 'searchScopeText'
 };
 const SECTION_LABEL_KEYS: Record<Exclude<Scope, 'all'>, StringKey> = {
 	babs: 'searchSectionBabs',
 	mine: 'searchSectionMine',
 	open: 'discover',
+	quran: 'qHatim',
 	text: 'searchSectionText'
 };
-const TIP_KEYS: readonly StringKey[] = ['searchTipGroups', 'searchTipBab', 'searchTipText'];
+const TIP_KEYS: readonly StringKey[] = ['searchTipGroups', 'searchTipBab', 'searchTipText', 'searchTipQuran'];
 
 const isScope = (value: string): value is Scope => (SCOPES as readonly string[]).includes(value);
 
@@ -100,10 +109,12 @@ interface ResultSection {
  */
 export const SearchScreen = () => {
 	const { theme } = useThemeContext();
-	const { t } = useTranslation();
+	const { language, t } = useTranslation();
+	// Page numbers are counted in the reader's pagination, as the Mushaf they open will show them.
+	const pagination: CuzPagination = useGetUserSettings().data?.readerArabicFont === 'husrev' ? 'husrev' : 'text';
 	const insets = useSafeAreaInsets();
 	const navigation = useNavigation<SearchNavigationProp>();
-	const inputRef = useRef<TextInput | null>(null);
+	const inputRef = useRef<SearchInputHandle | null>(null);
 	const [query, setQuery] = useState('');
 	const [scope, setScope] = useState<Scope>('all');
 	const { user } = useUser();
@@ -229,14 +240,17 @@ export const SearchScreen = () => {
 		const openHits = searchGroups(openGroups, query).filter(group => !mineHits.some(mine => mine.id === group.id));
 		const cevsen = searchCevsen(query);
 
+		// What the group reads leads the line — names repeat ("Ramazan Hatmi" in Cevşen and Kur'an).
+		const kindOf = (group: GroupSummary) => t(kindLabelKey(group.kind));
 		const groupSub = (group: GroupSummary) =>
-			group.status === 'GATHERING'
+			`${kindOf(group)} · ` +
+			(group.status === 'GATHERING'
 				? t('searchMineGathering', { people: group.memberCount })
 				: t('searchMineSub', {
 						day: (group.roundIndex ?? 0) + 1,
 						people: group.memberCount,
 						pct: group.percent
-				  });
+				  }));
 
 		// Every destination pushes inside this tab — see the note on the screen.
 		const goToGroup = (group: GroupSummary) => () =>
@@ -246,6 +260,52 @@ export const SearchScreen = () => {
 					: navigation.navigate('GroupDetail', { groupId: group.id })
 			);
 		const goToBab = (babNumber: number) => () => open(() => navigation.navigate('AllBabs', { babNumber }));
+		// The free Mushaf at a place — and, for an ayah, marked and scrolled to there.
+		const goToPlace = (place: MushafPlace, verse?: MushafVerse) => () =>
+			open(() =>
+				navigation.navigate('Mushaf', {
+					cuzNumber: place.cuzNumber,
+					page: place.pageIndex + 1,
+					...(verse ? { verseKey: `${verse.chapter}:${verse.ayah}` } : {})
+				})
+			);
+		const cuzLabel = (first: number, last: number) =>
+			first === last ? t('goCuzOne', { n: first }) : t('goCuzSpan', { a: first, b: last });
+
+		// The Kur'an by reference — see `searchQuran`; its text is not searched here.
+		const quranRows: ResultRow[] = searchQuran(query, language, pagination).map(hit =>
+			hit.kind === 'sura'
+				? {
+						badge: String(hit.entry.chapter),
+						key: `sura-${hit.entry.chapter}`,
+						onPress: goToPlace(hit.place, { ayah: 1, chapter: hit.entry.chapter }),
+						sub: `${t('goAyahCount', { n: hit.entry.ayahCount })} · ${cuzLabel(
+							hit.entry.cuzFirst,
+							hit.entry.cuzLast
+						)} · ${t('goPageShort', { n: hit.entry.startPage })}`,
+						title: hit.entry.name
+				  }
+				: hit.kind === 'ayah'
+				? {
+						badge: String(hit.verse.chapter),
+						key: `ayah-${hit.verse.chapter}-${hit.verse.ayah}`,
+						onPress: goToPlace(hit.place, hit.verse),
+						sub: `${cuzLabel(hit.place.cuzNumber, hit.place.cuzNumber)} · ${t('goPageShort', {
+							n: hit.place.pageNumber
+						})}`,
+						title: `${suraNameFor(hit.verse.chapter, language)} ${hit.verse.ayah}`
+				  }
+				: {
+						badge: String(hit.place.pageNumber),
+						key: `page-${hit.place.pageNumber}`,
+						onPress: goToPlace(hit.place),
+						sub: `${suraNameFor(hit.first.chapter, language)} ${hit.first.ayah} · ${cuzLabel(
+							hit.place.cuzNumber,
+							hit.place.cuzNumber
+						)}`,
+						title: `${t('qPage')} ${hit.place.pageNumber}`
+				  }
+		);
 
 		const built: ResultSection[] = [
 			{
@@ -264,7 +324,7 @@ export const SearchScreen = () => {
 					badge: group.name.slice(0, 1),
 					key: `open-${group.id}`,
 					onPress: () => open(() => navigation.navigate('InvitePreview', { groupId: group.id })),
-					sub: t('searchOpenSub', { people: group.memberCount }),
+					sub: `${kindOf(group)} · ${t('searchOpenSub', { people: group.memberCount })}`,
 					tag: t('join'),
 					title: group.name
 				})),
@@ -293,11 +353,12 @@ export const SearchScreen = () => {
 					title: hit.line
 				})),
 				scope: 'text'
-			}
+			},
+			{ rows: quranRows, scope: 'quran' }
 		];
 
 		return built.filter(section => section.rows.length > 0);
-	}, [myGroups, navigation, open, openGroups, query, t]);
+	}, [language, myGroups, navigation, open, openGroups, pagination, query, t]);
 
 	const isSearching = query.trim() !== '';
 	const visibleSections = scope === 'all' ? sections : sections.filter(section => section.scope === scope);

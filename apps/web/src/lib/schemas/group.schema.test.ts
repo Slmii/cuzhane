@@ -46,6 +46,10 @@ describe('createGroupSchema', () => {
 		expect(issuePaths({ kind: 'HIZB', spots: 0 })).toEqual(['spots']);
 	});
 
+	it('asks a hatim for neither spots nor a cycle — it has a round length instead', () => {
+		expect(issuePaths({ kind: 'HATIM', spots: 7, cycle: 'CUSTOM', roundDays: 15 })).toEqual([]);
+	});
+
 	it('puts the message under the field it is about', () => {
 		const result = schema.safeParse({ name: 'Hatim', kind: 'CEVSEN', spots: 7 });
 

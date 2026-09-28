@@ -39,7 +39,7 @@ describe('CreateGroupBodySchema', () => {
 	it('gives the Hizb a monthly round', () => {
 		const parsed = CreateGroupBodySchema.parse({ ...base, kind: 'HIZB', spots: 11, cycle: 'MONTHLY' });
 
-		expect(parsed.cycle).toBe('MONTHLY');
+		expect(parsed.kind === 'HIZB' && parsed.cycle).toBe('MONTHLY');
 	});
 
 	it('keeps the default size valid for a Hizb that names none', () => {
@@ -47,7 +47,18 @@ describe('CreateGroupBodySchema', () => {
 	});
 
 	it('refuses a kind it does not know', () => {
-		expect(issuePaths({ ...base, kind: 'HATIM' })).toEqual(['kind']);
+		expect(issuePaths({ ...base, kind: 'QURAN' })).toEqual(['kind']);
+	});
+
+	it("knows the Kur'an hatim, which picks cüz rather than a size", () => {
+		expect(CreateGroupBodySchema.safeParse({ ...base, kind: 'HATIM', cuzNumbers: [1] }).success).toBe(true);
+	});
+
+	it('refuses a personal plan or individual reading on any kind but the Hizb', () => {
+		expect(issuePaths({ ...base, kind: 'CEVSEN', hizbPlan: 7 })).toEqual(['hizbPlan']);
+		expect(issuePaths({ ...base, kind: 'HATIM', cuzNumbers: [1], hizbIndividual: true })).toEqual([
+			'hizbIndividual'
+		]);
 	});
 });
 

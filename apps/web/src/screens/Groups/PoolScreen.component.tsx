@@ -1,3 +1,4 @@
+import { useRequireRoundCuz } from '@/lib/hooks/useHatimRoundGate';
 import { GridSkeleton } from '@/components/GridSkeleton/GridSkeleton.component';
 import { FlexibleReadingPanel } from '@/components/FlexibleReadingPanel/FlexibleReadingPanel.component';
 import { SkeletonStatusRow } from '@/components/Skeleton/SkeletonStatusRow.component';
@@ -11,7 +12,9 @@ import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { Hatch } from '@/components/ui/Hatch/Hatch.component';
 import { BodyStrongText, CaptionText, NumericText, Typography } from '@/components/ui/Typography/Typography.component';
+import { useCachedGroup } from '@/lib/hooks/useCachedGroup';
 import { useGetGroupById, useGetPoolSlots, useReleasePoolSlot, useTakePoolSlot } from '@/lib/hooks/useGroup';
+import { CuzPoolScreen } from './CuzPoolScreen.component';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useViewerIdentity } from '@/lib/hooks/useViewerIdentity';
 import { useTranslation } from '@/lib/i18n/I18n.context';
@@ -82,10 +85,11 @@ const forgetClaim = (groupId: string, slotIndex: number) => {
 // No `navigation`: going back is the navigator's own header button now.
 const CevsenPoolScreen = ({ route }: Props) => {
 	const { groupId } = route.params;
+	const group = useGetGroupById(groupId);
 	const { theme } = useThemeContext();
 	const { t } = useTranslation();
+	// Only ever mounted for a Cevşen seat pool — `PoolScreen` below sends a hatim to `CuzPoolScreen`.
 	const pool = useGetPoolSlots(groupId);
-	const group = useGetGroupById(groupId);
 	// Your own name and photo: a row you just claimed can draw your avatar before the server
 	// echoes the name back, and it draws the picture you actually set rather than a generated
 	// face — see `useViewerIdentity`.
@@ -238,11 +242,13 @@ const CevsenPoolScreen = ({ route }: Props) => {
 		 */
 		const canUndo = isTaken && slot.takenByMe;
 		const isJustTaken = canUndo && takenHere.includes(slot.slotIndex);
+		// A member-private group names nobody but the viewer — the owner excepted.
 		const hidesTaker =
 			!slot.takenByMe &&
 			(slot.takenByUserId?.startsWith('anonymous:') || (group.data?.hideMemberNames && !group.data.isOwner));
 		const takerName = hidesTaker ? t('anonymousMember') : slot.takenByDisplayName ?? '';
-		const takerLabel = slot.takenByMe ? t('poolMine') : `${takerName} ${t('takenBy')}`.trim();
+		// A sentence, to sit beside "Ali üstlendi" — not the legend's one-word `legendMine`.
+		const takerLabel = slot.takenByMe ? t('poolTakenByYou') : `${takerName} ${t('takenBy')}`.trim();
 		/*
 		 * Matched against the slot actually in flight. Both mutations belong to the whole screen,
 		 * so read bare they would dim every free row's button at once — a crowded pool would look
@@ -389,29 +395,43 @@ const CevsenPoolScreen = ({ route }: Props) => {
 	);
 };
 
-/** A flexible group's pool is individual portions, regardless of which book it reads. */
+/**
+ * The havuz, by what the group reads — each kind's own screen, never another's:
+ *
+ * - **A hatim's havuz is a different screen, not a branch of the Cevşen one.** The seat pool
+ *   works in `slotIndex` — a slot is an empty *seat's* block, offered whole — and a hatim has no
+ *   seats that divide anything: its havuz is loose cüz, taken one at a time (`CuzPoolScreen`).
+ * - A FLEXIBLE group's pool is individual parts, whichever book it reads.
+ * - A Hizb seat pool is taken a portion at a time (`HizbPoolScreen`); a Cevşen one a block.
+ *
+ * The kind is read off the group, seeded from the shelf's cache — and before the group answers
+ * (opened cold, from a push) from a list that may still know it, or the route's hint — so the
+ * right screen is drawn on the first frame.
+ */
 export const PoolScreen = (props: Props) => {
-	const { groupId } = props.route.params;
+	const { groupId, kind: kindHint } = props.route.params;
+	// Holding no cüz this round means QR1 comes first, however this screen was reached.
+	useRequireRoundCuz(groupId, props.navigation);
 	const group = useGetGroupById(groupId);
+	const cachedKind = useCachedGroup(groupId)?.kind;
 	const { t } = useTranslation();
-	if (group.isPending) {
+	const kind = group.data?.kind ?? cachedKind ?? kindHint;
+	const splitMode = group.data?.splitMode;
+
+	if (kind === 'HATIM') {
+		return <CuzPoolScreen groupId={groupId} />;
+	}
+
+	if (splitMode === 'FLEXIBLE' && group.data) {
+		const detail = group.data;
+
 		return (
 			<ScreenContainer>
-				<CaptionText>{t('loadingPool')}</CaptionText>
-			</ScreenContainer>
-		);
-	}
-	if (group.isError || !group.data) {
-		return <ErrorState queries={[group]} />;
-	}
-	if (group.data.splitMode === 'FLEXIBLE') {
-		return (
-			<ScreenContainer>
-				<ScreenHeader hasBackButton title={group.data.name} />
+				<ScreenHeader hasBackButton title={detail.name} />
 				<FlexibleReadingPanel
-					group={group.data}
+					group={detail}
 					onOpenReader={number =>
-						group.data.kind === 'HIZB'
+						detail.kind === 'HIZB'
 							? props.navigation.navigate('HizbReader', { groupId, partNumber: number })
 							: props.navigation.navigate('BabReader', { groupId, babNumber: number })
 					}
@@ -419,7 +439,20 @@ export const PoolScreen = (props: Props) => {
 			</ScreenContainer>
 		);
 	}
-	return props.route.params.kind === 'HIZB' ? <HizbPoolScreen {...props} /> : <CevsenPoolScreen {...props} />;
+
+	if (kind !== undefined && splitMode !== undefined && splitMode !== 'FLEXIBLE') {
+		return kind === 'HIZB' ? <HizbPoolScreen {...props} /> : <CevsenPoolScreen {...props} />;
+	}
+
+	if (group.isError) {
+		return <ErrorState queries={[group]} />;
+	}
+
+	return (
+		<ScreenContainer>
+			<CaptionText>{t('loadingPool')}</CaptionText>
+		</ScreenContainer>
+	);
 };
 
 const styles = StyleSheet.create({

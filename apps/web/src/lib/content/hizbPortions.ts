@@ -211,6 +211,11 @@ export const cutLine = (line: HizbLine, from: number, to: number | undefined): H
 		cut.invocations = line.invocations.slice(from, to);
 	}
 
+	// The tail opens on invocation `from`, past `from` of the line's marks (the one at the cut too).
+	if (line.marksBefore !== undefined) {
+		cut.marksBefore = line.marksBefore + from;
+	}
+
 	return cut;
 };
 

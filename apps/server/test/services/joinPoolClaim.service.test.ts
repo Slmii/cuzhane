@@ -47,7 +47,7 @@ const blockFor = (slotIndex: number) => babNumbersForRound(slotIndex, SPOTS, ROU
 /** A running group with three members, three empty seats, and two claimed pool blocks. */
 const createGroup = async ({ readBabs = [] }: { readBabs?: number[] } = {}) => {
 	const startedAt = daysAgo(ROUND_INDEX);
-	const roundStartedAt = roundStartedAtFor(startedAt, 'DAILY', ROUND_INDEX, DEFAULT_TIME_ZONE);
+	const roundStartedAt = roundStartedAtFor(startedAt, 1, ROUND_INDEX, DEFAULT_TIME_ZONE);
 	const claimed = new Set([...blockFor(JOINED_SLOT), ...blockFor(UNTOUCHED_SLOT)]);
 
 	const group = await prisma.group.create({
@@ -60,13 +60,14 @@ const createGroup = async ({ readBabs = [] }: { readBabs?: number[] } = {}) => {
 				.slice(-7)}`,
 			spots: SPOTS,
 			cycle: 'DAILY',
+			roundDays: 1,
 			timezone: DEFAULT_TIME_ZONE,
 			splitMode: 'ROTATION',
 			status: 'RUNNING',
 			startedAt,
 			roundIndex: ROUND_INDEX,
 			roundStartedAt,
-			endsAt: roundEndsAt(startedAt, 'DAILY', ROUND_INDEX, DEFAULT_TIME_ZONE),
+			endsAt: roundEndsAt(startedAt, 1, ROUND_INDEX, DEFAULT_TIME_ZONE),
 			members: {
 				create: [
 					{ userId: OWNER, displayName: 'Owner', role: 'OWNER', slotIndex: 0 },
@@ -248,8 +249,8 @@ describe('joining a Hizb seat whose pool block is a single portion', () => {
 				status: 'RUNNING',
 				startedAt,
 				roundIndex: HIZB_ROUND,
-				roundStartedAt: roundStartedAtFor(startedAt, 'DAILY', HIZB_ROUND, DEFAULT_TIME_ZONE),
-				endsAt: roundEndsAt(startedAt, 'DAILY', HIZB_ROUND, DEFAULT_TIME_ZONE),
+				roundStartedAt: roundStartedAtFor(startedAt, 1, HIZB_ROUND, DEFAULT_TIME_ZONE),
+				endsAt: roundEndsAt(startedAt, 1, HIZB_ROUND, DEFAULT_TIME_ZONE),
 				members: {
 					create: [
 						{ userId: OWNER, displayName: 'Owner', role: 'OWNER', slotIndex: 0 },

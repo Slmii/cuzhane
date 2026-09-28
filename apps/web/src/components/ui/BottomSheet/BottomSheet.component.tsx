@@ -1,10 +1,40 @@
 import { Header2, Typography } from '@/components/ui/Typography/Typography.component';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { BottomSheet, BottomSheetView } from '@expo/ui/community/bottom-sheet';
-import { useState } from 'react';
-import { StyleSheet, useWindowDimensions } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Keyboard, Platform, StyleSheet, useWindowDimensions } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { AppBottomSheetProps } from './BottomSheet.types';
+
+/** Air between the status bar and a sheet the keyboard has pushed to the top of the screen. */
+const KEYBOARD_TOP_GAP = 10;
+
+/**
+ * The keyboard's height while it is up on iOS, 0 otherwise — see the fixed height below.
+ *
+ * iOS only: Android's sheet is a window of its own that resizes for the keyboard, and nothing
+ * there was seen clipping.
+ */
+const useIosKeyboardHeight = () => {
+	const [height, setHeight] = useState(0);
+
+	useEffect(() => {
+		if (Platform.OS !== 'ios') {
+			return;
+		}
+
+		const show = Keyboard.addListener('keyboardWillShow', event => setHeight(event.endCoordinates.height));
+		const hide = Keyboard.addListener('keyboardWillHide', () => setHeight(0));
+
+		return () => {
+			show.remove();
+			hide.remove();
+		};
+	}, []);
+
+	return height;
+};
 
 /**
  * The one sheet in the app — every "modal" surface goes through it so they all get the same
@@ -53,6 +83,27 @@ export const AppBottomSheet = ({
 }: AppBottomSheetProps) => {
 	const { theme } = useThemeContext();
 	const { height: windowHeight } = useWindowDimensions();
+	const insets = useSafeAreaInsets();
+	const keyboardHeight = useIosKeyboardHeight();
+
+	/*
+	 * **A fixed height gives way to the keyboard.** The platform sheet is as tall as what it holds,
+	 * and with the keyboard up iOS lays a sheet taller than the room above it out *centred* — so
+	 * the top of it was cut off: create-group lost its step header, the reader's Git sheet its
+	 * title, tabs and the very search box being typed into. Capped to the room left, the sheet
+	 * shrinks with the keyboard and its scroll view takes the difference.
+	 */
+	const fixedHeight =
+		heightRatio === undefined
+			? undefined
+			: Math.round(
+					keyboardHeight > 0
+						? Math.min(
+								windowHeight * heightRatio,
+								windowHeight - keyboardHeight - insets.top - KEYBOARD_TOP_GAP
+						  )
+						: windowHeight * heightRatio
+			  );
 
 	/**
 	 * The sheet is mounted on demand rather than kept alive and toggled.
@@ -134,12 +185,7 @@ export const AppBottomSheet = ({
 			 * It only takes a flex when the sheet has a height to fill; in a content-sized sheet a
 			 * `flex: 1` here would resolve against nothing and collapse the body to zero.
 			 */}
-			<BottomSheetView
-				style={[
-					styles.content,
-					heightRatio === undefined ? null : { height: Math.round(windowHeight * heightRatio) }
-				]}
-			>
+			<BottomSheetView style={[styles.content, fixedHeight === undefined ? null : { height: fixedHeight }]}>
 				<GestureHandlerRootView style={heightRatio === undefined ? null : styles.fill}>
 					{title ? <Header2 style={styles.title}>{title}</Header2> : null}
 					{description ? (

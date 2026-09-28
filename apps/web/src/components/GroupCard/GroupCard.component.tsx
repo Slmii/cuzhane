@@ -1,19 +1,17 @@
 import { GroupProgressSummary } from '@/components/GroupProgressSummary/GroupProgressSummary.component';
+import { SliceChip } from '@/components/SliceChip/SliceChip.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Chip } from '@/components/ui/Chip/Chip.component';
-import { KindMark } from '@/components/ui/KindMark/KindMark.component';
+import type { ChipTone } from '@/components/ui/Chip/Chip.types';
+import type { IconName } from '@/components/ui/Icon/Icon.types';
+import { ReadingTypeMark } from '@/components/ui/ReadingTypeMark/ReadingTypeMark.component';
 import { BodyStrongText, CaptionText, TitleText } from '@/components/ui/Typography/Typography.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
+import { kindLabelKey } from '@/lib/utils/groups';
 import { StyleSheet, View } from 'react-native';
 import type { GroupCardProps } from './GroupCard.types';
-
-/**
- * The kind mark's size before a card's name — small enough to sit on the title's line, where
- * the group screen's heading draws the same star at 44.
- */
-const KIND_MARK_SIZE = 18;
 
 /**
  * One card for both the "My groups" list and Discover. The two differ only in which
@@ -25,9 +23,12 @@ export const GroupCard = ({
 	badgeIcon,
 	badgeLabel,
 	badgeTone = 'accent',
+	children,
 	footerCaption,
 	footerLabel,
 	footerLeading,
+	footerMoreCount = 0,
+	footerTrailing,
 	isActionDisabled = false,
 	isActionPrimary = true,
 	kind,
@@ -40,61 +41,68 @@ export const GroupCard = ({
 	style,
 	subtitle
 }: GroupCardProps) => {
-	const { theme } = useThemeContext();
 	const { t } = useTranslation();
+	const { theme } = useThemeContext();
 	const hasProgress = progress !== undefined;
 	const hasFooter = Boolean(footerLabel || footerLeading || actionLabel);
+
+	/*
+	 * **Every card says what it reads, not only the hatim ones.** Q2's whole subject is one
+	 * list holding both, and a tag that appears on a card only when it is unusual makes the
+	 * other kind the unmarked default — which it stops being the moment somebody has one of
+	 * each.
+	 *
+	 * **Filled, and in the one fill nothing else uses.** The design draws this chip in sand
+	 * for a hatim and sage for a Cevşen group, beside exactly one other chip. Our cards stack
+	 * up to three, and both of those fills are already spoken for by the chips under it: sand
+	 * is "Toplanıyor" and sage is "Açık" — so a gathering hatim read as two identical sand
+	 * chips, and a running Cevşen group as two identical sage ones. `neutral` is the warm
+	 * grey neither of them is, and it suits a chip naming a category rather than news.
+	 */
+	const typeBadge = { label: t(kindLabelKey(kind)), tone: 'neutral' } as const;
+	const trailingBadges: { icon?: IconName; label: string; tone?: ChipTone }[] = [
+		{ ...(badgeIcon ? { icon: badgeIcon } : {}), label: badgeLabel, tone: badgeTone },
+		...(extraBadges ?? [])
+	];
 
 	return (
 		<CardSurface onPress={onPress} style={[styles.card, style]}>
 			<View style={styles.headerRow}>
+				{/*
+				 * **The kind's mark, beside the name** — a tesbih or an open mushaf, saying only
+				 * which kind this is. The card already states its progress twice below, in the
+				 * fraction and the bar or board, so a mark that filled would be a third and
+				 * coarser copy. It sat inside the type chip for a moment, where a drawing on a
+				 * 10pt line is a smudge with a word after it.
+				 */}
+				<ReadingTypeMark backgroundColor={theme.colors.card} kind={kind} size={TYPE_MARK_SIZE} />
 				<View style={styles.headerCopy}>
-					{/*
-					 * The Hizb's star before a Hizb group's name, so the two books tell apart down a
-					 * list; a Cevşen card has none and draws as it always has. Centred on the title's
-					 * first line however far the name wraps, and named, so the card is announced with
-					 * its book — the card is one accessible element, and it reads its children's labels.
-					 */}
-					{kind === 'HIZB' ? (
-						<View style={styles.titleRow}>
-							<View accessibilityLabel={t('kindHizb')} accessible style={styles.titleMark}>
-								<KindMark kind='HIZB' size={KIND_MARK_SIZE} />
-							</View>
-							<TitleText style={styles.titleText}>{name}</TitleText>
-						</View>
-					) : (
-						<TitleText>{name}</TitleText>
-					)}
+					{/* One line each: a long name or intention is the preview's to show in full. */}
+					<TitleText numberOfLines={1}>{name}</TitleText>
 					{subtitle ? (
-						<CaptionText color={theme.colors.subtext} style={styles.subtitle}>
+						<CaptionText color={theme.colors.subtext} numberOfLines={1} style={styles.subtitle}>
 							{subtitle}
 						</CaptionText>
 					) : null}
 				</View>
-				{extraBadges?.length ? (
-					// `alignSelf` per chip, not `alignItems` on the stack: `Chip` pins itself to
-					// flex-start so it never stretches, and that wins over the parent — which is
-					// what left badges of different widths ragged instead of flush right.
-					<View style={styles.badgeStack}>
+				{/* `alignSelf` per chip, not `alignItems` on the stack: `Chip` pins itself to
+				    flex-start so it never stretches, and that wins over the parent — which is
+				    what left badges of different widths ragged instead of flush right. */}
+				<View style={styles.badgeStack}>
+					<Chip label={typeBadge.label} style={styles.badge} tone={typeBadge.tone} />
+					{trailingBadges.map(badge => (
 						<Chip
-							{...(badgeIcon ? { icon: badgeIcon } : {})}
-							label={badgeLabel}
+							key={badge.label}
+							{...(badge.icon ? { icon: badge.icon } : {})}
+							label={badge.label}
 							style={styles.badge}
-							tone={badgeTone}
+							tone={badge.tone ?? 'accentOutline'}
 						/>
-						{extraBadges.map(badge => (
-							<Chip
-								key={badge.label}
-								label={badge.label}
-								style={styles.badge}
-								tone={badge.tone ?? 'accentOutline'}
-							/>
-						))}
-					</View>
-				) : (
-					<Chip {...(badgeIcon ? { icon: badgeIcon } : {})} label={badgeLabel} tone={badgeTone} />
-				)}
+					))}
+				</View>
 			</View>
+
+			{children}
 
 			{progress ? <GroupProgressSummary {...progress} /> : null}
 
@@ -114,13 +122,21 @@ export const GroupCard = ({
 					    cards stack a label over a caption. */}
 					<View style={[styles.footerCopy, footerLeading ? styles.footerCopyInline : null]}>
 						{footerLeading}
-						{footerLabel ? <BodyStrongText>{footerLabel}</BodyStrongText> : null}
+						{footerLabel ? (
+							<View style={styles.footerLabelRow}>
+								<BodyStrongText numberOfLines={1} style={styles.footerLabel}>
+									{footerLabel}
+								</BodyStrongText>
+								<SliceChip count={footerMoreCount} isCompact tone='wash' />
+							</View>
+						) : null}
 						{footerCaption ? (
 							<CaptionText color={theme.colors.subtext} style={styles.footerCaption}>
 								{footerCaption}
 							</CaptionText>
 						) : null}
 					</View>
+					{footerTrailing}
 					{actionLabel && onAction ? (
 						<AppButton
 							disabled={isActionDisabled}
@@ -137,6 +153,12 @@ export const GroupCard = ({
 	);
 };
 
+/**
+ * Beside a 17pt group name. Under the mark's 20pt glyph threshold on purpose — a hundred
+ * beads at this size is a texture, and one ring of twelve still reads as a tesbih.
+ */
+const TYPE_MARK_SIZE = 24;
+
 const styles = StyleSheet.create({
 	card: {
 		padding: 18
@@ -147,6 +169,14 @@ const styles = StyleSheet.create({
 	footerCopy: {
 		flex: 1,
 		gap: 3
+	},
+	footerLabel: {
+		flexShrink: 1
+	},
+	footerLabelRow: {
+		alignItems: 'center',
+		flexDirection: 'row',
+		gap: 6
 	},
 	footerCopyInline: {
 		alignItems: 'center',
@@ -188,18 +218,5 @@ const styles = StyleSheet.create({
 	},
 	subtitle: {
 		lineHeight: 17
-	},
-	// `TitleText`'s own line height, so the mark sits on the first line's centre.
-	titleMark: {
-		height: 22,
-		justifyContent: 'center'
-	},
-	titleRow: {
-		alignItems: 'flex-start',
-		flexDirection: 'row',
-		gap: 7
-	},
-	titleText: {
-		flexShrink: 1
 	}
 });

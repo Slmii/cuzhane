@@ -32,6 +32,11 @@ model HizbAssignment {
     istighfarTarget Int @default(11)
     version      Int      @default(0)
     bookmark     Int      @default(0)
+    // Which of the board's 33 this day's reading has marked read from the book, before all of them
+    // are: a partial day shows on the board but stays owed. Cleared when the day is undone.
+    readPortions Int[]    @default([])
+    // How a completed reading was done: 'APP' (read in the reader) or 'BOOK' (marked from the book).
+    readFrom     String?
     completedAt  DateTime?
     enrollment   HizbEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
 

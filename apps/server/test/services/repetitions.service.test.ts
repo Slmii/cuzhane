@@ -48,7 +48,7 @@ const createGroup = async ({
 	isBehind = false
 } = {}) => {
 	const startedAt = daysAgo(startedDaysAgo);
-	const roundIndex = roundIndexSince(startedAt, 'DAILY', new Date(), DEFAULT_TIME_ZONE) - (isBehind ? 1 : 0);
+	const roundIndex = roundIndexSince(startedAt, 1, new Date(), DEFAULT_TIME_ZONE) - (isBehind ? 1 : 0);
 	const isRunning = status === 'RUNNING';
 
 	const group = await prisma.group.create({
@@ -59,6 +59,7 @@ const createGroup = async ({
 			kind,
 			spots: SPOTS,
 			cycle: 'DAILY',
+			roundDays: 1,
 			splitMode: 'FIXED',
 			status,
 			startedAt: isRunning ? startedAt : null,

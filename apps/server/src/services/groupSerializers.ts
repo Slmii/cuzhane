@@ -1,8 +1,8 @@
-import { babNumbersForRound, babNumbersForSlot, progressPercent, rangeForRound, rangeForSlot } from '@utils/babs';
+import { progressPercent } from '@utils/babs';
 import { partCountFor, type GroupKindName } from '@utils/groupKinds';
 import { formatInviteCode } from '@utils/inviteCode';
 import { FALLBACK_DISPLAY_NAME, type MemberProfile } from '@utils/memberProfiles';
-import { civilDayNumber, roundEndsAt } from '@utils/rounds';
+import { civilDayNumber, roundEndsAt, roundLengthFor } from '@utils/rounds';
 import { isAnonymousTo, visibleUserId } from '@utils/groupPrivacy';
 import type { CycleName } from '@utils/rounds';
 import type {
@@ -17,12 +17,19 @@ import type {
 // package, so the contract is duplicated here on purpose. Keep the two in sync by hand.
 
 export type GroupVisibility = 'OPEN' | 'PRIVATE';
+/**
+ * What a group reads: a hundred babs split by seat (Cevşen), thirty cüz picked one at a time
+ * (Kur'an hatim), or 33 Hizb portions split by seat. Chosen at creation and immutable — every
+ * other setting on the group hangs off it.
+ */
+export type GroupKind = GroupKindName;
+/** What happens to a member's cüz when the round rolls — QC3's "Tur bitiminde". */
+export type CuzBoundaryPolicy = 'KEEP' | 'REPICK';
 export type GroupSplitMode = 'ROTATION' | 'FIXED' | 'FLEXIBLE';
 export type GroupStatus = 'GATHERING' | 'RUNNING';
 export type BabRange = { start: number; end: number };
 /** One source of truth: the same union the round maths takes, MONTHLY included. */
 export type GroupCycle = CycleName;
-export type GroupKind = GroupKindName;
 export type GroupMemberRole = 'OWNER' | 'MEMBER';
 
 export type GroupBab = {
@@ -56,7 +63,17 @@ export type GroupMember = {
 };
 
 export type GroupSummary = {
-	hizbToday?: { planDays: number; portion: number; completed: boolean } | null;
+	hizbToday?: { planDays: number; portion: number; completed: boolean; assignmentId: string | null } | null;
+	/** A personal-plan Hizb's board today: the canonical spans its completed readings cover. */
+	hizbCoveredSpans?: number[];
+	/** A personal-plan Hizb's next reading day: the next local midnight in the group's zone. */
+	nextDayAt?: string;
+	/** The viewer was taken out of a personal-plan Hizb's order by the inactivity rule. */
+	hizbRemoved?: boolean;
+	/** The rule's length when it removed the viewer; null unless `hizbRemoved`. */
+	hizbRemovalDays?: number | null;
+	/** Which day of the group today is, 1-based, in the group's zone. */
+	hizbDay?: number;
 	hizbPlan?: number | null;
 	hizbIndividual?: boolean;
 	hizbStartPortion?: number;
@@ -66,16 +83,25 @@ export type GroupSummary = {
 	name: string;
 	dedication: string | null;
 	visibility: GroupVisibility;
+	/** Cevşen, hatim or Hizb. The client sizes its board and names its units from this. */
+	kind: GroupKind;
 	splitMode: GroupSplitMode;
 	cycle: GroupCycle;
-	/** What the group reads. Immutable after creation. */
-	kind: GroupKind;
 	/**
-	 * How many parts the group divides among its seats — 100 babs for the Cevşen, 33
-	 * portions for the Hizb. Sent rather than derived on the client so the board, the
+	 * How many parts the group divides — 100 babs for the Cevşen, 30 cüz for a hatim, 33
+	 * portions for the Hizb (`unitCountFor`). Sent rather than derived on the client so the board, the
 	 * progress and the pool are all sized by the same number the server split by.
 	 */
 	partCount: number;
+	/**
+	 * How many days a round runs — 1, 7, 30, or whatever a hatim was given.
+	 *
+	 * **Sent because `cycle` cannot describe it.** The cadence is a label with three presets
+	 * and a CUSTOM escape hatch; the length is the fact. Without it the client fell back to
+	 * the weekly phrasing for anything that was not DAILY, so a fifteen-day round announced
+	 * itself as "Her çarşamba" — a weekday it will land on exactly once.
+	 */
+	roundDays: number;
 	/**
 	 * IANA zone the group's rounds roll in — the creator's. The client needs it to say when
 	 * the reset lands both in the group's day and in the reader's own.
@@ -114,6 +140,17 @@ export type GroupSummary = {
 	 */
 	myNextBabNumber: number | null;
 	/**
+	 * When the viewer's share for this round was finished — the last of its reads — or null
+	 * while any of it is unread, or when they have none. Ana sayfa's "Bugün okunanlar" shows it.
+	 */
+	myShareDoneAt: string | null;
+	/**
+	 * A running hatim this member holds no cüz in for the round in progress, and has not chosen
+	 * to sit out — they must pick before they can read (QR1). Always false for Cevşen, and for a
+	 * viewer who is not a member.
+	 */
+	mustPickCuz: boolean;
+	/**
 	 * What the viewer reads this round and the next. Not "today/tomorrow": rotation moves
 	 * per round, so a WEEKLY group holds one range all week.
 	 */
@@ -138,6 +175,19 @@ export type GroupDetail = GroupSummary & {
 	members: GroupMember[];
 	/** Blocks the viewer volunteered for that a joiner took over, not yet acknowledged. */
 	poolReleases: PoolClaimReleaseNotice[];
+	/**
+	 * The viewer chose "Bu turu atla" for the round in progress (QR1). A hatim member holding no
+	 * cüz is stopped at the round-start screen; this is the one chosen way past it, so the group
+	 * opens with nothing to read. Always false for a Cevşen group, and for any earlier round.
+	 */
+	hasSkippedRound: boolean;
+	/**
+	 * The two hatim rules QR1 works from: how many cüz one person may hold, and what the round
+	 * boundary does with them. Null on a Cevşen group, which has neither. The invite preview has
+	 * carried these since QJ1; a member needs them once a new round asks them to choose again.
+	 */
+	maxPerMember: number | null;
+	boundaryPolicy: 'KEEP' | 'REPICK' | null;
 };
 
 /** One "the block you took has passed to a new member" notice, for the viewer. */
@@ -149,6 +199,12 @@ export type PoolClaimReleaseNotice = {
 
 export type GroupInvitePreview = {
 	hizbPlan?: number | null;
+	/** See `GroupSummary` — the same fields, from `hizbSummary`. */
+	hizbCoveredSpans?: number[];
+	nextDayAt?: string;
+	hizbRemoved?: boolean;
+	hizbRemovalDays?: number | null;
+	hizbDay?: number;
 	hizbIndividual?: boolean;
 	hizbStartPortion?: number;
 	inactivityDays?: number | null;
@@ -157,11 +213,23 @@ export type GroupInvitePreview = {
 	name: string;
 	dedication: string | null;
 	visibility: GroupVisibility;
+	/** Cevşen, hatim or Hizb — the preview counts to a hundred, thirty or 33, and names its units. */
+	kind: GroupKind;
 	splitMode: GroupSplitMode;
 	cycle: GroupCycle;
-	kind: GroupKind;
 	/** See `GroupSummary.partCount`. */
 	partCount: number;
+	/** How many days a round runs, for the reset line. See `GroupSummary.roundDays`. */
+	roundDays: number;
+	/**
+	 * The two hatim rules QJ1 states before anyone commits: how many cüz one person may hold,
+	 * and what becomes of them at the boundary. Null on a Cevşen group, which has neither.
+	 *
+	 * On the preview rather than derived after joining, because they are exactly what someone
+	 * deciding whether to join is weighing — a cap of one is a different group from no cap.
+	 */
+	maxPerMember: number | null;
+	boundaryPolicy: CuzBoundaryPolicy | null;
 	spots: number;
 	memberCount: number;
 	spotsLeft: number;
@@ -180,6 +248,25 @@ export type GroupInvitePreview = {
 	nextRange: BabRange | null;
 	/** Babs no member is reading this round — what a joiner would pick up immediately. */
 	poolBabNumbers: number[];
+	/**
+	 * Which units are read — **hatim only**, and only because QJ1/QJ2 draw a map rather than
+	 * a bar. Thirty numbers at most; a Cevşen preview shows a percentage and gets `[]`.
+	 */
+	readBabNumbers: number[];
+	/**
+	 * **Legacy, and always empty.** The 1.2.0 app reads `memberNames.length` on the invite preview
+	 * and crashed without it once names were taken off; an empty list keeps that build working and
+	 * still names nobody. Drop it once no 1.2.0 install is left.
+	 */
+	memberNames: [];
+	/*
+	 * **Who holds which cüz is deliberately absent.** The frame writes a holder's name under
+	 * every taken cell on QJ3, and it was built that way and taken out again: this payload
+	 * answers a *non-member*, and who is reading what is the group's business rather than a
+	 * prospective joiner's. The map still says which cüz are gone, which is the whole of
+	 * what someone picking needs. Nor are the members' names: a non-member sees how many are
+	 * there, never who — `memberNames` (the first two by seat) was removed for that reason.
+	 */
 	/** When the current round rolls, so the preview can say what a joiner is joining into. */
 	roundEndsAt: string | null;
 	/**
@@ -199,131 +286,31 @@ export type GroupInvitePreview = {
 	timezone: string;
 	/** The creator's display name, for the preview's "Kuran" row. */
 	createdByName: string;
-	/**
-	 * The first couple of members by seat, for the preview's "who is already here" line.
-	 * Capped rather than complete: the line names two and counts the rest off `memberCount`,
-	 * so sending a hundred names to render two would be waste.
-	 */
-	memberNames: string[];
 };
 
-/**
- * `FREE` is retired but still a value in the database enum, so a legacy row can carry
- * it. Nothing in the app models free-claim any more, and a fixed block is the closest
- * honest reading of such a row.
- */
-export const toSplitMode = (splitMode: Group['splitMode']): GroupSplitMode =>
-	splitMode === 'FLEXIBLE' ? 'FLEXIBLE' : splitMode === 'ROTATION' ? 'ROTATION' : 'FIXED';
-
-/**
- * The round a group is on. Null while it is still gathering — nothing is counted yet.
+/*
+ * **The seat-split helpers live in `unitPlan` now, and are re-exported from here.**
  *
- * Read from the stored column rather than the clock: the rollover is what advances it, so
- * a group that has fallen behind reports the round it is actually showing. Callers put
- * `ensureCurrentRound` in front of this to make the two agree.
+ * They used to be defined in this file, which made it impossible for the unit plan to use
+ * them: the plan is what answers "whose unit is this" for *both* reading types, and a Cevşen
+ * group's answer is exactly this seat arithmetic — so the plan had to import from the
+ * serializers while the serializers imported the plan. Moving the pure half down and
+ * re-exporting it keeps every existing caller (`pool.service`, `roundHistory.service`,
+ * `groupMembership.service`, `babs.service`) importing the name from where it always was.
  */
-const roundIndexFor = (group: Group): number | null =>
-	group.status === 'RUNNING' && group.startedAt ? group.roundIndex : null;
+export { babNumbersInRound, poolBabNumbers, poolBlocks, poolSlotIndexes, shareBabNumbersToday } from './unitPlan';
 
-/**
- * Only the fields the split actually depends on, so callers with a partial row can use it.
- * `kind` is one of them: it decides how many parts there are to split. Nothing on the board
- * records which block a seat reads — it is derived from the seat and the round, so a ROTATION
- * group's share moves without rewriting a row.
- */
-type PlanShape = Pick<Group, 'spots' | 'splitMode' | 'kind'>;
+import {
+	babNumbersInRound,
+	type PlanHolding,
+	rangeInRound,
+	resolveUnitPlan,
+	roundIndexFor,
+	toSplitMode,
+	type UnitPlan
+} from './unitPlan';
 
-/**
- * The block a seat reads in a given round.
- *
- * **Exported for the same reason `shareBabNumbersToday` below is**: a caller asking what a
- * seat owed in a *past* round has to get the same answer the serializers give for the
- * present one, and the rule is not obvious enough to restate — ROTATION advances by a
- * whole seat per round, FIXED never moves, and a group still GATHERING has no round at
- * all. `my-progress` walks the window with this; a second copy of the three-line branch
- * would be a second thing to remember to change when the split rules move.
- */
-export const babNumbersInRound = (group: PlanShape, slotIndex: number, roundIndex: number | null): number[] => {
-	if (group.splitMode === 'FLEXIBLE') {
-		return [];
-	}
-	const partCount = partCountFor(group.kind);
-
-	if (roundIndex === null) {
-		// Still gathering: the seat's own block is what has been reserved for them.
-		return babNumbersForSlot(slotIndex, group.spots, partCount);
-	}
-
-	return toSplitMode(group.splitMode) === 'ROTATION'
-		? babNumbersForRound(slotIndex, group.spots, roundIndex, partCount)
-		: babNumbersForSlot(slotIndex, group.spots, partCount);
-};
-
-const rangeInRound = (group: PlanShape, slotIndex: number, roundIndex: number): BabRange | null => {
-	if (group.splitMode === 'FLEXIBLE') {
-		return null;
-	}
-	const partCount = partCountFor(group.kind);
-
-	return toSplitMode(group.splitMode) === 'ROTATION'
-		? rangeForRound(slotIndex, group.spots, roundIndex, partCount)
-		: rangeForSlot(slotIndex, group.spots, partCount);
-};
-
-/**
- * The block a member reads today. Exported because the write paths need the same answer
- * the read paths give — "mark my whole share" has to target today's babs, and under
- * ROTATION those are not the babs carrying the member's `assignedUserId`.
- */
-export const shareBabNumbersToday = (group: Group, members: GroupMemberModel[], viewerUserId: string): number[] => {
-	const member = members.find(candidate => candidate.userId === viewerUserId);
-
-	return member ? babNumbersInRound(group, member.slotIndex, roundIndexFor(group)) : [];
-};
-
-/** Seats nobody took. Their babs are the shared pool until someone takes them. */
-export const poolSlotIndexes = (members: Pick<GroupMemberModel, 'slotIndex'>[], spots: number): number[] => {
-	const taken = new Set(members.map(member => member.slotIndex));
-
-	return Array.from({ length: spots }, (_, slot) => slot).filter(slot => !taken.has(slot));
-};
-
-/**
- * The blocks nobody is reading this round — the shared pool.
- *
- * **The pool rotates with everything else.** An empty seat `e` doesn't leave *its own*
- * block uncovered; in round `r` it leaves the block that seat `e` would have been reading,
- * which is `(e + r) % spots`. Taking the standing block instead gets it wrong twice over:
- * that block is being read by whichever member rotated onto it (so two people are
- * authorised for the same bab), while the genuinely uncovered block appears nowhere and
- * cannot be reached at all — making a full board unattainable through the intended shares.
- */
-export const poolBlocks = (
-	group: PlanShape,
-	members: Pick<GroupMemberModel, 'slotIndex'>[],
-	roundIndex: number
-): { slotIndex: number; babNumbers: number[] }[] =>
-	group.splitMode === 'FLEXIBLE'
-		? Array.from({ length: partCountFor(group.kind) }, (_, slotIndex) => ({
-				slotIndex,
-				babNumbers: [slotIndex + 1]
-		  }))
-		: poolSlotIndexes(members, group.spots).map(slotIndex => ({
-				slotIndex,
-				babNumbers: babNumbersInRound(group, slotIndex, roundIndex)
-		  }));
-
-/**
- * Flattened `poolBlocks`. Write paths check a claim against it: `assignedUserId` is only ever
- * "volunteered for this bab out of the pool, this round", and requiring the bab to sit in this
- * round's pool as well means a claim that somehow outlived its seat being empty can never
- * grant a read outside the rotated share.
- */
-export const poolBabNumbers = (
-	group: PlanShape,
-	members: Pick<GroupMemberModel, 'slotIndex'>[],
-	roundIndex: number
-): number[] => poolBlocks(group, members, roundIndex).flatMap(block => block.babNumbers);
+export { toSplitMode };
 
 const daysLeftFrom = (endsAt: Date | null): number | null => {
 	if (!endsAt) {
@@ -356,50 +343,90 @@ const nextFreeSlotFromMembers = (members: GroupMemberModel[], spots: number): nu
  *
  * Optional so the paths that don't need a name don't pay for a profile lookup.
  */
+/**
+ * **`assignedUserId` on the wire is "who is responsible for this unit", which is not the
+ * same question the column answers.**
+ *
+ * For a Cevşen or Hizb group the column is the whole answer: it records a pool block somebody
+ * volunteered for this round, and a seat's own block is derived rather than stored. For a
+ * hatim there is no volunteering — taking a cüz *is* holding it — so the responsible person
+ * is the `CuzHolding` row, which the plan resolves. The column is left untouched there and
+ * stays what CLAUDE.md says it is.
+ *
+ * The client's board asks one question of every cell ("mine, someone else's, or free?"), and
+ * this is what lets it keep asking it once.
+ *
+ * `privacy` hides who is who from the other members of a group with `hideMemberNames` —
+ * ids become per-group stand-ins and the reader's name "Member".
+ */
 export const serializeBab = (
 	bab: GroupBabModel,
 	nameByUserId?: Map<string, string>,
-	privacy?: { group: Group; viewerUserId: string }
-): GroupBab => ({
-	number: bab.number,
-	assignedUserId: privacy
-		? visibleUserId(privacy.group, privacy.viewerUserId, bab.assignedUserId)
-		: bab.assignedUserId,
-	readByUserId: privacy ? visibleUserId(privacy.group, privacy.viewerUserId, bab.readByUserId) : bab.readByUserId,
-	readByDisplayName: bab.readByUserId
-		? privacy && isAnonymousTo(privacy.group, privacy.viewerUserId, bab.readByUserId)
-			? 'Member'
-			: nameByUserId?.get(bab.readByUserId) ?? null
-		: null,
-	readAt: bab.readAt ? bab.readAt.toISOString() : null
-});
+	privacy?: { group: Group; viewerUserId: string },
+	plan?: UnitPlan
+): GroupBab => {
+	const assignedUserId = plan ? plan.holderOf(bab.number) : bab.assignedUserId;
+
+	return {
+		number: bab.number,
+		assignedUserId: privacy ? visibleUserId(privacy.group, privacy.viewerUserId, assignedUserId) : assignedUserId,
+		readByUserId: privacy ? visibleUserId(privacy.group, privacy.viewerUserId, bab.readByUserId) : bab.readByUserId,
+		readByDisplayName: bab.readByUserId
+			? privacy && isAnonymousTo(privacy.group, privacy.viewerUserId, bab.readByUserId)
+				? FALLBACK_DISPLAY_NAME
+				: nameByUserId?.get(bab.readByUserId) ?? null
+			: null,
+		readAt: bab.readAt ? bab.readAt.toISOString() : null
+	};
+};
 
 export const toGroupSummary = (
 	group: Group,
 	babs: GroupBabModel[],
 	members: GroupMemberModel[],
-	viewerUserId: string
+	viewerUserId: string,
+	/**
+	 * This round's cüz holdings — empty for a Cevşen group, which has none, and **required
+	 * rather than optional on purpose**: a hatim serialized without them reports nobody
+	 * holding anything and every cüz free, which is wrong in a way nothing would raise.
+	 * `holdingsFor` is the scoped read; the compiler is what makes every caller do it.
+	 */
+	holdings: PlanHolding[],
+	/**
+	 * Whether the viewer chose "Bu turu atla" for the round in progress. Only the viewer's own
+	 * list and detail know it; anywhere else they are not a member, and `mustPickCuz` is false.
+	 */
+	hasSkippedRound = false
 ): GroupSummary => {
 	const readCount = babs.filter(bab => bab.readAt !== null).length;
 	const memberCount = members.length;
 	const spotsLeft = Math.max(0, group.spots - memberCount);
 	const roundIndex = roundIndexFor(group);
+	const isHatim = group.kind === 'HATIM';
+	const plan = resolveUnitPlan({ group, holdings, members, roundIndex });
 
 	const viewerMember = members.find(member => member.userId === viewerUserId);
 	const mySlotIndex = viewerMember ? viewerMember.slotIndex : null;
 
-	// This round's share is derived from the seat, not from `assignedUserId` — under
-	// ROTATION the two diverge in every round after the first.
-	const myShare = mySlotIndex === null ? [] : babNumbersInRound(group, mySlotIndex, roundIndex);
+	/*
+	 * A Cevşen share is derived from the seat, not from `assignedUserId` — under ROTATION the
+	 * two diverge in every round after the first. A hatim's is the cüz this member actually
+	 * picked, which no arithmetic can produce. The plan answers both.
+	 */
+	const myShare = plan.unitsFor(viewerUserId);
 
 	// Volunteered babs are extra: they sit outside the rotation entirely, which is exactly
 	// why they are the one thing `assignedUserId` records. No need to intersect with the
 	// pool any more — a name on a bab *is* a claim, and claims never outlive their round.
-	const poolNumbers = new Set(poolBabNumbers(group, members, roundIndex ?? 0));
-	const myPoolBabNumbers = babs
-		.filter(bab => bab.assignedUserId === viewerUserId)
-		.map(bab => bab.number)
-		.sort((a, b) => a - b);
+	const poolNumbers = new Set(plan.poolUnits);
+	// A hatim has no volunteering: taking a cüz out of the pool *is* holding it, so it is
+	// already in `myShare` and there is no second, unconnected list to add.
+	const myPoolBabNumbers = isHatim
+		? []
+		: babs
+				.filter(bab => bab.assignedUserId === viewerUserId)
+				.map(bab => bab.number)
+				.sort((a, b) => a - b);
 
 	// Deduplicated: a rotation can land a member on a pool block they had already taken, and
 	// the two sources would otherwise list it twice.
@@ -415,6 +442,21 @@ export const toGroupSummary = (
 	// send the reader to a bab they had already finished.
 	const readNumbers = new Set(babs.filter(bab => bab.readAt !== null).map(bab => bab.number));
 	const myNextBabNumber = myBabNumbers.find(number => !readNumbers.has(number)) ?? null;
+	/*
+	 * When the share was finished: its latest read, once every unit of it is read — over the
+	 * same babs `myReadCount` counts, and from the same round's board. Nothing to report while
+	 * any of it is open, or for a member with no share.
+	 */
+	const myReadTimes = babs.filter(bab => myBabNumberSet.has(bab.number)).map(bab => bab.readAt?.getTime() ?? null);
+	const myShareDoneAt =
+		myBabNumbers.length > 0 &&
+		myReadTimes.length === myBabNumbers.length &&
+		myReadTimes.every(time => time !== null)
+			? new Date(Math.max(...(myReadTimes as number[]))).toISOString()
+			: null;
+	// Holding nothing in a running hatim, and not sitting the round out: Ana sayfa's "Cüz seç".
+	const mustPickCuz =
+		isHatim && group.status === 'RUNNING' && viewerMember !== undefined && myShare.length === 0 && !hasSkippedRound;
 
 	return {
 		id: group.id,
@@ -426,15 +468,24 @@ export const toGroupSummary = (
 		name: group.name,
 		dedication: group.dedication,
 		visibility: group.visibility,
+		kind: group.kind,
 		splitMode: toSplitMode(group.splitMode),
 		cycle: group.cycle,
-		kind: group.kind,
 		partCount: partCountFor(group.kind),
+		roundDays: group.roundDays,
 		timezone: group.timezone,
 		spots: group.spots,
 		memberCount,
 		spotsLeft,
-		isFull: group.splitMode !== 'FLEXIBLE' && spotsLeft === 0,
+		/*
+		 * **A hatim is full when every cüz is taken, not when every seat is.** Its `spots` is
+		 * pinned at thirty as the ceiling `slotIndex` needs and divides nothing — one member
+		 * may hold six cüz, so a group of five can leave the hundred-per-cent of it covered
+		 * with twenty-five seats still empty, and one of thirty people can leave cüz free.
+		 * Seats are the wrong question there; the pool is the right one. A flexible group has
+		 * no seats to fill at all.
+		 */
+		isFull: isHatim ? plan.poolUnits.length === 0 : group.splitMode !== 'FLEXIBLE' && spotsLeft === 0,
 		openToJoin: group.openToJoin,
 		readCount,
 		percent: progressPercent(readCount, babs.length),
@@ -449,18 +500,31 @@ export const toGroupSummary = (
 		roundIndex,
 		roundStartedAt: group.roundStartedAt ? group.roundStartedAt.toISOString() : null,
 		roundEndsAt: group.startedAt
-			? roundEndsAt(group.startedAt, group.cycle, group.roundIndex, group.timezone).toISOString()
+			? roundEndsAt(group.startedAt, roundLengthFor(group), group.roundIndex, group.timezone).toISOString()
 			: null,
 		mySlotIndex,
 		myBabNumbers,
 		myReadCount,
 		myNextBabNumber,
-		myRoundRange: mySlotIndex === null ? null : rangeInRound(group, mySlotIndex, roundIndex ?? 0),
-		myNextRoundRange: mySlotIndex === null ? null : rangeInRound(group, mySlotIndex, (roundIndex ?? 0) + 1),
-		poolBabNumbers: babs
-			.filter(bab => poolNumbers.has(bab.number) && bab.assignedUserId === null)
-			.map(bab => bab.number)
-			.sort((a, b) => a - b),
+		myShareDoneAt,
+		mustPickCuz,
+		/*
+		 * **Null for a hatim, and it has to be.** A range is the shape of a seat's block —
+		 * "1–13". Held cüz are `7 · 22`: not contiguous, so no start-and-end can describe
+		 * them without claiming the fourteen numbers in between. The client reads `kind` and
+		 * lists them instead.
+		 */
+		myRoundRange: isHatim || mySlotIndex === null ? null : rangeInRound(group, mySlotIndex, roundIndex ?? 0),
+		myNextRoundRange:
+			isHatim || mySlotIndex === null ? null : rangeInRound(group, mySlotIndex, (roundIndex ?? 0) + 1),
+		// For a hatim the plan's pool is already only what nobody holds — there is no
+		// separate claim column to subtract.
+		poolBabNumbers: isHatim
+			? plan.poolUnits
+			: babs
+					.filter(bab => poolNumbers.has(bab.number) && bab.assignedUserId === null)
+					.map(bab => bab.number)
+					.sort((a, b) => a - b),
 		/**
 		 * The whole pool, claimed parts included — what the Havuz card draws.
 		 *
@@ -470,10 +534,21 @@ export const toGroupSummary = (
 		 * future path that strands one — put babs on the card that the Havuz screen, which
 		 * asks the server, correctly left out. Two boards of one pool, disagreeing.
 		 */
-		poolAllBabNumbers: babs
-			.filter(bab => poolNumbers.has(bab.number))
-			.map(bab => bab.number)
-			.sort((a, b) => a - b),
+		/*
+		 * **The whole havuz, loans included** — the free cüz plus the ones borrowed out of it
+		 * this round. The Havuz row on the group screen counts this, and counting only the free
+		 * ones made the row disappear the moment the last one was borrowed, taking with it the
+		 * only way back to the screen that could undo it. The same reason the Cevşen count is
+		 * the whole pool rather than the unclaimed part.
+		 */
+		poolAllBabNumbers: isHatim
+			? [...plan.poolUnits, ...holdings.filter(holding => holding.isLoan).map(holding => holding.cuzNumber)].sort(
+					(a, b) => a - b
+			  )
+			: babs
+					.filter(bab => poolNumbers.has(bab.number))
+					.map(bab => bab.number)
+					.sort((a, b) => a - b),
 		myPoolBabNumbers
 	};
 };
@@ -486,13 +561,25 @@ export const toGroupMember = (
 	viewerUserId: string,
 	/** Live names and photos by user id — see `getMemberProfiles`. Absent where a caller has
 	 *  not looked them up, in which case the stored name stands on its own. */
-	profiles?: Map<string, MemberProfile>
+	profiles?: Map<string, MemberProfile>,
+	/** This round's cüz holdings; empty for a Cevşen group. */
+	holdings: PlanHolding[] = []
 ): GroupMember => {
-	// The member list shows what each person is reading *today*, so it goes through the same
-	// rotation the viewer's own share does. Filtering by `assignedUserId` would show every
-	// member their day-1 block forever.
+	/*
+	 * The member list shows what each person is reading *today*. A Cevşen or Hizb member's
+	 * share goes through the same rotation the viewer's own does — filtering by `assignedUserId`
+	 * would show every member their day-1 block forever. **A hatim member's is what they hold
+	 * this round**: the seat maths would hand them a slice of the hundred that names no cüz
+	 * anyone holds, and it would always read 0%. A flexible group has no blocks, so a member's
+	 * share there is whatever they took from the pool or read.
+	 */
 	const babNumbers =
-		group.splitMode === 'FLEXIBLE'
+		group.kind === 'HATIM'
+			? holdings
+					.filter(holding => holding.userId === member.userId)
+					.map(holding => holding.cuzNumber)
+					.sort((a, b) => a - b)
+			: group.splitMode === 'FLEXIBLE'
 			? babs
 					.filter(bab => bab.assignedUserId === member.userId || bab.readByUserId === member.userId)
 					.map(bab => bab.number)
@@ -533,10 +620,29 @@ export const toGroupDetail = (
 	viewerUserId: string,
 	poolReleases: PoolClaimReleaseModel[] = [],
 	/** Members' live names and photos, looked up by the caller — see `getMemberProfiles`. */
-	profiles?: Map<string, MemberProfile>
+	profiles?: Map<string, MemberProfile>,
+	/** This round's cüz holdings; empty for a Cevşen group. See `toGroupSummary`. */
+	holdings: PlanHolding[] = [],
+	/** Rounds the viewer skipped in this group — only the one in progress counts. */
+	skippedRoundIndexes: number[] = []
 ): GroupDetail => {
-	const summary = toGroupSummary(group, babs, members, viewerUserId);
+	const summary = toGroupSummary(
+		group,
+		babs,
+		members,
+		viewerUserId,
+		holdings,
+		skippedRoundIndexes.includes(group.roundIndex)
+	);
 	const roundIndex = roundIndexFor(group) ?? 0;
+	/*
+	 * **Only a hatim's board is resolved through the plan.** For a Cevşen group `holderOf`
+	 * answers with the *seat* holder, which is not what `assignedUserId` means on the wire —
+	 * it means a pool claim there, and substituting the seat would make every bab on the
+	 * board look volunteered-for and empty the pool. The two kinds ask their board the same
+	 * question and get it from different places; this is the one line where that is decided.
+	 */
+	const boardPlan = group.kind === 'HATIM' ? resolveUnitPlan({ group, holdings, members, roundIndex }) : undefined;
 
 	return {
 		...summary,
@@ -566,36 +672,61 @@ export const toGroupDetail = (
 		reminderEnabled: group.reminderEnabled,
 		reminderTime: group.reminderTime,
 		autoStartWhenFull: group.autoStartWhenFull,
+		hasSkippedRound: group.kind === 'HATIM' && skippedRoundIndexes.includes(group.roundIndex),
+		maxPerMember: group.maxPerMember,
+		boundaryPolicy: group.boundaryPolicy,
 		startsAt: group.startsAt.toISOString(),
 		babs: babs
 			.slice()
 			.sort((a, b) => a.number - b.number)
-			.map(bab => serializeBab(bab, undefined, { group, viewerUserId })),
+			.map(bab => serializeBab(bab, undefined, { group, viewerUserId }, boardPlan)),
 		members: members
 			.slice()
 			.sort((a, b) => a.slotIndex - b.slotIndex)
-			.map(member => toGroupMember(group, member, babs, cheers, viewerUserId, profiles))
+			.map(member => toGroupMember(group, member, babs, cheers, viewerUserId, profiles, holdings))
 	};
 };
-
-/** How many members the preview names before falling back to "+N". */
-const PREVIEW_MEMBER_NAMES = 2;
 
 export const toInvitePreview = (
 	group: Group,
 	babs: GroupBabModel[],
 	members: GroupMemberModel[],
-	viewerUserId: string
+	viewerUserId: string,
+	/** This round's holdings; empty for a Cevşen group. Required for the same reason as elsewhere. */
+	holdings: PlanHolding[] = []
 ): GroupInvitePreview => {
 	const readCount = babs.filter(bab => bab.readAt !== null).length;
 	const memberCount = members.length;
 	const spotsLeft = Math.max(0, group.spots - memberCount);
-	const isFull = group.splitMode !== 'FLEXIBLE' && spotsLeft === 0;
+	/*
+	 * **Full means something different to a hatim** — every cüz taken rather than every seat
+	 * filled, which is the same rule `toGroupSummary` follows. QJ2 is the screen for exactly
+	 * this state, and a seat count would never have reached it: five members hold thirty cüz
+	 * with twenty-five seats still open. A flexible group is never full.
+	 */
+	const isHatim = group.kind === 'HATIM';
+	/*
+	 * **A hatim's free cüz come from its holdings, not from its seats.**
+	 *
+	 * This asked `poolBabNumbers`, which is seat arithmetic: the blocks belonging to seats
+	 * nobody took. On a hatim every seat past the members is empty — its `spots` is thirty —
+	 * so the preview would have reported almost the whole mushaf free while most of it was
+	 * spoken for, and QJ1's map is the one screen whose entire job is showing what is left.
+	 */
+	const poolNumbersForPreview = new Set(
+		resolveUnitPlan({ group, holdings, members, roundIndex: roundIndexFor(group) }).poolUnits
+	);
+	const isFull = isHatim ? poolNumbersForPreview.size === 0 : group.splitMode !== 'FLEXIBLE' && spotsLeft === 0;
 	const nextFreeSlot = nextFreeSlotFromMembers(members, group.spots);
-	// The seat a joiner would take, and the block it reads on the day they land in it.
+	/*
+	 * The seat a joiner would take, and the block it reads on the day they land in it.
+	 * **Null for a hatim**, which hands out no block: a joiner picks cüz, and the numbers
+	 * they pick are not a range.
+	 */
 	const nextRange =
-		!isFull && nextFreeSlot !== null ? rangeInRound(group, nextFreeSlot, roundIndexFor(group) ?? 0) : null;
-	const poolNumbersForPreview = new Set(poolBabNumbers(group, members, roundIndexFor(group) ?? 0));
+		!isHatim && !isFull && nextFreeSlot !== null
+			? rangeInRound(group, nextFreeSlot, roundIndexFor(group) ?? 0)
+			: null;
 
 	return {
 		id: group.id,
@@ -606,10 +737,13 @@ export const toInvitePreview = (
 		name: group.name,
 		dedication: group.dedication,
 		visibility: group.visibility,
+		kind: group.kind,
 		splitMode: toSplitMode(group.splitMode),
 		cycle: group.cycle,
-		kind: group.kind,
 		partCount: partCountFor(group.kind),
+		roundDays: group.roundDays,
+		maxPerMember: group.maxPerMember,
+		boundaryPolicy: group.boundaryPolicy,
 		spots: group.spots,
 		memberCount,
 		spotsLeft,
@@ -619,6 +753,7 @@ export const toInvitePreview = (
 		percent: progressPercent(readCount, babs.length),
 		daysLeft: daysLeftFrom(group.endsAt),
 		isMember: members.some(member => member.userId === viewerUserId),
+		memberNames: [],
 		status: group.status,
 		autoStartWhenFull: group.autoStartWhenFull,
 		/**
@@ -637,8 +772,14 @@ export const toInvitePreview = (
 			.filter(bab => poolNumbersForPreview.has(bab.number))
 			.map(bab => bab.number)
 			.sort((a, b) => a - b),
+		readBabNumbers: isHatim
+			? babs
+					.filter(bab => bab.readAt !== null)
+					.map(bab => bab.number)
+					.sort((a, b) => a - b)
+			: [],
 		roundEndsAt: group.startedAt
-			? roundEndsAt(group.startedAt, group.cycle, group.roundIndex, group.timezone).toISOString()
+			? roundEndsAt(group.startedAt, roundLengthFor(group), group.roundIndex, group.timezone).toISOString()
 			: null,
 		startedAt: group.startedAt ? group.startedAt.toISOString() : null,
 		roundDayIndex: group.roundStartedAt
@@ -646,14 +787,10 @@ export const toInvitePreview = (
 			: null,
 		timezone: group.timezone,
 		hideMemberNames: group.hideMemberNames,
+		// A group that hides its members hides its creator from a non-member too.
 		createdByName: group.hideMemberNames
 			? ''
 			: members.find(member => member.userId === group.ownerUserId)?.displayName ?? '',
-		memberNames: (group.hideMemberNames ? [] : members)
-			.slice()
-			.sort((a, b) => a.slotIndex - b.slotIndex)
-			.slice(0, PREVIEW_MEMBER_NAMES)
-			.map(member => member.displayName),
 		nextRange
 	};
 };

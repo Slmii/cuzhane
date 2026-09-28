@@ -1,5 +1,7 @@
 import { useGroupBrowse } from '@/components/GroupBrowseBar/GroupBrowse.context';
 import { GroupCard } from '@/components/GroupCard/GroupCard.component';
+import { HizbDiscoverCard } from '@/components/HizbDiscoverCard/HizbDiscoverCard.component';
+import { GroupResetTime } from '@/components/ResetTimeLabel/GroupResetTime.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { PullToRefresh } from '@/components/ui/PullToRefresh/PullToRefresh.component';
 import { ScreenTitle } from '@/components/ScreenTitle/ScreenTitle.component';
@@ -39,6 +41,7 @@ const CARD_LAYOUT = LinearTransition.springify().damping(20).stiffness(180).mass
  * `neutral` the old switch's fallthrough already handed anything that was neither.
  */
 const BADGE_TONE_FOR_CYCLE: Record<GroupCycle, ChipTone> = {
+	CUSTOM: 'neutral',
 	DAILY: 'sand',
 	MONTHLY: 'neutral',
 	WEEKLY: 'accent'
@@ -101,33 +104,36 @@ export const DiscoverScreen = () => {
 			 * it animates a row that *moves*, which is still exactly the filter/sort case.
 			 */
 			<Animated.View layout={cardLayout}>
-				<GroupCard
-					badgeLabel={t(cycleLabelKey(item.cycle))}
-					badgeTone={BADGE_TONE_FOR_CYCLE[item.cycle]}
-					// Cycle, then whether it has started. The design also has a "Kurucu" chip
-					// here, but a group you created is one you're in, and those no longer reach
-					// this list.
-					extraBadges={[{ label: t(item.status === 'RUNNING' ? 'running' : 'notStarted') }]}
-					footerCaption={
-						item.splitMode === 'FLEXIBLE'
-							? t('flexibleMembers', { count: item.memberCount })
-							: item.isFull
-							? `${t('full')} · ${item.spots}/${item.spots}`
-							: `${item.spotsLeft} ${t('spotsLeft')} · ${item.memberCount}/${item.spots}`
-					}
-					footerLeading={<SeatStack />}
-					name={item.name}
-					kind={item.kind}
-					// Always the read-only preview: joining happens there, not from the row.
-					onPress={() => navigation.navigate('InvitePreview', { groupId: item.id })}
-					subtitle={
-						item.hizbPlan != null
-							? item.hizbPlan
-								? t('hpDays', { days: item.hizbPlan })
-								: t('hpMixed')
-							: `${t(cycleLabelKey(item.cycle))} · ${t(splitModeLabelKey(item.splitMode))}`
-					}
-				/>
+				{/* A Hizb plan group has its own card (section 5): no seats, today's 33 instead. */}
+				{item.kind === 'HIZB' && item.hizbPlan != null ? (
+					<HizbDiscoverCard
+						group={item}
+						onPress={() => navigation.navigate('InvitePreview', { groupId: item.id })}
+					/>
+				) : (
+					<GroupCard
+						kind={item.kind}
+						badgeLabel={t(cycleLabelKey(item.cycle))}
+						badgeTone={BADGE_TONE_FOR_CYCLE[item.cycle]}
+						// Cycle, then whether it has started. The design also has a "Kurucu" chip
+						// here, but a group you created is one you're in, and those no longer reach
+						// this list.
+						extraBadges={[{ label: t(item.status === 'RUNNING' ? 'running' : 'notStarted') }]}
+						footerCaption={
+							item.splitMode === 'FLEXIBLE'
+								? t('flexibleMembers', { count: item.memberCount })
+								: item.isFull
+								? `${t('full')} · ${item.spots}/${item.spots}`
+								: `${item.spotsLeft} ${t('spotsLeft')} · ${item.memberCount}/${item.spots}`
+						}
+						footerLeading={<SeatStack />}
+						footerTrailing={<GroupResetTime group={item} />}
+						name={item.name}
+						// Always the read-only preview: joining happens there, not from the row.
+						onPress={() => navigation.navigate('InvitePreview', { groupId: item.id })}
+						subtitle={`${t(cycleLabelKey(item.cycle))} · ${t(splitModeLabelKey(item.splitMode))}`}
+					/>
+				)}
 			</Animated.View>
 		),
 		[cardLayout, navigation, t]

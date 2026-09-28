@@ -124,6 +124,18 @@ const GLYPHS: Record<IconName, Glyph> = {
 			'M20 5.4h-6.2A1.8 1.8 0 0 0 12 7.2v11.4a1.6 1.6 0 0 1 1.6-1.6H20z'
 		]
 	},
+	// `uygulamada-oku-read-in-app` — two leaves on a rahle, as the design's Q4 draws it.
+	readInApp: {
+		paths: [
+			'M4 5.5h6.5v13H4z',
+			'M13.5 5.5H20v13h-6.5z',
+			'M10.5 18.5c-1.6-1-4.9-1-6.5 0M13.5 18.5c1.6-1 4.9-1 6.5 0'
+		]
+	},
+	// `devret-hand-over` — a card with a plus, for passing a cüz on. Drawn, unused since Devret was removed.
+	handOver: {
+		paths: ['M9 18l-4 2V5a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v15l-4-2', 'M12 8v6', 'M9 11h6']
+	},
 
 	// An arrow curving back on itself — "Geri al" on a pool slot you just took. Traced from
 	// the handoff's own two paths rather than mirroring `back`, which is a bare chevron and
@@ -150,6 +162,14 @@ const GLYPHS: Record<IconName, Glyph> = {
 
 	// A range that exists but has nothing to open yet — 03e's "Başlangıçta açılır" pill.
 	lock: { paths: ['M8.6 11V8.6a3.4 3.4 0 0 1 6.8 0V11'], rects: [[5.5, 11, 13, 8.5, 2.2]] },
+	// "İsimler gizli" — an eye struck through (Hizb Kişisel Plan, Keşfet card 07).
+	eyeOff: {
+		paths: [
+			'M3 3l18 18',
+			'M10.6 6.2A9.8 9.8 0 0 1 12 6c5 0 8.5 4.2 9.5 6-.4.8-1.3 2-2.5 3.2M6.6 7.6C4.6 8.9 3.2 10.8 2.5 12c1 1.8 4.5 6 9.5 6 1.6 0 3-.4 4.3-1',
+			'M9.9 10a3 3 0 0 0 4.1 4.1'
+		]
+	},
 
 	/*
 	 * The rest of the Icon Set page, added wholesale rather than one at a time. An icon set is
@@ -193,6 +213,17 @@ const GLYPHS: Record<IconName, Glyph> = {
 		]
 	},
 	refresh: { paths: ['M19.4 12a7.4 7.4 0 1 1-2.2-5.2', 'M19.6 4.6v4.2h-4.2'] },
+	// R1's "Kitaptan okudum": a printed book, two pages side by side. Traced from the Hizb plan
+	// design file.
+	bookPages: {
+		paths: [
+			'M4 5.5A1.5 1.5 0 0 1 5.5 4H11v16H5.5A1.5 1.5 0 0 1 4 18.5z',
+			'M20 5.5A1.5 1.5 0 0 0 18.5 4H13v16h5.5a1.5 1.5 0 0 0 1.5-1.5z'
+		]
+	},
+	// T1d's "Sıfırla": a count wound back — the arrow turns the other way from `refresh`.
+	// Traced from the Hizb plan design file.
+	reset: { paths: ['M4 12a8 8 0 1 0 2.4-5.7', 'M4 4v4h4'] },
 	// Two A's at different sizes — the reader's size control, where the header sets "Aa" as
 	// type because the design does, and a sheet row would use this.
 	textSize: {
@@ -394,6 +425,8 @@ const GLYPHS: Record<IconName, Glyph> = {
 	plus: { paths: ['M12 5.5v13', 'M5.5 12h13'] },
 	minus: { paths: ['M5.5 12h13'] },
 	search: { circles: [[11, 11, 6.2]], paths: ['M15.6 15.6L20 20'] },
+	// `git-go-to` — three lines of text and a small lens: Q5's "Git", a place in the mushaf.
+	goTo: { circles: [[17, 13, 3.2]], paths: ['M4 6h10', 'M4 12h7', 'M4 18h10', 'M19.4 15.4L21 17'] },
 	// The magnifier with a cross in its lens — "Grup bulunamadı". Not `search` plus a
 	// separate ×: the cross belongs inside the glass, which is what makes it read as
 	// "looked and found nothing" rather than "dismiss this search".

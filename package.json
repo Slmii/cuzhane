@@ -17,6 +17,7 @@
 		"db:down": "pnpm --filter @cuzhane/server db:down",
 		"db:migrate": "pnpm --filter @cuzhane/server db:migrate",
 		"db:seed": "pnpm --filter @cuzhane/server db:seed",
+		"db:fresh": "pnpm --filter @cuzhane/server db:fresh",
 		"test": "pnpm -r --if-present test",
 		"lint": "pnpm -r --if-present lint",
 		"format": "prettier --write .",

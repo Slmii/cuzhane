@@ -110,6 +110,26 @@ describe('notificationText', () => {
 		});
 	});
 
+	it('speaks in cüz for a hatim, and counts people rather than seats (Q8)', () => {
+		expect(notificationText(row('SHARE_READ', { range: '29', readerName: 'Ayşe' }, 'HATIM'), t)).toEqual({
+			body: 'notifCuzReadBody',
+			title: 'notifCuzTitle(name=Ayşe,range=29)'
+		});
+		expect(notificationText(row('ROUND_COMPLETE', { roundNumber: 3 }, 'HATIM'), t)).toEqual({
+			body: 'notifHatimDoneBody(count=30,round=3)',
+			title: 'notifHatimDoneTitle'
+		});
+		expect(notificationText(row('MEMBER_JOINED', { memberCount: 4, memberName: 'Ali' }, 'HATIM'), t).body).toBe(
+			'notifMembersBody(count=4)'
+		);
+	});
+
+	it('reads a row whose group is gone as Cevşen', () => {
+		expect(notificationText(row('ROUND_COMPLETE', { roundNumber: 4 }, null), t).body).toBe(
+			'notifRoundCompleteBody'
+		);
+	});
+
 	it('names portions in a Hizb group, singular for a range of one', () => {
 		expect(notificationText(row('SHARE_READ', { range: '15–16', readerName: 'Ali' }, 'HIZB'), t).body).toBe(
 			'notifShareReadBodyHizb(range=15–16)'

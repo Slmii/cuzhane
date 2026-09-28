@@ -78,7 +78,8 @@ it('serves personal plans only to capable clients and rejects legacy read paths'
 	const invalidTarget = await fetch(base + `/groups/${group.id}/reading/assignments/${data.today.id}`, {
 		headers,
 		method: 'PATCH',
-		body: '{"version":1,"istighfarTarget":12}'
+		// Any count from 1 to 100 ("Sayıyı gir"); 101 is past it.
+		body: '{"version":1,"istighfarTarget":101}'
 	});
 	expect(invalidTarget.status).toBe(400);
 	expect(

@@ -1,33 +1,48 @@
+import { GridSkeleton } from '@/components/GridSkeleton/GridSkeleton.component';
 import { HizbBoardSkeleton } from '@/components/HizbBoard/HizbBoardSkeleton.component';
 import { MyProgressCardSkeleton } from '@/components/MyProgressCard/MyProgressCardSkeleton.component';
 import { SCREEN_TITLE_PADDING_UNDER_BAR } from '@/components/ScreenTitle/ScreenTitle.component';
-import { Bone } from '@/components/Skeleton/Skeleton.component';
+import { Bone, SkeletonPulse } from '@/components/Skeleton/Skeleton.component';
 import { SkeletonStatusRow } from '@/components/Skeleton/SkeletonStatusRow.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { toAlphaColor } from '@/lib/theme/tokens';
 import type { GroupKind } from '@/lib/types/domain';
+import { unitCountFor } from '@/lib/utils/units';
 import { StyleSheet, View } from 'react-native';
 
-/** `skCells` — a partial lattice, not the hundred: the pool card shows what is left. */
-const POOL_CELL_COUNT = 15;
-const POOL_COLUMNS = 10;
+/** `BabLegend`'s five keys for a Cevşen board — the same count the screen's own stand-in uses. */
+const BAB_LEGEND_COUNT = 5;
 /** HZ1's open panel shows a share of two; the bones do the same. */
 const HIZB_ROW_COUNT = 2;
 
 type Props = {
-	/** Which book's screen this stands in for — seeded from the shelf, the Cevşen's without one. */
-	kind?: GroupKind;
+	/**
+	 * Which book's screen this stands in for — seeded from the shelf, the Cevşen's without one.
+	 * A hatim has its own stand-in (`HatimGroupSkeleton`); this one draws the Cevşen and the Hizb.
+	 */
+	kind?: Exclude<GroupKind, 'HATIM'>;
 };
 
 /**
  * D15 · Grup yükleniyor — üye görünümü.
  *
+ * What the group screen draws for a Cevşen group, in its order: the heading with its cadence
+ * and kind chips, the countdown card, "Senin ilerlemen", the sage "Sana atanan" strip, one row
+ * where "Geçen tur" and "Havuz" sit, then the hundred. The pool used to be a lattice card here;
+ * the screen has since made it a row and moved the board to the Havuz screen, and the hundred —
+ * which the skeleton left out — is `GridSkeleton` itself, the very stand-in the screen shows
+ * while the board loads, so nothing changes shape between the two moments.
+ *
  * The assigned panel keeps its sage fill and tints its own bones out of the accent, exactly
  * as the frame does. That band is the one piece of colour on the screen, and a grey
  * placeholder there would have the page appear to change colour when the data lands rather
  * than simply fill in.
+ *
+ * A Hizb group (HZ1) differs in three places: its heading carries the book's mark at the right,
+ * its share panel opens by default (a sage header over a share of rows), and its board is the
+ * 33 portions' own frame (`HizbBoardSkeleton`) rather than the hundred.
  */
 export const GroupDetailSkeleton = ({ kind = 'CEVSEN' }: Props) => {
 	const { t } = useTranslation();
@@ -36,171 +51,167 @@ export const GroupDetailSkeleton = ({ kind = 'CEVSEN' }: Props) => {
 	const isHizb = kind === 'HIZB';
 
 	return (
-		<View>
-			{/*
-			 * Title, its cadence chip, and the caption — which is all `ScreenHeader` draws here.
-			 * There used to be an eyebrow bone above (the real header reserves no eyebrow row:
-			 * `ScreenHeader` passes `hasReservedSecondaryLabel={false}`) and a 44pt square beside
-			 * the title standing in for the corner action, which is a toolbar item in the
-			 * navigator's bar now. Both made the bones a taller, wider block than the screen that
-			 * replaced them, so the page shifted as it arrived.
-			 */}
-			<View style={styles.header}>
-				{isHizb ? (
-					// HZ1's heading carries the book's mark at its right, beside the name and the
-					// round line together, where the Cevşen's has nothing.
-					<View style={styles.headerRow}>
-						<View>
-							<View style={styles.headerTitleRow}>
-								<Bone height={20} radius={9} width={150} />
-								<Bone height={20} radius={6} tone='soft' width={62} />
+		<View style={styles.root}>
+			<SkeletonPulse style={styles.stack}>
+				{/*
+				 * Title, its cadence and kind chips, and the caption — which is all `ScreenHeader`
+				 * draws here. No eyebrow row (`hasReservedSecondaryLabel={false}`) and no square for
+				 * the corner action, which is a toolbar item in the navigator's bar: either made the
+				 * bones a taller, wider block than the screen that replaced them.
+				 */}
+				<View style={styles.header}>
+					{isHizb ? (
+						// HZ1's heading carries the book's mark at its right, beside the name and the
+						// round line together, where the Cevşen's has nothing.
+						<View style={styles.hizbHeaderRow}>
+							<View>
+								<View style={styles.headerRow}>
+									<Bone height={22} radius={9} width={150} />
+									<Bone height={20} radius={6} tone='soft' width={52} />
+								</View>
+								<Bone height={9} radius={4.5} style={styles.headerCaption} tone='soft' width={112} />
 							</View>
-							<Bone height={9} radius={4.5} style={styles.headerCaption} tone='soft' width={112} />
+							<Bone height={44} radius={22} width={44} />
 						</View>
-						<Bone height={44} radius={22} width={44} />
-					</View>
-				) : (
-					<>
-						<View style={styles.headerRow}>
-							<Bone height={20} radius={9} width={168} />
-							<Bone height={20} radius={6} tone='soft' width={62} />
-						</View>
-						<Bone height={9} radius={4.5} style={styles.headerCaption} tone='soft' width={132} />
-					</>
-				)}
-			</View>
-
-			<CardSurface isFlush style={styles.statsCard}>
-				<View style={styles.statsRow}>
-					<View style={[styles.statCell, { borderRightColor: divider, borderRightWidth: 1 }]}>
-						<Bone height={17} radius={7} width={46} />
-						<Bone height={7} radius={3.5} tone='soft' width={56} />
-					</View>
-					<View style={styles.statCell}>
-						<Bone height={17} radius={7} width={38} />
-						<Bone height={7} radius={3.5} tone='soft' width={44} />
-					</View>
+					) : (
+						<>
+							<View style={styles.headerRow}>
+								<Bone height={22} radius={9} width={150} />
+								<Bone height={20} radius={6} tone='soft' width={52} />
+								<Bone height={20} radius={6} tone='soft' width={58} />
+							</View>
+							<Bone height={9} radius={4.5} style={styles.headerCaption} tone='soft' width={132} />
+						</>
+					)}
 				</View>
-				<View style={[styles.resetRow, { borderTopColor: divider }]}>
-					<Bone height={15} radius={7.5} width={15} />
-					<Bone height={9} radius={4.5} tone='soft' width={96} />
-					<Bone height={8} radius={4} style={styles.resetTrailing} tone='soft' width={78} />
-				</View>
-			</CardSurface>
 
-			<MyProgressCardSkeleton />
-
-			{/* Matches the real panel's closed state, which keeps its sage fill rather than glass. */}
-			{isHizb ? (
-				// The Hizb's panel opens by default, so its bones are the open card: the sage header
-				// over a share of rows, each a checkbox, a title and its description, and "Oku".
-				<CardSurface isFlush style={styles.hizbPanel}>
-					<View
-						style={[
-							styles.hizbPanelHeader,
-							{ backgroundColor: theme.colors.accentSoft, borderBottomColor: divider }
-						]}
-					>
+				{/* Members and the countdown, then the reset line under a hairline. */}
+				<CardSurface isFlush>
+					<View style={styles.statsRow}>
 						<View
-							style={[styles.assignedBadge, { backgroundColor: toAlphaColor(theme.colors.accent, 0.22) }]}
-						/>
-						<View style={styles.assignedCopy}>
+							style={[
+								styles.statCell,
+								{ borderRightColor: divider, borderRightWidth: StyleSheet.hairlineWidth }
+							]}
+						>
+							<Bone height={20} radius={7} width={52} />
+							<Bone height={8} radius={4} tone='soft' width={56} />
+						</View>
+						<View style={styles.statCell}>
+							<Bone height={20} radius={7} width={44} />
+							<Bone height={8} radius={4} tone='soft' width={44} />
+						</View>
+					</View>
+					<View style={[styles.resetRow, { borderTopColor: divider }]}>
+						<Bone height={15} radius={7.5} width={15} />
+						<Bone height={9} radius={4.5} tone='soft' width={96} />
+						<Bone height={8} radius={4} style={styles.resetTrailing} tone='soft' width={78} />
+					</View>
+				</CardSurface>
+
+				<MyProgressCardSkeleton />
+
+				{/*
+				 * "Sana atanan", closed: the slice badge with its count chip beside it, one line of
+				 * label — the sentence that once sat under it is gone on the screen too — and the done
+				 * count with its chevron.
+				 */}
+				{isHizb ? (
+					// The Hizb's panel opens by default, so its bones are the open card: the sage header
+					// over a share of rows, each a checkbox, a title and its description, and "Oku".
+					<CardSurface isFlush>
+						<View
+							style={[
+								styles.hizbPanelHeader,
+								{ backgroundColor: theme.colors.accentSoft, borderBottomColor: divider }
+							]}
+						>
 							<View
 								style={[
-									styles.assignedLineTop,
+									styles.assignedBadge,
+									{ backgroundColor: toAlphaColor(theme.colors.accent, 0.22) }
+								]}
+							/>
+							<View style={styles.assignedCopy}>
+								<View
+									style={[
+										styles.assignedLabel,
+										{ backgroundColor: toAlphaColor(theme.colors.accent, 0.18) }
+									]}
+								/>
+							</View>
+							<View
+								style={[
+									styles.assignedMeta,
 									{ backgroundColor: toAlphaColor(theme.colors.accent, 0.18) }
+								]}
+							/>
+						</View>
+						{Array.from({ length: HIZB_ROW_COUNT }, (_, index) => (
+							<View key={index} style={[styles.hizbRow, { borderBottomColor: divider }]}>
+								<Bone height={26} radius={9} width={26} />
+								<View style={styles.hizbRowCopy}>
+									<Bone height={9} radius={4.5} width='60%' />
+									<Bone height={8} radius={4} tone='soft' width='92%' />
+									<Bone height={8} radius={4} tone='soft' width='56%' />
+								</View>
+								<Bone height={30} radius={8} tone='soft' width={46} />
+							</View>
+						))}
+					</CardSurface>
+				) : (
+					<CardSurface
+						hasGlassSurface={false}
+						isFlush
+						style={[
+							styles.assignedPanel,
+							{ backgroundColor: theme.colors.accentSoft, borderColor: theme.colors.transparent }
+						]}
+					>
+						<View style={styles.assignedLeading}>
+							<View
+								style={[
+									styles.assignedBadge,
+									{ backgroundColor: toAlphaColor(theme.colors.accent, 0.22) }
 								]}
 							/>
 							<View
 								style={[
-									styles.assignedLineBottom,
-									{ backgroundColor: toAlphaColor(theme.colors.accent, 0.13) }
+									styles.assignedChip,
+									{ backgroundColor: toAlphaColor(theme.colors.accent, 0.14) }
+								]}
+							/>
+						</View>
+						<View style={styles.assignedCopy}>
+							<View
+								style={[
+									styles.assignedLabel,
+									{ backgroundColor: toAlphaColor(theme.colors.accent, 0.18) }
 								]}
 							/>
 						</View>
 						<View
 							style={[styles.assignedMeta, { backgroundColor: toAlphaColor(theme.colors.accent, 0.18) }]}
 						/>
-					</View>
-					{Array.from({ length: HIZB_ROW_COUNT }, (_, index) => (
-						<View key={index} style={[styles.hizbRow, { borderBottomColor: divider }]}>
-							<Bone height={26} radius={9} width={26} />
-							<View style={styles.hizbRowCopy}>
-								<Bone height={9} radius={4.5} width='60%' />
-								<Bone height={8} radius={4} tone='soft' width='92%' />
-								<Bone height={8} radius={4} tone='soft' width='56%' />
-							</View>
-							<Bone height={30} radius={8} tone='soft' width={46} />
-						</View>
-					))}
-				</CardSurface>
-			) : (
-				<CardSurface
-					hasGlassSurface={false}
-					isFlush
-					style={[styles.assignedPanel, { backgroundColor: theme.colors.accentSoft }]}
-				>
-					<View style={styles.assignedLeading}>
-						<View
-							style={[styles.assignedBadge, { backgroundColor: toAlphaColor(theme.colors.accent, 0.22) }]}
-						/>
-						<View
-							style={[styles.assignedChip, { backgroundColor: toAlphaColor(theme.colors.accent, 0.14) }]}
-						/>
-					</View>
-					<View style={styles.assignedCopy}>
-						<View
-							style={[
-								styles.assignedLineTop,
-								{ backgroundColor: toAlphaColor(theme.colors.accent, 0.18) }
-							]}
-						/>
-						<View
-							style={[
-								styles.assignedLineBottom,
-								{ backgroundColor: toAlphaColor(theme.colors.accent, 0.13) }
-							]}
-						/>
-					</View>
-					<View style={[styles.assignedMeta, { backgroundColor: toAlphaColor(theme.colors.accent, 0.18) }]} />
-				</CardSurface>
-			)}
+					</CardSurface>
+				)}
 
-			<CardSurface style={styles.lastRoundCard}>
-				<Bone height={40} radius={13} width={40} />
-				<View style={styles.lastRoundCopy}>
-					<Bone height={9} radius={4.5} width='58%' />
-					<Bone height={8} radius={4} tone='soft' width='74%' />
-				</View>
-				<Bone height={14} radius={3} tone='soft' width={8} />
-			</CardSurface>
+				{/* The row shape "Geçen tur" and "Havuz" share: a tile, two lines, a chevron. */}
+				<CardSurface style={styles.rowCard}>
+					<Bone height={40} radius={13} width={40} />
+					<View style={styles.rowCopy}>
+						<Bone height={9} radius={4.5} width='58%' />
+						<Bone height={8} radius={4} tone='soft' width='74%' />
+					</View>
+					<Bone height={14} radius={3} tone='soft' width={8} />
+				</CardSurface>
+			</SkeletonPulse>
 
 			{isHizb ? (
-				// The board, in its own frame — the Cevşen's stand-in is the pool card's lattice.
-				<HizbBoardSkeleton style={styles.poolCard} />
+				// The board, in its own frame — the Cevşen's stand-in is the hundred's lattice.
+				<HizbBoardSkeleton />
 			) : (
-				<CardSurface isFlush style={styles.poolCard}>
-					<View style={[styles.poolHeader, { borderBottomColor: divider }]}>
-						<Bone height={14} radius={6} width={62} />
-						<Bone height={8} radius={4} tone='soft' width={70} />
-					</View>
-					<View style={styles.poolBody}>
-						<View style={styles.poolGrid}>
-							{Array.from({ length: POOL_CELL_COUNT }, (_, index) => (
-								<View key={index} style={styles.poolSlot}>
-									<Bone height={undefined} radius={4} style={styles.poolCell} />
-								</View>
-							))}
-							{/* Keeps the short last row's cells the width of a full one. */}
-							{Array.from(
-								{ length: (POOL_COLUMNS - (POOL_CELL_COUNT % POOL_COLUMNS)) % POOL_COLUMNS },
-								(_, index) => (
-									<View key={`spacer-${index}`} style={styles.poolSlot} />
-								)
-							)}
-						</View>
-					</View>
-				</CardSurface>
+				<GridSkeleton cellCount={unitCountFor('CEVSEN')} legendCount={BAB_LEGEND_COUNT} />
 			)}
 
 			<SkeletonStatusRow label={t('loadingGroup')} />
@@ -209,10 +220,11 @@ export const GroupDetailSkeleton = ({ kind = 'CEVSEN' }: Props) => {
 };
 
 const styles = StyleSheet.create({
+	// A slice such as "1–13" — wider than the real badge's 38pt minimum, which only "1–5" fits.
 	assignedBadge: {
 		borderRadius: 12,
 		height: 38,
-		width: 38
+		width: 48
 	},
 	assignedChip: {
 		borderRadius: 6,
@@ -221,69 +233,56 @@ const styles = StyleSheet.create({
 	},
 	assignedCopy: {
 		flex: 1,
-		gap: 7,
 		minWidth: 0
+	},
+	assignedLabel: {
+		borderRadius: 3.5,
+		height: 7,
+		width: '52%'
 	},
 	assignedLeading: {
 		alignItems: 'center',
 		flexDirection: 'row',
 		gap: 5
 	},
-	assignedLineBottom: {
-		borderRadius: 4.5,
-		height: 9,
-		width: '78%'
-	},
-	assignedLineTop: {
-		borderRadius: 3.5,
-		height: 7,
-		width: '52%'
-	},
 	assignedMeta: {
 		borderRadius: 4.5,
 		height: 9,
-		width: 32
+		width: 56
 	},
 	assignedPanel: {
 		alignItems: 'center',
-		borderColor: 'transparent',
 		flexDirection: 'row',
 		gap: 13,
-		marginTop: 12,
-		marginBottom: 12,
 		paddingHorizontal: 16,
 		paddingVertical: 14
 	},
 	/*
 	 * Clear of the navigator's back button, exactly as `ScreenHeader` is on the screen this
-	 * stands in for. Without it the skeleton's own title bone sat under the floating control
-	 * — and a stand-in that starts in a different place than the real thing defeats the point
-	 * of having one.
+	 * stands in for, and its 18 of air underneath — with the column's 12 below that, the
+	 * countdown card starts where the real one will.
 	 */
 	header: {
-		paddingBottom: 16,
+		paddingBottom: 18,
 		paddingTop: SCREEN_TITLE_PADDING_UNDER_BAR
 	},
 	headerCaption: {
 		marginTop: 9
 	},
 	headerRow: {
+		alignItems: 'center',
+		flexDirection: 'row',
+		gap: 9
+	},
+	hizbHeaderRow: {
 		alignItems: 'flex-start',
 		flexDirection: 'row',
 		gap: 12,
 		justifyContent: 'space-between'
 	},
-	headerTitleRow: {
-		flexDirection: 'row',
-		gap: 9
-	},
-	hizbPanel: {
-		marginBottom: 12,
-		marginTop: 12
-	},
 	hizbPanelHeader: {
 		alignItems: 'center',
-		borderBottomWidth: 1,
+		borderBottomWidth: StyleSheet.hairlineWidth,
 		flexDirection: 'row',
 		gap: 13,
 		paddingHorizontal: 16,
@@ -291,7 +290,7 @@ const styles = StyleSheet.create({
 	},
 	hizbRow: {
 		alignItems: 'center',
-		borderBottomWidth: 1,
+		borderBottomWidth: StyleSheet.hairlineWidth,
 		flexDirection: 'row',
 		gap: 13,
 		paddingHorizontal: 16,
@@ -302,53 +301,9 @@ const styles = StyleSheet.create({
 		gap: 6,
 		minWidth: 0
 	},
-	lastRoundCard: {
-		alignItems: 'center',
-		flexDirection: 'row',
-		gap: 13,
-		marginBottom: 12,
-		paddingHorizontal: 16,
-		paddingVertical: 15
-	},
-	lastRoundCopy: {
-		flex: 1,
-		gap: 7,
-		minWidth: 0
-	},
-	poolBody: {
-		paddingHorizontal: 16,
-		paddingVertical: 14
-	},
-	poolCard: {
-		marginBottom: 12
-	},
-	poolCell: {
-		aspectRatio: 1,
-		width: '100%'
-	},
-	poolGrid: {
-		flexDirection: 'row',
-		flexWrap: 'wrap'
-	},
-	poolHeader: {
-		alignItems: 'center',
-		borderBottomWidth: 1,
-		flexDirection: 'row',
-		justifyContent: 'space-between',
-		paddingBottom: 13,
-		paddingHorizontal: 16,
-		paddingTop: 15
-	},
-	// Percentage slots with the gap as padding inside them — ten cells at `10%` plus a row
-	// `gap` overflow and wrap a column early, which is the bug `GridSkeleton` documents.
-	poolSlot: {
-		flexDirection: 'row',
-		padding: 1.5,
-		width: `${100 / POOL_COLUMNS}%`
-	},
 	resetRow: {
 		alignItems: 'center',
-		borderTopWidth: 1,
+		borderTopWidth: StyleSheet.hairlineWidth,
 		flexDirection: 'row',
 		gap: 10,
 		paddingHorizontal: 15,
@@ -357,14 +312,31 @@ const styles = StyleSheet.create({
 	resetTrailing: {
 		marginLeft: 'auto'
 	},
+	/** `ScreenContainer` spaces a column by 12; one child here, so the skeleton restores it. */
+	root: {
+		gap: 12
+	},
+	rowCard: {
+		alignItems: 'center',
+		flexDirection: 'row',
+		gap: 13,
+		paddingHorizontal: 16,
+		paddingVertical: 15
+	},
+	rowCopy: {
+		flex: 1,
+		gap: 7,
+		minWidth: 0
+	},
+	stack: {
+		gap: 12
+	},
+	// Taller than the bones inside it: the real cell holds a 28pt numeral over a 14pt label.
 	statCell: {
 		flex: 1,
-		gap: 8,
+		gap: 12,
 		paddingHorizontal: 15,
-		paddingVertical: 14
-	},
-	statsCard: {
-		marginBottom: 12
+		paddingVertical: 16
 	},
 	statsRow: {
 		flexDirection: 'row'

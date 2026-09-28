@@ -3,6 +3,7 @@ import { CaptionText, EyebrowText, Typography } from '@/components/ui/Typography
 import type { CevsenInvocation } from '@/lib/content/cevsen';
 import { READER_FONT_SIZE_DEFAULT } from '@/lib/content/cevsen';
 import { useGetUserSettings, useUpdateUserSettings } from '@/lib/hooks/useUserSettings';
+import { textFontFor } from '@/lib/types/domain';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { BAB_COUNT } from '@/lib/utils/babs';
@@ -166,7 +167,8 @@ export const AllBabsScreen = ({ navigation, route }: Props) => {
 	 * arrives late. A skeleton would be hiding a finished page to wait for a preference.
 	 */
 	const readerSettings = {
-		readerArabicFont: settingsQuery.data?.readerArabicFont ?? 'uthman',
+		// Hüsrev is the Kuran's page images; the Cevşen sets text, so it falls back to a font.
+		readerArabicFont: textFontFor(settingsQuery.data?.readerArabicFont ?? 'uthman'),
 		readerFontSize: settingsQuery.data?.readerFontSize ?? READER_FONT_SIZE_DEFAULT,
 		readerNumerals: settingsQuery.data?.readerNumerals ?? 'arabic'
 	} as const;

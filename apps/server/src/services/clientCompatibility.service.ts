@@ -6,11 +6,11 @@ import type { GroupKindName } from '@utils/groupKinds';
 import { normalizeInviteCode } from '@utils/inviteCode';
 
 /*
- * The compatibility guard. A build that predates `Group.kind` reads every group as a Cevşen
- * one: it would show a Hizb group as a hundred babs, join it, and mark "bab 7" read — which
- * marks Hizb portion 7 and corrupts the round. Such a build declares no kinds (see
- * `clientCapabilities.middleware.ts`), so the routes that let someone find or enter a group
- * hide or refuse any group whose kind the caller didn't list.
+ * The compatibility guard. A build that predates the Hizb cannot draw one: it would show a Hizb
+ * group as a Cevşen board, join it, and mark "bab 7" read — which marks Hizb portion 7 and
+ * corrupts the round. Such a build declares no kinds (see `clientCapabilities.middleware.ts`),
+ * which is read as the Cevşen and the hatim it did ship with, so the routes that let someone
+ * find or enter a group hide or refuse any group whose kind the caller cannot draw.
  */
 
 type ClientResponse = { locals: ClientCapabilityLocals };

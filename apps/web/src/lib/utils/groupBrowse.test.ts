@@ -1,4 +1,4 @@
-import type { GroupCycle, GroupStatus } from '@/lib/types/domain';
+import type { GroupCycle, GroupKind, GroupStatus } from '@/lib/types/domain';
 import { describe, expect, it } from 'vitest';
 import {
 	applyGroupBrowse,
@@ -6,31 +6,98 @@ import {
 	emptyGroupBrowseState,
 	isGroupBrowseMenuActive,
 	isGroupBrowseNarrowed,
+	KIND_FILTER_OPTIONS,
 	type GroupBrowseState
 } from './groupBrowse';
 
 type TestGroup = {
 	createdAt: string;
 	cycle: GroupCycle;
+	isFull: boolean;
+	kind: GroupKind;
 	name: string;
 	spotsLeft: number;
 	status: GroupStatus;
 };
 
-const group = (over: Partial<TestGroup> = {}): TestGroup => ({
-	createdAt: '2026-01-01T00:00:00.000Z',
-	cycle: 'WEEKLY',
-	name: 'Şifa Hatmi',
-	spotsLeft: 2,
-	status: 'RUNNING',
-	...over
-});
+/**
+ * `isFull` follows `spotsLeft` unless a fixture says otherwise.
+ *
+ * That is the relationship a Cevşen group has, and most of these are Cevşen groups — stated
+ * separately they drift, and a fixture claiming two free seats *and* being full tests
+ * nothing real. A hatim is the case where the two genuinely come apart, so those pass it.
+ */
+const group = (over: Partial<TestGroup> = {}): TestGroup => {
+	const spotsLeft = over.spotsLeft ?? 2;
+
+	return {
+		createdAt: '2026-01-01T00:00:00.000Z',
+		cycle: 'WEEKLY',
+		isFull: spotsLeft <= 0,
+		kind: 'CEVSEN',
+		name: 'Şifa Hatmi',
+		spotsLeft,
+		status: 'RUNNING',
+		...over
+	};
+};
 
 const state = (over: Partial<GroupBrowseState> = {}): GroupBrowseState => ({ ...emptyGroupBrowseState, ...over });
 
 describe('CYCLE_FILTER_OPTIONS', () => {
 	it('offers every cadence a group can have, after "all"', () => {
 		expect(CYCLE_FILTER_OPTIONS).toEqual([undefined, 'DAILY', 'WEEKLY', 'MONTHLY']);
+	});
+});
+
+describe('KIND_FILTER_OPTIONS', () => {
+	it('offers every kind a group can read, after "all"', () => {
+		expect(KIND_FILTER_OPTIONS).toEqual([undefined, 'CEVSEN', 'HATIM', 'HIZB']);
+	});
+});
+
+describe('applyGroupBrowse — room to join', () => {
+	it('hides a full hatim from "has room", though its seats are free', () => {
+		/*
+		 * The bug: this asked `spotsLeft > 0`, and a hatim's `spots` is thirty as a ceiling on
+		 * `slotIndex` rather than a divisor of anything — so a group whose thirty cüz were all
+		 * taken still reported twenty-eight seats free, and the filter listed groups whose own
+		 * card read "Dolu · 30/30" right underneath it.
+		 */
+		const groups = [
+			group({ isFull: true, kind: 'HATIM', name: 'full hatim', spotsLeft: 28 }),
+			group({ isFull: false, kind: 'HATIM', name: 'open hatim', spotsLeft: 28 })
+		];
+
+		expect(applyGroupBrowse(groups, state({ hasSeatsOnly: true })).map(g => g.name)).toEqual(['open hatim']);
+	});
+});
+
+describe('applyGroupBrowse — filtering by what is read', () => {
+	it('keeps only the chosen kind, and both when none is chosen', () => {
+		const groups = [group({ name: 'Cevşen' }), group({ kind: 'HATIM', name: 'Kuran' })];
+
+		expect(applyGroupBrowse(groups, state({ kind: 'HATIM' })).map(g => g.name)).toEqual(['Kuran']);
+		expect(applyGroupBrowse(groups, state()).map(g => g.name)).toHaveLength(2);
+	});
+
+	it('narrows by kind and cadence together, not as alternatives', () => {
+		// The two answer different questions — *what* is read and *when* — so choosing both
+		// has to mean the intersection rather than the later one replacing the earlier.
+		const groups = [
+			group({ cycle: 'DAILY', kind: 'HATIM', name: 'daily hatim' }),
+			group({ cycle: 'WEEKLY', kind: 'HATIM', name: 'weekly hatim' }),
+			group({ cycle: 'DAILY', name: 'daily cevşen' })
+		];
+
+		expect(applyGroupBrowse(groups, state({ cycle: 'DAILY', kind: 'HATIM' })).map(g => g.name)).toEqual([
+			'daily hatim'
+		]);
+	});
+
+	it('counts a kind filter as narrowing', () => {
+		expect(isGroupBrowseNarrowed(state({ kind: 'HATIM' }))).toBe(true);
+		expect(isGroupBrowseMenuActive(state({ kind: 'HATIM' }))).toBe(true);
 	});
 });
 

@@ -364,8 +364,17 @@ describe('portionBlocks', () => {
 		const invocations = line.invocations ?? [];
 		const last = invocations.length - 1;
 
-		expect(cutLine(line, 0, 1)).toStrictEqual({ page: line.page, text: invocations[0] });
-		expect(cutLine(line, last, undefined)).toStrictEqual({ page: line.page, text: invocations[last] });
+		// Each half keeps its marks' numbers within the section: the tail starts `last` marks on.
+		expect(cutLine(line, 0, 1)).toStrictEqual({
+			marksBefore: line.marksBefore,
+			page: line.page,
+			text: invocations[0]
+		});
+		expect(cutLine(line, last, undefined)).toStrictEqual({
+			marksBefore: line.marksBefore! + last,
+			page: line.page,
+			text: invocations[last]
+		});
 		expect(cutLine(line, 1, last).invocations).toEqual(invocations.slice(1, last));
 	});
 

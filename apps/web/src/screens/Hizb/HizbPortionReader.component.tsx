@@ -2,7 +2,6 @@ import { useDelailSession } from '@/lib/hooks/useDelailSession';
 import { useIstighfarSession } from '@/lib/hooks/useIstighfarSession';
 import { WrapperApiError } from '@/api/wrapper.api';
 import { LateReadingNotice } from '@/components/LateReadingNotice/LateReadingNotice.component';
-import { RepetitionCounter } from '@/components/RepetitionCounter/RepetitionCounter.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { PullToRefresh } from '@/components/ui/PullToRefresh/PullToRefresh.component';
 import { CaptionText, EyebrowText, Typography } from '@/components/ui/Typography/Typography.component';
@@ -761,6 +760,16 @@ export const HizbPortionReader = ({ navigation, params }: Props) => {
 							<HizbBody
 								istighfarProgress={istighfarProgress}
 								delailProgress={delailProgress}
+								// Drawn inert while the round loads, so it is already in place when it wakes.
+								{...(showsCounter
+									? {
+											sekineProgress: {
+												count: count ?? 0,
+												disabled: !isReady || count === undefined,
+												onChange: setCount
+											}
+									  }
+									: {})}
 								block={current.block}
 								font={readerSettings.readerArabicFont}
 								fontSize={readerSettings.readerFontSize}
@@ -776,10 +785,6 @@ export const HizbPortionReader = ({ navigation, params }: Props) => {
 			<View style={[styles.footer, { borderTopColor: theme.colors.readerRule }]}>
 				<View style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.readerSurface }]} />
 				{round && decision?.action === 'cover' ? <LateReadingNotice daysLate={round.daysLate} /> : null}
-				{/* Drawn inert while the round loads, so it is already in place when it wakes. */}
-				{showsCounter ? (
-					<RepetitionCounter count={count} isDisabled={!isReady} onChange={setCount} required={required} />
-				) : null}
 				{hint ? (
 					<Typography color={hint.color} style={styles.readHint} variant='caption'>
 						{hint.text}

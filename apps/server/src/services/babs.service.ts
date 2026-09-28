@@ -2,18 +2,49 @@ import { BAD_REQUEST, CONFLICT } from '@config/httpCodes';
 import { HttpError } from '@config/httpError';
 import prisma from '@db/prisma';
 import { babRuns, formatRun } from '@utils/babs';
-import { partCountFor, type GroupKindName } from '@utils/groupKinds';
+import { partCountFor } from '@utils/groupKinds';
 import { FALLBACK_DISPLAY_NAME, getMemberProfiles } from '@utils/memberProfiles';
 import { normalizeUserId } from '@utils/normalizeUserId';
+import { settingFor } from '@utils/notificationSettings';
 import { groupReadPush, roundCompletePush, toPushLanguage } from '@utils/pushCopy';
-import type { Prisma } from '../generated/prisma/client';
+import type { GroupKind, Prisma } from '../generated/prisma/client';
 import { requireMembership } from './groupAccess.service';
 import { recordNotification } from './notifications.service';
 import { assertRepetitionsMet } from './repetitions.service';
 import { sendPushToUser } from './push.service';
-import { poolBabNumbers, serializeBab, shareBabNumbersToday } from './groupSerializers';
+import { serializeBab } from './groupSerializers';
 import { ensureCurrentRound, ensureCurrentRoundFor, lockGroup } from './rounds.service';
+import { holdingsFor, resolveUnitPlan } from './unitPlan';
 import type { GroupBab, GroupStatus } from './groupSerializers';
+import type { Group, GroupMember as GroupMemberModel } from '../generated/prisma/client';
+
+/**
+ * What the caller may mark this round — their share, and whether a unit is in the pool.
+ *
+ * **Through the seam, so a hatim answers too.** This was `shareBabNumbersToday`, which is
+ * seat arithmetic: a member's block from `slotIndex` and the round. On a hatim that is
+ * meaningless — its thirty seats divide nothing — so "Okudum" on a cüz you actually held
+ * came back "not yours to mark today". `resolveUnitPlan` answers from holdings for a hatim
+ * and from seats for a Cevşen group, and the two paths below stop caring which.
+ *
+ * A hatim's pool is never markable from here: a Cevşen pool bab carries a *claim*
+ * (`assignedUserId`) that the write checks, and a free cüz carries nothing — it is taken
+ * out of the havuz first (`takePoolCuzForUser`), which puts it in the share.
+ */
+const ownershipFor = async (
+	tx: Prisma.TransactionClient,
+	group: Group & { members: GroupMemberModel[] },
+	userId: string
+): Promise<{ isPool: (unitNumber: number) => boolean; share: number[] }> => {
+	const holdings = await holdingsFor(tx, group, group.roundIndex);
+	const plan = resolveUnitPlan({ group, holdings, members: group.members, roundIndex: group.roundIndex });
+	const pool = new Set(plan.poolUnits);
+
+	return {
+		isPool: unitNumber => group.kind !== 'HATIM' && pool.has(unitNumber),
+		share: plan.unitsFor(userId)
+	};
+};
 
 /**
  * Checked against the group's own part count, so it needs the group loaded first: the route
@@ -266,8 +297,13 @@ const notifyGroupOfShareRead = async (input: { groupId: string; range: string; r
 			return;
 		}
 
+		// Per reading type: a reader who is in both a Cevşen group and a hatim chooses to hear
+		// about each separately — see `settingFor`, the only place a kind picks a column.
 		const recipients = await prisma.userSettings.findMany({
-			where: { groupReadsEnabled: true, userId: { in: others.map(member => member.userId) } },
+			where: {
+				[settingFor('groupReads', group.kind)]: true,
+				userId: { in: others.map(member => member.userId) }
+			},
 			select: { language: true, userId: true }
 		});
 
@@ -341,12 +377,13 @@ const shareRange = (babNumbers: number[]): string => babRuns(babNumbers).map(for
 const notifyGroupOfRoundComplete = async (input: {
 	finisherId: string;
 	groupId: string;
-	groupKind: GroupKindName;
 	groupName: string;
+	/** What the group reads — it decides both the switch and the sentence. */
+	kind: GroupKind;
 	memberIds: string[];
 	roundIndex: number;
 }): Promise<void> => {
-	const { finisherId, groupId, groupKind, groupName, memberIds, roundIndex } = input;
+	const { finisherId, groupId, groupName, kind, memberIds, roundIndex } = input;
 
 	try {
 		/*
@@ -371,7 +408,7 @@ const notifyGroupOfRoundComplete = async (input: {
 		});
 
 		const recipients = await prisma.userSettings.findMany({
-			where: { roundCompleteEnabled: true, userId: { in: others } },
+			where: { [settingFor('roundComplete', kind)]: true, userId: { in: others } },
 			select: { language: true, userId: true }
 		});
 
@@ -389,7 +426,7 @@ const notifyGroupOfRoundComplete = async (input: {
 				sendPushToUser(recipient.userId, {
 					...roundCompletePush(toPushLanguage(recipient.language), {
 						groupName,
-						kind: groupKind,
+						kind,
 						// Stored from zero; the group screen and Turlar both count from one.
 						roundNumber: roundIndex + 1
 					}),
@@ -431,13 +468,14 @@ export const setBabReadForUser = async (
 		// Under ROTATION the babs a member may mark this round are their seat's *rotated*
 		// block — derived from the seat and the round, never read off a column.
 		//
-		// The one thing they may also mark is a pool bab they took, which sits outside the
-		// rotation. `assignedUserId` means exactly that — volunteered for out of the pool, this
-		// round — and it is checked against this round's pool as well, so a claim that somehow
-		// outlived its seat being empty can never authorise a block the rotation has handed on.
-		const share = shareBabNumbersToday(group, group.members, normalizedUserId);
+		// The one thing they may also mark is a pool slot they took, which sits outside the
+		// rotation. That has to be checked against the pool specifically, not against
+		// `assignedUserId` alone: a member's own standing seat carries their id too, and in
+		// any later round that block belongs to whoever the rotation handed it to.
+		const ownership = await ownershipFor(tx, group, normalizedUserId);
+		const share = ownership.share;
 		const isMine = share.includes(babNumber);
-		const isPool = poolBabNumbers(group, group.members, group.roundIndex).includes(babNumber);
+		const isPool = ownership.isPool(babNumber);
 
 		if (!isMine && !isPool) {
 			throw new HttpError(CONFLICT, 'This bab is not yours to mark today');
@@ -478,9 +516,9 @@ export const setBabReadForUser = async (
 			return {
 				bab: current,
 				didCompleteRound: false,
-				groupKind: group.kind,
 				groupName: group.name,
 				isShareRead: false,
+				kind: group.kind,
 				memberIds: group.members.map(member => member.userId),
 				roundIndex: group.roundIndex,
 				share
@@ -530,8 +568,8 @@ export const setBabReadForUser = async (
 		return {
 			bab: await tx.groupBab.findUniqueOrThrow({ where: { groupId_number: { groupId, number: babNumber } } }),
 			didCompleteRound,
-			groupKind: group.kind,
 			groupName: group.name,
+			kind: group.kind,
 			memberIds: group.members.map(member => member.userId),
 			roundIndex: group.roundIndex,
 			isShareRead:
@@ -558,8 +596,8 @@ export const setBabReadForUser = async (
 		await notifyGroupOfRoundComplete({
 			finisherId: normalizedUserId,
 			groupId,
-			groupKind: outcome.groupKind,
 			groupName: outcome.groupName,
+			kind: outcome.kind,
 			memberIds: outcome.memberIds,
 			roundIndex: outcome.roundIndex
 		});
@@ -607,7 +645,8 @@ export const setAssignedBabsReadForUser = async (
 		 * rotation has handed to somebody else this round. The claim half is read off
 		 * `assignedUserId`, which means only this round's claims — the rollover clears it.
 		 */
-		const shareNumbers = shareBabNumbersToday(group, group.members, normalizedUserId);
+		const ownership = await ownershipFor(tx, group, normalizedUserId);
+		const shareNumbers = ownership.share;
 		/*
 		 * The claim half is intersected with this round's pool, exactly as the single-bab path
 		 * checks `isPool` rather than trusting `assignedUserId` alone.
@@ -619,13 +658,12 @@ export const setAssignedBabsReadForUser = async (
 		 * not to be the caller's is not recoverable. A stale claim should cost a bab that stays
 		 * unread, never somebody else's record.
 		 */
-		const poolNumbers = new Set(poolBabNumbers(group, group.members, group.roundIndex));
 		const claimed = await tx.groupBab.findMany({
 			where: { groupId, assignedUserId: normalizedUserId },
 			select: { number: true }
 		});
 		const numbers = [
-			...new Set([...shareNumbers, ...claimed.map(bab => bab.number).filter(number => poolNumbers.has(number))])
+			...new Set([...shareNumbers, ...claimed.map(bab => bab.number).filter(number => ownership.isPool(number))])
 		];
 
 		const mine: Prisma.GroupBabWhereInput = { groupId, number: { in: numbers } };
@@ -680,8 +718,8 @@ export const setAssignedBabsReadForUser = async (
 		return {
 			babs: await tx.groupBab.findMany({ where: { groupId }, orderBy: { number: 'asc' } }),
 			didCompleteRound,
-			groupKind: group.kind,
 			groupName: group.name,
+			kind: group.kind,
 			memberIds: group.members.map(member => member.userId),
 			roundIndex: group.roundIndex,
 			isShareRead:
@@ -710,8 +748,8 @@ export const setAssignedBabsReadForUser = async (
 		await notifyGroupOfRoundComplete({
 			finisherId: normalizedUserId,
 			groupId,
-			groupKind: result.groupKind,
 			groupName: result.groupName,
+			kind: result.kind,
 			memberIds: result.memberIds,
 			roundIndex: result.roundIndex
 		});

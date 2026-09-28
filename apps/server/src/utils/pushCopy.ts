@@ -40,9 +40,10 @@ export const toPushLanguage = (language: string | null | undefined): PushLanguag
 	language === 'tr' || language === 'nl' ? language : 'en';
 
 /**
- * **What a group reads decides the noun.** A Cevşen group reads babs and a Hizb group reads
- * portions — "bölüm", "portion", "gedeelte" — and a notification naming the wrong one would
- * describe a book the reader is not reading.
+ * **What a group reads decides the noun.** A Cevşen group reads babs, a hatim cüz ("juz" in
+ * English) and a Hizb group portions — "bölüm", "portion", "gedeelte" — and a notification
+ * naming the wrong one would describe a book the reader is not reading: "all 100 babs read" is
+ * simply false about thirty cüz.
  *
  * A range can also be a single part: a Hizb group of more than sixteen seats hands some of
  * them one portion each, so "portion 19" and "portions 1–3" both occur. A Cevşen share never
@@ -52,8 +53,16 @@ export const toPushLanguage = (language: string | null | undefined): PushLanguag
 const isSinglePart = (range: string) => !/[–,]/.test(range);
 
 const PART_NOUNS: Record<'en' | 'nl', Record<GroupKindName, { one: string; many: string }>> = {
-	en: { CEVSEN: { one: 'bab', many: 'babs' }, HIZB: { one: 'portion', many: 'portions' } },
-	nl: { CEVSEN: { one: 'bab', many: 'babs' }, HIZB: { one: 'gedeelte', many: 'gedeelten' } }
+	en: {
+		CEVSEN: { one: 'bab', many: 'babs' },
+		HATIM: { one: 'juz', many: 'juz' },
+		HIZB: { one: 'portion', many: 'portions' }
+	},
+	nl: {
+		CEVSEN: { one: 'bab', many: 'babs' },
+		HATIM: { one: 'cüz', many: 'cüz' },
+		HIZB: { one: 'gedeelte', many: 'gedeelten' }
+	}
 };
 
 /**
@@ -66,6 +75,8 @@ const TR_PART_NOUNS: Record<
 	{ one: string; many: string; accusative: string; possessiveAccusative: string; genitive: string }
 > = {
 	CEVSEN: { one: 'bab', many: 'bablar', accusative: 'babı', possessiveAccusative: 'bablarını', genitive: 'babın' },
+	// Vowel harmony puts "cüz" at "cüzün" where "bab" is at "babın", so nothing here is built.
+	HATIM: { one: 'cüz', many: 'cüzler', accusative: 'cüzü', possessiveAccusative: 'cüzlerini', genitive: 'cüzün' },
 	HIZB: {
 		one: 'bölüm',
 		many: 'bölümler',
@@ -174,7 +185,7 @@ export const groupReadPush = (
 };
 
 /**
- * "The group closed the hundred" — or, in a Hizb group, the 33.
+ * "The group closed the hundred" — or, in a hatim, the thirty, and in a Hizb group the 33.
  *
  * The one notification in the app that is purely good news — every other one is a task, a
  * reminder, or something that was taken away. It names the round, because a group that has run
@@ -188,7 +199,7 @@ export const roundCompletePush = (
 	input: { groupName: string; kind: GroupKindName; roundNumber: number }
 ) => {
 	const { groupName, kind, roundNumber } = input;
-	// The group's own count, so the line says what was actually closed.
+	// The group's own count — 100, 30 or 33 — so the line says what was actually closed.
 	const partCount = partCountFor(kind);
 
 	if (language === 'tr') {

@@ -12,6 +12,7 @@ import { MyProgressCardSkeleton } from '@/components/MyProgressCard/MyProgressCa
 import { RoundResetRow } from '@/components/RoundResetRow/RoundResetRow.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
+import { isRepeatingCycle } from '@/lib/types/domain';
 import { SliceChip } from '@/components/SliceChip/SliceChip.component';
 import { TourTarget } from '@/components/Tour/TourTarget.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
@@ -28,37 +29,45 @@ import {
 	TitleText,
 	Typography
 } from '@/components/ui/Typography/Typography.component';
-import { groupQueryKeys } from '@/lib/hooks/queryKeys';
 import { useGetBabs, useSetBabRead } from '@/lib/hooks/useBab';
+import { useCachedGroup } from '@/lib/hooks/useCachedGroup';
 import { useCurrentUserId } from '@/lib/hooks/useCurrentUserId';
 import { useGetGroupById, useGetPoolSlots, useMarkPoolReleasesSeen } from '@/lib/hooks/useGroup';
+import { useHatimRoundGate } from '@/lib/hooks/useHatimRoundGate';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useRoundReset, useTimeUntilReset } from '@/lib/hooks/useRoundReset';
 import { useGetMyProgress, useGetRounds } from '@/lib/hooks/useRounds';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import type { GroupBab, GroupSummary } from '@/lib/types/domain';
-import { formatRun } from '@/lib/utils/babs';
+import type { GroupBab } from '@/lib/types/domain';
+import { formatBabRange, formatRun } from '@/lib/utils/babs';
+import { cuzSuraRange } from '@/lib/content/cuz';
 import { roundTimeLeftLabel } from '@/lib/utils/roundReset';
+import { unitCountFor, unitLabelKey } from '@/lib/utils/units';
 import {
 	cycleLabelKey,
 	hizbBoardCells,
 	type HizbBoardCell,
+	kindLabelKey,
 	planLabelKey,
 	shareSlices,
 	toBabCells
 } from '@/lib/utils/groups';
+import { MUSHAF_DUA_PATHS } from '@/lib/content/mushaf';
 import type { TabStackParamList } from '@/navigation/types';
 import { LeaveGroupButton } from '@/screens/Groups/LeaveGroupButton.component';
 import { ManageSheet } from '@/screens/Groups/ManageSheet.component';
 import { MembersSheet } from '@/screens/Groups/MembersSheet.component';
 import { ShareSheet } from '@/screens/Groups/ShareSheet.component';
+import { JoinedWelcomeSkeleton } from '@/screens/Join/JoinedWelcomeSkeleton.component';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, withTiming } from 'react-native-reanimated';
 import { GroupDetailSkeleton } from './GroupDetailSkeleton.component';
+import { HatimGroupSkeleton } from './HatimGroupSkeleton.component';
+import { HatimLobbySkeleton } from './HatimLobbySkeleton.component';
+import { HizbPlanGroupSkeleton } from './HizbPlanGroupSkeleton.component';
 import { LobbySkeleton } from './LobbySkeleton.component';
 
 type Sheet = 'share' | 'manage' | 'members' | null;
@@ -85,19 +94,40 @@ const NO_BABS: GroupBab[] = [];
 const NO_NUMBERS: number[] = [];
 const NO_HIZB_CELLS: HizbBoardCell[] = [];
 /** Entries in `BabLegend` — the skeleton stubs the same number so the card keeps its height. */
+/** Five keys for a Cevşen board, four for a hatim — see `BabLegend` for why. */
 const BAB_LEGEND_COUNT = 5;
+const CUZ_LEGEND_COUNT = 4;
 /** HZ1 puts the book's mark at the heading's right, a touch larger than the lobby's 40. */
 const KIND_MARK_SIZE = 44;
 
 type Props = NativeStackScreenProps<TabStackParamList, 'GroupDetail'>;
 
+/**
+ * A Hizb group read on personal plans is a screen of its own (`HizbPlanGroup`); every other
+ * group — Cevşen, hatim, or a Hizb group divided by seat — is the one below, which draws each
+ * kind's own sections.
+ */
 export const GroupDetailScreen = (props: Props) => {
 	const query = useGetGroupById(props.route.params.groupId);
+	// Until the group answers, the list it was opened from may already know its kind.
+	const cached = useCachedGroup(props.route.params.groupId);
+	const cachedKind = cached?.kind;
 	if (query.isError) {
 		return <ErrorState queries={[query]} />;
 	}
 	if (!query.data) {
-		return <GroupDetailSkeleton />;
+		return (
+			<ScreenContainer>
+				{/* A personal-plan group loads under its own screen's bones, which it keeps until its reading answers. */}
+				{cached?.plan ? (
+					<HizbPlanGroupSkeleton plan={cached.plan} />
+				) : cachedKind === 'HATIM' ? (
+					<HatimGroupSkeleton />
+				) : (
+					<GroupDetailSkeleton kind={cachedKind ?? 'CEVSEN'} />
+				)}
+			</ScreenContainer>
+		);
 	}
 	return query.data.hizbPlan != null ? (
 		<HizbPlanGroup {...props} group={query.data} />
@@ -108,7 +138,7 @@ export const GroupDetailScreen = (props: Props) => {
 const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 	const { groupId } = route.params;
 	const { theme } = useThemeContext();
-	const { t } = useTranslation();
+	const { language, t } = useTranslation();
 	const userId = useCurrentUserId();
 	const [sheet, setSheet] = useState<Sheet>(null);
 	/*
@@ -191,14 +221,23 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 	};
 
 	const groupQuery = useGetGroupById(groupId);
+	/*
+	 * Which skeleton to hold while the group loads: its own kind once known, else whatever the
+	 * list it was opened from said. Up here with the hooks — the loading branch below is one of
+	 * the early returns.
+	 */
+	const cached = useCachedGroup(groupId);
+	const loadingKind = groupQuery.data?.kind ?? cached?.kind;
 
 	const babsQuery = useGetBabs(groupId);
 	const isFlexible = groupQuery.data?.splitMode === 'FLEXIBLE';
-	const flexiblePoolQuery = useGetPoolSlots(groupId, isFlexible);
+	const flexiblePoolQuery = useGetPoolSlots(groupId, { isEnabled: isFlexible });
 	// Both read from the query data rather than the narrowed `detail` below, so they sit with
 	// the other hooks above the early returns and keep hook order stable.
 	const reset = useRoundReset({
 		cycle: groupQuery.data?.cycle ?? 'WEEKLY',
+		kind: groupQuery.data?.kind ?? 'CEVSEN',
+		roundDays: groupQuery.data?.roundDays ?? 7,
 		roundEndsAt: groupQuery.data?.roundEndsAt ?? null,
 		startedAt: groupQuery.data?.startedAt ?? null,
 		timezone: groupQuery.data?.timezone ?? 'UTC'
@@ -218,14 +257,8 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 		roundsQuery,
 		...(isFlexible ? [flexiblePoolQuery] : [myProgressQuery])
 	);
-	/*
-	 * Which book's skeleton to hold while the group loads, off the shelf the screen is usually
-	 * opened from. Read off the cache rather than subscribed to, as `LobbyScreen` seeds its own:
-	 * it is only a seed, and a group missing from the shelf gets the Cevşen's.
-	 */
-	const seededKind = useQueryClient()
-		.getQueryData<GroupSummary[]>(groupQueryKeys.groups())
-		?.find(entry => entry.id === groupId)?.kind;
+	// A hatim may open on Q7 or QR1 instead — and a member holding no cüz never sees this screen.
+	const roundGate = useHatimRoundGate(groupId, navigation);
 
 	/*
 	 * The two boards' cells, and the tap that opens one, memoised up here with the other
@@ -255,10 +288,17 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 			const bab = babs.find(candidate => candidate.number === babNumber);
 
 			if (bab && myBabNumberSet.has(bab.number)) {
-				navigation.navigate('BabReader', { groupId, babNumber });
+				// A cüz cell opens Q4; the reader is the Cevşen's and would show the wrong text.
+				// Read off the query here: `isHatim` below is declared after the early returns,
+				// and this callback is a hook that has to sit above them.
+				if (groupQuery.data?.kind === 'HATIM') {
+					navigation.navigate('CuzDetail', { cuzNumber: babNumber, groupId });
+				} else {
+					navigation.navigate('BabReader', { groupId, babNumber });
+				}
 			}
 		},
-		[babs, groupId, myBabNumberSet, navigation]
+		[babs, groupId, groupQuery.data?.kind, myBabNumberSet, navigation]
 	);
 	/*
 	 * The Hizb's board (HZ1), held the same way and for the same reason: `HizbBoard` draws
@@ -293,10 +333,17 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 	// Only the group gates the screen. The board arrives separately, and the two things that
 	// need it — the pool card and the hundred — each have their own stand-in, so waiting on
 	// it no longer blanks the whole page.
-	if (groupQuery.isPending) {
+	// Held on the skeleton while the round gate decides, too: a required pick must take the
+	// screen away before any of the group has been drawn.
+	if (groupQuery.isPending || (groupQuery.data !== undefined && !roundGate.isOpen)) {
 		return (
 			<ScreenContainer>
-				<GroupDetailSkeleton kind={seededKind ?? 'CEVSEN'} />
+				{/* Each kind's own stand-in — a hatim's, the Hizb's, else the Cevşen's. */}
+				{loadingKind === 'HATIM' ? (
+					<HatimGroupSkeleton />
+				) : (
+					<GroupDetailSkeleton kind={loadingKind ?? 'CEVSEN'} />
+				)}
 			</ScreenContainer>
 		);
 	}
@@ -308,12 +355,18 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 	const detail = groupQuery.data;
 
 	// The redirect above has already fired; hold rather than render a board for a group that
-	// has no progress yet. It shows the *lobby's* skeleton, because that is where the redirect
-	// is going — holding this screen's own shape would flash a layout that never arrives.
+	// has no progress yet. It shows the skeleton of where the redirect is going — the owner's
+	// lobby, or the waiting screen for everyone else — since holding this screen's own shape
+	// would flash a layout that never arrives.
 	if (detail.status === 'GATHERING') {
-		return (
-			<ScreenContainer>
-				<LobbySkeleton kind={detail.kind} />
+		return detail.isOwner ? (
+			<ScreenContainer isScrollable={false}>
+				{detail.kind === 'HATIM' ? <HatimLobbySkeleton /> : <LobbySkeleton kind={detail.kind} />}
+			</ScreenContainer>
+		) : (
+			// The waiting screen is the same shape for every kind; only its words differ.
+			<ScreenContainer isScrollable={false}>
+				<JoinedWelcomeSkeleton />
 			</ScreenContainer>
 		);
 	}
@@ -340,6 +393,9 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 	// Only a DAILY round is labelled as a countdown to its reset; see the Cevşen card below.
 	const isDaily = detail.cycle === 'DAILY';
 	const isRoundComplete = detail.completedAt !== null;
+	const isHatim = detail.kind === 'HATIM';
+	// A hundred or thirty, from the group rather than a constant — see `unitCountFor`.
+	const unitCount = unitCountFor(detail.kind);
 	// Newest closed round — the list arrives newest-first with the open one at the head.
 	const lastClosedRound = (roundsQuery.data ?? []).find(round => !round.isOpen);
 	// Undefined while the group is still gathering — the server has no rounds to report
@@ -395,12 +451,34 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 			title={detail.name}
 			// A group's name is whatever somebody typed, so it truncates rather than wrapping.
 			titleLines={1}
-			// Both cadences, not just daily. The chip was daily-only on the reasoning that a
-			// weekly group's countdown already says "2 gün" while a daily one counts hours —
-			// true, but it made the *chip itself* conditional, so a weekly group looked like a
-			// group with no cadence rather than one whose cadence you had to infer. Turlar
-			// shows both; this now matches it.
-			titleTrailing={<Chip label={t(cycleLabelKey(detail.cycle))} tone='accent' />}
+			/*
+			 * **Both chips on the title's own line, as a pair.**
+			 *
+			 * The kind sat in `action`, which is the far corner and — with a dedication under
+			 * the name — is centred against the *block* rather than the title, so the two chips
+			 * ended up at different heights on opposite ends of the row. `titleTrailing` is
+			 * inside `labelRow`, which centres on the title itself and keeps them adjacent.
+			 *
+			 * Cadence first, kind second: the cadence is the more specific of the two and the
+			 * one that changes between groups of the same sort.
+			 *
+			 * **A one-off has no cadence to name.** "Özel" sets how long the hatim runs, not how
+			 * often it comes round, so a chip there would claim a rhythm that does not exist —
+			 * the reset line below says when it ends instead.
+			 */
+			titleTrailing={
+				<View style={styles.titleChips}>
+					{isRepeatingCycle(detail.cycle) ? (
+						<Chip label={t(cycleLabelKey(detail.cycle))} tone='accent' />
+					) : null}
+					{/*
+					 * Both kinds carry it: a screen that tags only the unusual one makes the
+					 * other the unmarked default, which it stops being as soon as somebody has
+					 * one of each.
+					 */}
+					<Chip label={t(kindLabelKey(detail.kind))} tone='neutral' />
+				</View>
+			}
 		/>
 	);
 
@@ -434,7 +512,7 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 						onPress={() => navigation.navigate('Rounds', { groupId })}
 						variant='surface'
 					/>
-					<LeaveGroupButton groupId={groupId} isFlexible isOwner={detail.isOwner} />
+					<LeaveGroupButton groupId={groupId} isFlexible isOwner={detail.isOwner} kind={detail.kind} />
 				</ScreenContainer>
 				<ShareSheet group={detail} isVisible={openSheet === 'share'} onClose={closeSheet} />
 				{detail.isOwner ? (
@@ -491,7 +569,7 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 				 * exactly. Split apart, the countdown reads as the reader's own clock when it
 				 * never was.
 				 */}
-				{/* Stop 4 of the first-use tour: the group's whole rhythm in one card. */}
+				{/* Stop 3 of the first-use tour: the group's whole rhythm in one card. */}
 				{/*
 				 * The Hizb's summary card counts what the group has read, where the Cevşen's counts its
 				 * members, and says how long the round has left under one label whatever the cycle. A
@@ -575,7 +653,7 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 									{isRoundComplete ? (
 										<>
 											<NumericText color={theme.colors.accent}>
-												{`${detail.partCount} / ${detail.partCount}`}
+												{`${unitCount} / ${unitCount}`}
 											</NumericText>
 											<StatText color={theme.colors.accent} style={styles.statLabel}>
 												{t('roundCompleted')}
@@ -617,11 +695,12 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 				 */}
 				{myProgressQuery.isLoading ? <MyProgressCardSkeleton /> : null}
 				{myProgress ? (
-					// Stop 5 of the first-use tour. Inside the guard, as the closed-round and pool
+					// Stop 4 of the first-use tour. Inside the guard, as the closed-round and pool
 					// stops are, so a group with nothing to report registers no rect and that
 					// stop simply centres its card.
 					<TourTarget id='myProgress'>
 						<MyProgressCard
+							isHatim={isHatim}
 							onPress={() => navigation.navigate('MyProgress', { groupId })}
 							progress={myProgress}
 						/>
@@ -655,7 +734,7 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 						isFlush
 						style={isMyBabsOpen ? null : { backgroundColor: theme.colors.accentSoft }}
 					>
-						{/* Stop 6 of the first-use tour frames this row, closed or open. */}
+						{/* Stop 5 of the first-use tour frames this row, closed or open. */}
 						<TourTarget id='assigned'>
 							<Pressable
 								// The eyebrow and the sentence are gone from the row, so the label they carried
@@ -687,10 +766,13 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 											style={styles.myBabsBadgeLabel}
 											variant='title'
 										>
-											{mySlices.current}
+											{isHatim
+												? formatBabRange(myBabNumbers).replaceAll(', ', ' · ')
+												: mySlices.current}
 										</Typography>
 									</View>
-									<SliceChip count={mySlices.moreCount} isCompact tone='surface' />
+									{/* A hatim's share is already whole in the badge — there is no slice left over. */}
+									{isHatim ? null : <SliceChip count={mySlices.moreCount} isCompact tone='surface' />}
 								</View>
 								{/* The eyebrow stays; the sentence under it went. It named the range a second
 							    time and, once the share came in pieces, needed three lines to do it —
@@ -702,7 +784,7 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 										variant='stat'
 										weight='medium'
 									>
-										{t('assigned')}
+										{isHatim ? t('qMyCuz') : t('assigned')}
 									</Typography>
 								</View>
 								<View style={styles.myBabsMeta}>
@@ -772,11 +854,18 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 													isRead={isRead}
 													isReadByOthers={isReadByOthers}
 													key={bab.number}
+													// A cüz opens its own page (Q4), where it is marked; a bab opens the
+													// reader, where a bab is read and marked at once.
 													onOpen={() =>
-														navigation.navigate('BabReader', {
-															groupId,
-															babNumber: bab.number
-														})
+														isHatim
+															? navigation.navigate('CuzDetail', {
+																	cuzNumber: bab.number,
+																	groupId
+															  })
+															: navigation.navigate('BabReader', {
+																	groupId,
+																	babNumber: bab.number
+															  })
 													}
 													onToggle={() =>
 														setBabRead.mutate({
@@ -804,9 +893,20 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 																: t('readBeforeYours')
 															: isRead
 															? t('readToday')
+															: // **The sura range, not "Henüz okunmadı".** A cüz is
+															// named by where it falls — "Ahzâb 31 – Yâsîn 27" —
+															// and that is what someone about to read one needs;
+															// a bab's number already is its name, so the Cevşen
+															// row keeps saying whether it is read.
+															isHatim
+															? cuzSuraRange(bab.number, language)
 															: t('notRead')
 													}
-													title={t('babOrdinal', { n: bab.number })}
+													title={
+														isHatim
+															? t('cuzOrdinal', { n: bab.number })
+															: t('babOrdinal', { n: bab.number })
+													}
 												/>
 											);
 										})
@@ -831,7 +931,7 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 				 * worse than no row.
 				 */}
 				{lastClosedRound ? (
-					// Stop 7 of the first-use tour. Inside the guard, so a group with no closed
+					// Stop 6 of the first-use tour. Inside the guard, so a group with no closed
 					// round registers nothing and that stop centres its card.
 					<TourTarget id='lastRound'>
 						<CardSurface
@@ -863,7 +963,7 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 								<CaptionText color={theme.colors.subtext} style={styles.lastRoundSub}>
 									{isHizb
 										? hizbMissedLine(lastClosedRound.missedCount)
-										: `${lastClosedRound.missedCount} ${t('missedBabs')}`}
+										: `${lastClosedRound.missedCount} ${t(isHatim ? 'missedCuz' : 'missedBabs')}`}
 								</CaptionText>
 							</View>
 							<Icon color={theme.colors.faintText} name='chevronRight' size={15} strokeWidth={1.8} />
@@ -916,7 +1016,7 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 				 * it. The count comes from the group, so nothing here waits on the board.
 				 */}
 				{detail.poolAllBabNumbers.length > 0 ? (
-					// Stop 8 of the first-use tour, guarded the same way as the row above.
+					// Stop 7 of the first-use tour, guarded the same way as the row above.
 					<TourTarget id='pool'>
 						<CardSurface
 							onPress={() => navigation.navigate('Pool', { groupId, kind: detail.kind })}
@@ -934,12 +1034,35 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 							<View style={styles.lastRoundCopy}>
 								<CaptionText weight='semibold'>{t('pool')}</CaptionText>
 								<CaptionText color={theme.colors.subtext} style={styles.lastRoundSub}>
-									{isHizb ? hizbPoolLine() : `${detail.poolAllBabNumbers.length} ${t('babs')}`}
+									{isHizb
+										? hizbPoolLine()
+										: `${detail.poolAllBabNumbers.length} ${t(unitLabelKey(detail.kind))}`}
 								</CaptionText>
 							</View>
 							<Icon color={theme.colors.faintText} name='chevronRight' size={15} strokeWidth={1.8} />
 						</CardSurface>
 					</TourTarget>
+				) : null}
+
+				{/*
+				 * "Hatim duası" — a Kuran group's way to the du'a, in the same row shape as the two
+				 * above: a book in the tile where they carry a count. Only once this round's hatim is
+				 * complete, which is when the du'a is read; Q7 offers it at that moment too. It goes
+				 * again with the rollover, since the new round's `completedAt` starts cleared.
+				 */}
+				{isHatim && isRoundComplete ? (
+					<CardSurface onPress={() => navigation.navigate('HatimDua')} style={styles.lastRoundCard}>
+						<View style={[styles.lastRoundBadge, { backgroundColor: theme.colors.accentSoft }]}>
+							<Icon color={theme.colors.accent} name='readInApp' size={20} />
+						</View>
+						<View style={styles.lastRoundCopy}>
+							<CaptionText weight='semibold'>{t('qHatimDua')}</CaptionText>
+							<CaptionText color={theme.colors.subtext} style={styles.lastRoundSub}>
+								{t('qHatimDuaPages', { n: MUSHAF_DUA_PATHS.length })}
+							</CaptionText>
+						</View>
+						<Icon color={theme.colors.faintText} name='chevronRight' size={15} strokeWidth={1.8} />
+					</CardSurface>
 				) : null}
 
 				{/*
@@ -962,19 +1085,19 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 					 * having read anything, which is a claim about the data rather than an
 					 * admission that it hasn't arrived.
 					 */
-					<GridSkeleton cellCount={detail.partCount} legendCount={BAB_LEGEND_COUNT} />
+					<GridSkeleton cellCount={unitCount} legendCount={isHatim ? CUZ_LEGEND_COUNT : BAB_LEGEND_COUNT} />
 				) : (
 					<CardSurface isFlush>
 						<View style={[styles.sectionHeader, { borderBottomColor: theme.colors.divider }]}>
 							<TitleText>{t('groupProgress')}</TitleText>
 							{/* The count is the group's own, so the heading is real either way. */}
-							<CaptionText color={theme.colors.faintText}>
-								{`${detail.readCount} / ${detail.partCount}`}
-							</CaptionText>
+							<CaptionText
+								color={theme.colors.faintText}
+							>{`${detail.readCount} / ${unitCount}`}</CaptionText>
 						</View>
 						<View style={styles.sectionBody}>
-							<BabGrid cells={babCells} onPressBab={handlePressBab} />
-							<BabLegend />
+							<BabGrid cells={babCells} kind={detail.kind} onPressBab={handlePressBab} />
+							<BabLegend kind={detail.kind} />
 						</View>
 					</CardSurface>
 				)}
@@ -991,7 +1114,7 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 				 */}
 				{/* No margin of its own: `ScreenContainer` already spaces this column, and adding to
 			    that put 30pt above the button where every card sits 12 apart. */}
-				{detail.isOwner ? null : <LeaveGroupButton groupId={groupId} />}
+				{detail.isOwner ? null : <LeaveGroupButton groupId={groupId} kind={detail.kind} />}
 			</ScreenContainer>
 
 			<ShareSheet group={detail} isVisible={openSheet === 'share'} onClose={closeSheet} />
@@ -1009,6 +1132,12 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 };
 
 const styles = StyleSheet.create({
+	/** The cadence and the kind, side by side on the title's own line. */
+	titleChips: {
+		alignItems: 'center',
+		flexDirection: 'row',
+		gap: 6
+	},
 	actionButton: {
 		flex: 1
 	},

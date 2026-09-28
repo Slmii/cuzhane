@@ -1,8 +1,6 @@
 import { Bone } from '@/components/Skeleton/Skeleton.component';
 import { SkeletonSpinner } from '@/components/Skeleton/SkeletonSpinner.component';
-import { SkeletonStatusRow } from '@/components/Skeleton/SkeletonStatusRow.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
-import { useTranslation } from '@/lib/i18n/I18n.context';
 import { StyleSheet, View } from 'react-native';
 
 /**
@@ -17,8 +15,6 @@ import { StyleSheet, View } from 'react-native';
  * thing the reader is actually waiting to see.
  */
 export const JoinedWelcomeSkeleton = () => {
-	const { t } = useTranslation();
-
 	return (
 		<View style={styles.root}>
 			<View style={styles.top}>
@@ -40,7 +36,6 @@ export const JoinedWelcomeSkeleton = () => {
 			<View style={styles.footer}>
 				<Bone height={52} radius={15} width='100%' />
 				<Bone height={44} radius={14} tone='soft' width='100%' />
-				<SkeletonStatusRow label={t('loadingJoined')} />
 			</View>
 		</View>
 	);

@@ -1,9 +1,12 @@
 import { AppBottomSheet } from '@/components/ui/BottomSheet/BottomSheet.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
+import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Divider } from '@/components/ui/Divider/Divider.component';
 import { Field } from '@/components/ui/Form/Field/Field.component';
 import { Form } from '@/components/ui/Form/Form.component';
 import { FormOptionGroup } from '@/components/ui/Form/OptionGroup/OptionGroup.component';
+import { FormStepper } from '@/components/ui/Form/Stepper/Stepper.component';
+import { FormToggleRow } from '@/components/ui/Form/ToggleRow/ToggleRow.component';
 import { NavRow } from '@/components/ui/NavRow/NavRow.component';
 import { ToggleRow } from '@/components/ui/ToggleRow/ToggleRow.component';
 import { CaptionText, EyebrowText, FieldLabelText, Header2 } from '@/components/ui/Typography/Typography.component';
@@ -30,6 +33,8 @@ type Props = {
 const SAVED_RESET_MS = 1600;
 /** Tall enough for the details form and the rows under it; the body scrolls inside it. */
 const SHEET_HEIGHT_RATIO = 0.82;
+/** Days without a completed reading before a Hizb reader is removed: up to a year. */
+const INACTIVITY_DAY_OPTIONS = Array.from({ length: 365 }, (_, index) => index + 1);
 
 export const ManageSheet = ({ group, isVisible, onClose, onOpenMembers }: Props) => {
 	const { t } = useTranslation();
@@ -52,8 +57,16 @@ export const ManageSheet = ({ group, isVisible, onClose, onOpenMembers }: Props)
 		[]
 	);
 
+	// Only a shared Hizb plan has the rule; an individual one has nobody to remove.
+	const hasInactivityRule = group.hizbPlan != null && !group.hizbIndividual;
+
 	const handleSave = (values: EditGroupForm) => {
+		const inactivityDays = values.inactivityEnabled ? values.inactivityDays : null;
+
 		updateGroup.mutate({
+			// Sent only when it changed: the server starts a new grace period on every change, so
+			// saving a new name must not reset it.
+			...(hasInactivityRule && inactivityDays !== (group.inactivityDays ?? null) ? { inactivityDays } : {}),
 			// Blank is "no intention", which the API stores as null rather than an empty string.
 			dedication: values.dedication.trim() === '' ? null : values.dedication.trim(),
 			groupId: group.id,
@@ -112,11 +125,13 @@ export const ManageSheet = ({ group, isVisible, onClose, onOpenMembers }: Props)
 			<Form<EditGroupForm>
 				defaultValues={{
 					dedication: group.dedication ?? '',
+					inactivityDays: group.inactivityDays ?? 10,
+					inactivityEnabled: group.inactivityDays != null,
 					name: group.name,
 					visibility: group.visibility
 				}}
 				key={isVisible ? 'open' : 'closed'}
-				render={({ handleSubmit }) => (
+				render={({ handleSubmit, watch }) => (
 					<>
 						{/*
 						 * Destroy on the left, keep on the right — create-group's × / ✓ pair, in the
@@ -185,6 +200,39 @@ export const ManageSheet = ({ group, isVisible, onClose, onOpenMembers }: Props)
 								)}
 							</View>
 
+							{/* Saved by the tick with the details, not on touch: every change starts a new
+							    grace period, so stepping through the days must not save each one. */}
+							{hasInactivityRule ? (
+								<>
+									<EyebrowText color={theme.colors.faintText} style={styles.sectionLabel}>
+										{t('hpInactivity')}
+									</EyebrowText>
+									{/* Flush like the access card below: the toggle row brings its own padding. */}
+									<CardSurface isFlush style={styles.inactivityCard}>
+										<FormToggleRow
+											hint={t('hpInactivityHint')}
+											name='inactivityEnabled'
+											title={t('hpInactivity')}
+										/>
+										{watch('inactivityEnabled') ? (
+											<>
+												<Divider />
+												<View style={styles.inactivityDays}>
+													<FieldLabelText style={styles.fieldLabel}>
+														{t('hpInactiveDays')}
+													</FieldLabelText>
+													<FormStepper
+														caption={t('hpDays', { days: watch('inactivityDays') })}
+														name='inactivityDays'
+														values={INACTIVITY_DAY_OPTIONS}
+													/>
+												</View>
+											</>
+										) : null}
+									</CardSurface>
+								</>
+							) : null}
+
 							{/* Who may come in, and who already has: switches that mean something the
 							    moment they are touched, so they save on the spot rather than waiting
 							    for the tick above. */}
@@ -193,17 +241,23 @@ export const ManageSheet = ({ group, isVisible, onClose, onOpenMembers }: Props)
 									<EyebrowText color={theme.colors.faintText} style={styles.sectionLabel}>
 										{t('groupAccess')}
 									</EyebrowText>
-									<View style={styles.card}>
-										<ToggleRow
-											title={t('hideMemberNames')}
-											hint={t('hideMemberNamesHint')}
-											value={group.hideMemberNames}
-											disabled={updateGroup.isPending}
-											onValueChange={next =>
-												updateGroup.mutate({ groupId: group.id, hideMemberNames: next })
-											}
-										/>
-										<Divider />
+									<CardSurface isFlush style={styles.card}>
+										{/* A Cevşen and Hizb setting only: a hatim's cüz map names who holds
+										    each cüz, and nothing there reads the switch. */}
+										{group.kind !== 'HATIM' ? (
+											<>
+												<ToggleRow
+													title={t('hideMemberNames')}
+													hint={t('hideMemberNamesHint')}
+													value={group.hideMemberNames}
+													disabled={updateGroup.isPending}
+													onValueChange={next =>
+														updateGroup.mutate({ groupId: group.id, hideMemberNames: next })
+													}
+												/>
+												<Divider />
+											</>
+										) : null}
 										<ToggleRow
 											hint={spotsHint}
 											disabled={isFlexible}
@@ -223,7 +277,7 @@ export const ManageSheet = ({ group, isVisible, onClose, onOpenMembers }: Props)
 											}
 											onPress={onOpenMembers}
 										/>
-									</View>
+									</CardSurface>
 								</>
 							) : null}
 						</ScrollView>
@@ -250,6 +304,14 @@ const styles = StyleSheet.create({
 	},
 	fieldLabel: {
 		marginTop: 4
+	},
+	inactivityCard: {
+		marginBottom: 22
+	},
+	// The toggle row's own 15, so the stepper lines up under its title.
+	inactivityDays: {
+		gap: 12,
+		padding: 15
 	},
 	form: {
 		gap: 12,

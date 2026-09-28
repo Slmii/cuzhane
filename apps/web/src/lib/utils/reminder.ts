@@ -48,8 +48,28 @@ export const isNextReminderTomorrow = (time: string, now: Date) => {
  * A group with no share today is not "done", it is not participating — it never counts.
  */
 export const reminderTotals = (groups: GroupSummary[] | undefined): ReminderTotals => {
+	/*
+	 * **Hatim groups are deliberately left out.**
+	 *
+	 * They were never opted in — they simply fell in, because a hatim's `myBabNumbers` is the
+	 * cüz that member holds and the arithmetic below happens to work on it. Two things were
+	 * wrong with that: the body says "{unread} **babın** kaldı", so a hatim reader was told
+	 * they owed babs; and in a mixed set the two were summed, making "5 babın kaldı" out of
+	 * three babs and two cüz — a number counting nothing real.
+	 *
+	 * "Bugün" is also the wrong frame for a round that runs ten or thirty days. A reminder
+	 * for a hatim wants its own copy and probably its own moment (near the round's end, which
+	 * is a server push and there is no cron), so it waits for section Q8 rather than shipping
+	 * as a daily nag with the wrong noun in it.
+	 *
+	 * A Hizb group counts in portions (`unreadPortions`), and a personal-plan one by its
+	 * `hizbToday` rather than a seat's share.
+	 */
 	const running = (groups ?? []).filter(
-		group => group.status === 'RUNNING' && (group.myBabNumbers.length > 0 || group.hizbToday != null)
+		group =>
+			group.kind !== 'HATIM' &&
+			group.status === 'RUNNING' &&
+			(group.myBabNumbers.length > 0 || group.hizbToday != null)
 	);
 
 	return running.reduce<ReminderTotals>(

@@ -4,11 +4,13 @@ import { validateData } from '@middleware/validate.middleware';
 import { CreateFeedbackBody, CreateFeedbackBodySchema } from '@schemas/feedback.schema';
 import { createFeedback, type FeedbackReceipt } from '@services/feedback.service';
 import { NextFunction, Request, Response, Router } from 'express';
+import { feedbackRateLimit } from '@middleware/rateLimit.middleware';
 
 const feedbackRouter = Router();
 
 feedbackRouter.post(
 	'/',
+	feedbackRateLimit,
 	validateData(CreateFeedbackBodySchema, 'body'),
 	async (
 		_req: Request,

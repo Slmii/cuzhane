@@ -37,7 +37,7 @@ import { FALLBACK_DISPLAY_NAME, getMemberProfiles } from '@utils/memberProfiles'
  */
 export type GroupEventSetting = Extract<
 	keyof Prisma.UserSettingsWhereInput,
-	'poolClaimEnabled' | 'memberJoinedEnabled' | 'memberLeftEnabled'
+	'cevsenPoolClaimEnabled' | 'hatimPoolClaimEnabled' | 'memberJoinedEnabled' | 'memberLeftEnabled'
 >;
 
 type GroupEventInput = {
@@ -69,6 +69,12 @@ type GroupEventInput = {
 	/** `data.kind` on the push payload, which the client routes on. */
 	pushKind: string;
 	/**
+	 * What the event is about, for saying it **once per actor, per round, per subject** — the
+	 * slot or cüz taken; empty for a join or a leave. See `GroupEventNotice`: without it, a
+	 * take/release or join/leave loop filed a row for every member, and pushed, on every turn.
+	 */
+	subject?: string;
+	/**
 	 * Built from what the group looks like *now*, after the write — the member count in
 	 * particular, which is the whole news in two of the three. `kind` is there for the copy
 	 * that names what the group reads: a pool block is babs in one group and portions in another.
@@ -92,7 +98,8 @@ export const notifyGroupMembers = async ({
 	excludeUserIds,
 	groupId,
 	pushKind,
-	setting
+	setting,
+	subject = ''
 }: GroupEventInput): Promise<void> => {
 	try {
 		const group = await prisma.group.findUnique({
@@ -100,6 +107,7 @@ export const notifyGroupMembers = async ({
 			select: {
 				kind: true,
 				name: true,
+				roundIndex: true,
 				spots: true,
 				splitMode: true,
 				hideMemberNames: true,
@@ -115,6 +123,16 @@ export const notifyGroupMembers = async ({
 		const others = group.members.filter(member => !excluded.has(member.userId));
 
 		if (others.length === 0) {
+			return;
+		}
+
+		// Said once: a second take of the same slot, or a rejoin, this round stays silent.
+		const claimed = await prisma.groupEventNotice.createMany({
+			data: [{ actorUserId, groupId, kind: pushKind, roundIndex: group.roundIndex, subject }],
+			skipDuplicates: true
+		});
+
+		if (claimed.count === 0) {
 			return;
 		}
 

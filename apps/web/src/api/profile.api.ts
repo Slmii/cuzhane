@@ -11,3 +11,12 @@ export const getProfileStats = async () => {
 
 	return wrapperApi<ProfileStats>(`/profile/stats${query}`, { method: 'GET' });
 };
+
+/**
+ * Asks the server to drop its cached copy of the signed-in user's Clerk profile.
+ *
+ * Names are looked up from Clerk and held for a minute, which is right for everybody else's
+ * and wrong for your own the moment you change it — that is exactly when you go looking.
+ * The server evicts the caller and nobody else; there is no id to send.
+ */
+export const refreshMyProfile = async () => wrapperApi<{ ok: boolean }>('/profile/refresh', { method: 'POST' });

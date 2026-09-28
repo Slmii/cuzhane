@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import type { AppStatusBarProps } from './AppStatusBar.types';
 
 /** Screens whose own top layer is dark in both themes, so the clock above it must be light. */
-const LIGHT_STATUS_BAR_ROUTES = new Set<string>(['Home']);
+const LIGHT_STATUS_BAR_ROUTES = new Set<string>(['Home', 'HatimComplete']);
 /** How often to look again for a container that is still mounting. */
 const READY_POLL_MS = 50;
 

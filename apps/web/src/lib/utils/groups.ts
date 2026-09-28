@@ -12,24 +12,46 @@ import type {
 } from '@/lib/types/domain';
 import { babRuns, formatRun, rangeForRound, rangeForSlot } from '@/lib/utils/babs';
 import { CYCLES_FOR_KIND } from '@/lib/utils/groupKinds';
+import { unitLabelKey } from '@/lib/utils/units';
 
 /** The cycles the create sheet offers a kind — the Hizb's month is not the Cevşen's to choose. */
 export const cycleOptionsFor = (kind: GroupKind): readonly GroupCycle[] => CYCLES_FOR_KIND[kind];
 
-// A record rather than a ternary, so a cycle added to `GroupCycle` fails the build until it has a name.
-const CYCLE_LABEL_KEYS: Record<GroupCycle, StringKey> = { DAILY: 'daily', WEEKLY: 'weekly', MONTHLY: 'monthly' };
+/**
+ * The cadence's name.
+ *
+ * **A full map, not `DAILY ? … : 'weekly'`.** That was complete while the only two values
+ * were DAILY and WEEKLY, and it silently labelled a monthly hatim "Haftalık" and a one-off
+ * the same — the shape of every other bug this feature has produced. `CUSTOM` is not a
+ * cadence at all, so it borrows the "tek seferlik" wording rather than naming a rhythm.
+ */
+const CYCLE_LABEL_KEYS: Record<GroupCycle, StringKey> = {
+	CUSTOM: 'qCustom',
+	DAILY: 'daily',
+	MONTHLY: 'monthly',
+	WEEKLY: 'weekly'
+};
 
 export const cycleLabelKey = (cycle: GroupCycle): StringKey => CYCLE_LABEL_KEYS[cycle];
 
 /**
- * The noun a count of parts takes — "20 bab", "7 bölüm". Lowercase, for after a number:
- * "/ 100 bab", "33 bölüm". A Hizb group divides portions, not babs, and saying "bab" there
- * would name a unit the book is not cut into.
+ * The noun a count of parts takes — "20 bab", "30 cüz", "7 bölüm". Lowercase, for after a
+ * number: "/ 100 bab", "33 bölüm". A Hizb group divides portions and a hatim cüz, not babs, and
+ * saying "bab" there would name a unit the book is not cut into. Same as `unitLabelKey`.
  */
-export const partUnitKey = (kind: GroupKind): StringKey => (kind === 'HIZB' ? 'portions' : 'babs');
+export const partUnitKey = (kind: GroupKind): StringKey => unitLabelKey(kind);
 
-/** The same noun titling one part — "Bab 12", "Bölüm 19". */
-export const partLabelKey = (kind: GroupKind): StringKey => (kind === 'HIZB' ? 'portion' : 'bab');
+// A record, so a kind added to `GroupKind` fails the build until it has a name.
+const PART_LABEL_KEYS: Record<GroupKind, StringKey> = { CEVSEN: 'bab', HATIM: 'cuzLabel', HIZB: 'portion' };
+
+/** The same noun titling one part — "Bab 12", "Cüz 12", "Bölüm 19". */
+export const partLabelKey = (kind: GroupKind): StringKey => PART_LABEL_KEYS[kind];
+
+// The kind's own name — "Cevşen", "Kuran", "Hizbü'l-Hakaik". A record, for the same reason.
+const KIND_LABEL_KEYS: Record<GroupKind, StringKey> = { CEVSEN: 'qCevsen', HATIM: 'qHatim', HIZB: 'kindHizb' };
+
+/** What a group reads, by name — a card's badge, a filter row, a notification's heading. */
+export const kindLabelKey = (kind: GroupKind): StringKey => KIND_LABEL_KEYS[kind];
 
 /**
  * Whether a written range is a single part. `formatRun` and `formatBabRange` write one part as a
@@ -47,6 +69,12 @@ export const hizbPartsLabel = (
 	parts: string,
 	t: (key: 'hizbParts' | 'hizbPartsOne', values: Record<string, string>) => string
 ) => t(isSinglePart(parts) ? 'hizbPartsOne' : 'hizbParts', { parts });
+
+/** The plan screens' "Bölüm 11–13" / "Portions 11–13" / "Portion 19" — the noun first, counted. */
+export const hizbPortionLabel = (
+	portions: string,
+	t: (key: 'hpPortionLabel' | 'hpPortionLabelMany', values: Record<string, string>) => string
+) => t(isSinglePart(portions) ? 'hpPortionLabel' : 'hpPortionLabelMany', { portions });
 
 export const visibilityLabelKey = (visibility: GroupVisibility): StringKey =>
 	visibility === 'OPEN' ? 'open' : 'private';
@@ -311,7 +339,8 @@ export const shareSlices = (babNumbers: number[], nextBabNumber: number | null):
  * viewer's is a separate fact, because it is drawn as a separate mark — a ring over whichever of
  * the three it is.
  */
-export type HizbBoardCellState = 'read' | 'taken' | 'pool';
+/** `unread` is a personal-plan group's: no holders and no pool, only read or not yet. */
+export type HizbBoardCellState = 'read' | 'taken' | 'pool' | 'unread';
 
 export type HizbBoardCell = {
 	number: number;

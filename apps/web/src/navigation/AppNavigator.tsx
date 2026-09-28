@@ -1,4 +1,9 @@
 import { HizbPlanReader } from '@/screens/Hizb/HizbPlanReader.component';
+import { HizbGroupProgressScreen } from '@/screens/Groups/HizbGroupProgressScreen.component';
+import { HizbMissedScreen } from '@/screens/Groups/HizbMissedScreen.component';
+import { HizbPlanHistoryScreen } from '@/screens/Groups/HizbPlanHistoryScreen.component';
+import { HizbReadersScreen } from '@/screens/Groups/HizbReadersScreen.component';
+import { GroupHowItWorksScreen } from '@/screens/Groups/GroupHowItWorksScreen.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { SplashScreen as AnimatedSplash } from '@/screens/Splash/SplashScreen.component';
 import { userSettingsQueryKeys } from '@/lib/hooks/queryKeys';
@@ -30,12 +35,18 @@ import { LobbyScreen } from '@/screens/Groups/LobbyScreen.component';
 import { PoolScreen } from '@/screens/Groups/PoolScreen.component';
 import { RoundDetailScreen } from '@/screens/Groups/RoundDetailScreen.component';
 import { MyProgressScreen } from '@/screens/Groups/MyProgressScreen.component';
-import { GroupIntroductionScreen } from '@/screens/Groups/GroupIntroductionScreen.component';
+import { HatimDuaScreen } from '@/screens/Reader/HatimDuaScreen.component';
 import { RoundsScreen } from '@/screens/Groups/RoundsScreen.component';
 import { HomeScreen } from '@/screens/Home/HomeScreen.component';
 import { HomeSkeleton } from '@/screens/Home/HomeSkeleton.component';
 import { InvitePreviewScreen } from '@/screens/Join/InvitePreviewScreen.component';
 import { JoinedWelcomeScreen } from '@/screens/Join/JoinedWelcomeScreen.component';
+import { PickCuzScreen } from '@/screens/Join/PickCuzScreen.component';
+import { HatimCompleteScreen } from '@/screens/Groups/HatimCompleteScreen.component';
+import { RoundStartScreen } from '@/screens/Groups/RoundStartScreen.component';
+import { CuzDetailScreen } from '@/screens/Groups/CuzDetailScreen.component';
+import { CuzReaderScreen } from '@/screens/Reader/CuzReaderScreen.component';
+import { MushafScreen } from '@/screens/Reader/MushafScreen.component';
 import { OnboardingScreen } from '@/screens/Onboarding/OnboardingScreen.component';
 import { ProfileScreen } from '@/screens/Profile/ProfileScreen.component';
 import { NotificationsScreen } from '@/screens/Notifications/NotificationsScreen.component';
@@ -73,8 +84,11 @@ import { useBottomTabBarHeight, type AppleIcon } from 'react-native-bottom-tabs'
  * being tried with the bar left in — it stacks directly under the reader's own prev · Okudum ·
  * next bar, so the two are worth looking at together before deciding. Put `'BabReader'`
  * back to restore the immersive version.
+ *
+ * `HatimComplete` (Q7) is the other: a full-bleed green page whose one action is the line at
+ * its foot, and the bar laid over it read as the app carrying on regardless of the moment.
  */
-const TAB_BAR_HIDDEN_ROUTES = new Set<string>(['Search']);
+const TAB_BAR_HIDDEN_ROUTES = new Set<string>(['Search', 'HatimComplete', 'GroupHowItWorks']);
 
 type AnyNavigationState = NavigationState | PartialState<NavigationState>;
 
@@ -419,6 +433,7 @@ const sharedTabScreens = ({ isProfileRoot = false }: { isProfileRoot?: boolean }
 		<TabStack.Screen name='HizbIndex' component={HizbIndexScreen} options={pushedScreenOptions} />
 		<TabStack.Screen name='Rounds' component={RoundsScreen} options={pushedScreenOptions} />
 		<TabStack.Screen name='MyProgress' component={MyProgressScreen} options={pushedScreenOptions} />
+		<TabStack.Screen name='HatimDua' component={HatimDuaScreen} options={pushedScreenOptions} />
 		<TabStack.Screen name='RoundDetail' component={RoundDetailScreen} options={pushedScreenOptions} />
 		{/*
 		 * The native back button like every other pushed screen. It was the exception while its
@@ -428,7 +443,32 @@ const sharedTabScreens = ({ isProfileRoot = false }: { isProfileRoot?: boolean }
 		 * the only place it goes and the chevron already says so.
 		 */}
 		<TabStack.Screen name='InvitePreview' component={InvitePreviewScreen} options={pushedScreenOptions} />
-		<TabStack.Screen name='GroupIntroduction' component={GroupIntroductionScreen} options={pushedScreenOptions} />
+		{/* QJ3, pushed from that preview — back returns to it with the choice abandoned, which
+		    is the right outcome: nothing is taken until the join lands. */}
+		<TabStack.Screen name='PickCuz' component={PickCuzScreen} options={nativeBackScreenOptions} />
+		{/* Q7 and QR1 — what a hatim group can open on instead of itself; see `useHatimRoundGate`. */}
+		{/*
+		 * Q7 has no bar: the design draws the page edge to edge with only its replay button in the
+		 * corner — and the bar, laid over that corner, took the button's taps. The foot line is
+		 * the way on, and the edge swipe still goes back.
+		 */}
+		<TabStack.Screen name='HatimComplete' component={HatimCompleteScreen} options={{ headerShown: false }} />
+		<TabStack.Screen name='RoundStart' component={RoundStartScreen} options={nativeBackScreenOptions} />
+		{/* Q4, pushed from a hatim's cüz row on the group screen — the cüz's own page. */}
+		<TabStack.Screen name='CuzDetail' component={CuzDetailScreen} options={nativeBackScreenOptions} />
+		{/* Q5, pushed from Q4's "Uygulamada oku". The same bar as the Cevşen reader, with the
+		    same text-size control in it — see the note on `BabReader` above. */}
+		<TabStack.Screen
+			name='CuzReader'
+			component={CuzReaderScreen}
+			options={{ ...nativeBackScreenOptions, headerRight: () => <ReaderToolbar /> }}
+		/>
+		{/* The free Mushaf, Ana sayfa's "Mushaf" — Q5 outside any group, with the same bar. */}
+		<TabStack.Screen
+			name='Mushaf'
+			component={MushafScreen}
+			options={{ ...nativeBackScreenOptions, headerRight: () => <ReaderToolbar /> }}
+		/>
 		{/*
 		 * **It needs the back button like any other pushed screen.** Gruplarım navigates here for
 		 * a member whose group is still gathering, and that is a push onto the shelf — with no
@@ -457,7 +497,21 @@ const sharedTabScreens = ({ isProfileRoot = false }: { isProfileRoot?: boolean }
 		 */}
 		<TabStack.Screen name='Reminders' component={RemindersScreen} options={pushedScreenOptions} />
 		<TabStack.Screen name='ReleaseNotes' component={ReleaseNotesScreen} options={nativeBackScreenOptions} />
-		<TabStack.Screen name='HizbPlanReader' component={HizbPlanReader} options={nativeBackScreenOptions} />
+		<TabStack.Screen
+			name='HizbPlanReader'
+			component={HizbPlanReader}
+			options={{ ...nativeBackScreenOptions, headerRight: () => <ReaderToolbar /> }}
+		/>
+		<TabStack.Screen name='HizbMissed' component={HizbMissedScreen} options={nativeBackScreenOptions} />
+		<TabStack.Screen name='HizbPlanHistory' component={HizbPlanHistoryScreen} options={nativeBackScreenOptions} />
+		<TabStack.Screen
+			name='HizbGroupProgress'
+			component={HizbGroupProgressScreen}
+			options={nativeBackScreenOptions}
+		/>
+		<TabStack.Screen name='HizbReaders' component={HizbReadersScreen} options={nativeBackScreenOptions} />
+		{/* O1–O5, after joining any group: its own "Atla" and buttons are the way on, so no bar. */}
+		<TabStack.Screen name='GroupHowItWorks' component={GroupHowItWorksScreen} options={{ headerShown: false }} />
 		<TabStack.Screen name='HizbSections' component={HizbSectionsScreen} options={nativeBackScreenOptions} />
 		<TabStack.Screen
 			name='HizbReader'
@@ -519,7 +573,6 @@ const HomeTabStack = () => (
 			options={{
 				...rootToolbarScreenOptions,
 				// The one bar that is not over the page: the glyphs follow H1's layer, not the theme.
-				// The bell rides along inside `TrailingCornerAction`, as it does on every bar.
 				headerRight: () => <TrailingCornerAction isOnHeaderSurface />
 			}}
 		/>

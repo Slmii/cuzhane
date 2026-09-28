@@ -2,33 +2,28 @@ import { enrollHizbInTransaction, hizbSummary, expireHizb } from './hizbReading.
 import { BAD_REQUEST, INTERNAL_SERVER_ERROR } from '@config/httpCodes';
 import { HttpError } from '@config/httpError';
 import prisma from '@db/prisma';
-import { partCountFor, type GroupKindName } from '@utils/groupKinds';
+import { partCountFor } from '@utils/groupKinds';
 import { formatInviteCode, generateInviteCode } from '@utils/inviteCode';
 import { normalizeUserId } from '@utils/normalizeUserId';
-import { civilDayNumber, roundEndsAt } from '@utils/rounds';
+import { civilDayNumber, ROUND_DAYS, roundEndsAt, roundLengthFor } from '@utils/rounds';
+import { CUZ_COUNT, unitCountFor } from '@utils/units';
+import type { CuzBoundaryPolicy, CuzDistribution } from '../generated/prisma/client';
 import type { Prisma } from '../generated/prisma/client';
 import { getMemberProfiles } from '@utils/memberProfiles';
 import { requireMembership, requireOwner } from './groupAccess.service';
 import { toGroupDetail, toGroupSummary } from './groupSerializers';
 import { lockGroup, ensureCurrentRoundFor, ensureCurrentRoundsFor } from './rounds.service';
+import { holdingsByGroupFor, holdingsFor } from './unitPlan';
 import type { GroupCycle, GroupDetail, GroupSplitMode, GroupSummary, GroupVisibility } from './groupSerializers';
 
 // `exactOptionalPropertyTypes` is on, so optional fields must admit `undefined`
 // explicitly — Zod's inferred output types always include it on optional keys.
-export type CreateGroupInput = {
-	hizbIndividual?: boolean;
-	hizbStartPortion?: number;
-	hizbPlan?: number | undefined;
-	inactivityDays?: number | null | undefined;
+/** What every kind is told. The halves that differ are the branches below. */
+type CreateGroupCommon = {
 	name: string;
 	dedication?: string | null | undefined;
 	visibility: GroupVisibility;
 	hideMemberNames?: boolean | undefined;
-	/** What the group reads. The schema has already held `spots` and `cycle` to its rules. */
-	kind: GroupKindName;
-	splitMode: GroupSplitMode;
-	cycle: GroupCycle;
-	spots: number;
 	reminderEnabled: boolean;
 	reminderTime: string;
 	autoStartWhenFull?: boolean | undefined;
@@ -38,6 +33,98 @@ export type CreateGroupInput = {
 	 * reaches this layer there is always a zone.
 	 */
 	timezone: string;
+};
+
+/**
+ * A union, mirroring `CreateGroupBodySchema` — see the note there on why the two kinds are
+ * not one object with optional halves. Every one of these settings is immutable after
+ * creation, so a field quietly ignored because it belonged to the other kind would be
+ * wrong for the life of the group.
+ */
+export type CreateGroupInput =
+	| (CreateGroupCommon & {
+			kind: 'CEVSEN';
+			splitMode: GroupSplitMode;
+			/**
+			 * **Only the two the body schema admits.** `GroupCycle` gained MONTHLY and CUSTOM for
+			 * the hatim and Hizb flows, and CUSTOM is not a preset at all — it means "the creator
+			 * typed a number", which `ROUND_DAYS` cannot answer for. A Cevşen group never types one.
+			 */
+			cycle: Exclude<GroupCycle, 'MONTHLY' | 'CUSTOM'>;
+			spots: number;
+	  })
+	| (CreateGroupCommon & {
+			kind: 'HIZB';
+			splitMode: GroupSplitMode;
+			/** A Hizb MONTHLY is a calendar month — see `roundLengthFor`. */
+			cycle: Exclude<GroupCycle, 'CUSTOM'>;
+			spots: number;
+			hizbIndividual?: boolean | undefined;
+			hizbStartPortion?: number | undefined;
+			/** A personal plan: 0 lets each member choose, otherwise 7/15/33 days. */
+			hizbPlan?: number | undefined;
+			inactivityDays?: number | null | undefined;
+	  })
+	| (CreateGroupCommon & {
+			kind: 'HATIM';
+			distribution: CuzDistribution;
+			/** Null when QC2's optional cap is switched off, which is the default. */
+			maxPerMember: number | null;
+			boundaryPolicy: CuzBoundaryPolicy;
+			/** The round's length in days, straight from QC3 — 7, 30, or whatever was typed. */
+			roundDays: number;
+			/** The cüz the creator takes (QC4). At least one — see the body schema. */
+			cuzNumbers: number[];
+	  });
+
+/**
+ * The columns that differ by kind, resolved once so the `create` below reads as one shape.
+ *
+ * **A hatim's `cycle` is derived from its length, not asked for.** The length is the real
+ * setting (QC3 offers 1, 7, 30 or a number); the cadence is a label the shelf filters and
+ * the round-reset copy still read, so the three presets keep their names and anything else
+ * is CUSTOM. **And its `spots` is pinned at thirty**: a hatim is full when all thirty cüz are
+ * taken rather than when thirty people have joined, so the seat cap is only the ceiling
+ * `slotIndex` needs, never a divisor of anything. `splitMode` is inert for the same reason —
+ * there are no blocks to rotate — so it records the value that never moves.
+ *
+ * A seat-based kind (Cevşen, Hizb) takes its length from the cadence preset. A personal Hizb
+ * plan runs by the day and has no seats, and neither has a flexible group, so both are sized
+ * to the whole book. A Hizb MONTHLY stores thirty days too, though the calendar reads it as a
+ * calendar month (`roundLengthFor`).
+ */
+const planColumnsFor = (input: CreateGroupInput, { flexible, personal }: { flexible: boolean; personal: boolean }) => {
+	if (input.kind === 'HATIM') {
+		return {
+			boundaryPolicy: input.boundaryPolicy,
+			cycle: (input.roundDays === 1
+				? 'DAILY'
+				: input.roundDays === 7
+				? 'WEEKLY'
+				: input.roundDays === 30
+				? 'MONTHLY'
+				: 'CUSTOM') as GroupCycle,
+			distribution: input.distribution,
+			kind: input.kind,
+			maxPerMember: input.maxPerMember,
+			roundDays: input.roundDays,
+			splitMode: 'FIXED' as GroupSplitMode,
+			spots: CUZ_COUNT
+		};
+	}
+
+	const cycle = personal ? 'DAILY' : input.cycle;
+
+	return {
+		boundaryPolicy: null,
+		cycle: cycle as GroupCycle,
+		distribution: null,
+		kind: input.kind,
+		maxPerMember: null,
+		roundDays: ROUND_DAYS[cycle],
+		splitMode: (personal ? 'FLEXIBLE' : input.splitMode) as GroupSplitMode,
+		spots: flexible ? partCountFor(input.kind) : input.spots
+	};
 };
 
 export type UpdateGroupInput = {
@@ -111,9 +198,34 @@ export const listGroupsForUser = async (userId: string): Promise<GroupSummary[]>
 		include: { members: true, babs: true }
 	});
 
+	// One query for the whole shelf, not one per group — and none at all when it holds no
+	// hatim. See `holdingsByGroupFor`.
+	const holdingsByGroupId = await holdingsByGroupFor(prisma, groups);
+	// Which hatims the viewer is sitting out this round — what tells "must pick" from "skipped".
+	const hatims = groups.filter(group => group.kind === 'HATIM');
+	const skips =
+		hatims.length === 0
+			? []
+			: await prisma.cuzRoundSkip.findMany({
+					select: { groupId: true },
+					where: {
+						OR: hatims.map(group => ({ groupId: group.id, roundIndex: group.roundIndex })),
+						userId: normalizedUserId
+					}
+			  });
+	const skippedGroupIds = new Set(skips.map(skip => skip.groupId));
+
 	return Promise.all(
 		groups.map(async group => ({
-			...toGroupSummary(group, group.babs, group.members, normalizedUserId),
+			...toGroupSummary(
+				group,
+				group.babs,
+				group.members,
+				normalizedUserId,
+				holdingsByGroupId.get(group.id) ?? [],
+				skippedGroupIds.has(group.id)
+			),
+			// A personal Hizb plan's share is the member's own assignment, not a seat's block.
 			...(group.hizbPlan !== null ? await hizbSummary(group.id, normalizedUserId) : {})
 		}))
 	);
@@ -132,11 +244,13 @@ export const getGroupDetailForUser = async (userId: string, groupId: string): Pr
 			cheers: true,
 			// Only this viewer's, and only what they haven't acknowledged — the serializer
 			// narrows further to the round in progress.
-			poolReleases: { where: { userId: normalizedUserId, seenAt: null } }
+			poolReleases: { where: { userId: normalizedUserId, seenAt: null } },
+			roundSkips: { select: { roundIndex: true }, where: { userId: normalizedUserId } }
 		}
 	});
 
 	const profiles = await getMemberProfiles(group.members.map(member => member.userId));
+	const holdings = await holdingsFor(prisma, group, group.roundIndex);
 
 	const detail = toGroupDetail(
 		group,
@@ -145,7 +259,9 @@ export const getGroupDetailForUser = async (userId: string, groupId: string): Pr
 		group.cheers,
 		normalizedUserId,
 		group.poolReleases,
-		profiles
+		profiles,
+		holdings,
+		group.roundSkips.map(skip => skip.roundIndex)
 	);
 	return group.hizbPlan !== null ? { ...detail, ...(await hizbSummary(group.id, normalizedUserId)) } : detail;
 };
@@ -157,26 +273,35 @@ export const createGroupForUser = async (
 ): Promise<GroupDetail> => {
 	const normalizedUserId = normalizeUserId(userId);
 	const startsAt = new Date();
-	const personal = input.hizbPlan !== undefined;
-	const individual = input.hizbIndividual ?? false;
-	const startPortion = input.hizbStartPortion ?? 1;
+	// The Hizb's plan settings, or none for the other kinds (the body schema refuses them there).
+	const hizb = input.kind === 'HIZB' ? input : null;
+	const personal = hizb?.hizbPlan !== undefined;
+	const individual = hizb?.hizbIndividual ?? false;
+	const startPortion = hizb?.hizbStartPortion ?? 1;
 	if (
 		!Number.isInteger(startPortion) ||
 		startPortion < 1 ||
-		(individual ? !personal || !input.hizbPlan || startPortion > input.hizbPlan : startPortion !== 1)
+		(individual ? !personal || !hizb?.hizbPlan || startPortion > hizb.hizbPlan : startPortion !== 1)
 	) {
 		throw new HttpError(BAD_REQUEST, 'Invalid individual reading start');
 	}
-	if (personal && (input.kind !== 'HIZB' || ![0, 7, 15, 33].includes(input.hizbPlan!))) {
+	if (hizb?.hizbPlan !== undefined && ![0, 7, 15, 33].includes(hizb.hizbPlan)) {
 		throw new HttpError(BAD_REQUEST, 'Invalid personal plan');
 	}
-	const flexible = personal || input.splitMode === 'FLEXIBLE';
+	const flexible = personal || (input.kind !== 'HATIM' && input.splitMode === 'FLEXIBLE');
 	if (flexible && !personal && input.visibility !== 'OPEN') {
 		throw new HttpError(BAD_REQUEST, 'Flexible groups must be open');
 	}
+	/*
+	 * **The cadence is a label; the calendar wants a number.** A Cevşen cycle maps to a fixed
+	 * length, so the preset answers for it — a hatim's round can be any number of days, which
+	 * no enum carries, and that is why `roundDays` is stored rather than looked up. A Hizb
+	 * MONTHLY is the one calendar month, which `roundLengthFor` answers for.
+	 */
+	const plan = planColumnsFor(input, { flexible, personal });
 	// A placeholder until the owner starts: `startGroupForUser` recomputes it from the
 	// moment round 0 actually begins, so gathering time doesn't eat into the round.
-	const endsAt = roundEndsAt(startsAt, personal ? 'DAILY' : input.cycle, 0, input.timezone);
+	const endsAt = roundEndsAt(startsAt, roundLengthFor(plan), 0, input.timezone);
 
 	// Resolve the invite code BEFORE opening the transaction. Postgres aborts the whole
 	// transaction on a unique violation, so retrying `create` inside one can never
@@ -191,15 +316,12 @@ export const createGroupForUser = async (
 				dedication: input.dedication ?? null,
 				visibility: individual ? 'PRIVATE' : input.visibility,
 				hideMemberNames: input.hideMemberNames ?? false,
-				kind: input.kind,
-				splitMode: personal ? 'FLEXIBLE' : input.splitMode,
-				hizbPlan: input.hizbPlan ?? null,
+				...plan,
+				hizbPlan: hizb?.hizbPlan ?? null,
 				hizbIndividual: individual,
 				hizbStartPortion: startPortion,
 				openToJoin: !individual,
-				inactivityDays: personal && !individual ? input.inactivityDays ?? null : null,
-				cycle: personal ? 'DAILY' : input.cycle,
-				spots: flexible ? partCountFor(input.kind) : input.spots,
+				inactivityDays: personal && !individual ? hizb?.inactivityDays ?? null : null,
 				// The owner's zone becomes the group's day. Everyone's board resets on this
 				// clock, which is why it is captured once and never changed.
 				timezone: input.timezone,
@@ -217,14 +339,38 @@ export const createGroupForUser = async (
 			}
 		});
 
-		// One row per part — a hundred for the Cevşen, 33 for the Hizb — with nothing but its
-		// number. Ownership isn't stored: who reads which block falls out of the seat and the
-		// round, and `assignedUserId` is reserved for pool volunteering.
+		// One row per unit — a hundred babs, thirty cüz or 33 Hizb portions (`unitCountFor`) —
+		// with nothing but its number. Ownership isn't stored: who reads which block falls out
+		// of the seat and the round (or, for a hatim, `CuzHolding`), and `assignedUserId` is
+		// reserved for pool volunteering. A personal Hizb plan has no shared board.
 		if (!personal) {
 			await tx.groupBab.createMany({
-				data: Array.from({ length: partCountFor(input.kind) }, (_, index) => ({
+				data: Array.from({ length: unitCountFor(group) }, (_, index) => ({
 					groupId: group.id,
 					number: index + 1
+				}))
+			});
+		}
+
+		/*
+		 * **The creator's cüz, written in the same transaction as the group.**
+		 *
+		 * A hatim has no derivable share: `CuzHolding` rows *are* the answer to "what do you
+		 * read", so a group created without them would exist with its owner holding nothing —
+		 * the state the join flow refuses and the one `resolveUnitPlan` would report as an
+		 * entirely free pool. Round 0 because that is the round a gathering group is on.
+		 *
+		 * De-duplicated: the picker cannot select a cüz twice, but the unique key would abort
+		 * the whole transaction if a client ever sent one, and refusing to create a group over
+		 * a repeated number is a worse answer than taking it once.
+		 */
+		if (input.kind === 'HATIM') {
+			await tx.cuzHolding.createMany({
+				data: [...new Set(input.cuzNumbers)].map(cuzNumber => ({
+					cuzNumber,
+					groupId: group.id,
+					roundIndex: 0,
+					userId: normalizedUserId
 				}))
 			});
 		}
@@ -242,6 +388,11 @@ export const createGroupForUser = async (
 		if (personal && group.hizbPlan !== 0) {
 			await enrollHizbInTransaction(tx, group, normalizedUserId);
 		}
+
+		// A hatim's owner can take all thirty on the way in — full before anyone else arrives,
+		// so it starts now rather than waiting for a join that can never come.
+		await autoStartIfFull(tx, group.id);
+
 		return group.id;
 	});
 
@@ -343,7 +494,7 @@ export const startGroupForUser = async (userId: string, groupId: string): Promis
 
 	const group = await prisma.group.findUniqueOrThrow({
 		where: { id: groupId },
-		select: { cycle: true, timezone: true }
+		select: { cycle: true, kind: true, roundDays: true, timezone: true }
 	});
 	const startedAt = new Date();
 
@@ -359,7 +510,7 @@ export const startGroupForUser = async (userId: string, groupId: string): Promis
 			// and treat the very first round as overdue.
 			roundIndex: 0,
 			roundStartedAt: startedAt,
-			endsAt: roundEndsAt(startedAt, group.cycle, 0, group.timezone)
+			endsAt: roundEndsAt(startedAt, roundLengthFor(group), 0, group.timezone)
 		}
 	});
 
@@ -371,9 +522,15 @@ export const startGroupForUser = async (userId: string, groupId: string): Promis
 };
 
 /**
- * Starts a gathering group the moment its last seat is taken, when the owner asked for
- * that. Called from inside the join transaction, so the new member sees a running group
- * rather than a lobby that flips a second later.
+ * Starts a gathering group the moment it is full, when the owner asked for that. Called from
+ * inside the join transaction (and the create one), so the member who filled it sees a running
+ * group rather than a lobby that flips a second later.
+ *
+ * **Full is a different question per kind.** A Cevşen group is full when every seat is taken.
+ * A hatim is full when all thirty cüz are held — its `spots` is thirty only because `slotIndex`
+ * needs a ceiling, so counting members against it waited for thirty *people*, and a hatim of
+ * five members holding every cüz never started. `CuzHolding` is unique per cüz per round, so its
+ * count for the round is the number of distinct cüz taken.
  */
 export const autoStartIfFull = async (tx: Prisma.TransactionClient, groupId: string): Promise<{ started: boolean }> => {
 	const group = await tx.group.findUnique({
@@ -382,13 +539,25 @@ export const autoStartIfFull = async (tx: Prisma.TransactionClient, groupId: str
 			spots: true,
 			status: true,
 			cycle: true,
+			kind: true,
+			roundDays: true,
+			roundIndex: true,
 			timezone: true,
 			autoStartWhenFull: true,
 			_count: { select: { members: true } }
 		}
 	});
 
-	if (!group || group.status !== 'GATHERING' || !group.autoStartWhenFull || group._count.members < group.spots) {
+	if (!group || group.status !== 'GATHERING' || !group.autoStartWhenFull) {
+		return { started: false };
+	}
+
+	const isFull =
+		group.kind === 'HATIM'
+			? (await tx.cuzHolding.count({ where: { groupId, roundIndex: group.roundIndex } })) >= CUZ_COUNT
+			: group._count.members >= group.spots;
+
+	if (!isFull) {
 		return { started: false };
 	}
 
@@ -403,7 +572,7 @@ export const autoStartIfFull = async (tx: Prisma.TransactionClient, groupId: str
 			startedAt,
 			roundIndex: 0,
 			roundStartedAt: startedAt,
-			endsAt: roundEndsAt(startedAt, group.cycle, 0, group.timezone)
+			endsAt: roundEndsAt(startedAt, roundLengthFor(group), 0, group.timezone)
 		}
 	});
 
@@ -448,6 +617,10 @@ export const discoverGroups = async (userId: string, query: DiscoverGroupsQuery)
 			// and yours are one tab away in Gruplarım — listing them here offers a "Katıl"
 			// you cannot take and buries the ones you actually could.
 			{ id: { notIn: joinedGroupIds } },
+			// A Hizb group without a plan — the seat board or the flexible one — never appears:
+			// Discover shows only the personal-plan model (design decision 11). Its existing
+			// members keep their group screen.
+			{ NOT: { kind: 'HIZB', hizbPlan: null } },
 			...filters
 		]
 	};
@@ -470,9 +643,19 @@ export const discoverGroups = async (userId: string, query: DiscoverGroupsQuery)
 		include: { members: true, babs: true }
 	});
 
+	// One query for the whole shelf, not one per group — and none at all when it holds no
+	// hatim. See `holdingsByGroupFor`.
+	const holdingsByGroupId = await holdingsByGroupFor(prisma, groups);
+
 	return Promise.all(
 		groups.map(async group => ({
-			...toGroupSummary(group, group.babs, group.members, normalizedUserId),
+			...toGroupSummary(
+				group,
+				group.babs,
+				group.members,
+				normalizedUserId,
+				holdingsByGroupId.get(group.id) ?? []
+			),
 			...(group.hizbPlan !== null ? await hizbSummary(group.id, normalizedUserId) : {})
 		}))
 	);

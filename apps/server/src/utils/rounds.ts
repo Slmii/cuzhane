@@ -19,13 +19,29 @@
  * These helpers are deliberately server-only. The client never computes a round — it is
  * handed `roundIndex` — so nothing here needs mirroring into `apps/web`.
  */
-/** Every cycle rolls; none is open-ended. */
-export type CycleName = 'DAILY' | 'WEEKLY' | 'MONTHLY';
+/**
+ * The cadences a group can be *labelled* with. Keşfet filters on this, and it is what the
+ * group screen's chip says.
+ *
+ * **It is no longer what the calendar reads.** A hatim's round is any number of days the
+ * creator picks, which no enum can carry, so the day count moved to `Group.roundDays` and
+ * these became presets that fill it in. The two still agree for every Cevşen group — see
+ * the backfill migration, which set DAILY to 1 and WEEKLY to 7 rather than letting the
+ * column's default quietly make every daily group weekly. The one exception is a Hizb
+ * group's MONTHLY, which is a calendar month rather than thirty days — see `roundLengthFor`.
+ */
+export type CycleName = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'CUSTOM';
 
-/** Fixed-length cycles, in days. MONTHLY is not a number of days, so it is absent by construction. */
-export const ROUND_DAYS: Record<'DAILY' | 'WEEKLY', number> = {
+/**
+ * The day count each preset stands for, for the one direction that still needs it: turning
+ * a chosen cadence into `roundDays` at creation. **Nothing reads a group's length through
+ * here any more** — read `group.roundDays`, which is the only thing that can answer for a
+ * custom round.
+ */
+export const ROUND_DAYS: Record<Exclude<CycleName, 'CUSTOM'>, number> = {
 	DAILY: 1,
-	WEEKLY: 7
+	WEEKLY: 7,
+	MONTHLY: 30
 };
 
 const DAY_MS = 86_400_000;
@@ -157,19 +173,49 @@ export const startOfCivilDay = (dayNumber: number, timeZone: string): Date => {
 	return new Date(instant);
 };
 
+/**
+ * How long a round lasts, as the calendar reads it: a number of local days, or `'MONTH'`.
+ *
+ * **A number for every Cevşen and Kur'an group** — `group.roundDays`, whatever the cadence is
+ * labelled (a Kur'an group's MONTHLY is thirty days, and CUSTOM is any number). **`'MONTH'`
+ * only for a Hizb group labelled MONTHLY**: its round is a calendar month, anchored on the
+ * start's day of month (see `boundaryDayNumber`). Ask `roundLengthFor` rather than building
+ * one of these by hand, so every call site agrees on which rule a group follows.
+ */
+export type RoundLength = number | 'MONTH';
+
+/** What `roundLengthFor` needs to know about a group. */
+export type RoundCalendarGroup = { kind: string; cycle: CycleName; roundDays: number };
+
+/**
+ * The one place that decides which calendar a group runs on. Everything that turns a group
+ * into round boundaries — the rollover, the serializers, history, the seed — goes through
+ * this, then hands the answer to the helpers below.
+ */
+export const roundLengthFor = (group: RoundCalendarGroup): RoundLength =>
+	group.kind === 'HIZB' && group.cycle === 'MONTHLY' ? 'MONTH' : group.roundDays;
+
 const daysInMonth = (year: number, monthIndex: number) => new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
+
+/** A day count the arithmetic can divide by: at least one whole day. */
+const wholeDays = (roundDays: number) => Math.max(1, Math.floor(roundDays));
 
 /**
  * The local day on which round `roundIndex` begins, as a civil day number. Round 0's day is the start's own.
  *
- * A DAILY or WEEKLY round is a fixed number of days, so this is plain addition. A month is
- * the anchor's day-of-month in each later month, clamped: a group started on the 31st rolls
- * on Feb 28, then Mar 31 — measured from the anchor every time, never from the previous
- * boundary, or one short February would pull every later round back to the 28th.
+ * A round of N days is plain addition. A month is the anchor's day-of-month in each later
+ * month, clamped: a group started on the 31st rolls on Feb 28, then Mar 31 — measured from
+ * the anchor every time, never from the previous boundary, or one short February would pull
+ * every later round back to the 28th.
  */
-export const boundaryDayNumber = (startedAt: Date, cycle: CycleName, roundIndex: number, timeZone: string): number => {
-	if (cycle !== 'MONTHLY') {
-		return civilDayNumber(startedAt, timeZone) + Math.max(0, roundIndex) * ROUND_DAYS[cycle];
+export const boundaryDayNumber = (
+	startedAt: Date,
+	length: RoundLength,
+	roundIndex: number,
+	timeZone: string
+): number => {
+	if (length !== 'MONTH') {
+		return civilDayNumber(startedAt, timeZone) + Math.max(0, roundIndex) * wholeDays(length);
 	}
 
 	const { year, month, day } = wallClockIn(startedAt, timeZone);
@@ -185,11 +231,16 @@ export const boundaryDayNumber = (startedAt: Date, cycle: CycleName, roundIndex:
  * How many rounds have elapsed since the hatim began — 0 during the first one.
  *
  * Counted in whole local calendar days rather than elapsed hours, so a round turns over at
- * midnight rather than 24h after the owner happened to tap "start". A MONTHLY round is
- * counted in calendar months instead, and turns over at the start of the boundary day
+ * midnight rather than 24h after the owner happened to tap "start". A calendar-month round is
+ * counted in months instead, and turns over at the start of the boundary day
  * `boundaryDayNumber` names for it.
  */
-export const roundIndexSince = (startedAt: Date, cycle: CycleName, now: Date, timeZone: string): number => {
+export const roundIndexSince = (startedAt: Date, length: RoundLength, now: Date, timeZone: string): number => {
+	// Every real length is at least a day; this only stops a nonsense one dividing into Infinity.
+	if (length !== 'MONTH' && length <= 0) {
+		return 0;
+	}
+
 	const today = civilDayNumber(now, timeZone);
 	const startDay = civilDayNumber(startedAt, timeZone);
 
@@ -197,8 +248,8 @@ export const roundIndexSince = (startedAt: Date, cycle: CycleName, now: Date, ti
 		return 0;
 	}
 
-	if (cycle !== 'MONTHLY') {
-		return Math.floor((today - startDay) / ROUND_DAYS[cycle]);
+	if (length !== 'MONTH') {
+		return Math.floor((today - startDay) / length);
 	}
 
 	const start = wallClockIn(startedAt, timeZone);
@@ -206,7 +257,7 @@ export const roundIndexSince = (startedAt: Date, cycle: CycleName, now: Date, ti
 	let index = (current.year - start.year) * 12 + (current.month - start.month);
 
 	// The month difference overshoots by one before this month's boundary day has arrived.
-	while (index > 0 && boundaryDayNumber(startedAt, cycle, index, timeZone) > today) {
+	while (index > 0 && boundaryDayNumber(startedAt, length, index, timeZone) > today) {
 		index--;
 	}
 
@@ -221,8 +272,13 @@ export const roundIndexSince = (startedAt: Date, cycle: CycleName, now: Date, ti
  * puts the boundary. Adding raw 24h blocks to `startedAt` instead would drift by the
  * time-of-day it started, and again by an hour at every DST change.
  */
-export const roundStartedAtFor = (startedAt: Date, cycle: CycleName, roundIndex: number, timeZone: string): Date =>
-	roundIndex <= 0 ? startedAt : startOfCivilDay(boundaryDayNumber(startedAt, cycle, roundIndex, timeZone), timeZone);
+export const roundStartedAtFor = (startedAt: Date, length: RoundLength, roundIndex: number, timeZone: string): Date => {
+	if (roundIndex <= 0 || (length !== 'MONTH' && length <= 0)) {
+		return startedAt;
+	}
+
+	return startOfCivilDay(boundaryDayNumber(startedAt, length, roundIndex, timeZone), timeZone);
+};
 
 /**
  * When round `roundIndex` runs out: the start of the next one, so the "X gün kaldı" caption
@@ -235,10 +291,10 @@ export const roundStartedAtFor = (startedAt: Date, cycle: CycleName, roundIndex:
  *
  * Takes the anchor and an index rather than the round's own start, because a clamped month
  * cannot be derived from the previous boundary: a month after Feb 28 is Mar 28, but a group
- * started on the 31st rolls on Mar 31.
+ * started on the 31st rolls on Mar 31. For a round of N days the two agree exactly.
  */
-export const roundEndsAt = (startedAt: Date, cycle: CycleName, roundIndex: number, timeZone: string): Date =>
-	startOfCivilDay(boundaryDayNumber(startedAt, cycle, Math.max(0, roundIndex) + 1, timeZone), timeZone);
+export const roundEndsAt = (startedAt: Date, length: RoundLength, roundIndex: number, timeZone: string): Date =>
+	startOfCivilDay(boundaryDayNumber(startedAt, length, Math.max(0, roundIndex) + 1, timeZone), timeZone);
 
 /** Whether a string is a time zone this platform actually knows, for validating client input. */
 export const isValidTimeZone = (timeZone: string): boolean => {

@@ -28,7 +28,7 @@ const daysAgo = (days: number): Date => {
 /** A running group where the reader holds their own block and one volunteered from the pool. */
 const createGroup = async () => {
 	const startedAt = daysAgo(ROUND_INDEX);
-	const roundStartedAt = roundStartedAtFor(startedAt, 'DAILY', ROUND_INDEX, DEFAULT_TIME_ZONE);
+	const roundStartedAt = roundStartedAtFor(startedAt, 1, ROUND_INDEX, DEFAULT_TIME_ZONE);
 	const claimed = new Set(blockFor(CLAIMED_SLOT));
 
 	const group = await prisma.group.create({
@@ -41,13 +41,14 @@ const createGroup = async () => {
 				.slice(-7)}`,
 			spots: SPOTS,
 			cycle: 'DAILY',
+			roundDays: 1,
 			timezone: DEFAULT_TIME_ZONE,
 			splitMode: 'ROTATION',
 			status: 'RUNNING',
 			startedAt,
 			roundIndex: ROUND_INDEX,
 			roundStartedAt,
-			endsAt: roundEndsAt(startedAt, 'DAILY', ROUND_INDEX, DEFAULT_TIME_ZONE),
+			endsAt: roundEndsAt(startedAt, 1, ROUND_INDEX, DEFAULT_TIME_ZONE),
 			members: {
 				create: [
 					{ userId: OWNER, displayName: 'Owner', role: 'OWNER', slotIndex: 0 },

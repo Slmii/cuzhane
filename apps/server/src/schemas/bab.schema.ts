@@ -1,9 +1,9 @@
 import { z } from 'zod';
 
 export const BabParamsSchema = z.object({
-	groupId: z.string().trim().min(1),
-	// 100 is the outer bound, the Cevşen's count. A Hizb group has 33 parts, and the service
-	// checks against the group's own count once it has loaded the group.
+	groupId: z.string().trim().min(1).max(64),
+	// 100 is the outer bound, the Cevşen's count. A Hizb group has 33 parts and a hatim 30, and
+	// the service checks against the group's own count once it has loaded the group.
 	babNumber: z.coerce.number().int().min(1).max(100)
 });
 

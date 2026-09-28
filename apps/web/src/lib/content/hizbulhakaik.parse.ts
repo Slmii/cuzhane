@@ -13,6 +13,18 @@ export type HizbLine = {
 	text: string;
 	/** The line split at its ❁ marks, present only on lines that have any. */
 	invocations?: string[];
+	/**
+	 * How many ❁ of its section come before this line, so each mark can carry its number within
+	 * the section. Set when the text loads (`HIZB_SECTIONS`), never in the data file; absent in
+	 * the Cevşen-ül Kebir, whose marks stay unnumbered.
+	 */
+	marksBefore?: number;
+	/**
+	 * The section's own name, which opens it (twice for the Delâil). Kept in the text so every
+	 * position into it stays put, and never drawn: the reader's heading names the section. Set
+	 * when the text loads, like `marksBefore`.
+	 */
+	isSectionName?: boolean;
 };
 
 /** What the print closes with `* * *`: a bab of the Cevşen, a du'a, a prayer. */

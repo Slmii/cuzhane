@@ -1,6 +1,5 @@
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
-import { TourTarget } from '@/components/Tour/TourTarget.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Collapsible } from '@/components/ui/Collapsible/Collapsible.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
@@ -67,9 +66,12 @@ type ReminderPersistenceProps = {
  */
 const SWITCH_FIELDS = [
 	'reminderEnabled',
-	'roundCompleteEnabled',
-	'groupReadsEnabled',
-	'poolClaimEnabled',
+	'cevsenGroupReadsEnabled',
+	'cevsenRoundCompleteEnabled',
+	'cevsenPoolClaimEnabled',
+	'hatimGroupReadsEnabled',
+	'hatimRoundCompleteEnabled',
+	'hatimPoolClaimEnabled',
 	'memberJoinedEnabled',
 	'memberLeftEnabled'
 ] as const satisfies readonly (keyof RemindersForm)[];
@@ -268,9 +270,12 @@ export const RemindersScreen = () => {
 				defaultValues={{
 					reminderTime: settings.reminderTime,
 					reminderEnabled: settings.reminderEnabled,
-					groupReadsEnabled: settings.groupReadsEnabled,
-					roundCompleteEnabled: settings.roundCompleteEnabled,
-					poolClaimEnabled: settings.poolClaimEnabled,
+					cevsenGroupReadsEnabled: settings.cevsenGroupReadsEnabled,
+					cevsenRoundCompleteEnabled: settings.cevsenRoundCompleteEnabled,
+					cevsenPoolClaimEnabled: settings.cevsenPoolClaimEnabled,
+					hatimGroupReadsEnabled: settings.hatimGroupReadsEnabled,
+					hatimRoundCompleteEnabled: settings.hatimRoundCompleteEnabled,
+					hatimPoolClaimEnabled: settings.hatimPoolClaimEnabled,
 					memberJoinedEnabled: settings.memberJoinedEnabled,
 					memberLeftEnabled: settings.memberLeftEnabled
 				}}
@@ -309,139 +314,152 @@ export const RemindersScreen = () => {
 								updateSettings={updateSettings}
 								watch={watch}
 							/>
-							{/*
-							 * **One section per notification, and the tour frames all six.** It
-							 * cut around the daily reminder alone, which made a card reading
-							 * "altı anahtar, altı bildirim" point at one of them — the stop is
-							 * about the whole list, so the spotlight is the whole list.
-							 */}
-							<TourTarget id='notifications'>
-								<View style={styles.sections}>
-									{/*
-									 * **The clock collapses with the switch.** A time is meaningless
-									 * while nothing is scheduled, so it leaves rather than sitting
-									 * there inert. `Collapsible` animates the block's own height and
-									 * the card follows, because the block is what takes up the room —
-									 * a layout transition on the card instead left the clock popping
-									 * in and out inside a surface that was still resizing.
-									 */}
-									<CardSurface isFlush>
-										<FormToggleRow
-											hint={t('dailyReminderHint')}
-											name='reminderEnabled'
-											title={t('dailyReminder')}
-										/>
-										{/*
-										 * **The clock belongs to this notification, not to the screen.** It was a card
-										 * of its own above everything, which read as a screen-level setting — but the
-										 * time is meaningless to the other two. Inside the section the whole of the
-										 * daily reminder is in one place: whether it is on, when it arrives, and what
-										 * it will say.
-										 *
-										 * It stays visible with the switch off: the time is a choice the reader made,
-										 * and hiding it would lose it from view rather than turn it off.
-										 */}
-										<Collapsible isOpen={watch('reminderEnabled')}>
-											<View style={[styles.timeBlock, { borderTopColor: theme.colors.divider }]}>
-												<FieldLabelText color={theme.colors.faintText} textAlign='center'>
-													{t('dailyAt')}
-												</FieldLabelText>
-												<Pressable
-													accessibilityRole='button'
-													onPress={() => setIsTimePickerVisible(current => !current)}
-													style={({ pressed }) => [
-														styles.timeRow,
-														{ opacity: pressed ? 0.7 : 1 }
-													]}
-												>
-													<Typography style={styles.timeValue} variant='display'>
-														{pad(time.hour)}:{pad(time.minute)}
-													</Typography>
-												</Pressable>
-												{hasNextReminder ? (
-													<CaptionText
-														color={theme.colors.faintText}
-														style={styles.nextReminder}
-													>
-														{nextReminderHint}
-													</CaptionText>
-												) : null}
-												{isTimePickerVisible ? (
-													<View style={styles.pickerWrap}>
-														<DateTimePicker
-															display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-															mode='time'
-															onChange={handleTimeChange}
-															value={toDate(time)}
-														/>
-														{/*
-														 * Closes the picker; it does not save. The value is written
-														 * on every turn of the spinner and debounced, so leaving
-														 * without tapping this keeps the time either way.
-														 */}
-														<Pressable
-															onPress={() => setIsTimePickerVisible(false)}
-															style={styles.pickerDone}
-														>
-															<BodyStrongText color={theme.colors.accent}>
-																{t('confirm')}
-															</BodyStrongText>
-														</Pressable>
-													</View>
-												) : null}
-											</View>
-										</Collapsible>
-									</CardSurface>
-
-									{/*
-									 * **The five group notifications, one card each, no previews.** Each
-									 * section used to carry a sample of the notification underneath its
-									 * switch. That was worth it at three; at six it is six stacked cards
-									 * of illustration between the reader and the switch they came for —
-									 * and the inbox one tap away now shows the real thing rather than a
-									 * mock-up of it.
-									 */}
-									<CardSurface isFlush>
-										<FormToggleRow
-											hint={t('roundCompleteAlertHint')}
-											name='roundCompleteEnabled'
-											title={t('roundCompleteAlert')}
-										/>
-									</CardSurface>
-
-									<CardSurface isFlush>
-										<FormToggleRow
-											hint={t('groupReadsHint')}
-											name='groupReadsEnabled'
-											title={t('groupReads')}
-										/>
-									</CardSurface>
-
-									<CardSurface isFlush>
-										<FormToggleRow
-											hint={t('poolClaimAlertHint')}
-											name='poolClaimEnabled'
-											title={t('poolClaimAlert')}
-										/>
-									</CardSurface>
-
-									<CardSurface isFlush>
-										<FormToggleRow
-											hint={t('memberJoinedAlertHint')}
-											name='memberJoinedEnabled'
-											title={t('memberJoinedAlert')}
-										/>
-									</CardSurface>
-
-									<CardSurface isFlush>
+							<View style={styles.sections}>
+								{/*
+								 * **The clock collapses with the switch.** A time is meaningless
+								 * while nothing is scheduled, so it leaves rather than sitting
+								 * there inert. `Collapsible` animates the block's own height and
+								 * the card follows, because the block is what takes up the room —
+								 * a layout transition on the card instead left the clock popping
+								 * in and out inside a surface that was still resizing.
+								 */}
+								{/*
+								 * **Three sections: Genel, Kuran, Cevşen.** Three of the five group notifications are
+								 * not one event but two — "someone finished their share" is a range of babs in one kind
+								 * and a cüz in the other — so each has a switch per kind, under the heading for that
+								 * kind. Who joins or leaves is the same event either way and stays shared.
+								 *
+								 * One card a section rather than one card a switch: at six cards the screen was a stack
+								 * with nothing saying which notification belonged to what.
+								 */}
+								<FieldLabelText style={styles.sectionLabel}>{t('notifGeneral')}</FieldLabelText>
+								<CardSurface isFlush>
+									<FormToggleRow
+										hint={t('memberJoinedAlertHint')}
+										name='memberJoinedEnabled'
+										title={t('memberJoinedAlert')}
+									/>
+									<View style={[styles.stackedRow, { borderTopColor: theme.colors.divider }]}>
 										<FormToggleRow
 											hint={t('memberLeftAlertHint')}
 											name='memberLeftEnabled'
 											title={t('memberLeftAlert')}
 										/>
-									</CardSurface>
-								</View>
-							</TourTarget>
+									</View>
+								</CardSurface>
+
+								<FieldLabelText style={styles.sectionLabel}>{t('qHatim')}</FieldLabelText>
+								<CardSurface isFlush>
+									<FormToggleRow
+										hint={t('groupReadsHintCuz')}
+										name='hatimGroupReadsEnabled'
+										title={t('groupReads')}
+									/>
+									<View style={[styles.stackedRow, { borderTopColor: theme.colors.divider }]}>
+										<FormToggleRow
+											hint={t('roundCompleteAlertHintCuz')}
+											name='hatimRoundCompleteEnabled'
+											title={t('roundCompleteAlert')}
+										/>
+									</View>
+									<View style={[styles.stackedRow, { borderTopColor: theme.colors.divider }]}>
+										<FormToggleRow
+											hint={t('poolClaimAlertHintCuz')}
+											name='hatimPoolClaimEnabled'
+											title={t('poolClaimAlertCuz')}
+										/>
+									</View>
+								</CardSurface>
+
+								<FieldLabelText style={styles.sectionLabel}>{t('qCevsen')}</FieldLabelText>
+								<CardSurface isFlush>
+									{/*
+									 * **The daily reminder is Cevşen's.** `reminderTotals` counts only Cevşen
+									 * groups — a hatim round runs ten or thirty days, so a nightly "you still owe"
+									 * would nag about something not due — which is why it sits under this heading
+									 * rather than above the sections as a screen-wide setting.
+									 *
+									 * **The clock collapses with the switch.** A time is meaningless while nothing
+									 * is scheduled, so it leaves rather than sitting there inert. `Collapsible`
+									 * animates the block's own height and the card follows, because the block is
+									 * what takes up the room — a layout transition on the card instead left the
+									 * clock popping in and out inside a surface that was still resizing.
+									 */}
+									<FormToggleRow
+										hint={t('dailyReminderHint')}
+										name='reminderEnabled'
+										title={t('dailyReminder')}
+									/>
+									<Collapsible isOpen={watch('reminderEnabled')}>
+										<View style={[styles.timeBlock, { borderTopColor: theme.colors.divider }]}>
+											<FieldLabelText color={theme.colors.faintText} textAlign='center'>
+												{t('dailyAt')}
+											</FieldLabelText>
+											<Pressable
+												accessibilityRole='button'
+												onPress={() => setIsTimePickerVisible(current => !current)}
+												style={({ pressed }) => [
+													styles.timeRow,
+													{ opacity: pressed ? 0.7 : 1 }
+												]}
+											>
+												<Typography style={styles.timeValue} variant='display'>
+													{pad(time.hour)}:{pad(time.minute)}
+												</Typography>
+											</Pressable>
+											{hasNextReminder ? (
+												<CaptionText color={theme.colors.faintText} style={styles.nextReminder}>
+													{nextReminderHint}
+												</CaptionText>
+											) : null}
+											{isTimePickerVisible ? (
+												<View style={styles.pickerWrap}>
+													<DateTimePicker
+														display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+														mode='time'
+														onChange={handleTimeChange}
+														value={toDate(time)}
+													/>
+													{/*
+													 * Closes the picker; it does not save. The value is written on every
+													 * turn of the spinner and debounced, so leaving without tapping this
+													 * keeps the time either way.
+													 */}
+													<Pressable
+														onPress={() => setIsTimePickerVisible(false)}
+														style={styles.pickerDone}
+													>
+														<BodyStrongText color={theme.colors.accent}>
+															{t('confirm')}
+														</BodyStrongText>
+													</Pressable>
+												</View>
+											) : null}
+										</View>
+									</Collapsible>
+									<View style={[styles.stackedRow, { borderTopColor: theme.colors.divider }]}>
+										<FormToggleRow
+											hint={t('groupReadsHint')}
+											name='cevsenGroupReadsEnabled'
+											title={t('groupReads')}
+										/>
+									</View>
+									<View style={[styles.stackedRow, { borderTopColor: theme.colors.divider }]}>
+										<FormToggleRow
+											hint={t('roundCompleteAlertHint')}
+											name='cevsenRoundCompleteEnabled'
+											title={t('roundCompleteAlert')}
+										/>
+									</View>
+									<View style={[styles.stackedRow, { borderTopColor: theme.colors.divider }]}>
+										<FormToggleRow
+											hint={t('poolClaimAlertHint')}
+											name='cevsenPoolClaimEnabled'
+											title={t('poolClaimAlert')}
+										/>
+									</View>
+								</CardSurface>
+							</View>
 						</>
 					);
 				}}
@@ -458,6 +476,15 @@ const styles = StyleSheet.create({
 	// The gap the cards had from `ScreenContainer` before they were wrapped for the tour.
 	sections: {
 		gap: 12
+	},
+	/** The heading above each section's card — the same field label the forms use. */
+	sectionLabel: {
+		marginBottom: -4,
+		marginTop: 6
+	},
+	/** A row stacked under another inside one card: the hairline is what separates them. */
+	stackedRow: {
+		borderTopWidth: StyleSheet.hairlineWidth
 	},
 	centerFill: {
 		alignItems: 'center',

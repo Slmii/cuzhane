@@ -1,7 +1,13 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import { z } from 'zod';
 import type { ResponseLocals } from '@interfaces/response.types';
-import { enrollHizb, getHizbState, getHizbAssignment, updateHizbAssignment } from '@services/hizbReading.service';
+import {
+	enrollHizb,
+	getHizbState,
+	getHizbAssignment,
+	setHizbReadsFromBook,
+	updateHizbAssignment
+} from '@services/hizbReading.service';
 const router = Router({ mergeParams: true });
 const params = z.object({ groupId: z.string().min(1), assignmentId: z.string().min(1).optional() });
 const update = z
@@ -9,13 +15,15 @@ const update = z
 		version: z.number().int().min(0),
 		read: z.boolean().optional(),
 		istighfarRepetitions: z.number().int().min(0).max(100).optional(),
-		istighfarTarget: z.union([z.literal(11), z.literal(33), z.literal(100)]).optional(),
+		istighfarTarget: z.number().int().min(1).max(100).optional(),
 		delailRepetitions: z.number().int().min(0).max(3).optional(),
 		repetitions: z.number().int().min(0).max(19).optional(),
-		bookmark: z.number().int().min(0).max(1000).optional()
+		bookmark: z.number().int().min(0).max(1000).optional(),
+		bookPortions: z.array(z.number().int().min(1).max(33)).min(1).max(33).optional()
 	})
 	.refine(
 		v =>
+			v.bookPortions !== undefined ||
 			v.delailRepetitions !== undefined ||
 			v.read !== undefined ||
 			v.repetitions !== undefined ||
@@ -44,6 +52,12 @@ router.post(
 			id,
 			z.object({ planDays: z.union([z.literal(7), z.literal(15), z.literal(33)]) }).parse(req.body).planDays
 		)
+	)
+);
+router.patch(
+	'/preferences',
+	handle((req, user, id) =>
+		setHizbReadsFromBook(user, id, z.object({ readsFromBook: z.boolean() }).parse(req.body).readsFromBook)
 	)
 );
 router.get(

@@ -51,10 +51,11 @@ const createRunningGroup = async ({
 			kind,
 			spots,
 			cycle: 'DAILY',
+			roundDays: 1,
 			splitMode: 'ROTATION',
 			status: 'RUNNING',
 			startedAt,
-			roundIndex: roundIndexSince(startedAt, 'DAILY', new Date(), DEFAULT_TIME_ZONE),
+			roundIndex: roundIndexSince(startedAt, 1, new Date(), DEFAULT_TIME_ZONE),
 			roundStartedAt: startedAt,
 			timezone: DEFAULT_TIME_ZONE,
 			members: {

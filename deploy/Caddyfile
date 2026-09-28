@@ -64,7 +64,9 @@
 		output stdout
 	}
 
-	reverse_proxy api-preview:3001
+	handle {
+		reverse_proxy api-preview:3001
+	}
 }
 
 {$DOMAIN} {
@@ -91,5 +93,7 @@
 		output stdout
 	}
 
-	reverse_proxy api:3001
+	handle {
+		reverse_proxy api:3001
+	}
 }

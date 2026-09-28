@@ -35,6 +35,22 @@ const group = (overrides: Partial<GroupSummary>): GroupSummary =>
 	} as GroupSummary);
 
 describe('reminderTotals', () => {
+	it('leaves hatim groups out entirely', () => {
+		/*
+		 * They fell in rather than being opted in — a hatim's `myBabNumbers` is the cüz that
+		 * member holds, so the arithmetic worked and the copy did not: the body names babs,
+		 * and a mixed shelf summed cüz and babs into one meaningless number.
+		 */
+		const totals = reminderTotals([
+			group({ id: 'cevsen', myBabNumbers: [1, 2, 3], myReadCount: 1 }),
+			group({ id: 'hatim', kind: 'HATIM', myBabNumbers: [7, 22], myReadCount: 0 })
+		]);
+
+		expect(totals.unread).toBe(2);
+		expect(totals.pendingGroups).toBe(1);
+		expect(totals.participatingGroups).toBe(1);
+	});
+
 	it('sums what is still owed across every running group', () => {
 		const totals = reminderTotals([
 			group({ id: 'a', myBabNumbers: [1, 2, 3], myReadCount: 1 }),
@@ -191,9 +207,9 @@ it('counts personal Hizb assignments without treating inactive readers as owing 
 		kind: 'HIZB',
 		hizbPlan: 7,
 		myBabNumbers: [],
-		hizbToday: { planDays: 7, portion: 2, completed: false }
+		hizbToday: { assignmentId: 'a', planDays: 7, portion: 2, completed: false }
 	});
-	const complete = group({ ...pending, hizbToday: { planDays: 7, portion: 2, completed: true } });
+	const complete = group({ ...pending, hizbToday: { assignmentId: 'a', planDays: 7, portion: 2, completed: true } });
 	const removed = group({ ...pending, hizbToday: null });
 	expect(reminderTotals([pending, complete, removed])).toEqual({
 		participatingGroups: 2,

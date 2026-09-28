@@ -6,7 +6,7 @@ import { useGetPoolSlots, useReleasePoolPart, useTakePoolPart } from '@/lib/hook
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { GroupDetail } from '@/lib/types/domain';
-import { hizbPartsLabel } from '@/lib/utils/groups';
+import { hizbPartsLabel, partLabelKey } from '@/lib/utils/groups';
 import { flexiblePortionState } from '@/lib/utils/flexible';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -29,7 +29,7 @@ export const FlexibleReadingPanel = ({ group, onOpenReader }: Props) => {
 	const state = selected ? flexiblePortionState(selected) : null;
 	const busy = take.isPending || release.isPending;
 	const label = (number: number) =>
-		group.kind === 'HIZB' ? hizbPartsLabel(String(number), t) : `${t('bab')} ${number}`;
+		group.kind === 'HIZB' ? hizbPartsLabel(String(number), t) : `${t(partLabelKey(group.kind))} ${number}`;
 	const stateLabel = {
 		available: t('flexibleAvailable'),
 		mine: t('ownMine'),

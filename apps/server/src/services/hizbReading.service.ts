@@ -2,13 +2,14 @@ import prisma from '@db/prisma';
 import { BAD_REQUEST, CONFLICT, FORBIDDEN, NOT_FOUND } from '@config/httpCodes';
 import { HttpError } from '@config/httpError';
 import {
-	coverageFor,
 	hasDelailRepetition,
 	hasIstighfar,
 	hasSekine,
 	isPlanDays,
+	PLAN_SPANS,
 	PLAN_VERSION,
-	portionForDay
+	portionForDay,
+	spansFor
 } from '@utils/hizbPlans';
 import { civilDayNumber, startOfCivilDay } from '@utils/rounds';
 import { normalizeUserId } from '@utils/normalizeUserId';
@@ -37,6 +38,8 @@ export async function expireHizb(tx: Prisma.TransactionClient, group: Group) {
 	}
 	const today = dayOf(group);
 	const active = await tx.hizbEnrollment.findMany({ where: { groupId: group.id, endDay: null } });
+	// One write per end day, not per member: a big group's idle readers mostly share one.
+	const endingOn = new Map<number, string[]>();
 	for (const enrollment of active) {
 		// A successful reading day is excluded; a never-read member owes the join day's portion.
 		const endDay =
@@ -45,11 +48,16 @@ export async function expireHizb(tx: Prisma.TransactionClient, group: Group) {
 				enrollment.lastReadDay === null ? enrollment.joinedDay : enrollment.lastReadDay + 1
 			) + group.inactivityDays;
 		if (today >= endDay) {
-			await tx.hizbEnrollment.update({
-				where: { id: enrollment.id },
-				data: { endDay, reason: 'INACTIVITY', removalDays: group.inactivityDays }
-			});
+			const ids = endingOn.get(endDay) ?? [];
+			ids.push(enrollment.id);
+			endingOn.set(endDay, ids);
 		}
+	}
+	for (const [endDay, ids] of endingOn) {
+		await tx.hizbEnrollment.updateMany({
+			where: { id: { in: ids } },
+			data: { endDay, reason: 'INACTIVITY', removalDays: group.inactivityDays }
+		});
 	}
 }
 
@@ -100,6 +108,72 @@ export async function enrollHizb(userId: string, groupId: string, days?: number)
 	});
 	return getHizbState(user, groupId);
 }
+
+/**
+ * A day's reading on the board: a completed one, or one marked part-read from the book, whose
+ * `partial` names the board portions ticked so far.
+ */
+type DayReading = { planDays: number; portion: number; partial?: readonly number[] };
+
+/**
+ * The text spans one reading covers. A part-read day covers only the ticked portions' share of its
+ * own text: a 15-day day reaches into portion 6, and ticking 6 must not paint the half of 6 that
+ * belongs to the next day.
+ */
+const spansOfReading = (reading: DayReading) => {
+	const own = spansFor(reading.planDays, reading.portion);
+	if (!reading.partial) {
+		return own;
+	}
+	const ticked = new Set(reading.partial.flatMap(portion => spansFor(33, portion)));
+	return own.filter(span => ticked.has(span));
+};
+
+/** The canonical text spans a day's readings cover — what the group's board draws. */
+const spansCoveredBy = (readings: readonly DayReading[]) => [...new Set(readings.flatMap(spansOfReading))];
+
+/**
+ * How a reading was marked, for the day's card: the board portions it touches (what the book sheet
+ * ticks), those ticked so far, and whether a finished day was read in the app or from the book.
+ */
+const bookFields = (a: {
+	portion: number;
+	readPortions: number[];
+	readFrom: string | null;
+	enrollment: { planDays: number };
+}) => ({
+	boardPortions: boardPortionsFor(a.enrollment.planDays, a.portion),
+	readPortions: a.readPortions,
+	readFrom: a.readFrom === 'BOOK' || a.readFrom === 'APP' ? a.readFrom : null
+});
+
+/** Coverage of the whole text by a day's spans. */
+const coverageOfSpans = (spans: readonly number[]) => ({
+	covered: spans.length,
+	total: PLAN_SPANS.length,
+	complete: spans.length === PLAN_SPANS.length
+});
+
+/** Which of the board's 33 a plan's day touches — what the book sheet offers to tick (the web's `boardPortionsOf`). */
+export const boardPortionsFor = (planDays: number, portion: number) => {
+	const own = new Set(spansFor(planDays, portion));
+	return Array.from({ length: 33 }, (_, i) => i + 1).filter(board => spansFor(33, board).some(span => own.has(span)));
+};
+
+/**
+ * How many of the board's 33 portions a day's spans read in full — the count the group's board
+ * draws (the web's `planBoardCells`). Spans are finer than the 33 (35 of them), so they are never
+ * the count shown.
+ */
+const boardPortionsRead = (spans: readonly number[]) => {
+	const covered = new Set(spans);
+	return Array.from({ length: 33 }, (_, i) => spansFor(33, i + 1)).filter(portion =>
+		portion.every(span => covered.has(span))
+	).length;
+};
+
+/** When the group's next reading day begins: the next local midnight in its own zone. */
+const nextDayAtFor = (group: Group, today: number) => startOfCivilDay(today + 1, group.timezone).toISOString();
 
 async function materialize(tx: Prisma.TransactionClient, group: Group, enrollment: HizbEnrollment) {
 	const lastDay = Math.min(dayOf(group), enrollment.endDay === null ? Infinity : enrollment.endDay - 1);
@@ -175,8 +249,25 @@ export async function getHizbState(userId: string, groupId: string, cursor?: str
 				take: 101,
 				...(cursor ? { cursor: { id: cursor }, skip: 1 } : {})
 			});
+			/*
+			 * Rounds are counted across every enrollment — a member who left and came back carries on
+			 * from where they were — while `traversal` restarts at 0 in each. So each enrollment's
+			 * rounds are offset by all the rounds its earlier enrollments started.
+			 */
+			const roundsIn = (e: HizbEnrollment) => {
+				const last = Math.min(today, e.endDay === null ? today : e.endDay - 1);
+				return last < e.joinedDay ? 0 : Math.floor((last - e.joinedDay) / e.planDays) + 1;
+			};
+			const roundOffset = new Map<string, number>();
+			let roundsStarted = 0;
+			for (const e of [...enrollments].sort((a, b) => a.joinedDay - b.joinedDay || a.ordinal - b.ordinal)) {
+				roundOffset.set(e.id, roundsStarted);
+				roundsStarted += roundsIn(e);
+			}
 			const serialize = (a: NonNullable<typeof assignment>) => ({
 				id: a.id,
+				// The overall round this reading belongs to, 1-based.
+				round: (roundOffset.get(a.enrollmentId) ?? 0) + a.traversal + 1,
 				day: a.day,
 				date: dateOf(a.day),
 				planDays: a.enrollment.planDays,
@@ -192,6 +283,7 @@ export async function getHizbState(userId: string, groupId: string, cursor?: str
 				version: a.version,
 				bookmark: a.bookmark,
 				requiresSekine: hasSekine(a.enrollment.planDays, a.portion),
+				...bookFields(a),
 				completedAt: a.completedAt?.toISOString() ?? null
 			});
 			const completeCycles = await tx.hizbAssignment.groupBy({
@@ -208,16 +300,101 @@ export async function getHizbState(userId: string, groupId: string, cursor?: str
 			});
 			const members = await tx.groupMember.findMany({ where: { groupId }, orderBy: { slotIndex: 'asc' } });
 			const reads = await tx.hizbAssignment.findMany({
-				where: { enrollment: { groupId }, day: { gte: today - 29, lte: today }, completedAt: { not: null } },
-				include: { enrollment: true }
+				// Today and the thirty days before it: the board, yesterday, and T4's thirty bars.
+				// A day part-read from the book counts on the board too, for the portions ticked.
+				where: {
+					enrollment: { groupId },
+					day: { gte: today - 30, lte: today },
+					OR: [{ completedAt: { not: null } }, { readPortions: { isEmpty: false } }]
+				},
+				select: {
+					day: true,
+					enrollmentId: true,
+					portion: true,
+					completedAt: true,
+					readPortions: true,
+					enrollment: { select: { planDays: true } }
+				}
 			});
-			const coverage = (day: number) =>
-				coverageFor(
-					reads.filter(a => a.day === day).map(a => ({ planDays: a.enrollment.planDays, portion: a.portion }))
+			/*
+			 * A big group reads the same few portions many times a day: keep each day's distinct
+			 * (plan, portion) pairs once, and today's readers in a set, so the board and the
+			 * readers list cost one pass over the reads rather than one per day or per member.
+			 */
+			const readingsOn = new Map<number, Map<string, DayReading>>();
+			for (const a of reads) {
+				const day = readingsOn.get(a.day) ?? new Map<string, DayReading>();
+				const reading = { planDays: a.enrollment.planDays, portion: a.portion };
+				day.set(
+					a.completedAt
+						? `${reading.planDays}:${reading.portion}`
+						: `${reading.planDays}:${reading.portion}:${a.readPortions.join(',')}`,
+					a.completedAt ? reading : { ...reading, partial: a.readPortions }
 				);
+				readingsOn.set(a.day, day);
+			}
+			const readingsFor = (day: number) => [...(readingsOn.get(day)?.values() ?? [])];
+			const readToday = new Set(reads.filter(a => a.day === today && a.completedAt).map(a => a.enrollmentId));
+			const memberByUser = new Map(members.map(m => [m.userId, m]));
+			// Today's readings that are under way: a page turned or a count begun, not yet read. A
+			// member who hasn't opened the app today has no row for today, so isn't started.
+			const startedToday = new Set(
+				(
+					await tx.hizbAssignment.findMany({
+						where: {
+							enrollmentId: { in: active.map(e => e.id) },
+							day: today,
+							completedAt: null,
+							OR: [
+								{ bookmark: { gt: 0 } },
+								{ repetitions: { gt: 0 } },
+								{ istighfarRepetitions: { gt: 0 } },
+								{ delailRepetitions: { gt: 0 } },
+								{ readPortions: { isEmpty: false } }
+							]
+						},
+						select: { enrollmentId: true }
+					})
+				).map(a => a.enrollmentId)
+			);
 			const anchor = civilDayNumber(group.startedAt ?? group.startsAt, group.timezone);
+			// Which canonical text spans a day's readings cover, for the group's board.
+			const spansOn = (day: number) => spansCoveredBy(readingsFor(day));
+			const coverage = (day: number) => coverageOfSpans(spansOn(day));
+			// The catch-up list: every unread day of the viewer's before today, newest first. Uncapped —
+			// the history screen lists them all, and a day row is a few numbers.
+			const missed = await tx.hizbAssignment.findMany({
+				where: { ...mine, day: { lt: today }, completedAt: null },
+				include: { enrollment: true },
+				orderBy: [{ day: 'desc' }, { id: 'asc' }]
+			});
+			// The round today's reading is in: its number, its days read so far, and its days come round.
+			const currentRound = assignment
+				? {
+						number: roundsStarted,
+						read: await tx.hizbAssignment.count({
+							where: {
+								enrollmentId: assignment.enrollmentId,
+								traversal: assignment.traversal,
+								completedAt: { not: null }
+							}
+						}),
+						days:
+							today -
+							(assignment.enrollment.joinedDay + assignment.traversal * assignment.enrollment.planDays) +
+							1
+				  }
+				: null;
 			return {
 				today: assignment ? serialize(assignment) : null,
+				currentRound,
+				missed: missed.map(serialize),
+				coveredSpans: spansOn(today),
+				// The group's day before today — "Geçen tur" on a daily plan. Null on its first day.
+				previousDay:
+					today > anchor
+						? { date: dateOf(today - 1), ...coverage(today - 1), coveredSpans: spansOn(today - 1) }
+						: null,
 				enrollment: current
 					? {
 							id: current.id,
@@ -225,9 +402,17 @@ export async function getHizbState(userId: string, groupId: string, cursor?: str
 							sequence: current.sequence,
 							endDay: current.endDay,
 							reason: current.reason,
-							removalDays: current.removalDays
+							removalDays: current.removalDays,
+							joinedDate: dateOf(current.joinedDay)
 					  }
 					: null,
+				// The group's first day, for a late joiner's note (S7).
+				startedDate: dateOf(anchor),
+				// "Bu grupta hep kitaptan okuyorum": the book button leads on the day's card.
+				readsFromBook: memberByUser.get(user)?.readsFromBook ?? false,
+				// Back today after leaving or being removed (S3b): an active enrollment that began
+				// today, with an earlier one behind it.
+				isReturnedToday: current?.endDay === null && current.joinedDay === today && enrollments.length > 1,
 				assignments: history.slice(0, 100).map(serialize),
 				nextCursor: history.length > 100 ? history[99]!.id : null,
 				missedCount: await tx.hizbAssignment.count({
@@ -236,20 +421,25 @@ export async function getHizbState(userId: string, groupId: string, cursor?: str
 				completedTraversals,
 				coverage: coverage(today),
 				date: dateOf(today),
-				nextDayAt: startOfCivilDay(today + 1, group.timezone).toISOString(),
-				dailyHistory: Array.from({ length: Math.min(30, today - anchor + 1) }, (_, i) => ({
+				nextDayAt: nextDayAtFor(group, today),
+				// Today first, then up to thirty days before it.
+				dailyHistory: Array.from({ length: Math.min(31, today - anchor + 1) }, (_, i) => ({
 					date: dateOf(today - i),
 					...coverage(today - i)
 				})),
 				members: active.map(e => {
-					const m = members.find(m => m.userId === e.userId);
+					const m = memberByUser.get(e.userId);
+					const isMe = e.userId === user;
 					const anonymous = group.hideMemberNames && user !== group.ownerUserId && user !== e.userId;
 					return {
 						id: e.id,
 						displayName: anonymous ? null : m?.displayName ?? null,
 						planDays: e.planDays,
 						portion: portionForDay(e.planDays, e.sequence + group.hizbStartPortion - 1, today - anchor),
-						completed: reads.some(a => a.enrollmentId === e.id && a.day === today)
+						completed: readToday.has(e.id),
+						// Opened and part-way, not yet read — "Başladı" on the readers list.
+						started: startedToday.has(e.id),
+						isMe
 					};
 				})
 			};
@@ -266,6 +456,12 @@ export type HizbAssignmentUpdate = {
 	istighfarRepetitions?: number | undefined;
 	istighfarTarget?: number | undefined;
 	bookmark?: number | undefined;
+	/**
+	 * Read from the book: the board portions of this day read so far. All of them finishes the day
+	 * (the counters are the reader's own business then); fewer paints them on the board and leaves
+	 * the day owed.
+	 */
+	bookPortions?: number[] | undefined;
 };
 export async function updateHizbAssignment(
 	userId: string,
@@ -321,9 +517,29 @@ export async function updateHizbAssignment(
 		) {
 			throw new HttpError(BAD_REQUEST, 'Invalid istighfar repetition count');
 		}
-		if (input.istighfarTarget !== undefined && ![11, 33, 100].includes(input.istighfarTarget)) {
-			throw new HttpError(BAD_REQUEST, 'Choose 11, 33 or 100 istighfar repetitions');
+		if (
+			input.istighfarTarget !== undefined &&
+			(!Number.isInteger(input.istighfarTarget) || input.istighfarTarget < 1 || input.istighfarTarget > 100)
+		) {
+			throw new HttpError(BAD_REQUEST, 'Choose between 1 and 100 istighfar repetitions');
 		}
+		const dayPortions = boardPortionsFor(assignment.enrollment.planDays, assignment.portion);
+		if (input.bookPortions !== undefined) {
+			const ticked = new Set(input.bookPortions);
+			if (
+				input.read !== undefined ||
+				ticked.size !== input.bookPortions.length ||
+				ticked.size === 0 ||
+				input.bookPortions.some(p => !dayPortions.includes(p))
+			) {
+				throw new HttpError(BAD_REQUEST, 'Invalid portions');
+			}
+			if (assignment.completedAt !== null) {
+				throw new HttpError(CONFLICT, 'This reading is already read');
+			}
+		}
+		// Every portion ticked: the day is read, from the book.
+		const completesFromBook = input.bookPortions !== undefined && input.bookPortions.length === dayPortions.length;
 		if (
 			input.bookmark !== undefined &&
 			(!Number.isInteger(input.bookmark) || input.bookmark < 0 || input.bookmark > 1000)
@@ -333,10 +549,13 @@ export async function updateHizbAssignment(
 		if (
 			input.read !== undefined &&
 			input.read === (assignment.completedAt !== null) &&
+			// Undoing a part-read day still has its ticks to clear.
+			(input.read || assignment.readPortions.length === 0) &&
 			input.repetitions === undefined &&
 			input.delailRepetitions === undefined &&
 			!changesIstighfar &&
-			input.bookmark === undefined
+			input.bookmark === undefined &&
+			input.bookPortions === undefined
 		) {
 			return;
 		}
@@ -344,13 +563,16 @@ export async function updateHizbAssignment(
 			throw new HttpError(CONFLICT, 'Reading changed on another device. Refresh and try again.');
 		}
 		const repetitions = input.repetitions ?? assignment.repetitions;
-		const read = input.read ?? assignment.completedAt !== null;
-		if (read && hasSekine(assignment.enrollment.planDays, assignment.portion) && repetitions < 19) {
+		const read = completesFromBook || (input.read ?? assignment.completedAt !== null);
+		// Read from the book, the counters were kept by the reader: no gate, now or on a later page turn.
+		const isFromBook = completesFromBook || (assignment.completedAt !== null && assignment.readFrom === 'BOOK');
+		const gated = read && !isFromBook;
+		if (gated && hasSekine(assignment.enrollment.planDays, assignment.portion) && repetitions < 19) {
 			throw new HttpError(CONFLICT, 'Complete all 19 Sekine repetitions first');
 		}
 		const delailRepetitions = input.delailRepetitions ?? assignment.delailRepetitions;
 		if (
-			read &&
+			gated &&
 			hasDelailRepetition(assignment.enrollment.planDays, assignment.portion) &&
 			(assignment.completedAt === null || input.delailRepetitions !== undefined) &&
 			delailRepetitions < 3
@@ -361,7 +583,7 @@ export async function updateHizbAssignment(
 		const istighfarTarget = input.istighfarTarget ?? assignment.istighfarTarget;
 		// Keep historical completions intact without inventing counts; new completions must meet the target.
 		if (
-			read &&
+			gated &&
 			hasIstighfar(assignment.enrollment.planDays, assignment.portion) &&
 			(assignment.completedAt === null || changesIstighfar) &&
 			istighfarRepetitions < istighfarTarget
@@ -377,10 +599,24 @@ export async function updateHizbAssignment(
 				istighfarTarget,
 				bookmark: input.bookmark ?? assignment.bookmark,
 				version: { increment: 1 },
-				completedAt: read ? assignment.completedAt ?? new Date() : null
+				completedAt: read ? assignment.completedAt ?? new Date() : null,
+				// A partial book read keeps its ticks; a finished or undone day has none to keep.
+				readPortions:
+					input.bookPortions && !completesFromBook
+						? [...input.bookPortions].sort((a, b) => a - b)
+						: read || input.read === false
+						? []
+						: assignment.readPortions,
+				readFrom: read
+					? assignment.completedAt
+						? assignment.readFrom
+						: completesFromBook
+						? 'BOOK'
+						: 'APP'
+					: null
 			}
 		});
-		if (input.read === true && assignment.completedAt === null) {
+		if (read && assignment.completedAt === null) {
 			await tx.hizbEnrollment.updateMany({
 				where: { groupId, userId: user, endDay: null },
 				data: { lastReadDay: dayOf(group) }
@@ -404,6 +640,19 @@ export async function updateHizbAssignment(
 		}
 	});
 	return getHizbAssignment(user, groupId, assignmentId);
+}
+
+/** "Bu grupta hep kitaptan okuyorum": the member's own choice for this group, kept on the account. */
+export async function setHizbReadsFromBook(userId: string, groupId: string, readsFromBook: boolean) {
+	const user = normalizeUserId(userId);
+	const { count } = await prisma.groupMember.updateMany({
+		where: { groupId, userId: user },
+		data: { readsFromBook }
+	});
+	if (count === 0) {
+		throw new HttpError(FORBIDDEN, 'You must belong to this group');
+	}
+	return { readsFromBook };
 }
 
 export async function getHizbAssignment(userId: string, groupId: string, id: string) {
@@ -436,6 +685,7 @@ export async function getHizbAssignment(userId: string, groupId: string, id: str
 			version: a.version,
 			bookmark: a.bookmark,
 			requiresSekine: hasSekine(a.enrollment.planDays, a.portion),
+			...bookFields(a),
 			completedAt: a.completedAt?.toISOString() ?? null
 		};
 	});
@@ -449,29 +699,65 @@ export async function hizbSummary(groupId: string, viewerUserId: string) {
 		await expireHizb(tx, group);
 		const today = dayOf(group);
 		const active = await tx.hizbEnrollment.findMany({ where: { groupId, endDay: null } });
-		const reads = await tx.hizbAssignment.findMany({
-			where: { enrollment: { groupId }, day: today, completedAt: { not: null } },
+		const marked = await tx.hizbAssignment.findMany({
+			// A day part-read from the book is on the board too, for the portions ticked.
+			where: {
+				enrollment: { groupId },
+				day: today,
+				OR: [{ completedAt: { not: null } }, { readPortions: { isEmpty: false } }]
+			},
 			include: { enrollment: true }
 		});
-		const coverage = coverageFor(reads.map(a => ({ planDays: a.enrollment.planDays, portion: a.portion })));
+		const reads = marked.filter(a => a.completedAt !== null);
+		const coveredSpans = spansCoveredBy(
+			marked.map(a => ({
+				planDays: a.enrollment.planDays,
+				portion: a.portion,
+				...(a.completedAt ? {} : { partial: a.readPortions })
+			}))
+		);
+		const coverage = coverageOfSpans(coveredSpans);
+		const portionsRead = boardPortionsRead(coveredSpans);
 		const mine = active.find(e => e.userId === viewerUserId);
+		// Out of the reading order: no enrollment running, and the last one ended by the inactivity rule.
+		const latest = mine
+			? null
+			: await tx.hizbEnrollment.findFirst({
+					where: { groupId, userId: viewerUserId },
+					orderBy: { ordinal: 'desc' }
+			  });
+		// Home opens today's reading straight from here, so the day must exist before the group
+		// screen has been visited.
+		if (mine) {
+			await materialize(tx, group, mine);
+		}
 		const own = mine
 			? await tx.hizbAssignment.findUnique({ where: { enrollmentId_day: { enrollmentId: mine.id, day: today } } })
 			: null;
 		return {
-			memberCount: active.length,
-			readCount: group.hizbIndividual ? (own?.completedAt ? 1 : 0) : coverage.covered,
-			partCount: group.hizbIndividual ? 1 : coverage.total,
-			percent: group.hizbIndividual
-				? own?.completedAt
-					? 100
-					: 0
-				: Math.round((coverage.covered * 100) / coverage.total),
+			// The group's members, as the word "üye" says wherever this is shown — one who has not chosen a
+			// plan yet, or was taken out of the order, is still a member.
+			memberCount: await tx.groupMember.count({ where: { groupId } }),
+			readCount: group.hizbIndividual ? (own?.completedAt ? 1 : 0) : portionsRead,
+			partCount: group.hizbIndividual ? 1 : 33,
+			percent: group.hizbIndividual ? (own?.completedAt ? 100 : 0) : Math.round((portionsRead * 100) / 33),
 			completedAt: group.hizbIndividual
 				? own?.completedAt?.toISOString() ?? null
 				: coverage.complete
 				? reads[0]?.completedAt?.toISOString() ?? null
 				: null,
+			// A plan has no board rows, so the board-derived stamp is always null; Home's "Bugün
+			// okunanlar" needs today's own assignment instead.
+			myShareDoneAt: own?.completedAt?.toISOString() ?? null,
+			// The Discover card and the invite preview: today's board, the reset, and whether the
+			// viewer was taken out of the order (P6).
+			hizbCoveredSpans: coveredSpans,
+			nextDayAt: nextDayAtFor(group, today),
+			hizbRemoved: latest?.reason === 'INACTIVITY',
+			// The rule's length when it removed them — the group's may have changed since.
+			hizbRemovalDays: latest?.reason === 'INACTIVITY' ? latest.removalDays : null,
+			// "41. gün" on the card: the group's own day, counted from 1 on the day it began.
+			hizbDay: today - civilDayNumber(group.startedAt ?? group.startsAt, group.timezone) + 1,
 			hizbToday: mine
 				? {
 						planDays: mine.planDays,
@@ -480,7 +766,8 @@ export async function hizbSummary(groupId: string, viewerUserId: string) {
 							mine.sequence + group.hizbStartPortion - 1,
 							today - civilDayNumber(group.startedAt ?? group.startsAt, group.timezone)
 						),
-						completed: own?.completedAt !== null && own?.completedAt !== undefined
+						completed: own?.completedAt !== null && own?.completedAt !== undefined,
+						assignmentId: own?.id ?? null
 				  }
 				: null
 		};

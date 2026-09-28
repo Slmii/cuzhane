@@ -11,11 +11,18 @@ export type SegmentedControlOption = {
 	 * "Türkçe" would say less than the word already does.
 	 */
 	icon?: IconName;
+	/**
+	 * Takes its label's whole width on one line before the rest share what is left — the
+	 * repetition box's "Sayıyı gir" beside three short numbers. The drawn control only; the native
+	 * one sizes its own segments.
+	 */
+	isWide?: boolean;
 };
 
 export interface SegmentProps {
 	label: string;
 	icon?: IconName;
+	isWide?: boolean;
 	isSelected: boolean;
 	onPress: () => void;
 }

@@ -1,5 +1,5 @@
 import prisma from '@db/prisma';
-import { roundEndsAt, roundIndexSince, roundStartedAtFor } from '@utils/rounds';
+import { roundEndsAt, roundIndexSince, roundLengthFor, roundStartedAtFor } from '@utils/rounds';
 import type { Prisma } from '../generated/prisma/client';
 import type { Group } from '../generated/prisma/client';
 
@@ -23,15 +23,33 @@ export const lockGroup = async (tx: Prisma.TransactionClient, groupId: string): 
  * Which round the calendar says a group should be on right now.
  *
  * "The calendar" means the group's own — boundaries are local midnights in `group.timezone`,
- * so a group in New York rolls at New York midnight for all of its members, wherever they are.
+ * so a group in New York rolls at New York midnight for all of its members, wherever they are —
+ * and its own length, which `roundLengthFor` reads (days, or a Hizb's calendar month).
  */
 export const expectedRoundIndex = (
-	group: Pick<Group, 'cycle' | 'startedAt' | 'status' | 'timezone'>,
+	group: Pick<Group, 'cycle' | 'kind' | 'roundDays' | 'startedAt' | 'status' | 'timezone'>,
 	now = new Date()
-) =>
-	group.status === 'RUNNING' && group.startedAt
-		? roundIndexSince(group.startedAt, group.cycle, now, group.timezone)
+) => {
+	/*
+	 * **A CUSTOM group never leaves round 0 — it is a length, not a cadence.**
+	 *
+	 * The three presets are promises about *when it comes round again*: a daily group rolls
+	 * every day, a weekly one every seven. "Özel" is the other kind of answer — a hatim that
+	 * runs for the number of days chosen and is then finished. Rolling it would start a
+	 * second pass nobody asked for, wipe the board that had just been completed, and do it
+	 * again every N days for ever.
+	 *
+	 * Pinned here rather than guarded at each call site because this function is the single
+	 * place the rollover asks what round a group should be on.
+	 */
+	if (group.cycle === 'CUSTOM') {
+		return 0;
+	}
+
+	return group.status === 'RUNNING' && group.startedAt
+		? roundIndexSince(group.startedAt, roundLengthFor(group), now, group.timezone)
 		: 0;
+};
 
 /**
  * Rolls a group forward to whatever round the calendar is on, if it has fallen behind.
@@ -53,6 +71,9 @@ export const ensureCurrentRound = async (tx: Prisma.TransactionClient, groupId: 
 		select: {
 			id: true,
 			cycle: true,
+			kind: true,
+			boundaryPolicy: true,
+			roundDays: true,
 			spots: true,
 			splitMode: true,
 			status: true,
@@ -72,7 +93,7 @@ export const ensureCurrentRound = async (tx: Prisma.TransactionClient, groupId: 
 		return false;
 	}
 
-	const startedAt = roundStartedAtFor(group.startedAt, group.cycle, target, group.timezone);
+	const startedAt = roundStartedAtFor(group.startedAt, roundLengthFor(group), target, group.timezone);
 
 	// Guarded on the round we believe we are leaving, so two requests arriving together
 	// after a boundary cannot both roll — the loser matches zero rows and stops here
@@ -82,7 +103,7 @@ export const ensureCurrentRound = async (tx: Prisma.TransactionClient, groupId: 
 		data: {
 			roundIndex: target,
 			roundStartedAt: startedAt,
-			endsAt: roundEndsAt(group.startedAt, group.cycle, target, group.timezone),
+			endsAt: roundEndsAt(group.startedAt, roundLengthFor(group), target, group.timezone),
 			// A finished round's stamp belongs to that round, not to the fresh one.
 			completedAt: null
 		}
@@ -98,6 +119,50 @@ export const ensureCurrentRound = async (tx: Prisma.TransactionClient, groupId: 
 		where: { groupId },
 		data: { readByUserId: null, readAt: null }
 	});
+
+	/*
+	 * **A hatim's holdings do not survive on their own — they are per round.**
+	 *
+	 * `CuzHolding` is keyed by `(groupId, roundIndex, cuzNumber)`, so the moment the index
+	 * moves every member holds nothing: the share is empty, the whole board is pool, and a
+	 * group that was half read wakes up looking abandoned. Nothing shouted, because an empty
+	 * result is a valid answer to "what do you hold".
+	 *
+	 * Which of the two things should happen is what QC3's "Tur bitiminde" asked:
+	 *
+	 * · `KEEP` — everyone carries on with the cüz they had. Copied forward from the round
+	 *   being *left*, not from the target, because a group nobody opened for three rounds
+	 *   rolls straight from the last one anybody touched.
+	 * · `REPICK` — the map empties and everyone chooses again, which is this doing nothing.
+	 *
+	 * **A loan is never carried, under either policy.** A cüz taken out of the havuz
+	 * mid-round is "I'll cover this spare one this time round", not a cüz you joined with —
+	 * so it goes back to the havuz at the boundary, exactly as a Cevşen pool claim does when
+	 * the rollover clears `assignedUserId`. Without the filter, KEEP would quietly turn every
+	 * favour into a permanent holding and the havuz would drain one round at a time.
+	 *
+	 * `skipDuplicates` because the unique key is the safety net: two requests arriving
+	 * together are already settled by the guarded `updateMany` above, and a row that somehow
+	 * exists is the outcome we wanted anyway.
+	 */
+	if (group.kind === 'HATIM' && group.boundaryPolicy === 'KEEP') {
+		const carried = await tx.cuzHolding.findMany({
+			select: { cuzNumber: true, userId: true },
+			where: { groupId, isLoan: false, roundIndex: group.roundIndex }
+		});
+
+		if (carried.length > 0) {
+			await tx.cuzHolding.createMany({
+				data: carried.map(holding => ({
+					cuzNumber: holding.cuzNumber,
+					groupId,
+					roundIndex: target,
+					userId: holding.userId
+				})),
+				skipDuplicates: true
+			});
+		}
+	}
 
 	// Every pool claim expires with the round it was made in — "I'll cover this leftover
 	// this time round", not a standing seat. Since `assignedUserId` now means nothing but a

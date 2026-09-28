@@ -1,11 +1,13 @@
 import { CellGrid } from '@/components/ui/CellGrid/CellGrid.component';
+import { useTranslation } from '@/lib/i18n/I18n.context';
 import type { CellGridItem } from '@/components/ui/CellGrid/CellGrid.types';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { useCallback, useMemo } from 'react';
 import type { BabCellState, BabGridProps } from './BabGrid.types';
 
-export const BabGrid = ({ cells, columns = 10, onPressBab, style }: BabGridProps) => {
+export const BabGrid = ({ cells, columns = 10, kind, onPressBab, style }: BabGridProps) => {
 	const { theme } = useThemeContext();
+	const { t } = useTranslation();
 
 	const items = useMemo<CellGridItem[]>(() => {
 		const toneFor = (state: BabCellState) => {
@@ -61,7 +63,10 @@ export const BabGrid = ({ cells, columns = 10, onPressBab, style }: BabGridProps
 			const tone = toneFor(cell.state);
 
 			return {
-				accessibilityLabel: `Bab ${cell.number}`,
+				accessibilityLabel:
+					kind === 'HIZB'
+						? t('hizbPartsOne', { parts: cell.number })
+						: t(kind === 'HATIM' ? 'qCuzTitle' : 'babOrdinal', { n: cell.number }),
 				backgroundColor: tone.backgroundColor,
 				borderColor: tone.borderColor,
 				isHatched: 'isHatched' in tone && tone.isHatched === true,
@@ -70,7 +75,7 @@ export const BabGrid = ({ cells, columns = 10, onPressBab, style }: BabGridProps
 				labelColor: tone.labelColor
 			};
 		});
-	}, [cells, theme]);
+	}, [cells, kind, t, theme]);
 
 	// Stable, so the memoised cells aren't handed a new handler every render — an inline
 	// closure here changed a prop on all hundred of them whenever this rendered at all.

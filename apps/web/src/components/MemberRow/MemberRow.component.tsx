@@ -1,5 +1,6 @@
 import { Avatar } from '@/components/ui/Avatar/Avatar.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
+import { Icon } from '@/components/ui/Icon/Icon.component';
 import { ProgressBar } from '@/components/ui/ProgressBar/ProgressBar.component';
 import { BodyStrongText, Typography } from '@/components/ui/Typography/Typography.component';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
@@ -9,6 +10,7 @@ import type { MemberRowProps } from './MemberRow.types';
 export const MemberRow = ({
 	imageUrl,
 	cheerLabel,
+	isAnonymous = false,
 	isCheered = false,
 	name,
 	onCheer,
@@ -23,11 +25,17 @@ export const MemberRow = ({
 
 	return (
 		<View style={[styles.row, { borderBottomColor: theme.colors.divider }, style]}>
-			<Avatar imageUrl={imageUrl} name={name} size={34} tone='sand' />
+			{isAnonymous ? (
+				<View style={[styles.lockAvatar, { backgroundColor: theme.colors.segmentTrack }]}>
+					<Icon color={theme.colors.faintText} name='lock' size={14} strokeWidth={1.8} />
+				</View>
+			) : (
+				<Avatar imageUrl={imageUrl} name={name} size={34} tone='sand' />
+			)}
 
 			<View style={styles.copy}>
 				<View style={styles.nameRow}>
-					<BodyStrongText>{name}</BodyStrongText>
+					<BodyStrongText {...(isAnonymous ? { color: theme.colors.subtext } : {})}>{name}</BodyStrongText>
 					{tag ? (
 						<View style={[styles.tag, { backgroundColor: theme.colors.surfaceMuted }]}>
 							<Typography color={theme.colors.faintText} style={styles.tagLabel} variant='stat'>
@@ -111,6 +119,13 @@ const styles = StyleSheet.create({
 	copy: {
 		flex: 1,
 		gap: 6
+	},
+	lockAvatar: {
+		alignItems: 'center',
+		borderRadius: 17,
+		height: 34,
+		justifyContent: 'center',
+		width: 34
 	},
 	nameRow: {
 		alignItems: 'center',

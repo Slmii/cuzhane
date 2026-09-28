@@ -96,12 +96,13 @@ export type NotificationRow = {
 	groupId: string | null;
 	groupName: string;
 	/**
-	 * What the group reads, so the row can say "bab" or "bölüm". Named `groupKind` because
-	 * `kind` is already what the *notification* is.
+	 * What the group reads, so the row can say "bab", "cüz" or "bölüm" (Q8). Named `groupKind`
+	 * because `kind` is already what the *notification* is.
 	 *
-	 * Joined from the live group rather than stored on the row, unlike `groupName`. Once the
-	 * group is deleted `groupId` goes null and there is nothing left to join, so such a row
-	 * reads as a Cevşen one — the kind every group had before there was a second.
+	 * Joined from the live group rather than stored on the row, unlike `groupName`, so every row
+	 * already filed gets it too. Once the group is deleted `groupId` goes null and there is
+	 * nothing left to join, so such a row reads as a Cevşen one — which is also how the 1.3.0
+	 * app drew a row with no kind, so every build reads it the same.
 	 */
 	groupKind: GroupKindName;
 	payload: Record<string, unknown>;
