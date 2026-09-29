@@ -1,31 +1,30 @@
+import type { HizbAssignmentPatch } from '@/api/hizbReading.api';
+import { TourScrollProvider } from '@/components/Tour/TourScroll.context';
+import { AppButton } from '@/components/ui/Button/Button.component';
+import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
+import { BodyText, CaptionText, EyebrowText, TitleText } from '@/components/ui/Typography/Typography.component';
+import { READER_FONT_SIZE_DEFAULT } from '@/lib/content/cevsen';
+import { splitIstighfar } from '@/lib/content/hizbIstighfar';
+import { planBlocks } from '@/lib/content/hizbPlans';
+import { HIZB_SECTIONS, isCevsenSection } from '@/lib/content/hizbulhakaik';
+import { useHizbPlanText } from '@/lib/hooks/useHizbPlanText';
+import { useHizbAssignment, useUpdateHizbAssignment } from '@/lib/hooks/useHizbReading';
+import { useGetUserSettings, useUpdateUserSettings } from '@/lib/hooks/useUserSettings';
+import { useTranslation } from '@/lib/i18n/I18n.context';
+import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
+import { hizbPartsLabel } from '@/lib/utils/groups';
+import { hizbPlanDescriptionKey } from '@/lib/utils/hizbPlanLabels';
+import { TabBarOffsetContext } from '@/navigation/TabBarOffsetContext';
+import type { TabStackParamList } from '@/navigation/types';
+import { TextSizeSheet } from '@/screens/Reader/TextSizeSheet.component';
+import { textSizeSheet } from '@/screens/Reader/textSizeSheet';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useKeepAwake } from 'expo-keep-awake';
 import { type RefObject, useContext, useMemo, useRef } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useKeepAwake } from 'expo-keep-awake';
-import type { TabStackParamList } from '@/navigation/types';
-import { TabBarOffsetContext } from '@/navigation/TabBarOffsetContext';
-import type { HizbAssignmentPatch } from '@/api/hizbReading.api';
-import { useHizbAssignment, useUpdateHizbAssignment } from '@/lib/hooks/useHizbReading';
-import { useGetUserSettings, useUpdateUserSettings } from '@/lib/hooks/useUserSettings';
-import { useHizbPlanText } from '@/lib/hooks/useHizbPlanText';
-import { useTranslation } from '@/lib/i18n/I18n.context';
-import { hizbPartsLabel } from '@/lib/utils/groups';
-import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import { READER_FONT_SIZE_DEFAULT } from '@/lib/content/cevsen';
-import { planBlocks } from '@/lib/content/hizbPlans';
-import { splitIstighfar } from '@/lib/content/hizbIstighfar';
-import { HIZB_SECTIONS, isCevsenSection } from '@/lib/content/hizbulhakaik';
-import { hizbPlanDescriptionKey } from '@/lib/utils/hizbPlanLabels';
-import { AppButton } from '@/components/ui/Button/Button.component';
-import { FlatButton } from '@/components/FlatButton/FlatButton.component';
-import { TourScrollProvider } from '@/components/Tour/TourScroll.context';
-import { BodyText, CaptionText, EyebrowText, TitleText } from '@/components/ui/Typography/Typography.component';
-import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
-import { TextSizeSheet } from '@/screens/Reader/TextSizeSheet.component';
-import { textSizeSheet } from '@/screens/Reader/textSizeSheet';
-import { HizbPlanReaderSkeleton } from './HizbPlanReaderSkeleton.component';
 import { HizbBody } from './HizbBody.component';
+import { HizbPlanReaderSkeleton } from './HizbPlanReaderSkeleton.component';
 
 type Props = NativeStackScreenProps<TabStackParamList, 'HizbPlanReader'>;
 export const HizbPlanReader = ({ navigation, route }: Props) => {
@@ -204,12 +203,13 @@ const AssignmentReader = ({
 				 * count reaches the target — the note above it says how many are left.
 				 */}
 				{isIstighfarGate ? (
-					<FlatButton
+					<AppButton
 						disabled={istighfarLeft > 0}
 						onPress={() => turnTo(cursor + 1)}
 						style={styles.gateButton}
 						title={t('nextPage')}
-						variant='ink'
+						size='lg'
+						variant='primary'
 					/>
 				) : (
 					<View style={styles.actions}>

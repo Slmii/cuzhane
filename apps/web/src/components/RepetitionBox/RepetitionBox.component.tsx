@@ -1,4 +1,3 @@
-import { FlatButton } from '@/components/FlatButton/FlatButton.component';
 import { TourTarget } from '@/components/Tour/TourTarget.component';
 import { AppBottomSheet } from '@/components/ui/BottomSheet/BottomSheet.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
@@ -285,7 +284,7 @@ export const RepetitionBox = ({
 								))}
 							</View>
 						</CardSurface>
-						<FlatButton
+						<AppButton
 							onPress={() => {
 								closeSheet();
 
@@ -294,7 +293,8 @@ export const RepetitionBox = ({
 								}
 							}}
 							title={t('hpTargetSet', { count: draft })}
-							variant='ink'
+							size='lg'
+							variant='primary'
 						/>
 					</View>
 				</AppBottomSheet>

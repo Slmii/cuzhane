@@ -1,4 +1,4 @@
-import { FlatButton } from '@/components/FlatButton/FlatButton.component';
+import { AppButton } from '@/components/ui/Button/Button.component';
 import { AppBottomSheet } from '@/components/ui/BottomSheet/BottomSheet.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
 import { CaptionText, TitleText } from '@/components/ui/Typography/Typography.component';
@@ -128,7 +128,7 @@ const SheetBody = ({
 					{t('hbAlways')}
 				</CaptionText>
 			</Pressable>
-			<FlatButton
+			<AppButton
 				disabled={isPending || ticked.length === 0}
 				onPress={() =>
 					onConfirm(
@@ -139,7 +139,8 @@ const SheetBody = ({
 				title={t(pluralKey(language, ticked.length, 'hbConfirmOne', 'hbConfirmOther'), {
 					count: ticked.length
 				})}
-				variant='ink'
+				size='lg'
+				variant='primary'
 			/>
 		</View>
 	);
