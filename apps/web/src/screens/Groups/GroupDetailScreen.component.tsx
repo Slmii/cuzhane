@@ -61,7 +61,7 @@ import { MembersSheet } from '@/screens/Groups/MembersSheet.component';
 import { ShareSheet } from '@/screens/Groups/ShareSheet.component';
 import { JoinedWelcomeSkeleton } from '@/screens/Join/JoinedWelcomeSkeleton.component';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, withTiming } from 'react-native-reanimated';
 import { GroupDetailSkeleton } from './GroupDetailSkeleton.component';
@@ -506,6 +506,14 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 	const hizbMissedLine = (count: number) =>
 		t(count === 1 ? 'missedPortionsHizbOne' : 'missedPortionsHizb', { count });
 
+	// "Benim ilerlemem" is a headed card for every kind. "Grup ilerlemesi" is one for Cevşen and
+	// Kur'an; a shared Hizb's board is already a headed card of its own, with the index in its
+	// corner, so that section keeps the small-caps label.
+	const isSectionCard = !isHizb;
+	// A row inside a section card sits on the page's own colour: white on white was a
+	// card that could not be told from the one around it.
+	const nestedRowStyle = isSectionCard ? { backgroundColor: theme.colors.background } : null;
+
 	return (
 		<>
 			<ScreenContainer pullToRefresh={pullToRefresh}>
@@ -656,224 +664,236 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 				 * back to bones each time a read invalidated it. `isLoading` is the pair —
 				 * first load, in flight — and only that.
 				 */}
-				{myProgressQuery.isLoading ? <MyProgressCardSkeleton /> : null}
-				{myProgress ? (
-					<MyProgressCard
-						isHatim={isHatim}
-						onPress={() => navigation.navigate('MyProgress', { groupId })}
-						progress={myProgress}
-					/>
-				) : null}
-
 				{/*
-				 * The sage "Sana atanan" strip *is* the collapsible's header now. It used to be
-				 * a separate banner sitting above a "Babların 1–5" row, which said the same
-				 * range twice and put the thing you tap below the thing that explains it.
-				 *
-				 * The card takes the strip's colour while closed: a rounded card is white at
-				 * the corners, and with a green header filling it edge to edge those corners
-				 * were four white nicks against the sage.
+				 * The two sections are labelled as the Hizb's are: your own share, then the group's.
+				 * A Cevşen or a hatim draws each as one card headed like the board.
 				 */}
-				{/* No glass while it is closed: the sage fill *is* this panel, and the material
+				<ProgressSection count={`${myReadCount} / ${myBabNumbers.length}`} isCard label={t('hpMyProgress')}>
+					{myProgressQuery.isLoading ? <MyProgressCardSkeleton /> : null}
+					{myProgress ? (
+						<MyProgressCard
+							isHatim={isHatim}
+							onPress={() => navigation.navigate('MyProgress', { groupId })}
+							progress={myProgress}
+						/>
+					) : null}
+
+					{/*
+					 * The sage "Sana atanan" strip *is* the collapsible's header now. It used to be
+					 * a separate banner sitting above a "Babların 1–5" row, which said the same
+					 * range twice and put the thing you tap below the thing that explains it.
+					 *
+					 * The card takes the strip's colour while closed: a rounded card is white at
+					 * the corners, and with a green header filling it edge to edge those corners
+					 * were four white nicks against the sage.
+					 */}
+					{/* No glass while it is closed: the sage fill *is* this panel, and the material
 				    tints itself `surface` and washes over whatever colour arrives in `style`. */}
-				{isHizb ? (
-					<HizbSharePanel
-						babs={babsQuery.data}
-						groupId={groupId}
-						onOpenPart={partNumber => navigation.navigate('HizbReader', { groupId, partNumber })}
-						onToggleRead={(partNumber, read) => setBabRead.mutate({ babNumber: partNumber, groupId, read })}
-						partNumbers={myBabNumbers}
-						roundIndex={detail.roundIndex ?? 0}
-						viewerUserId={userId ?? null}
-					/>
-				) : (
-					<CardSurface
-						hasGlassSurface={isMyBabsOpen}
-						isFlush
-						style={isMyBabsOpen ? null : { backgroundColor: theme.colors.accentSoft }}
-					>
-						{/* C1 of the first-use tour frames this row, closed or open. */}
-						<TourTarget id='assigned'>
-							<Pressable
-								// The eyebrow and the sentence are gone from the row, so the label they carried
-								// has to come from here or it announces nothing but its numbers.
-								accessibilityLabel={`${t('assigned')} ${mySlices.current}`}
-								accessibilityRole='button'
-								accessibilityState={{ expanded: isMyBabsOpen }}
-								onPress={toggleMyBabs}
-								style={[
-									styles.myBabsHeader,
-									{ backgroundColor: theme.colors.accentSoft },
-									isMyBabsOpen
-										? {
-												borderBottomColor: theme.colors.divider,
-												borderBottomWidth: StyleSheet.hairlineWidth
-										  }
-										: null
-								]}
-							>
-								{/* The badge carries one slice, not the whole share, with the count of the
+					{isHizb ? (
+						<HizbSharePanel
+							babs={babsQuery.data}
+							groupId={groupId}
+							onOpenPart={partNumber => navigation.navigate('HizbReader', { groupId, partNumber })}
+							onToggleRead={(partNumber, read) =>
+								setBabRead.mutate({ babNumber: partNumber, groupId, read })
+							}
+							partNumbers={myBabNumbers}
+							roundIndex={detail.roundIndex ?? 0}
+							viewerUserId={userId ?? null}
+						/>
+					) : (
+						<CardSurface
+							hasGlassSurface={isMyBabsOpen}
+							isFlush
+							style={isMyBabsOpen ? null : { backgroundColor: theme.colors.accentSoft }}
+						>
+							{/* C1 of the first-use tour frames this row, closed or open. */}
+							<TourTarget id='assigned'>
+								<Pressable
+									// The eyebrow and the sentence are gone from the row, so the label they carried
+									// has to come from here or it announces nothing but its numbers.
+									accessibilityLabel={`${t('assigned')} ${mySlices.current}`}
+									accessibilityRole='button'
+									accessibilityState={{ expanded: isMyBabsOpen }}
+									onPress={toggleMyBabs}
+									style={[
+										styles.myBabsHeader,
+										{ backgroundColor: theme.colors.accentSoft },
+										isMyBabsOpen
+											? {
+													borderBottomColor: theme.colors.divider,
+													borderBottomWidth: StyleSheet.hairlineWidth
+											  }
+											: null
+									]}
+								>
+									{/* The badge carries one slice, not the whole share, with the count of the
 							    others pinned to it — spelled out, "1–13, 27–39" ran the badge to twice
 							    the width and wrapped the sentence beside it onto three lines. The chip
 							    belongs *here*, against the range it is counting, rather than up beside
 							    the eyebrow where it read as a tag on the words. */}
-								<View style={styles.myBabsBadgeRow}>
-									<View style={[styles.myBabsBadge, { backgroundColor: theme.colors.accent }]}>
-										<Typography
-											color={theme.colors.onAccent}
-											style={styles.myBabsBadgeLabel}
-											variant='title'
-										>
-											{isHatim
-												? formatBabRange(myBabNumbers).replaceAll(', ', ' · ')
-												: mySlices.current}
-										</Typography>
+									<View style={styles.myBabsBadgeRow}>
+										<View style={[styles.myBabsBadge, { backgroundColor: theme.colors.accent }]}>
+											<Typography
+												color={theme.colors.onAccent}
+												style={styles.myBabsBadgeLabel}
+												variant='title'
+											>
+												{isHatim
+													? formatBabRange(myBabNumbers).replaceAll(', ', ' · ')
+													: mySlices.current}
+											</Typography>
+										</View>
+										{/* A hatim's share is already whole in the badge — there is no slice left over. */}
+										{isHatim ? null : (
+											<SliceChip count={mySlices.moreCount} isCompact tone='surface' />
+										)}
 									</View>
-									{/* A hatim's share is already whole in the badge — there is no slice left over. */}
-									{isHatim ? null : <SliceChip count={mySlices.moreCount} isCompact tone='surface' />}
-								</View>
-								{/* The eyebrow stays; the sentence under it went. It named the range a second
+									{/* The eyebrow stays; the sentence under it went. It named the range a second
 							    time and, once the share came in pieces, needed three lines to do it —
 							    while the badge beside it had already said where you are. */}
-								<View style={styles.myBabsCopy}>
-									<Typography
-										color={theme.colors.accent}
-										style={styles.myBabsLabel}
-										variant='stat'
-										weight='medium'
-									>
-										{isHatim ? t('qMyCuz') : t('assigned')}
-									</Typography>
-								</View>
-								<View style={styles.myBabsMeta}>
-									<CaptionText color={theme.colors.accent} weight='semibold'>{`${myReadCount} / ${
-										myBabNumbers.length
-									} ${t('done')}`}</CaptionText>
-									<Animated.View style={chevronStyle}>
-										<Icon
-											color={theme.colors.faintText}
-											name='chevronRight'
-											size={15}
-											strokeWidth={1.8}
-										/>
-									</Animated.View>
-								</View>
-							</Pressable>
-						</TourTarget>
-						{/* Clipped, and inert while closed: the rows stay mounted so the panel has a
+									<View style={styles.myBabsCopy}>
+										<Typography
+											color={theme.colors.accent}
+											style={styles.myBabsLabel}
+											variant='stat'
+											weight='medium'
+										>
+											{isHatim ? t('qMyCuz') : t('assigned')}
+										</Typography>
+									</View>
+									<View style={styles.myBabsMeta}>
+										<CaptionText color={theme.colors.accent} weight='semibold'>{`${myReadCount} / ${
+											myBabNumbers.length
+										} ${t('done')}`}</CaptionText>
+										<Animated.View style={chevronStyle}>
+											<Icon
+												color={theme.colors.faintText}
+												name='chevronRight'
+												size={15}
+												strokeWidth={1.8}
+											/>
+										</Animated.View>
+									</View>
+								</Pressable>
+							</TourTarget>
+							{/* Clipped, and inert while closed: the rows stay mounted so the panel has a
 						    height to animate to, which also means they would otherwise still be
 						    reachable by a tap or by VoiceOver in a card that reads as shut. */}
-						<Animated.View
-							accessibilityElementsHidden={!isMyBabsOpen}
-							importantForAccessibility={isMyBabsOpen ? 'auto' : 'no-hide-descendants'}
-							pointerEvents={isMyBabsOpen ? 'auto' : 'none'}
-							style={[styles.myBabsBody, myBabsBodyStyle]}
-						>
-							{/*
-							 * The rows live in a scroller that fills the wrapper absolutely — which is
-							 * also what lets them be measured. As an ordinary child they inherited the
-							 * wrapper's animated height (nothing, while closed) and reported zero, so
-							 * the panel had no size to open to; a scroll view measures its content
-							 * unconstrained however short its own frame is.
-							 *
-							 * Scrolling turns on only when there is more than the cap, so a share that
-							 * fits can't swallow the page's own scroll.
-							 *
-							 * Not a `FlatList`: nesting a VirtualizedList inside the screen's
-							 * ScrollView is the thing React Native warns about, and a share is at most
-							 * a couple of dozen rows — the cap already stops it from being long, and
-							 * virtualising two dozen cheap rows would cost more than it saves.
-							 */}
-							<ScrollView
-								nestedScrollEnabled
-								scrollEnabled={isMyBabsOpen && myBabsHeight > MY_BABS_MAX_HEIGHT}
-								style={styles.myBabsScroll}
+							<Animated.View
+								accessibilityElementsHidden={!isMyBabsOpen}
+								importantForAccessibility={isMyBabsOpen ? 'auto' : 'no-hide-descendants'}
+								pointerEvents={isMyBabsOpen ? 'auto' : 'none'}
+								style={[styles.myBabsBody, myBabsBodyStyle]}
 							>
-								<View onLayout={event => setMyBabsHeight(event.nativeEvent.layout.height)}>
-									{myBabNumbers.length === 0 ? (
-										<BodyText color={theme.colors.faintText} style={styles.noAssignedBabs}>
-											{t('noAssignedBabs')}
-										</BodyText>
-									) : (
-										myBabs.map(bab => {
-											const isRead = bab.readAt !== null;
-											/*
-											 * **Who read it, not merely that it was read.** A bab in your
-											 * share can already have been read by whoever held that block on
-											 * an earlier rotation day. This drew your own ticked box over
-											 * their work and then offered an undo the server refuses —
-											 * only the reader may clear a read — so the tick was a control
-											 * that could not do the thing it looked like it did.
-											 */
-											const isReadByOthers = isRead && bab.readByUserId !== userId;
+								{/*
+								 * The rows live in a scroller that fills the wrapper absolutely — which is
+								 * also what lets them be measured. As an ordinary child they inherited the
+								 * wrapper's animated height (nothing, while closed) and reported zero, so
+								 * the panel had no size to open to; a scroll view measures its content
+								 * unconstrained however short its own frame is.
+								 *
+								 * Scrolling turns on only when there is more than the cap, so a share that
+								 * fits can't swallow the page's own scroll.
+								 *
+								 * Not a `FlatList`: nesting a VirtualizedList inside the screen's
+								 * ScrollView is the thing React Native warns about, and a share is at most
+								 * a couple of dozen rows — the cap already stops it from being long, and
+								 * virtualising two dozen cheap rows would cost more than it saves.
+								 */}
+								<ScrollView
+									nestedScrollEnabled
+									scrollEnabled={isMyBabsOpen && myBabsHeight > MY_BABS_MAX_HEIGHT}
+									style={styles.myBabsScroll}
+								>
+									<View onLayout={event => setMyBabsHeight(event.nativeEvent.layout.height)}>
+										{myBabNumbers.length === 0 ? (
+											<BodyText color={theme.colors.faintText} style={styles.noAssignedBabs}>
+												{t('noAssignedBabs')}
+											</BodyText>
+										) : (
+											myBabs.map(bab => {
+												const isRead = bab.readAt !== null;
+												/*
+												 * **Who read it, not merely that it was read.** A bab in your
+												 * share can already have been read by whoever held that block on
+												 * an earlier rotation day. This drew your own ticked box over
+												 * their work and then offered an undo the server refuses —
+												 * only the reader may clear a read — so the tick was a control
+												 * that could not do the thing it looked like it did.
+												 */
+												const isReadByOthers = isRead && bab.readByUserId !== userId;
 
-											return (
-												<BabRow
-													isRead={isRead}
-													isReadByOthers={isReadByOthers}
-													key={bab.number}
-													// A cüz opens its own page (Q4), where it is marked; a bab opens the
-													// reader, where a bab is read and marked at once.
-													onOpen={() =>
-														isHatim
-															? navigation.navigate('CuzDetail', {
-																	cuzNumber: bab.number,
-																	groupId
-															  })
-															: navigation.navigate('BabReader', {
-																	groupId,
-																	babNumber: bab.number
-															  })
-													}
-													onToggle={() =>
-														setBabRead.mutate({
-															babNumber: bab.number,
-															groupId,
-															read: !isRead
-														})
-													}
-													openLabel={t('read')}
-													subtitle={
-														isReadByOthers
-															? // Named where the server could resolve one, and falling
-															  // back where it couldn't rather than printing an id: a
-															  // member who has since left still has reads on this
-															  // board, and "cmt9x…" says less than nothing.
-															  bab.readByDisplayName
-																? t('readBeforeYoursBy', {
-																		name:
-																			(detail.hideMemberNames &&
-																				!detail.isOwner) ||
-																			bab.readByUserId?.startsWith('anonymous:')
-																				? t('anonymousMember')
-																				: bab.readByDisplayName
-																  })
-																: t('readBeforeYours')
-															: isRead
-															? t('readToday')
-															: // **The sura range, not "Henüz okunmadı".** A cüz is
-															// named by where it falls — "Ahzâb 31 – Yâsîn 27" —
-															// and that is what someone about to read one needs;
-															// a bab's number already is its name, so the Cevşen
-															// row keeps saying whether it is read.
+												return (
+													<BabRow
+														isRead={isRead}
+														isReadByOthers={isReadByOthers}
+														key={bab.number}
+														// A cüz opens its own page (Q4), where it is marked; a bab opens the
+														// reader, where a bab is read and marked at once.
+														onOpen={() =>
 															isHatim
-															? cuzSuraRange(bab.number, language)
-															: t('notRead')
-													}
-													title={
-														isHatim
-															? t('cuzOrdinal', { n: bab.number })
-															: t('babOrdinal', { n: bab.number })
-													}
-												/>
-											);
-										})
-									)}
-								</View>
-							</ScrollView>
-						</Animated.View>
-					</CardSurface>
-				)}
+																? navigation.navigate('CuzDetail', {
+																		cuzNumber: bab.number,
+																		groupId
+																  })
+																: navigation.navigate('BabReader', {
+																		groupId,
+																		babNumber: bab.number
+																  })
+														}
+														onToggle={() =>
+															setBabRead.mutate({
+																babNumber: bab.number,
+																groupId,
+																read: !isRead
+															})
+														}
+														openLabel={t('read')}
+														subtitle={
+															isReadByOthers
+																? // Named where the server could resolve one, and falling
+																  // back where it couldn't rather than printing an id: a
+																  // member who has since left still has reads on this
+																  // board, and "cmt9x…" says less than nothing.
+																  bab.readByDisplayName
+																	? t('readBeforeYoursBy', {
+																			name:
+																				(detail.hideMemberNames &&
+																					!detail.isOwner) ||
+																				bab.readByUserId?.startsWith(
+																					'anonymous:'
+																				)
+																					? t('anonymousMember')
+																					: bab.readByDisplayName
+																	  })
+																	: t('readBeforeYours')
+																: isRead
+																? t('readToday')
+																: // **The sura range, not "Henüz okunmadı".** A cüz is
+																// named by where it falls — "Ahzâb 31 – Yâsîn 27" —
+																// and that is what someone about to read one needs;
+																// a bab's number already is its name, so the Cevşen
+																// row keeps saying whether it is read.
+																isHatim
+																? cuzSuraRange(bab.number, language)
+																: t('notRead')
+														}
+														title={
+															isHatim
+																? t('cuzOrdinal', { n: bab.number })
+																: t('babOrdinal', { n: bab.number })
+														}
+													/>
+												);
+											})
+										)}
+									</View>
+								</ScrollView>
+							</Animated.View>
+						</CardSurface>
+					)}
+				</ProgressSection>
 
 				{/*
 				 * "Senin ilerlemen" — the reader's own record, and the way in to F7.
@@ -888,170 +908,191 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 				 * before that there is no history to look at, and a nav row to an empty screen is
 				 * worse than no row.
 				 */}
-				{lastClosedRound ? (
-					<CardSurface
-						onPress={() => navigation.navigate('Rounds', { groupId })}
-						style={styles.lastRoundCard}
-					>
-						<View
-							style={[
-								styles.lastRoundBadge,
-								{
-									backgroundColor: lastClosedRound.missedCount
-										? theme.colors.missedSurface
-										: theme.colors.accentSoft
-								}
-							]}
+				<ProgressSection
+					count={`${detail.readCount} / ${unitCount}`}
+					isCard={isSectionCard}
+					label={t('groupProgress')}
+				>
+					{lastClosedRound ? (
+						<CardSurface
+							onPress={() => navigation.navigate('Rounds', { groupId })}
+							hasGlassSurface={!isSectionCard}
+							style={[styles.lastRoundCard, nestedRowStyle]}
 						>
-							<Typography
-								color={lastClosedRound.missedCount ? theme.colors.missed : theme.colors.accent}
-								style={styles.lastRoundBadgeLabel}
-								variant='title'
+							<View
+								style={[
+									styles.lastRoundBadge,
+									{
+										backgroundColor: lastClosedRound.missedCount
+											? theme.colors.missedSurface
+											: theme.colors.accentSoft
+									}
+								]}
 							>
-								{lastClosedRound.missedCount}
-							</Typography>
-						</View>
-						<View style={styles.lastRoundCopy}>
-							<CaptionText weight='semibold'>
-								{`${t('lastRound')} · ${t('roundN')} ${lastClosedRound.roundIndex + 1}`}
-							</CaptionText>
-							<CaptionText color={theme.colors.subtext} style={styles.lastRoundSub}>
-								{isHizb
-									? hizbMissedLine(lastClosedRound.missedCount)
-									: `${lastClosedRound.missedCount} ${t(isHatim ? 'missedCuz' : 'missedBabs')}`}
-							</CaptionText>
-						</View>
-						<Icon color={theme.colors.faintText} name='chevronRight' size={15} strokeWidth={1.8} />
-					</CardSurface>
-				) : null}
-
-				{/*
-				 * "A joiner took over the block you volunteered for." The push says it first,
-				 * but only if it could be delivered — permission may be denied and the phone
-				 * may have been off. This is the copy of that news which cannot go missing.
-				 * Dismissible, because it reports something already done rather than asking.
-				 */}
-				{/* No glass on the release notice: `sand` is what marks it as news rather than
-				    another section, and the material would paint that colour out. */}
-				{detail.poolReleases.length > 0 ? (
-					<CardSurface
-						hasGlassSurface={false}
-						style={[styles.releaseCard, { backgroundColor: theme.colors.sand }]}
-					>
-						<View style={styles.releaseRow}>
-							<Icon color={theme.colors.sandText} name='info' size={19} strokeWidth={1.8} />
-							<View style={styles.releaseCopy}>
-								<CaptionText color={theme.colors.sandText} weight='semibold'>
-									{t(isHizb ? 'poolReleasedTitleHizb' : 'poolReleasedTitle')}
+								<Typography
+									color={lastClosedRound.missedCount ? theme.colors.missed : theme.colors.accent}
+									style={styles.lastRoundBadgeLabel}
+									variant='title'
+								>
+									{lastClosedRound.missedCount}
+								</Typography>
+							</View>
+							<View style={styles.lastRoundCopy}>
+								<CaptionText weight='semibold'>
+									{`${t('lastRound')} · ${t('roundN')} ${lastClosedRound.roundIndex + 1}`}
 								</CaptionText>
-								<CaptionText color={theme.colors.sandText} style={styles.releaseBody}>
-									{t(isHizb ? 'poolReleasedBodyHizb' : 'poolReleasedBody', {
-										range: poolReleaseRanges
-									})}
+								<CaptionText color={theme.colors.subtext} style={styles.lastRoundSub}>
+									{isHizb
+										? hizbMissedLine(lastClosedRound.missedCount)
+										: `${lastClosedRound.missedCount} ${t(isHatim ? 'missedCuz' : 'missedBabs')}`}
 								</CaptionText>
 							</View>
-						</View>
-						<AppButton
-							onPress={() => markPoolReleasesSeen.mutate(groupId)}
-							size='sm'
-							title={t('gotIt')}
-							variant='surface'
+							<Icon color={theme.colors.faintText} name='chevronRight' size={15} strokeWidth={1.8} />
+						</CardSurface>
+					) : null}
+
+					{/*
+					 * "A joiner took over the block you volunteered for." The push says it first,
+					 * but only if it could be delivered — permission may be denied and the phone
+					 * may have been off. This is the copy of that news which cannot go missing.
+					 * Dismissible, because it reports something already done rather than asking.
+					 */}
+					{/* No glass on the release notice: `sand` is what marks it as news rather than
+				    another section, and the material would paint that colour out. */}
+					{detail.poolReleases.length > 0 ? (
+						<CardSurface
+							hasGlassSurface={false}
+							style={[styles.releaseCard, { backgroundColor: theme.colors.sand }]}
+						>
+							<View style={styles.releaseRow}>
+								<Icon color={theme.colors.sandText} name='info' size={19} strokeWidth={1.8} />
+								<View style={styles.releaseCopy}>
+									<CaptionText color={theme.colors.sandText} weight='semibold'>
+										{t(isHizb ? 'poolReleasedTitleHizb' : 'poolReleasedTitle')}
+									</CaptionText>
+									<CaptionText color={theme.colors.sandText} style={styles.releaseBody}>
+										{t(isHizb ? 'poolReleasedBodyHizb' : 'poolReleasedBody', {
+											range: poolReleaseRanges
+										})}
+									</CaptionText>
+								</View>
+							</View>
+							<AppButton
+								onPress={() => markPoolReleasesSeen.mutate(groupId)}
+								size='sm'
+								title={t('gotIt')}
+								variant='surface'
+							/>
+						</CardSurface>
+					) : null}
+
+					{/*
+					 * "Ortak havuz" — the way into Havuz, in the same row shape as "Geçen tur" above:
+					 * a count in a tile, the name, a line under it, a chevron. It used to carry the
+					 * whole pool board; the board lives on the Havuz screen now, and this row is only
+					 * the door. Only groups that started with seats to spare have a pool at all — and
+					 * the *whole* pool is counted, not just the part still unclaimed, so the row
+					 * doesn't vanish once the last block is taken, taking the way to the screen with
+					 * it. The count comes from the group, so nothing here waits on the board.
+					 */}
+					{detail.poolAllBabNumbers.length > 0 ? (
+						<CardSurface
+							onPress={() => navigation.navigate('Pool', { groupId, kind: detail.kind })}
+							hasGlassSurface={!isSectionCard}
+							style={[styles.lastRoundCard, nestedRowStyle]}
+						>
+							<View style={[styles.lastRoundBadge, { backgroundColor: theme.colors.sand }]}>
+								<Typography
+									color={theme.colors.sandText}
+									style={styles.lastRoundBadgeLabel}
+									variant='title'
+								>
+									{isHizb ? hizbPoolCount : detail.poolAllBabNumbers.length}
+								</Typography>
+							</View>
+							<View style={styles.lastRoundCopy}>
+								<CaptionText weight='semibold'>{t('pool')}</CaptionText>
+								<CaptionText color={theme.colors.subtext} style={styles.lastRoundSub}>
+									{isHizb
+										? hizbPoolLine()
+										: `${detail.poolAllBabNumbers.length} ${t(unitLabelKey(detail.kind))}`}
+								</CaptionText>
+							</View>
+							<Icon color={theme.colors.faintText} name='chevronRight' size={15} strokeWidth={1.8} />
+						</CardSurface>
+					) : null}
+
+					{/*
+					 * "Hatim duası" — a Kuran group's way to the du'a, in the same row shape as the two
+					 * above: a book in the tile where they carry a count. Only once this round's hatim is
+					 * complete, which is when the du'a is read; Q7 offers it at that moment too. It goes
+					 * again with the rollover, since the new round's `completedAt` starts cleared.
+					 */}
+					{isHatim && isRoundComplete ? (
+						<CardSurface
+							onPress={() => navigation.navigate('HatimDua')}
+							hasGlassSurface={!isSectionCard}
+							style={[styles.lastRoundCard, nestedRowStyle]}
+						>
+							<View style={[styles.lastRoundBadge, { backgroundColor: theme.colors.accentSoft }]}>
+								<Icon color={theme.colors.accent} name='readInApp' size={20} />
+							</View>
+							<View style={styles.lastRoundCopy}>
+								<CaptionText weight='semibold'>{t('qHatimDua')}</CaptionText>
+								<CaptionText color={theme.colors.subtext} style={styles.lastRoundSub}>
+									{t('qHatimDuaPages', { n: MUSHAF_DUA_PATHS.length })}
+								</CaptionText>
+							</View>
+							<Icon color={theme.colors.faintText} name='chevronRight' size={15} strokeWidth={1.8} />
+						</CardSurface>
+					) : null}
+
+					{/*
+					 * The hundred, in the same card the pool above it uses: heading and count on a
+					 * white surface, a divider, then the board and its legend in the body. The
+					 * heading used to sit outside on the page background with the board floating
+					 * under it, so two sections of the same screen — the same lattice, twice —
+					 * were built as two different kinds of thing.
+					 */}
+					{isHizb ? (
+						babsQuery.isPending ? (
+							<HizbBoardSkeleton />
+						) : (
+							<HizbBoard cells={hizbCells} onPressIndex={handleOpenHizbIndex} />
+						)
+					) : babsQuery.isPending ? (
+						/*
+						 * The skeleton, not a blank hundred. `emptyBabCells` renders every cell in
+						 * the "unread" tone, which doesn't read as loading — it reads as nobody
+						 * having read anything, which is a claim about the data rather than an
+						 * admission that it hasn't arrived.
+						 */
+						<GridSkeleton
+							cellCount={unitCount}
+							legendCount={isHatim ? CUZ_LEGEND_COUNT : BAB_LEGEND_COUNT}
 						/>
-					</CardSurface>
-				) : null}
-
-				{/*
-				 * "Ortak havuz" — the way into Havuz, in the same row shape as "Geçen tur" above:
-				 * a count in a tile, the name, a line under it, a chevron. It used to carry the
-				 * whole pool board; the board lives on the Havuz screen now, and this row is only
-				 * the door. Only groups that started with seats to spare have a pool at all — and
-				 * the *whole* pool is counted, not just the part still unclaimed, so the row
-				 * doesn't vanish once the last block is taken, taking the way to the screen with
-				 * it. The count comes from the group, so nothing here waits on the board.
-				 */}
-				{detail.poolAllBabNumbers.length > 0 ? (
-					<CardSurface
-						onPress={() => navigation.navigate('Pool', { groupId, kind: detail.kind })}
-						style={styles.lastRoundCard}
-					>
-						<View style={[styles.lastRoundBadge, { backgroundColor: theme.colors.sand }]}>
-							<Typography
-								color={theme.colors.sandText}
-								style={styles.lastRoundBadgeLabel}
-								variant='title'
-							>
-								{isHizb ? hizbPoolCount : detail.poolAllBabNumbers.length}
-							</Typography>
-						</View>
-						<View style={styles.lastRoundCopy}>
-							<CaptionText weight='semibold'>{t('pool')}</CaptionText>
-							<CaptionText color={theme.colors.subtext} style={styles.lastRoundSub}>
-								{isHizb
-									? hizbPoolLine()
-									: `${detail.poolAllBabNumbers.length} ${t(unitLabelKey(detail.kind))}`}
-							</CaptionText>
-						</View>
-						<Icon color={theme.colors.faintText} name='chevronRight' size={15} strokeWidth={1.8} />
-					</CardSurface>
-				) : null}
-
-				{/*
-				 * "Hatim duası" — a Kuran group's way to the du'a, in the same row shape as the two
-				 * above: a book in the tile where they carry a count. Only once this round's hatim is
-				 * complete, which is when the du'a is read; Q7 offers it at that moment too. It goes
-				 * again with the rollover, since the new round's `completedAt` starts cleared.
-				 */}
-				{isHatim && isRoundComplete ? (
-					<CardSurface onPress={() => navigation.navigate('HatimDua')} style={styles.lastRoundCard}>
-						<View style={[styles.lastRoundBadge, { backgroundColor: theme.colors.accentSoft }]}>
-							<Icon color={theme.colors.accent} name='readInApp' size={20} />
-						</View>
-						<View style={styles.lastRoundCopy}>
-							<CaptionText weight='semibold'>{t('qHatimDua')}</CaptionText>
-							<CaptionText color={theme.colors.subtext} style={styles.lastRoundSub}>
-								{t('qHatimDuaPages', { n: MUSHAF_DUA_PATHS.length })}
-							</CaptionText>
-						</View>
-						<Icon color={theme.colors.faintText} name='chevronRight' size={15} strokeWidth={1.8} />
-					</CardSurface>
-				) : null}
-
-				{/*
-				 * The hundred, in the same card the pool above it uses: heading and count on a
-				 * white surface, a divider, then the board and its legend in the body. The
-				 * heading used to sit outside on the page background with the board floating
-				 * under it, so two sections of the same screen — the same lattice, twice —
-				 * were built as two different kinds of thing.
-				 */}
-				{isHizb ? (
-					babsQuery.isPending ? (
-						<HizbBoardSkeleton />
-					) : (
-						<HizbBoard cells={hizbCells} onPressIndex={handleOpenHizbIndex} />
-					)
-				) : babsQuery.isPending ? (
-					/*
-					 * The skeleton, not a blank hundred. `emptyBabCells` renders every cell in
-					 * the "unread" tone, which doesn't read as loading — it reads as nobody
-					 * having read anything, which is a claim about the data rather than an
-					 * admission that it hasn't arrived.
-					 */
-					<GridSkeleton cellCount={unitCount} legendCount={isHatim ? CUZ_LEGEND_COUNT : BAB_LEGEND_COUNT} />
-				) : (
-					<CardSurface isFlush>
-						<View style={[styles.sectionHeader, { borderBottomColor: theme.colors.divider }]}>
-							<TitleText>{t('groupProgress')}</TitleText>
-							{/* The count is the group's own, so the heading is real either way. */}
-							<CaptionText
-								color={theme.colors.faintText}
-							>{`${detail.readCount} / ${unitCount}`}</CaptionText>
-						</View>
-						<View style={styles.sectionBody}>
+					) : isSectionCard ? (
+						// Already inside the section's card, which carries the heading and the count.
+						<View style={styles.bareBoard}>
 							<BabGrid cells={babCells} kind={detail.kind} onPressBab={handlePressBab} />
 							<BabLegend kind={detail.kind} />
 						</View>
-					</CardSurface>
-				)}
+					) : (
+						<CardSurface isFlush>
+							<View style={[styles.sectionHeader, { borderBottomColor: theme.colors.divider }]}>
+								<TitleText>{t('groupProgress')}</TitleText>
+								{/* The count is the group's own, so the heading is real either way. */}
+								<CaptionText
+									color={theme.colors.faintText}
+								>{`${detail.readCount} / ${unitCount}`}</CaptionText>
+							</View>
+							<View style={styles.sectionBody}>
+								<BabGrid cells={babCells} kind={detail.kind} onPressBab={handlePressBab} />
+								<BabLegend kind={detail.kind} />
+							</View>
+						</CardSurface>
+					)}
+				</ProgressSection>
 
 				{/*
 				 * Both group actions are corner actions in the heading now, so the only
@@ -1077,7 +1118,60 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 	);
 };
 
+/**
+ * "Benim ilerlemem" and "Grup ilerlemesi". A small-caps label over the cards, as the Hizb draws its
+ * sections — or, for a Cevşen or a hatim, one card holding them, headed like the board: title and count on the
+ * surface, a divider, then the section's own cards.
+ */
+const ProgressSection = ({
+	children,
+	count,
+	isCard,
+	label
+}: {
+	children: ReactNode;
+	count: string;
+	isCard: boolean;
+	label: string;
+}) => {
+	const { theme } = useThemeContext();
+
+	if (!isCard) {
+		return (
+			<>
+				<Typography
+					color={theme.colors.faintText}
+					style={styles.sectionEyebrow}
+					variant='eyebrow'
+					weight='medium'
+				>
+					{label}
+				</Typography>
+				{children}
+			</>
+		);
+	}
+
+	return (
+		<CardSurface isFlush>
+			<View style={[styles.sectionHeader, { borderBottomColor: theme.colors.divider }]}>
+				<TitleText>{label}</TitleText>
+				<CaptionText color={theme.colors.faintText}>{count}</CaptionText>
+			</View>
+			<View style={styles.sectionBody}>{children}</View>
+		</CardSurface>
+	);
+};
+
 const styles = StyleSheet.create({
+	bareBoard: {
+		gap: 12
+	},
+	// The Hizb screen's section label: 22 above it and 10 under, out of the list's 12-point gap.
+	sectionEyebrow: {
+		marginBottom: -2,
+		marginTop: 10
+	},
 	/** The cadence and the kind, side by side on the title's own line. */
 	titleChips: {
 		alignItems: 'center',

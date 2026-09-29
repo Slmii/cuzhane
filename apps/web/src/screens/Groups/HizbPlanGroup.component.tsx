@@ -39,8 +39,8 @@ import {
 } from '@/lib/utils/turkishSuffixes';
 import type { TabStackParamList } from '@/navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { useMemo, useState, type ReactNode } from 'react';
+import { Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
 import { HizbBookSheet } from './HizbBookSheet.component';
 import { HizbPlanGroupSkeleton } from './HizbPlanGroupSkeleton.component';
 import { LeaveGroupButton } from './LeaveGroupButton.component';
@@ -358,17 +358,6 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 		</View>
 	);
 
-	const eyebrow = (label: string, style?: object) => (
-		<Typography
-			color={theme.colors.faintText}
-			style={[styles.sectionEyebrow, style]}
-			variant='eyebrow'
-			weight='medium'
-		>
-			{label}
-		</Typography>
-	);
-
 	const coverageGrid = <HizbCoverageGrid cells={cells} isOnBand={isGroupDone} />;
 
 	// Rounds: done, and where this one stands; the whole card opens the group's history. A shared
@@ -670,360 +659,383 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 						</View>
 					) : null}
 
-					{isPicking ? null : eyebrow(t('hpMyProgress'), removed ? styles.removedEyebrow : undefined)}
-
-					{/* W1/W4: today's reading, the one dark button. H1 of the first-use tour — the wrapper
+					{/* "Benim ilerlemem": one headed card around the reader's own rows, as on the Cevşen's. */}
+					<SectionCard
+						isCard={!isPicking}
+						label={t('hpMyProgress')}
+						style={removed ? styles.removedEyebrow : undefined}
+					>
+						{/* W1/W4: today's reading, the one dark button. H1 of the first-use tour — the wrapper
 					    carries the card's gap, so the spotlight is the card alone. */}
-					{today && !isTodayDone ? (
-						<TourTarget id='hizbToday' style={styles.cardGap}>
-							<CardSurface isFlush>
-								<View style={styles.todayBody}>
-									<View style={styles.spread}>
-										<Typography
-											color={theme.colors.accent}
-											style={styles.cardEyebrow}
-											variant='stat'
-											weight='medium'
-										>
-											{/* Always the date: the tag beside it is the reader's own plan day, and a
-										    group's "day 1" beside a joiner's "day 2" read as two answers. */}
-											{t('hpTodayDate', { date: monthDay(data.date, 'long') })}
-										</Typography>
-										<View style={[styles.tag, { backgroundColor: theme.colors.segmentTrack }]}>
+						{today && !isTodayDone ? (
+							<TourTarget id='hizbToday' style={styles.cardGap}>
+								{/* No card of its own: it is the section card's first row, edge to edge. */}
+								<View style={styles.todayBlock}>
+									<View style={styles.todayBody}>
+										<View style={styles.spread}>
 											<Typography
-												color={theme.colors.subtext}
-												style={styles.tagLabel}
+												color={theme.colors.accent}
+												style={styles.cardEyebrow}
 												variant='stat'
-												weight='semibold'
+												weight='medium'
 											>
-												{isShared
-													? t('hpPlanDay', { day: today.portion, days: today.planDays })
-													: hizbPortionLabel(formatBabRange(myPortions), t)}
+												{/* Always the date: the tag beside it is the reader's own plan day, and a
+										    group's "day 1" beside a joiner's "day 2" read as two answers. */}
+												{t('hpTodayDate', { date: monthDay(data.date, 'long') })}
 											</Typography>
-										</View>
-									</View>
-									<TitleText style={styles.readingTitle}>{workTitle(today)}</TitleText>
-									{portionDesc(today) ? (
-										<CaptionText color={theme.colors.subtext} style={styles.readingDesc}>
-											{portionDesc(today)}
-										</CaptionText>
-									) : null}
-									{/* A shorter plan's day covers several of the 33 — named as chips. */}
-									{myPortions.length > 1 ? (
-										<View style={styles.portionChips}>
-											{myPortions.map(number => {
-												// Marked from the book already: filled, as the read state draws them.
-												const isRead = bookPortionsRead.includes(number);
-
-												return (
-													<View
-														key={number}
-														style={[
-															styles.portionChip,
-															{
-																backgroundColor: isRead
-																	? theme.colors.accent
-																	: theme.colors.accentMuted
-															}
-														]}
-													>
-														<CaptionText
-															color={isRead ? theme.colors.onAccent : theme.colors.accent}
-															style={styles.portionChipLabel}
-															weight='semibold'
-														>
-															{number}
-														</CaptionText>
-													</View>
-												);
-											})}
-											<CaptionText color={theme.colors.faintText} style={styles.portionCount}>
-												{bookPortionsRead.length > 0
-													? t('hbFromBookPartial', {
-															read: bookPortionsRead.length,
-															total: myPortions.length
-													  })
-													: t('hpPortionsCount', { count: myPortions.length })}
-											</CaptionText>
-											{/* A part-read day's ticks are locked in the sheet; this is the way back. */}
-											{bookPortionsRead.length > 0 ? (
-												<Pressable
-													accessibilityRole='button'
-													disabled={todayUpdate.isPending}
-													hitSlop={8}
-													onPress={confirmUndo}
-													style={styles.partialUndo}
-												>
-													<CaptionText color={theme.colors.accent} weight='semibold'>
-														{t('hpUndoShort')}
-													</CaptionText>
-												</Pressable>
-											) : null}
-										</View>
-									) : null}
-									{/* Started is not read: the page and the counts carry on where they were. */}
-									{isStarted ? (
-										<View
-											style={[styles.progressBox, { backgroundColor: theme.colors.background }]}
-										>
-											{/* On its own line above the rows, so it heads them all rather than the page. */}
-											<View style={[styles.startedTag, { backgroundColor: theme.colors.sand }]}>
+											<View style={[styles.tag, { backgroundColor: theme.colors.segmentTrack }]}>
 												<Typography
-													color={theme.colors.sandText}
-													style={styles.startedLabel}
+													color={theme.colors.subtext}
+													style={styles.tagLabel}
 													variant='stat'
 													weight='semibold'
 												>
-													{t('hpStarted')}
+													{isShared
+														? t('hpPlanDay', { day: today.portion, days: today.planDays })
+														: hizbPortionLabel(formatBabRange(myPortions), t)}
 												</Typography>
 											</View>
-											<View style={styles.progressLine}>
-												<CaptionText
-													color={theme.colors.subtext}
-													style={styles.smallStrong}
-													weight='semibold'
-												>
-													{t('hpPageOf', { page, total: pageCount })}
+										</View>
+										<TitleText style={styles.readingTitle}>{workTitle(today)}</TitleText>
+										{portionDesc(today) ? (
+											<CaptionText color={theme.colors.subtext} style={styles.readingDesc}>
+												{portionDesc(today)}
+											</CaptionText>
+										) : null}
+										{/* A shorter plan's day covers several of the 33 — named as chips. */}
+										{myPortions.length > 1 ? (
+											<View style={styles.portionChips}>
+												{myPortions.map(number => {
+													// Marked from the book already: filled, as the read state draws them.
+													const isRead = bookPortionsRead.includes(number);
+
+													return (
+														<View
+															key={number}
+															style={[
+																styles.portionChip,
+																{
+																	backgroundColor: isRead
+																		? theme.colors.accent
+																		: theme.colors.accentMuted
+																}
+															]}
+														>
+															<CaptionText
+																color={
+																	isRead ? theme.colors.onAccent : theme.colors.accent
+																}
+																style={styles.portionChipLabel}
+																weight='semibold'
+															>
+																{number}
+															</CaptionText>
+														</View>
+													);
+												})}
+												<CaptionText color={theme.colors.faintText} style={styles.portionCount}>
+													{bookPortionsRead.length > 0
+														? t('hbFromBookPartial', {
+																read: bookPortionsRead.length,
+																total: myPortions.length
+														  })
+														: t('hpPortionsCount', { count: myPortions.length })}
 												</CaptionText>
+												{/* A part-read day's ticks are locked in the sheet; this is the way back. */}
+												{bookPortionsRead.length > 0 ? (
+													<Pressable
+														accessibilityRole='button'
+														disabled={todayUpdate.isPending}
+														hitSlop={8}
+														onPress={confirmUndo}
+														style={styles.partialUndo}
+													>
+														<CaptionText color={theme.colors.accent} weight='semibold'>
+															{t('hpUndoShort')}
+														</CaptionText>
+													</Pressable>
+												) : null}
+											</View>
+										) : null}
+										{/* Started is not read: the page and the counts carry on where they were. */}
+										{isStarted ? (
+											<View
+												style={[
+													styles.progressBox,
+													{ backgroundColor: theme.colors.background }
+												]}
+											>
+												{/* On its own line above the rows, so it heads them all rather than the page. */}
 												<View
-													style={[
-														styles.bar,
-														{ backgroundColor: theme.colors.progressTrack }
-													]}
+													style={[styles.startedTag, { backgroundColor: theme.colors.sand }]}
 												>
+													<Typography
+														color={theme.colors.sandText}
+														style={styles.startedLabel}
+														variant='stat'
+														weight='semibold'
+													>
+														{t('hpStarted')}
+													</Typography>
+												</View>
+												<View style={styles.progressLine}>
+													<CaptionText
+														color={theme.colors.subtext}
+														style={styles.smallStrong}
+														weight='semibold'
+													>
+														{t('hpPageOf', { page, total: pageCount })}
+													</CaptionText>
 													<View
 														style={[
-															styles.barFill,
-															{
-																backgroundColor: theme.colors.accent,
-																width: `${(page * 100) / Math.max(1, pageCount)}%`
-															}
+															styles.bar,
+															{ backgroundColor: theme.colors.progressTrack }
 														]}
-													/>
+													>
+														<View
+															style={[
+																styles.barFill,
+																{
+																	backgroundColor: theme.colors.accent,
+																	width: `${(page * 100) / Math.max(1, pageCount)}%`
+																}
+															]}
+														/>
+													</View>
 												</View>
+												{today.requiresSekine
+													? counterRow(t('hpCounterSekine'), today.repetitions, 19)
+													: null}
+												{today.requiresIstighfar
+													? counterRow(
+															t('hpCounterIstighfar'),
+															today.istighfarRepetitions,
+															today.istighfarTarget
+													  )
+													: null}
+												{today.requiresDelailRepetition
+													? counterRow(t('hpCounterSalavat'), today.delailRepetitions, 3)
+													: null}
 											</View>
-											{today.requiresSekine
-												? counterRow(t('hpCounterSekine'), today.repetitions, 19)
-												: null}
-											{today.requiresIstighfar
-												? counterRow(
-														t('hpCounterIstighfar'),
-														today.istighfarRepetitions,
-														today.istighfarTarget
-												  )
-												: null}
-											{today.requiresDelailRepetition
-												? counterRow(t('hpCounterSalavat'), today.delailRepetitions, 3)
-												: null}
-										</View>
-									) : null}
-									{/*
-									 * R1: two ways to read — the app is the dark button, the book the grey one.
-									 * R4: a member who always reads from the book gets them the other way round,
-									 * with the app a link.
-									 */}
-									{data.readsFromBook ? (
-										<>
-											<AppButton
-												disabled={todayUpdate.isPending}
-												icon='bookPages'
-												onPress={readFromBook}
-												size='lg'
-												style={styles.firstButton}
-												title={t('hbReadFromBook')}
-												variant='primary'
-											/>
-											<AppButton
-												onPress={() => open(today.id)}
-												style={styles.appLink}
-												title={t(isStarted ? 'hpContinue' : 'hbReadInApp')}
-												variant='ghost'
-											/>
-										</>
-									) : (
-										<>
-											<AppButton
-												onPress={() => open(today.id)}
-												size='lg'
-												style={styles.firstButton}
-												title={t(isStarted ? 'hpContinue' : 'hbReadInApp')}
-												variant='primary'
-											/>
-											<AppButton
-												disabled={todayUpdate.isPending}
-												icon='bookPages'
-												onPress={readFromBook}
-												size='lg'
-												style={styles.bookButton}
-												title={t('hbReadFromBook')}
-												variant='tonal'
-											/>
-										</>
-									)}
+										) : null}
+										{/*
+										 * R1: two ways to read — the app is the dark button, the book the grey one.
+										 * R4: a member who always reads from the book gets them the other way round,
+										 * with the app a link.
+										 */}
+										{data.readsFromBook ? (
+											<>
+												<AppButton
+													disabled={todayUpdate.isPending}
+													icon='bookPages'
+													onPress={readFromBook}
+													size='lg'
+													style={styles.firstButton}
+													title={t('hbReadFromBook')}
+													variant='primary'
+												/>
+												<AppButton
+													onPress={() => open(today.id)}
+													style={styles.appLink}
+													title={t(isStarted ? 'hpContinue' : 'hbReadInApp')}
+													variant='ghost'
+												/>
+											</>
+										) : (
+											<>
+												<AppButton
+													onPress={() => open(today.id)}
+													size='lg'
+													style={styles.firstButton}
+													title={t(isStarted ? 'hpContinue' : 'hbReadInApp')}
+													variant='primary'
+												/>
+												<AppButton
+													disabled={todayUpdate.isPending}
+													icon='bookPages'
+													onPress={readFromBook}
+													size='lg'
+													style={styles.bookButton}
+													title={t('hbReadFromBook')}
+													variant='tonal'
+												/>
+											</>
+										)}
+									</View>
+									{nextRow(nextAt)}
 								</View>
-								{nextRow(nextAt)}
-							</CardSurface>
-						</TourTarget>
-					) : null}
+							</TourTarget>
+						) : null}
 
-					{/*
-					 * W2/W3: today read — a green row, with undo, however it was read. A day read from the
-					 * book says so in the second line ("kitaptan · 16:47") rather than keeping a card of
-					 * its own: one "read today" look, and the catch-up card below keeps the dark button.
-					 */}
-					{today && isTodayDone ? (
-						<View style={[styles.doneRow, { backgroundColor: theme.colors.accentSoft }]}>
-							<View style={[styles.doneCheck, { backgroundColor: theme.colors.accent }]}>
-								<Icon color={theme.colors.onAccent} name='check' size={16} strokeWidth={2.4} />
-							</View>
-							<View style={styles.flex}>
-								<CaptionText
-									color={theme.colors.accentStrong}
-									style={styles.rowTitle}
-									weight='semibold'
-								>
-									{t('hpReadToday')}
-								</CaptionText>
-								<CaptionText color={toAlphaColor(theme.colors.accentStrong, 0.7)} style={styles.rowSub}>
-									{newestMissed
-										? t('hpReadTodaySub', {
-												day: today.portion,
-												time: isReadFromBook ? t('hbFromBookAt', { time: readAt }) : readAt,
-												title: workTitle(today)
-										  })
-										: isReadFromBook
-										? `${hizbPortionLabel(formatBabRange(myPortions), t)} · ${t('hbFromBookAt', {
-												time: readAt
-										  })}`
-										: t('hpNoMissedSub', { portions: formatBabRange(myPortions) })}
-								</CaptionText>
-							</View>
-							{/* Not once the group has read all 33 (W3): the day is done for everyone. */}
-							{isGroupDone ? null : (
-								<AppButton
-									disabled={todayUpdate.isPending}
-									fullWidth={false}
-									onPress={confirmUndo}
-									size='sm'
-									title={t('hpUndoShort')}
-									variant='primary'
-								/>
-							)}
-						</View>
-					) : null}
-
-					{/* W2: with today read, the dark button moves to the newest missed day. */}
-					{today && isTodayDone && newestMissed ? (
-						<CardSurface style={[styles.catchupCard, styles.cardGap]}>
-							<View style={styles.spread}>
-								<Typography
-									color={theme.colors.missed}
-									style={styles.cardEyebrow}
-									variant='stat'
-									weight='medium'
-								>
-									{t('hpNextCatchup', { date: monthDay(newestMissed.date, 'long') })}
-								</Typography>
-								<View style={[styles.tag, { backgroundColor: theme.colors.missedSurface }]}>
-									<Typography
-										color={theme.colors.missed}
-										style={styles.tagLabel}
-										variant='stat'
+						{/*
+						 * W2/W3: today read — a green row, with undo, however it was read. A day read from the
+						 * book says so in the second line ("kitaptan · 16:47") rather than keeping a card of
+						 * its own: one "read today" look, and the catch-up card below keeps the dark button.
+						 */}
+						{today && isTodayDone ? (
+							<View style={[styles.doneRow, { backgroundColor: theme.colors.accentSoft }]}>
+								<View style={[styles.doneCheck, { backgroundColor: theme.colors.accent }]}>
+									<Icon color={theme.colors.onAccent} name='check' size={16} strokeWidth={2.4} />
+								</View>
+								<View style={styles.flex}>
+									<CaptionText
+										color={theme.colors.accentStrong}
+										style={styles.rowTitle}
 										weight='semibold'
 									>
-										{`1 / ${data.missedCount}`}
-									</Typography>
-								</View>
-							</View>
-							<TitleText style={styles.readingTitle}>{workTitle(newestMissed)}</TitleText>
-							<CaptionText color={theme.colors.subtext} style={styles.readingDesc}>
-								{[
-									hizbPortionLabel(formatBabRange(portionsOf(newestMissed)), t),
-									portionDesc(newestMissed)
-								]
-									.filter(Boolean)
-									.join(' · ')}
-							</CaptionText>
-							<AppButton
-								onPress={() => open(newestMissed.id)}
-								size='lg'
-								style={styles.darkButton}
-								title={t('hpCatchupAction')}
-								variant='primary'
-							/>
-							<Pressable accessibilityRole='button' onPress={openMissed} style={styles.centerLink}>
-								<CaptionText color={theme.colors.subtext} style={styles.linkLabel} weight='semibold'>
-									{t('hpAllMissed', { count: data.missedCount })}
-								</CaptionText>
-							</Pressable>
-							{missedRound !== null ? (
-								<View style={[styles.noteRow, { borderTopColor: theme.colors.divider }]}>
-									<Icon color={theme.colors.accent} name='clock' size={14} strokeWidth={1.8} />
-									<CaptionText color={theme.colors.subtext} style={[styles.flex, styles.note]}>
-										{(() => {
-											const date = monthDay(newestMissed.date, 'long');
-
-											return t('hpCatchupNote', {
-												covered: readCount,
-												date,
-												dateSuffix: trSuffix(turkishGenitiveSuffix(date)),
-												n: missedRound,
-												roundSuffix: trSuffix(turkishDativeSuffix(missedRound))
-											});
-										})()}
+										{t('hpReadToday')}
+									</CaptionText>
+									<CaptionText
+										color={toAlphaColor(theme.colors.accentStrong, 0.7)}
+										style={styles.rowSub}
+									>
+										{newestMissed
+											? t('hpReadTodaySub', {
+													day: today.portion,
+													time: isReadFromBook ? t('hbFromBookAt', { time: readAt }) : readAt,
+													title: workTitle(today)
+											  })
+											: isReadFromBook
+											? `${hizbPortionLabel(formatBabRange(myPortions), t)} · ${t(
+													'hbFromBookAt',
+													{
+														time: readAt
+													}
+											  )}`
+											: t('hpNoMissedSub', { portions: formatBabRange(myPortions) })}
 									</CaptionText>
 								</View>
-							) : null}
-						</CardSurface>
-					) : null}
+								{/* Not once the group has read all 33 (W3): the day is done for everyone. */}
+								{isGroupDone ? null : (
+									<AppButton
+										disabled={todayUpdate.isPending}
+										fullWidth={false}
+										onPress={confirmUndo}
+										size='sm'
+										title={t('hpUndoShort')}
+										variant='primary'
+									/>
+								)}
+							</View>
+						) : null}
 
-					{/*
-					 * "Senin ilerlemen" — the Cevşen and Kur'an screens' banner, in place of the design's
-					 * missed-days row: the days owed (red) and the newest of them. It opens them (T2).
-					 */}
-					{data.enrollment ? (
-						<CardSurface
-							hasGlassSurface={false}
-							onPress={openMissed}
-							style={[
-								styles.banner,
-								isShared && !isJoinedLate ? styles.sectionEnd : styles.cardGap,
-								{ backgroundColor: theme.colors.headerSurface }
-							]}
-						>
-							<CaptionText color={theme.colors.onHeaderSurface} weight='semibold'>
-								{t('myProgress')}
-							</CaptionText>
-							<View style={[styles.bannerDivider, { backgroundColor: bannerMuted }]} />
-							<CaptionText color={bannerMuted} numberOfLines={1} style={styles.bannerStats}>
-								<CaptionText color={theme.colors.onHeaderSurfaceMissed} weight='semibold'>
-									{data.missedCount}
+						{/* W2: with today read, the dark button moves to the newest missed day. */}
+						{today && isTodayDone && newestMissed ? (
+							<CardSurface style={[styles.catchupCard, styles.cardGap]}>
+								<View style={styles.spread}>
+									<Typography
+										color={theme.colors.missed}
+										style={styles.cardEyebrow}
+										variant='stat'
+										weight='medium'
+									>
+										{t('hpNextCatchup', { date: monthDay(newestMissed.date, 'long') })}
+									</Typography>
+									<View style={[styles.tag, { backgroundColor: theme.colors.missedSurface }]}>
+										<Typography
+											color={theme.colors.missed}
+											style={styles.tagLabel}
+											variant='stat'
+											weight='semibold'
+										>
+											{`1 / ${data.missedCount}`}
+										</Typography>
+									</View>
+								</View>
+								<TitleText style={styles.readingTitle}>{workTitle(newestMissed)}</TitleText>
+								<CaptionText color={theme.colors.subtext} style={styles.readingDesc}>
+									{[
+										hizbPortionLabel(formatBabRange(portionsOf(newestMissed)), t),
+										portionDesc(newestMissed)
+									]
+										.filter(Boolean)
+										.join(' · ')}
 								</CaptionText>
-								{` ${t('mpMissed')}`}
-								{newestMissed
-									? ` · ${t('hpBannerNewest', { date: monthDay(newestMissed.date, 'short') })}`
-									: ''}
-							</CaptionText>
-							<Icon
-								color={theme.colors.onHeaderSurface}
-								name='chevronRight'
-								size={15}
-								strokeWidth={1.8}
-							/>
-						</CardSurface>
-					) : null}
+								<AppButton
+									onPress={() => open(newestMissed.id)}
+									size='lg'
+									style={styles.darkButton}
+									title={t('hpCatchupAction')}
+									variant='primary'
+								/>
+								<Pressable accessibilityRole='button' onPress={openMissed} style={styles.centerLink}>
+									<CaptionText
+										color={theme.colors.subtext}
+										style={styles.linkLabel}
+										weight='semibold'
+									>
+										{t('hpAllMissed', { count: data.missedCount })}
+									</CaptionText>
+								</Pressable>
+								{missedRound !== null ? (
+									<View style={[styles.noteRow, { borderTopColor: theme.colors.divider }]}>
+										<Icon color={theme.colors.accent} name='clock' size={14} strokeWidth={1.8} />
+										<CaptionText color={theme.colors.subtext} style={[styles.flex, styles.note]}>
+											{(() => {
+												const date = monthDay(newestMissed.date, 'long');
 
-					{/* S7: joined after the group began — counting starts on the join day. */}
-					{isJoinedLate ? (
-						<View style={[styles.lateNote, { backgroundColor: theme.colors.sand }]}>
-							<CaptionText color={theme.colors.sandText} style={styles.lateNoteText}>
-								{t('hpJoinedLateNote', {
-									date: monthDay(data.startedDate, 'long'),
-									suffix: trSuffix(turkishWordLocativeSuffix(monthDay(data.startedDate, 'long')))
-								})}
-							</CaptionText>
-						</View>
-					) : null}
+												return t('hpCatchupNote', {
+													covered: readCount,
+													date,
+													dateSuffix: trSuffix(turkishGenitiveSuffix(date)),
+													n: missedRound,
+													roundSuffix: trSuffix(turkishDativeSuffix(missedRound))
+												});
+											})()}
+										</CaptionText>
+									</View>
+								) : null}
+							</CardSurface>
+						) : null}
+
+						{/*
+						 * "Senin ilerlemen" — the Cevşen and Kur'an screens' banner, in place of the design's
+						 * missed-days row: the days owed (red) and the newest of them. It opens them (T2).
+						 */}
+						{data.enrollment ? (
+							<CardSurface
+								hasGlassSurface={false}
+								onPress={openMissed}
+								style={[
+									styles.banner,
+									isShared && !isJoinedLate ? styles.sectionEnd : styles.cardGap,
+									{ backgroundColor: theme.colors.headerSurface }
+								]}
+							>
+								<CaptionText color={theme.colors.onHeaderSurface} weight='semibold'>
+									{t('myProgress')}
+								</CaptionText>
+								<View style={[styles.bannerDivider, { backgroundColor: bannerMuted }]} />
+								<CaptionText color={bannerMuted} numberOfLines={1} style={styles.bannerStats}>
+									<CaptionText color={theme.colors.onHeaderSurfaceMissed} weight='semibold'>
+										{data.missedCount}
+									</CaptionText>
+									{` ${t('mpMissed')}`}
+									{newestMissed
+										? ` · ${t('hpBannerNewest', { date: monthDay(newestMissed.date, 'short') })}`
+										: ''}
+								</CaptionText>
+								<Icon
+									color={theme.colors.onHeaderSurface}
+									name='chevronRight'
+									size={15}
+									strokeWidth={1.8}
+								/>
+							</CardSurface>
+						) : null}
+
+						{/* S7: joined after the group began — counting starts on the join day. */}
+						{isJoinedLate ? (
+							<View style={[styles.lateNote, { backgroundColor: theme.colors.sand }]}>
+								<CaptionText color={theme.colors.sandText} style={styles.lateNoteText}>
+									{t('hpJoinedLateNote', {
+										date: monthDay(data.startedDate, 'long'),
+										suffix: trSuffix(turkishWordLocativeSuffix(monthDay(data.startedDate, 'long')))
+									})}
+								</CaptionText>
+							</View>
+						) : null}
+					</SectionCard>
 
 					{/* S6: an individual reading — its round on the 33, a short history, and delete. */}
 					{!isShared && individualRound && round ? (
@@ -1145,8 +1157,8 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 
 					{isShared ? (
 						<>
-							{eyebrow(t('hpGroupProgress'))}
 							<CardSurface isFlush>
+								<SectionHeading count={`${readCount} / ${cells.length}`} label={t('hpGroupProgress')} />
 								{isGroupDone ? null : (
 									<View style={styles.coverageBody}>
 										<View style={styles.coverageHead}>
@@ -1491,7 +1503,51 @@ const LegendKey = ({ color, label, ring }: { color: string; label: string; ring?
 };
 
 /* The design's measures, one to one (W1–W4 of "Hizb Kişisel Plan"). */
+/** A section's heading, as the Cevşen board draws its own: title and count, then a divider. */
+const SectionHeading = ({ count, label }: { count?: string; label: string }) => {
+	const { theme } = useThemeContext();
+
+	return (
+		<View style={[styles.sectionHeading, { borderBottomColor: theme.colors.divider }]}>
+			<TitleText>{label}</TitleText>
+			{count === undefined ? null : <CaptionText color={theme.colors.faintText}>{count}</CaptionText>}
+		</View>
+	);
+};
+
+/** A headed card around a section's rows — or, while the screen is choosing a plan, just the rows. */
+const SectionCard = ({
+	children,
+	isCard,
+	label,
+	style
+}: {
+	children: ReactNode;
+	isCard: boolean;
+	label: string;
+	style?: ViewStyle | undefined;
+}) =>
+	isCard ? (
+		<CardSurface isFlush style={[styles.sectionEnd, style]}>
+			<SectionHeading label={label} />
+			<View style={styles.sectionCardBody}>{children}</View>
+		</CardSurface>
+	) : (
+		<>{children}</>
+	);
+
 const styles = StyleSheet.create({
+	sectionHeading: {
+		alignItems: 'center',
+		borderBottomWidth: StyleSheet.hairlineWidth,
+		flexDirection: 'row',
+		justifyContent: 'space-between',
+		paddingBottom: 13,
+		paddingHorizontal: 16,
+		paddingTop: 15
+	},
+	// The rows keep their own 10-point gaps, so the last one's is taken off the bottom padding.
+	sectionCardBody: { paddingBottom: 5, paddingHorizontal: 15, paddingTop: 15 },
 	flex: { flex: 1, minWidth: 0 },
 	spread: { alignItems: 'center', flexDirection: 'row', gap: 10, justifyContent: 'space-between' },
 	titleChips: { alignItems: 'center', flexDirection: 'row', gap: 6 },
@@ -1499,7 +1555,6 @@ const styles = StyleSheet.create({
 	body: { marginTop: 6 },
 	// 18 under the heading in all (its 18 + the column's 12 − 12), for a leading banner.
 	bodyUnderBanner: { marginTop: -12 },
-	sectionEyebrow: { marginBottom: 10 },
 	cardGap: { marginBottom: 10 },
 	sectionEnd: { marginBottom: 22 },
 	cardEyebrow: { fontSize: 10, letterSpacing: 0.8 },
@@ -1514,6 +1569,8 @@ const styles = StyleSheet.create({
 	bandNote: { fontSize: 11.5 },
 	// Today's card.
 	todayBody: { padding: 16 },
+	// Out to the section card's edges: its body is inset 15, and this row carries its own 16.
+	todayBlock: { marginHorizontal: -15, marginTop: -15 },
 	readingTitle: { fontSize: 21, lineHeight: 26.25, marginTop: 10 },
 	readingDesc: { fontSize: 12.5, lineHeight: 18.75, marginTop: 3 },
 	// R1/R4's chips, to the design: 6 apart, 10 under the title, 5×8 padding, radius 7, 11 semibold.
