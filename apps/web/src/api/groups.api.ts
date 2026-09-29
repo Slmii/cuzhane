@@ -51,6 +51,8 @@ export type CreateGroupInput =
 			hizbStartPortion?: number;
 			/** The personal plan's length in days — 7, 15 or 33. */
 			hizbPlan?: number;
+			/** "Okuma sorumluları" — the "has read" notice to the ticked members only. */
+			readSeersEnabled?: boolean;
 	  })
 	| (CreateGroupCommon & {
 			kind: 'HATIM';
@@ -72,6 +74,10 @@ export type UpdateGroupInput = {
 	dedication?: string | null;
 	visibility?: GroupVisibility;
 	hideMemberNames?: boolean;
+	/** A shared Hizb plan's members who see who read — the whole choice, at most three. */
+	readerSeerUserIds?: string[];
+	/** "Okuma sorumluları" on or off; the ticks are kept either way. */
+	readSeersEnabled?: boolean;
 	openToJoin?: boolean;
 	reminderEnabled?: boolean;
 	reminderTime?: string;

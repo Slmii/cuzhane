@@ -88,6 +88,17 @@ describe('groupReadPush', () => {
 		);
 	});
 
+	it('names the Hizb works read when the portions are known', () => {
+		const delail = { ...input, kind: 'HIZB' as const, portions: [14], range: '14' };
+		expect(groupReadPush('tr', delail).body).toBe('Ahmet okumasını tamamladı: 14. bölüm · Delâilü’n-Nûr.');
+		expect(groupReadPush('en', delail).body).toBe('Ahmet finished portion 14 · Delâilü’n-Nûr.');
+		expect(groupReadPush('nl', delail).body).toBe('Ahmet is klaar met gedeelte 14 · Delâilü’n-Nûr.');
+		// A day across two works names both, in reading order; the Qur'an portion in the reader's language.
+		expect(groupReadPush('en', { ...input, kind: 'HIZB', portions: [3, 4, 5], range: '3–5' }).body).toBe(
+			'Ahmet finished portions 3–5 · Qur’an portion, Cevşenü’l-Kebîr.'
+		);
+	});
+
 	it('keeps a share with a pool block on top plural', () => {
 		expect(groupReadPush('en', { ...input, kind: 'HIZB', range: '1–3, 19' }).body).toBe(
 			'Ahmet finished portions 1–3, 19.'

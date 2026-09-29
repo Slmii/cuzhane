@@ -15,6 +15,9 @@ model GroupMember {
     joinedAt    DateTime        @default(now())
     // "Bu grupta hep kitaptan okuyorum": on a Hizb plan, the book button leads and the reader is a link.
     readsFromBook Boolean       @default(false)
+    // A Hizb plan with hidden names: one of up to three the owner ticks (the owner by default) who
+    // see who read and get every "has read" notice, whatever their own settings say.
+    seesReaders   Boolean       @default(false)
 
     group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
 

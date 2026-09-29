@@ -165,6 +165,7 @@ const summaryOf = (spec: DemoGroupSpec): GroupSummary => {
 	return {
 		completedAt: null,
 		hideMemberNames: false,
+		readSeersEnabled: false,
 		createdAt: daysAgo(24),
 		cycle: spec.cycle,
 		// These specs are the Cevşen groups — a hundred babs split by seat. The Kur'an leg's group
@@ -217,6 +218,7 @@ const detailOf = (spec: DemoGroupSpec): GroupDetail => ({
 	boundaryPolicy: null,
 	hasSkippedRound: false,
 	maxPerMember: null,
+	seesReaders: false,
 	babs: babsOf(spec),
 	inviteCode: spec.inviteCode,
 	members: [
@@ -230,6 +232,7 @@ const detailOf = (spec: DemoGroupSpec): GroupDetail => ({
 			percent: Math.round((spec.readInShare / SHARE_LENGTH) * 100),
 			readCount: spec.readInShare,
 			role: spec.isOwner ? 'OWNER' : 'MEMBER',
+			seesReaders: false,
 			slotIndex: 3,
 			userId: DEMO_USER_ID
 		}
@@ -316,6 +319,7 @@ const hatimSummary = (): GroupSummary => {
 		createdAt: daysAgo(24),
 		cycle: 'WEEKLY',
 		hideMemberNames: false,
+		readSeersEnabled: false,
 		kind: 'HATIM',
 		partCount: CUZ_TOTAL,
 		roundDays: 7,
@@ -361,6 +365,7 @@ const hatimDetail = (): GroupDetail => ({
 	boundaryPolicy: 'KEEP',
 	hasSkippedRound: false,
 	maxPerMember: 3,
+	seesReaders: false,
 	babs: hatimBabs(),
 	inviteCode: 'CUMA-5H3T',
 	members: [
@@ -374,6 +379,7 @@ const hatimDetail = (): GroupDetail => ({
 			percent: Math.round((HATIM_MINE_READ.size / HATIM_MINE.length) * 100),
 			readCount: HATIM_MINE_READ.size,
 			role: 'MEMBER',
+			seesReaders: false,
 			slotIndex: 2,
 			userId: DEMO_USER_ID
 		}

@@ -1,4 +1,4 @@
-import { CreateGroupBodySchema, DiscoverQuerySchema } from '@schemas/group.schema';
+import { CreateGroupBodySchema, DiscoverQuerySchema, UpdateGroupBodySchema } from '@schemas/group.schema';
 import { describe, expect, it } from 'vitest';
 
 const base = { name: 'Hizb Halkası', reminderTime: '21:30' };
@@ -65,5 +65,21 @@ describe('CreateGroupBodySchema', () => {
 describe('DiscoverQuerySchema', () => {
 	it('filters on a monthly round', () => {
 		expect(DiscoverQuerySchema.parse({ cycle: 'MONTHLY' }).cycle).toBe('MONTHLY');
+	});
+});
+
+describe('UpdateGroupBodySchema — responsible members', () => {
+	it('takes the switch on its own, and up to three members', () => {
+		expect(UpdateGroupBodySchema.safeParse({ readSeersEnabled: true }).success).toBe(true);
+		expect(UpdateGroupBodySchema.safeParse({ readerSeerUserIds: ['a', 'b', 'c'] }).success).toBe(true);
+		// Unticking everyone is a choice too.
+		expect(UpdateGroupBodySchema.safeParse({ readerSeerUserIds: [] }).success).toBe(true);
+	});
+
+	it('refuses a fourth member and ids that are not ids', () => {
+		expect(UpdateGroupBodySchema.safeParse({ readerSeerUserIds: ['a', 'b', 'c', 'd'] }).success).toBe(false);
+		expect(UpdateGroupBodySchema.safeParse({ readerSeerUserIds: [''] }).success).toBe(false);
+		expect(UpdateGroupBodySchema.safeParse({ readerSeerUserIds: ['x'.repeat(65)] }).success).toBe(false);
+		expect(UpdateGroupBodySchema.safeParse({ readSeersEnabled: 'yes' }).success).toBe(false);
 	});
 });

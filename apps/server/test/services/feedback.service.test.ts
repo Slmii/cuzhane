@@ -50,6 +50,23 @@ describe('createFeedback', () => {
 		expect(stored).toMatchObject({ appVersion: '1.4.0 (218)', platform: 'ios', locale: 'tr' });
 	});
 
+	it('keeps the app’s last steps, one per line, oldest first', async () => {
+		const trail = [
+			'22:41:05 Tabs › Groups › [GroupsList, GroupDetail, BabReader] (bab 97)',
+			'22:41:30 app background',
+			'22:42:02 app active',
+			'22:42:02 action POP'
+		];
+		const receipt = await createFeedback(USER, { topic: 'BUG', message: 'The reader closed by itself.', trail });
+
+		const stored = await prisma.feedback.findUniqueOrThrow({ where: { reference: receipt.reference } });
+		expect(stored.trail).toBe(trail.join('\n'));
+
+		// None sent, none stored — an older build that knows nothing of it still files a report.
+		const plain = await createFeedback(USER, { topic: 'IDEA', message: 'A dark mode for the reader.' });
+		expect((await prisma.feedback.findUniqueOrThrow({ where: { reference: plain.reference } })).trail).toBeNull();
+	});
+
 	it('files the message even when the account email cannot be resolved', async () => {
 		// No Clerk instance answers `test_feedback_user`, which is the point: an unreachable
 		// directory must not lose a message that has already been written.

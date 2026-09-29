@@ -54,7 +54,8 @@ export const createFeedback = async (userId: string, input: CreateFeedbackBody):
 			email,
 			appVersion: input.appVersion ?? null,
 			platform: input.platform ?? null,
-			locale: input.locale ?? null
+			locale: input.locale ?? null,
+			trail: input.trail && input.trail.length > 0 ? input.trail.join('\n') : null
 		},
 		select: { reference: true }
 	});

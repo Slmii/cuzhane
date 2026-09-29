@@ -15,6 +15,7 @@ import { civilDayNumber, startOfCivilDay } from '@utils/rounds';
 import { normalizeUserId } from '@utils/normalizeUserId';
 import type { Group, HizbEnrollment, Prisma } from '../generated/prisma/client';
 import { lockGroup } from './rounds.service';
+import { notifyHizbRead } from './hizbReadNotice.service';
 
 const dayOf = (group: Group) => civilDayNumber(new Date(), group.timezone);
 const dateOf = (day: number) => new Date(day * 86400000).toISOString().slice(0, 10);
@@ -430,7 +431,7 @@ export async function getHizbState(userId: string, groupId: string, cursor?: str
 				members: active.map(e => {
 					const m = memberByUser.get(e.userId);
 					const isMe = e.userId === user;
-					const anonymous = group.hideMemberNames && user !== group.ownerUserId && user !== e.userId;
+					const anonymous = namesHiddenFrom(group, user, memberByUser.get(user)) && !isMe;
 					return {
 						id: e.id,
 						displayName: anonymous ? null : m?.displayName ?? null,
@@ -446,6 +447,146 @@ export async function getHizbState(userId: string, groupId: string, cursor?: str
 		},
 		{ timeout: 30000 }
 	);
+}
+
+/** Hidden names hide others' names from this viewer — not from the owner, nor from a responsible member. */
+const namesHiddenFrom = (group: Group, viewerId: string, viewer: { seesReaders: boolean } | undefined) =>
+	group.hideMemberNames &&
+	viewerId !== group.ownerUserId &&
+	!(group.readSeersEnabled && viewer?.seesReaders === true);
+
+/** Days on one page of the group's history. */
+const HISTORY_DAYS_PAGE = 30;
+
+/**
+ * Whoever was reading on a day: every enrollment running then, and every one with a reading that
+ * day. Derived rather than read from the day's assignments alone — those are made only when a
+ * member opens the app, so one who never did that day has no row, yet still owed its reading. And
+ * not from the dates alone: the inactivity rule can end a plan before days already opened (an undone
+ * read moves it back), and those stay readable from the catch-up list.
+ */
+const readersOn = <E extends { id: string; joinedDay: number; endDay: number | null }>(
+	enrollments: readonly E[],
+	day: number,
+	withReading: ReadonlySet<string>
+) => enrollments.filter(e => withReading.has(e.id) || (e.joinedDay <= day && (e.endDay === null || day < e.endDay)));
+
+/**
+ * "Tüm geçmiş" of a shared plan: the group's days, today first, each with how many of that day's
+ * readers read. `before` pages on: the days before it.
+ */
+export async function getHizbHistoryDays(userId: string, groupId: string, before?: number) {
+	const user = normalizeUserId(userId);
+	return prisma.$transaction(async tx => {
+		await lockGroup(tx, groupId);
+		const group = await requireReader(tx, user, groupId);
+		await expireHizb(tx, group);
+		const today = dayOf(group);
+		const anchor = civilDayNumber(group.startedAt ?? group.startsAt, group.timezone);
+		const newest = Math.min(today, before === undefined ? today : before - 1);
+		const oldest = Math.max(anchor, newest - HISTORY_DAYS_PAGE + 1);
+		if (newest < oldest) {
+			return { days: [], nextBefore: null };
+		}
+		const enrollments = await tx.hizbEnrollment.findMany({
+			where: { groupId },
+			select: { id: true, joinedDay: true, endDay: true }
+		});
+		// Every reading in the page's days, read or not: a few numbers a row.
+		const assignments = await tx.hizbAssignment.findMany({
+			where: { enrollment: { groupId }, day: { gte: oldest, lte: newest } },
+			select: { day: true, enrollmentId: true, completedAt: true }
+		});
+		const withReadingOn = new Map<number, Set<string>>();
+		const readOn = new Map<number, number>();
+		for (const a of assignments) {
+			withReadingOn.set(a.day, (withReadingOn.get(a.day) ?? new Set()).add(a.enrollmentId));
+			if (a.completedAt) {
+				readOn.set(a.day, (readOn.get(a.day) ?? 0) + 1);
+			}
+		}
+		return {
+			days: Array.from({ length: newest - oldest + 1 }, (_, i) => newest - i).map(day => ({
+				day,
+				date: dateOf(day),
+				isToday: day === today,
+				read: readOn.get(day) ?? 0,
+				readers: readersOn(enrollments, day, withReadingOn.get(day) ?? new Set()).length
+			})),
+			nextBefore: oldest > anchor ? oldest : null
+		};
+	});
+}
+
+/**
+ * One day of "Tüm geçmiş": its readers, each with the portion they owed and whether they read it.
+ * The viewer's own row carries the reading's id, so an unread day of theirs can be opened.
+ */
+export async function getHizbHistoryDay(userId: string, groupId: string, day: number) {
+	const user = normalizeUserId(userId);
+	return prisma.$transaction(async tx => {
+		await lockGroup(tx, groupId);
+		const group = await requireReader(tx, user, groupId);
+		await expireHizb(tx, group);
+		const today = dayOf(group);
+		const anchor = civilDayNumber(group.startedAt ?? group.startsAt, group.timezone);
+		if (day < anchor || day > today) {
+			throw new HttpError(BAD_REQUEST, 'This day is not in the group’s history');
+		}
+		const enrollments = await tx.hizbEnrollment.findMany({ where: { groupId }, orderBy: { ordinal: 'asc' } });
+		// The viewer's own day must exist to be opened from here.
+		for (const enrollment of enrollments.filter(e => e.userId === user)) {
+			await materialize(tx, group, enrollment);
+		}
+		const assignments = await tx.hizbAssignment.findMany({
+			where: { enrollment: { groupId }, day },
+			select: {
+				id: true,
+				enrollmentId: true,
+				completedAt: true,
+				bookmark: true,
+				repetitions: true,
+				istighfarRepetitions: true,
+				delailRepetitions: true,
+				readPortions: true
+			}
+		});
+		const byEnrollment = new Map(assignments.map(a => [a.enrollmentId, a]));
+		const readers = readersOn(enrollments, day, new Set(byEnrollment.keys()));
+		const members = await tx.groupMember.findMany({ where: { groupId } });
+		const memberByUser = new Map(members.map(m => [m.userId, m]));
+		const hidden = namesHiddenFrom(group, user, memberByUser.get(user));
+		return {
+			day,
+			date: dateOf(day),
+			isToday: day === today,
+			members: readers.map(e => {
+				const a = byEnrollment.get(e.id);
+				const isMe = e.userId === user;
+				const member = memberByUser.get(e.userId);
+				return {
+					id: e.id,
+					displayName: hidden && !isMe ? null : member?.displayName ?? null,
+					planDays: e.planDays,
+					portion: portionForDay(e.planDays, e.sequence + group.hizbStartPortion - 1, day - anchor),
+					completed: Boolean(a?.completedAt),
+					// Opened and part-way, not yet read.
+					started:
+						a !== undefined &&
+						a.completedAt === null &&
+						(a.bookmark > 0 ||
+							a.repetitions > 0 ||
+							a.istighfarRepetitions > 0 ||
+							a.delailRepetitions > 0 ||
+							a.readPortions.length > 0),
+					isMe,
+					// A member no longer in the group: their name went with them.
+					hasLeft: member === undefined,
+					assignmentId: isMe ? a?.id ?? null : null
+				};
+			})
+		};
+	});
 }
 
 export type HizbAssignmentUpdate = {
@@ -470,6 +611,8 @@ export async function updateHizbAssignment(
 	input: HizbAssignmentUpdate
 ) {
 	const user = normalizeUserId(userId);
+	// The portions to tell the group about, once this read has committed.
+	let announced: number[] | null = null;
 	await prisma.$transaction(async tx => {
 		await lockGroup(tx, groupId);
 		const group = await requireReader(tx, user, groupId);
@@ -590,6 +733,14 @@ export async function updateHizbAssignment(
 		) {
 			throw new HttpError(CONFLICT, 'Complete your selected istighfar repetitions first');
 		}
+		// Today's reading, read for the first time, in a group with others in it. A missed day made
+		// up later is not news, and undoing and reading again stays quiet (the claim below).
+		const announces =
+			read &&
+			assignment.completedAt === null &&
+			assignment.readNoticeSentAt === null &&
+			assignment.day === dayOf(group) &&
+			!group.hizbIndividual;
 		await tx.hizbAssignment.update({
 			where: { id: assignment.id },
 			data: {
@@ -600,6 +751,7 @@ export async function updateHizbAssignment(
 				bookmark: input.bookmark ?? assignment.bookmark,
 				version: { increment: 1 },
 				completedAt: read ? assignment.completedAt ?? new Date() : null,
+				...(announces ? { readNoticeSentAt: new Date() } : {}),
 				// A partial book read keeps its ticks; a finished or undone day has none to keep.
 				readPortions:
 					input.bookPortions && !completesFromBook
@@ -616,6 +768,9 @@ export async function updateHizbAssignment(
 					: null
 			}
 		});
+		if (announces) {
+			announced = dayPortions;
+		}
 		if (read && assignment.completedAt === null) {
 			await tx.hizbEnrollment.updateMany({
 				where: { groupId, userId: user, endDay: null },
@@ -639,6 +794,9 @@ export async function updateHizbAssignment(
 			}
 		}
 	});
+	if (announced) {
+		await notifyHizbRead({ groupId, portions: announced, readerId: user });
+	}
 	return getHizbAssignment(user, groupId, assignmentId);
 }
 

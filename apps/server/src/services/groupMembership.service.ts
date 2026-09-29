@@ -5,6 +5,7 @@ import prisma from '@db/prisma';
 import { babRuns, formatRun, type BabRange } from '@utils/babs';
 import { normalizeInviteCode } from '@utils/inviteCode';
 import { normalizeUserId } from '@utils/normalizeUserId';
+import { readerSeerIdsOf } from '@utils/groupPrivacy';
 import { CUZ_COUNT } from '@utils/units';
 import type { Group, Prisma } from '../generated/prisma/client';
 import { syncCompletedAt } from './babs.service';
@@ -640,5 +641,8 @@ export const listMembersForUser = async (userId: string, groupId: string): Promi
 		holdingsFor(prisma, group, roundIndexFor(group) ?? 0)
 	]);
 
-	return members.map(member => toGroupMember(group, member, babs, cheers, normalizedUserId, profiles, holdings));
+	// The members ticked to see who read see names here as the owner does.
+	const seen = { ...group, readerSeerIds: readerSeerIdsOf(group, members) };
+
+	return members.map(member => toGroupMember(seen, member, babs, cheers, normalizedUserId, profiles, holdings));
 };

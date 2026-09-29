@@ -72,6 +72,7 @@ const SWITCH_FIELDS = [
 	'hatimGroupReadsEnabled',
 	'hatimRoundCompleteEnabled',
 	'hatimPoolClaimEnabled',
+	'hizbGroupReadsEnabled',
 	'memberJoinedEnabled',
 	'memberLeftEnabled'
 ] as const satisfies readonly (keyof RemindersForm)[];
@@ -276,6 +277,7 @@ export const RemindersScreen = () => {
 					hatimGroupReadsEnabled: settings.hatimGroupReadsEnabled,
 					hatimRoundCompleteEnabled: settings.hatimRoundCompleteEnabled,
 					hatimPoolClaimEnabled: settings.hatimPoolClaimEnabled,
+					hizbGroupReadsEnabled: settings.hizbGroupReadsEnabled,
 					memberJoinedEnabled: settings.memberJoinedEnabled,
 					memberLeftEnabled: settings.memberLeftEnabled
 				}}
@@ -324,7 +326,7 @@ export const RemindersScreen = () => {
 								 * in and out inside a surface that was still resizing.
 								 */}
 								{/*
-								 * **Three sections: Genel, Kuran, Cevşen.** Three of the five group notifications are
+								 * **Sections: Genel, Kuran, Cevşen, Hizbü'l-Hakaik.** Three of the five group notifications are
 								 * not one event but two — "someone finished their share" is a range of babs in one kind
 								 * and a cüz in the other — so each has a switch per kind, under the heading for that
 								 * kind. Who joins or leaves is the same event either way and stays shared.
@@ -458,6 +460,19 @@ export const RemindersScreen = () => {
 											title={t('poolClaimAlert')}
 										/>
 									</View>
+								</CardSurface>
+
+								{/*
+								 * Only group reads has a Hizb switch of its own; a Hizb group's other
+								 * notices follow the Cevşen switches above.
+								 */}
+								<FieldLabelText style={styles.sectionLabel}>{t('kindHizb')}</FieldLabelText>
+								<CardSurface isFlush>
+									<FormToggleRow
+										hint={t('groupReadsHintHizb')}
+										name='hizbGroupReadsEnabled'
+										title={t('groupReads')}
+									/>
 								</CardSurface>
 							</View>
 						</>

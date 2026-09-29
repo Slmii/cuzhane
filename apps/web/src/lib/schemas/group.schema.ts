@@ -68,6 +68,8 @@ export const createGroupSchema = (t: Translate) =>
 			hizbPlan: z.enum(['0', '7', '15', '33']).default('33'),
 			inactivityEnabled: z.boolean().default(false),
 			inactivityDays: z.number().int().min(1).max(365).default(10),
+			// "Okuma sorumluları", a shared Hizb plan's only.
+			readSeersEnabled: z.boolean().default(false),
 			// Rotation is the design's default and the first option offered.
 			splitMode: z.enum(['ROTATION', 'FIXED', 'FLEXIBLE']).default('ROTATION'),
 			// Which sizes and cycles are allowed depends on the kind, so both are checked below.

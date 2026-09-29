@@ -3,7 +3,7 @@ import { partCountFor, type GroupKindName } from '@utils/groupKinds';
 import { formatInviteCode } from '@utils/inviteCode';
 import { FALLBACK_DISPLAY_NAME, type MemberProfile } from '@utils/memberProfiles';
 import { civilDayNumber, roundEndsAt, roundLengthFor } from '@utils/rounds';
-import { isAnonymousTo, visibleUserId } from '@utils/groupPrivacy';
+import { isAnonymousTo, readerSeerIdsOf, visibleUserId } from '@utils/groupPrivacy';
 import type { CycleName } from '@utils/rounds';
 import type {
 	Cheer,
@@ -60,6 +60,8 @@ export type GroupMember = {
 	readCount: number;
 	percent: number;
 	cheeredByMe: boolean;
+	/** Ticked to see who read in a shared Hizb plan. Told to the owner only — false for everyone else. */
+	seesReaders: boolean;
 };
 
 export type GroupSummary = {
@@ -79,6 +81,8 @@ export type GroupSummary = {
 	hizbStartPortion?: number;
 	inactivityDays?: number | null;
 	hideMemberNames: boolean;
+	/** "Okuma sorumluları": a shared Hizb plan's "has read" notice goes to the ticked members only. */
+	readSeersEnabled: boolean;
 	id: string;
 	name: string;
 	dedication: string | null;
@@ -188,6 +192,11 @@ export type GroupDetail = GroupSummary & {
 	 */
 	maxPerMember: number | null;
 	boundaryPolicy: 'KEEP' | 'REPICK' | null;
+	/**
+	 * The viewer is one of the ticked members and "Okuma sorumluları" is on: they get every "has
+	 * read" notice, and with hidden names see names as the owner does.
+	 */
+	seesReaders: boolean;
 };
 
 /** One "the block you took has passed to a new member" notice, for the viewer. */
@@ -465,6 +474,7 @@ export const toGroupSummary = (
 		hizbStartPortion: group.hizbStartPortion,
 		inactivityDays: group.inactivityDays,
 		hideMemberNames: group.hideMemberNames,
+		readSeersEnabled: group.readSeersEnabled,
 		name: group.name,
 		dedication: group.dedication,
 		visibility: group.visibility,
@@ -608,7 +618,8 @@ export const toGroupMember = (
 		babNumbers,
 		readCount,
 		percent: progressPercent(readCount, babNumbers.length),
-		cheeredByMe: cheers.some(cheer => cheer.fromUserId === viewerUserId && cheer.toUserId === member.userId)
+		cheeredByMe: cheers.some(cheer => cheer.fromUserId === viewerUserId && cheer.toUserId === member.userId),
+		seesReaders: viewerUserId === group.ownerUserId && member.seesReaders
 	};
 };
 
@@ -643,9 +654,13 @@ export const toGroupDetail = (
 	 * question and get it from different places; this is the one line where that is decided.
 	 */
 	const boardPlan = group.kind === 'HATIM' ? resolveUnitPlan({ group, holdings, members, roundIndex }) : undefined;
+	// Who sees names here: the owner, and in a shared Hizb plan the members ticked to see who read.
+	const readerSeerIds = readerSeerIdsOf(group, members);
+	const seen = { ...group, readerSeerIds };
 
 	return {
 		...summary,
+		seesReaders: readerSeerIds.includes(viewerUserId),
 		/*
 		 * Blocks the viewer had volunteered for that a joiner took over, still unacknowledged.
 		 *
@@ -657,7 +672,7 @@ export const toGroupDetail = (
 			.filter(release => release.userId === viewerUserId && release.seenAt === null)
 			.filter(release => release.roundIndex === roundIndex)
 			.map(release => ({ id: release.id, startBab: release.startBab, endBab: release.endBab })),
-		ownerUserId: visibleUserId(group, viewerUserId, group.ownerUserId)!,
+		ownerUserId: visibleUserId(seen, viewerUserId, group.ownerUserId)!,
 		/*
 		 * Every member's to share, not just the owner's.
 		 *
@@ -679,11 +694,11 @@ export const toGroupDetail = (
 		babs: babs
 			.slice()
 			.sort((a, b) => a.number - b.number)
-			.map(bab => serializeBab(bab, undefined, { group, viewerUserId }, boardPlan)),
+			.map(bab => serializeBab(bab, undefined, { group: seen, viewerUserId }, boardPlan)),
 		members: members
 			.slice()
 			.sort((a, b) => a.slotIndex - b.slotIndex)
-			.map(member => toGroupMember(group, member, babs, cheers, viewerUserId, profiles, holdings))
+			.map(member => toGroupMember(seen, member, babs, cheers, viewerUserId, profiles, holdings))
 	};
 };
 

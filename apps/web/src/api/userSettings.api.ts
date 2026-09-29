@@ -13,6 +13,7 @@ export type UpdateUserSettingsInput = Partial<
 		| 'hatimGroupReadsEnabled'
 		| 'hatimRoundCompleteEnabled'
 		| 'hatimPoolClaimEnabled'
+		| 'hizbGroupReadsEnabled'
 		| 'memberJoinedEnabled'
 		| 'memberLeftEnabled'
 		| 'hasSeenOnboarding'

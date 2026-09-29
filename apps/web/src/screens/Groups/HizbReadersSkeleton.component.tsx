@@ -25,6 +25,9 @@ type HizbReadersSkeletonProps = {
 	/** From the group, when it is already cached — the note is then the real one. */
 	hideMemberNames?: boolean;
 	isOwner?: boolean;
+	seesReaders?: boolean;
+	/** A past day's heading (its date); today's readers by default. */
+	title?: string;
 };
 
 /**
@@ -36,19 +39,30 @@ type HizbReadersSkeletonProps = {
  *
  * The "not readers" note is left out: it appears only when someone in the group has no plan.
  */
-export const HizbReadersSkeleton = ({ hideMemberNames = false, isOwner = false }: HizbReadersSkeletonProps) => {
+export const HizbReadersSkeleton = ({
+	hideMemberNames = false,
+	isOwner = false,
+	seesReaders = false,
+	title
+}: HizbReadersSkeletonProps) => {
 	const { t } = useTranslation();
 	const { theme } = useThemeContext();
 
 	return (
 		<ScreenContainer contentContainerStyle={styles.flush} isScrollable={false}>
 			<View style={styles.listContent}>
-				<ScreenHeaderSkeleton hasBackButton subtitleWidth='80%' title={t('hpReadersTitle')} />
+				<ScreenHeaderSkeleton hasBackButton subtitleWidth='80%' title={title ?? t('hpReadersTitle')} />
 				{hideMemberNames ? (
 					<View style={[styles.hiddenNote, { backgroundColor: theme.colors.sand }]}>
 						<Icon color={theme.colors.sandText} name='lock' size={16} strokeWidth={1.8} />
 						<CaptionText color={theme.colors.sandText} style={styles.hiddenNoteText}>
-							{t(isOwner ? 'hpNamesHiddenOwner' : 'hpNamesHiddenMember')}
+							{t(
+								isOwner
+									? 'hpNamesHiddenOwner'
+									: seesReaders
+									? 'hpNamesHiddenSeer'
+									: 'hpNamesHiddenMember'
+							)}
 						</CaptionText>
 					</View>
 				) : null}

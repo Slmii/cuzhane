@@ -2,13 +2,35 @@ import prisma from '@db/prisma';
 import { CreateGroupBodySchema } from '@schemas/group.schema';
 import { createGroupForUser, discoverGroups } from '@services/groups.service';
 import { joinGroupForUser, leaveGroupForUser } from '@services/groupMembership.service';
-import { enrollHizb, getHizbState, hizbSummary, updateHizbAssignment } from '@services/hizbReading.service';
+import {
+	enrollHizb,
+	getHizbHistoryDay,
+	getHizbHistoryDays,
+	getHizbState,
+	hizbSummary,
+	updateHizbAssignment
+} from '@services/hizbReading.service';
 import { PLAN_SPANS, PLAN_VERSION, portionForDay, spansFor } from '@utils/hizbPlans';
 import { civilDayNumber } from '@utils/rounds';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { assertIsTestDatabase, testDatabaseUrl } from '../support/testDatabase';
 vi.mock('@utils/memberProfiles', () => ({ getMemberProfiles: async () => new Map(), FALLBACK_DISPLAY_NAME: 'Member' }));
 vi.mock('@services/push.service', () => ({ sendPushToUser: async () => 0 }));
+/** Every statement the services send, counted — transactions and raw SQL included. */
+const sent = vi.hoisted(() => ({ queries: 0 }));
+vi.mock('@db/prisma', async importOriginal => {
+	const { default: client } = await importOriginal<typeof import('@db/prisma')>();
+	return {
+		default: client.$extends({
+			query: {
+				$allOperations: ({ args, query }) => {
+					sent.queries += 1;
+					return query(args);
+				}
+			}
+		})
+	};
+});
 assertIsTestDatabase(testDatabaseUrl());
 
 /*
@@ -17,23 +39,22 @@ assertIsTestDatabase(testDatabaseUrl());
  * would; the rest seed the same rows in bulk (`seedReaders`) so the suite stays quick, and
  * then drive the real services on top.
  *
- * Measured locally (Apple silicon, Postgres in Docker), readers → ms:
+ * **What is asserted is the number of statements a call sends, not its time.** A query per member
+ * or a per-member loop over the database is what makes a big group slow, and it shows up as a
+ * count that grows with the group; a clock also measures whatever else the machine is doing, and
+ * failed at 14× its usual time on a laptop running two simulators. The counts are the same at
+ * 100, 200 and 500 readers; the budgets sit just above them, far below the smallest group.
+ *
+ * Times are still printed for reading. Measured locally (Apple silicon, Postgres in Docker),
+ * readers → ms:
  *   getHizbState, one member          100 → ~25   200 → ~20   500 → ~40
  *   getHizbState, a month all read    100 → ~70   200 → ~45   500 → ~95  (was ~200 at 500)
  *   hizbSummary                       100 → ~8    200 → ~8    500 → ~20  (~55 a month all read)
  *   discoverGroups, one group         100 → ~15   200 → ~15   500 → ~50
  *   removing the idle 90%             100 → ~10   200 → ~15   500 → ~25  (was ~680 at 500)
  *   one join, returning detail        100 → ~29   200 → ~40   500 → ~75
- * The budgets are several times those: there to catch a query per member or a quadratic loop,
- * not to benchmark a slow CI runner.
  */
-const budget = {
-	state: 500,
-	summary: 300,
-	discover: 500,
-	expire: 300,
-	fullMonthState: 1000
-};
+const queryBudget = { state: 20, summary: 10, discover: 15, expire: 12, historyDays: 10, historyDay: 12 };
 const start = new Date('2026-10-01T10:00:00Z');
 const day = (n: number) => new Date(start.getTime() + n * 86400000);
 const ZONE = 'Europe/Amsterdam';
@@ -123,10 +144,12 @@ const readToday = async (userId: string, groupId: string) => {
 	await markRead(userId, groupId, today);
 	return today;
 };
+/** A call's result, its time (printed, never asserted) and the statements it sent (asserted). */
 const timed = async <T>(run: () => Promise<T>) => {
 	const began = performance.now();
+	const before = sent.queries;
 	const result = await run();
-	return { result, ms: performance.now() - began };
+	return { result, ms: performance.now() - began, queries: sent.queries - before };
 };
 /** Who reads first, second, … in a fixed-plan group: user ids by sequence. */
 const inOrder = async (groupId: string) =>
@@ -169,7 +192,11 @@ describe.each([100, 200, 500])('a Hizb plan group with %i readers', size => {
 			// The readers list: everyone, the viewer once, the 33 portions shared out evenly.
 			const order = await inOrder(group.id);
 			const last = order.at(-1)!;
-			const { result: state, ms: stateMs } = await timed(() => getHizbState(last, group.id));
+			const {
+				result: state,
+				ms: stateMs,
+				queries: stateQueries
+			} = await timed(() => getHizbState(last, group.id));
 			expect(state.members).toHaveLength(size + 1);
 			expect(state.members.filter(m => m.isMe)).toHaveLength(1);
 			expect(state.members.find(m => m.isMe)?.portion).toBe(state.today?.portion);
@@ -197,7 +224,11 @@ describe.each([100, 200, 500])('a Hizb plan group with %i readers', size => {
 				await readToday(userId, group.id);
 			}
 			const full = await getHizbState(last, group.id);
-			const { result: summary, ms: summaryMs } = await timed(() => hizbSummary(group.id, last));
+			const {
+				result: summary,
+				ms: summaryMs,
+				queries: summaryQueries
+			} = await timed(() => hizbSummary(group.id, last));
 			expect(ascending(full.coveredSpans)).toEqual(ALL_SPANS);
 			expect(ascending(summary.hizbCoveredSpans)).toEqual(ALL_SPANS);
 			expect(full.coverage).toMatchObject({ complete: true, covered: PLAN_SPANS.length });
@@ -207,17 +238,25 @@ describe.each([100, 200, 500])('a Hizb plan group with %i readers', size => {
 			expect((await hizbSummary(group.id, order[0]!)).myShareDoneAt).toBe(start.toISOString());
 
 			// Discover for an outsider: every reader counted, the board full.
-			const { result: shelf, ms: discoverMs } = await timed(() => discoverGroups('outsider', {}));
+			const {
+				result: shelf,
+				ms: discoverMs,
+				queries: discoverQueries
+			} = await timed(() => discoverGroups('outsider', {}));
 			expect(shelf.find(g => g.id === group.id)).toMatchObject({ memberCount: size + 1, percent: 100 });
 
 			console.info(
-				`[hizb ${size}] getHizbState ${stateMs.toFixed(0)} ms · hizbSummary ${summaryMs.toFixed(
+				`[hizb ${size}] getHizbState ${stateMs.toFixed(
 					0
-				)} ms · discoverGroups ${discoverMs.toFixed(0)} ms`
+				)} ms, ${stateQueries} queries · hizbSummary ${summaryMs.toFixed(
+					0
+				)} ms, ${summaryQueries} queries · discoverGroups ${discoverMs.toFixed(
+					0
+				)} ms, ${discoverQueries} queries`
 			);
-			expect(stateMs).toBeLessThan(budget.state);
-			expect(summaryMs).toBeLessThan(budget.summary);
-			expect(discoverMs).toBeLessThan(budget.discover);
+			expect(stateQueries).toBeLessThanOrEqual(queryBudget.state);
+			expect(summaryQueries).toBeLessThanOrEqual(queryBudget.summary);
+			expect(discoverQueries).toBeLessThanOrEqual(queryBudget.discover);
 		},
 		timeout
 	);
@@ -339,7 +378,7 @@ describe.each([100, 200, 500])('a Hizb plan group with %i readers', size => {
 
 			// Day 3: three days without a read ends every idle enrollment in one pass; readers stay.
 			vi.setSystemTime(day(3));
-			const { ms: expireMs } = await timed(() => hizbSummary(group.id, 'outsider'));
+			const { ms: expireMs, queries: expireQueries } = await timed(() => hizbSummary(group.id, 'outsider'));
 			const active = await prisma.hizbEnrollment.findMany({ where: { groupId: group.id, endDay: null } });
 			expect(active.map(e => e.userId).sort()).toEqual([...readers].sort());
 			const removed = await prisma.hizbEnrollment.findMany({
@@ -365,8 +404,12 @@ describe.each([100, 200, 500])('a Hizb plan group with %i readers', size => {
 				where: { groupId: group.id, userId: idle, endDay: null }
 			});
 			expect(back.sequence).toBe(size + 1);
-			console.info(`[hizb ${size}] removing ${removed.length} idle readers: ${expireMs.toFixed(0)} ms`);
-			expect(expireMs).toBeLessThan(budget.expire);
+			console.info(
+				`[hizb ${size}] removing ${removed.length} idle readers: ${expireMs.toFixed(
+					0
+				)} ms, ${expireQueries} queries`
+			);
+			expect(expireQueries).toBeLessThanOrEqual(queryBudget.expire);
 
 			// Forty days on, the history is still thirty-one bars.
 			vi.setSystemTime(day(40));
@@ -433,8 +476,16 @@ describe.each([100, 200, 500])('a Hizb plan group with %i readers', size => {
 				data: { generatedThrough: today, lastReadDay: today }
 			});
 
-			const { result: state, ms: stateMs } = await timed(() => getHizbState(reader(size), group.id));
-			const { result: summary, ms: summaryMs } = await timed(() => hizbSummary(group.id, reader(size)));
+			const {
+				result: state,
+				ms: stateMs,
+				queries: stateQueries
+			} = await timed(() => getHizbState(reader(size), group.id));
+			const {
+				result: summary,
+				ms: summaryMs,
+				queries: summaryQueries
+			} = await timed(() => hizbSummary(group.id, reader(size)));
 			expect(state.members).toHaveLength(size + 1);
 			expect(state.members.every(m => m.completed)).toBe(true);
 			expect(state.dailyHistory).toHaveLength(31);
@@ -445,10 +496,24 @@ describe.each([100, 200, 500])('a Hizb plan group with %i readers', size => {
 			console.info(
 				`[hizb ${size}] a full month read: getHizbState ${stateMs.toFixed(
 					0
-				)} ms · hizbSummary ${summaryMs.toFixed(0)} ms`
+				)} ms, ${stateQueries} queries · hizbSummary ${summaryMs.toFixed(0)} ms, ${summaryQueries} queries`
 			);
-			expect(stateMs).toBeLessThan(budget.fullMonthState);
-			expect(summaryMs).toBeLessThan(budget.summary);
+			expect(stateQueries).toBeLessThanOrEqual(queryBudget.state);
+			expect(summaryQueries).toBeLessThanOrEqual(queryBudget.summary);
+
+			// "Tüm geçmiş": the month's days, then one full day of every reader.
+			const { result: history, queries: daysQueries } = await timed(() =>
+				getHizbHistoryDays(reader(size), group.id)
+			);
+			expect(history.days).toHaveLength(30);
+			expect(history.days.every(d => d.read === size + 1 && d.readers === size + 1)).toBe(true);
+			const { result: oneDay, queries: dayQueries } = await timed(() =>
+				getHizbHistoryDay(reader(size), group.id, anchor)
+			);
+			expect(oneDay.members).toHaveLength(size + 1);
+			expect(oneDay.members.every(m => m.completed)).toBe(true);
+			expect(daysQueries).toBeLessThanOrEqual(queryBudget.historyDays);
+			expect(dayQueries).toBeLessThanOrEqual(queryBudget.historyDay);
 		},
 		timeout
 	);

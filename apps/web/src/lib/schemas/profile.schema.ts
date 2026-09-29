@@ -23,6 +23,7 @@ export const createRemindersSchema = () =>
 		hatimGroupReadsEnabled: z.boolean(),
 		hatimRoundCompleteEnabled: z.boolean(),
 		hatimPoolClaimEnabled: z.boolean(),
+		hizbGroupReadsEnabled: z.boolean(),
 		memberJoinedEnabled: z.boolean(),
 		memberLeftEnabled: z.boolean()
 	});

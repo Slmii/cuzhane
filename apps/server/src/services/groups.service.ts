@@ -64,6 +64,8 @@ export type CreateGroupInput =
 			/** A personal plan: 0 lets each member choose, otherwise 7/15/33 days. */
 			hizbPlan?: number | undefined;
 			inactivityDays?: number | null | undefined;
+			/** "Okuma sorumluları" — a shared plan's "has read" notice to the ticked members only. */
+			readSeersEnabled?: boolean | undefined;
 	  })
 	| (CreateGroupCommon & {
 			kind: 'HATIM';
@@ -133,6 +135,10 @@ export type UpdateGroupInput = {
 	dedication?: string | null | undefined;
 	visibility?: GroupVisibility | undefined;
 	hideMemberNames?: boolean | undefined;
+	/** A shared Hizb plan's members who see who read (the owner may be one of them), at most three. */
+	readerSeerUserIds?: string[] | undefined;
+	/** "Okuma sorumluları" on or off; the ticks are kept either way. */
+	readSeersEnabled?: boolean | undefined;
 	openToJoin?: boolean | undefined;
 	reminderEnabled?: boolean | undefined;
 	reminderTime?: string | undefined;
@@ -149,6 +155,8 @@ export type DiscoverGroupsQuery = {
 };
 
 const DISCOVER_LIMIT = 50;
+/** How many members of a shared Hizb plan may see who read. Mirrored in the web app's Yönet. */
+export const MAX_READER_SEERS = 3;
 const MAX_INVITE_CODE_ATTEMPTS = 5;
 
 const isUniqueConstraintError = (error: unknown): boolean =>
@@ -322,6 +330,7 @@ export const createGroupForUser = async (
 				hizbStartPortion: startPortion,
 				openToJoin: !individual,
 				inactivityDays: personal && !individual ? hizb?.inactivityDays ?? null : null,
+				readSeersEnabled: personal && !individual ? hizb?.readSeersEnabled ?? false : false,
 				// The owner's zone becomes the group's day. Everyone's board resets on this
 				// clock, which is why it is captured once and never changed.
 				timezone: input.timezone,
@@ -381,7 +390,9 @@ export const createGroupForUser = async (
 				userId: normalizedUserId,
 				displayName,
 				role: 'OWNER',
-				slotIndex: 0
+				slotIndex: 0,
+				// A shared Hizb plan's owner sees who read unless they untick themselves.
+				seesReaders: personal && !individual
 			}
 		});
 
@@ -424,7 +435,27 @@ export const updateGroupForUser = async (
 		throw new HttpError(BAD_REQUEST, 'Spots, split mode, and cycle cannot be changed after creation');
 	}
 
+	const seers = input.readerSeerUserIds?.map(normalizeUserId);
+	if (
+		(seers !== undefined || input.readSeersEnabled !== undefined) &&
+		(existing.hizbPlan === null || existing.hizbIndividual)
+	) {
+		throw new HttpError(BAD_REQUEST, 'Only a shared Hizb plan has readers to watch');
+	}
+	if (seers !== undefined) {
+		if (new Set(seers).size !== seers.length || seers.length > MAX_READER_SEERS) {
+			throw new HttpError(BAD_REQUEST, `Choose at most ${MAX_READER_SEERS} members`);
+		}
+		const found = await prisma.groupMember.count({ where: { groupId, userId: { in: seers } } });
+		if (found !== seers.length) {
+			throw new HttpError(BAD_REQUEST, 'Only members of this group can be chosen');
+		}
+	}
+
 	const data: Prisma.GroupUpdateInput = {};
+	if (input.readSeersEnabled !== undefined) {
+		data.readSeersEnabled = input.readSeersEnabled;
+	}
 	if (input.inactivityDays !== undefined) {
 		if (existing.hizbPlan === null) {
 			throw new HttpError(BAD_REQUEST, 'Inactivity applies to personal Hizb plans');
@@ -471,11 +502,27 @@ export const updateGroupForUser = async (
 			await expireHizb(tx, previous);
 		}
 		await tx.group.update({ where: { id: groupId }, data });
+		if (seers !== undefined) {
+			await tx.groupMember.updateMany({ where: { groupId }, data: { seesReaders: false } });
+			await tx.groupMember.updateMany({ where: { groupId, userId: { in: seers } }, data: { seesReaders: true } });
+		}
 		if (input.hideMemberNames === true) {
+			const current = await tx.group.findUniqueOrThrow({ where: { id: groupId } });
+			// Responsible members may still see who read: their own "has read" rows keep the name,
+			// marked so it stays theirs alone (listing hides it once they are no longer ticked, and for
+			// good once the group is deleted).
+			if (current.readSeersEnabled) {
+				await tx.$executeRaw`UPDATE "Notification"
+					SET "payload" = "payload"::jsonb || '{"seersOnly":true}'::jsonb
+					WHERE "groupId" = ${groupId} AND "kind" = 'SHARE_READ'
+					AND "userId" IN (
+						SELECT "userId" FROM "GroupMember" WHERE "groupId" = ${groupId} AND "seesReaders"
+					)`;
+			}
 			// Older inbox rows outlive the group. Remove their names permanently as well.
 			await tx.$executeRaw`UPDATE "Notification"
 				SET "payload" = ("payload"::jsonb - 'readerName' - 'takerName' - 'memberName') || '{"anonymous":true}'::jsonb
-				WHERE "groupId" = ${groupId}`;
+				WHERE "groupId" = ${groupId} AND NOT ("payload"::jsonb ? 'seersOnly')`;
 		}
 	});
 

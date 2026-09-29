@@ -84,6 +84,33 @@ export type HizbAssignmentPatch = {
 	/** Read from the book: this day's board portions read so far; all of them finishes the day. */
 	bookPortions?: number[];
 };
+/** "Tüm geçmiş" of a shared plan: the group's days, today first, thirty to a page. */
+export type HizbHistoryDays = {
+	days: { day: number; date: string; isToday: boolean; read: number; readers: number }[];
+	/** Pass back as `before` for the next page; null when the group's first day is loaded. */
+	nextBefore: number | null;
+};
+/** One day of the group's history: who owed which portion, and whether they read it. */
+export type HizbHistoryDay = {
+	day: number;
+	date: string;
+	isToday: boolean;
+	members: (HizbReadingState['members'][number] & {
+		/** No longer in the group: the name went with them. */
+		hasLeft: boolean;
+		/** The viewer's own reading of that day, to open; null on everyone else's. */
+		assignmentId: string | null;
+	})[];
+};
+export const getHizbHistoryDays = (groupId: string, before?: number) =>
+	wrapperApi<HizbHistoryDays>(
+		`/groups/${groupId}/reading/history${before === undefined ? '' : `?before=${before}`}`,
+		{
+			method: 'GET'
+		}
+	);
+export const getHizbHistoryDay = (groupId: string, day: number) =>
+	wrapperApi<HizbHistoryDay>(`/groups/${groupId}/reading/history/${day}`, { method: 'GET' });
 export const getHizbReading = (groupId: string, cursor?: string) =>
 	wrapperApi<HizbReadingState>(`/groups/${groupId}/reading${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`, {
 		method: 'GET'

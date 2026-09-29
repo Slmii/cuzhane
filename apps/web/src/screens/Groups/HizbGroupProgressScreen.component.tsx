@@ -9,11 +9,8 @@ import { useHizbPlanText } from '@/lib/hooks/useHizbPlanText';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import { hizbPortionLabel } from '@/lib/utils/groups';
 import { planBoardCells } from '@/lib/utils/hizbPlanBoard';
 import { spansFor } from '@/lib/utils/hizbPlans';
-import { turkishAblativeSuffix } from '@/lib/utils/homeTasks';
-import { turkishAccusativeSuffix, turkishDativeSuffix } from '@/lib/utils/turkishSuffixes';
 import type { TabStackParamList } from '@/navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useMemo } from 'react';
@@ -29,8 +26,8 @@ const PORTIONS = 33;
  * named (so readers know where to go), yesterday's gaps, and the last thirty days as bars, each
  * as tall as that day's coverage and dark when the day was whole.
  *
- * A catch-up counts for its own day, never today's; the closing note says so with the viewer's
- * own numbers when their newest missed day is yesterday.
+ * A day read later counts for its own day, never today's; the closing note says so in plain words,
+ * with the viewer's own numbers when their newest missed day is yesterday.
  */
 export const HizbGroupProgressScreen = ({ route }: Props) => {
 	const { groupId } = route.params;
@@ -61,7 +58,8 @@ export const HizbGroupProgressScreen = ({ route }: Props) => {
 	const days = data.dailyHistory.slice(1).reverse();
 	const fullDays = days.filter(day => day.complete).length;
 
-	// "26 Eylül’ü okursan dünün kapsaması 29’dan 30’a çıkar" — only when the newest missed day is yesterday.
+	// "Dünkü okumanı şimdi yaparsan dün 29 yerine 30 bölüm okunmuş sayılır" — only when the viewer's
+	// newest missed day is yesterday, and reading it would change yesterday's count.
 	const newestMissed = data.missed[0];
 	const example = (() => {
 		if (!data.previousDay || newestMissed?.date !== data.previousDay.date) {
@@ -74,21 +72,7 @@ export const HizbGroupProgressScreen = ({ route }: Props) => {
 			null
 		).filter(cell => cell.state === 'read').length;
 
-		if (to === from) {
-			return null;
-		}
-
-		const date = text.monthDay(newestMissed.date, 'long');
-
-		return t('hpCatchupExample', {
-			date,
-			dateSuffix: text.trSuffix(turkishAccusativeSuffix(date)),
-			from,
-			fromSuffix: text.trSuffix(turkishAblativeSuffix(from)),
-			to,
-			toSuffix: text.trSuffix(turkishDativeSuffix(to)),
-			today: readCount
-		});
+		return to === from ? null : t('hpCatchupExample', { from, to });
 	})();
 
 	return (
@@ -146,22 +130,16 @@ export const HizbGroupProgressScreen = ({ route }: Props) => {
 				</CardSurface>
 
 				{data.previousDay ? (
+					// Yesterday in one sentence: how many of the 33 were read, then which were not.
 					<CardSurface style={styles.yesterday}>
-						<View style={[styles.badge, { backgroundColor: theme.colors.missedSurface }]}>
-							<Typography color={theme.colors.missed} style={styles.badgeLabel} variant='title'>
-								{yesterdayUnread.length}
-							</Typography>
-						</View>
-						<View style={styles.flex}>
-							<CaptionText style={styles.rowTitle} weight='semibold'>
-								{t('hpYesterdayUnreadOf', { read: PORTIONS - yesterdayUnread.length })}
+						<CaptionText style={styles.rowTitle} weight='semibold'>
+							{t('hpYesterdayReadOf', { read: PORTIONS - yesterdayUnread.length })}
+						</CaptionText>
+						{yesterdayUnread.length > 0 ? (
+							<CaptionText color={theme.colors.faintText} style={styles.rowSub}>
+								{t('hpYesterdayUnreadList', { list: yesterdayUnread.join(', ') })}
 							</CaptionText>
-							{yesterdayUnread.length > 0 ? (
-								<CaptionText color={theme.colors.faintText} style={styles.rowSub}>
-									{hizbPortionLabel(yesterdayUnread.join(', '), t)}
-								</CaptionText>
-							) : null}
-						</View>
+						) : null}
 					</CardSurface>
 				) : null}
 
@@ -175,7 +153,16 @@ export const HizbGroupProgressScreen = ({ route }: Props) => {
 								{t('hpFullDays', { count: fullDays })}
 							</CaptionText>
 						</View>
-						<View style={styles.bars}>
+						{/* The chart's top is all 33, marked, so a short bar still reads as a part of it. */}
+						<Typography
+							color={theme.colors.faintText}
+							style={styles.scaleLabel}
+							variant='mono'
+							weight='medium'
+						>
+							{String(PORTIONS)}
+						</Typography>
+						<View style={[styles.bars, { borderTopColor: theme.colors.divider }]}>
 							{days.map(day => (
 								<View
 									accessibilityLabel={`${text.monthDay(day.date, 'short')} · ${t('hpPercent', {
@@ -228,7 +215,7 @@ export const HizbGroupProgressScreen = ({ route }: Props) => {
 						</View>
 						<View style={[styles.note, { borderTopColor: theme.colors.divider }]}>
 							<CaptionText color={theme.colors.subtext} style={styles.noteText}>
-								{example ?? t('hpCatchupGeneric', { today: readCount })}
+								{example ?? t('hpCatchupGeneric')}
 							</CaptionText>
 						</View>
 					</CardSurface>
@@ -251,23 +238,21 @@ const styles = StyleSheet.create({
 	unreadChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
 	unreadChip: { borderRadius: 7, paddingHorizontal: 8, paddingVertical: 5 },
 	unreadChipLabel: { fontSize: 11 },
-	yesterday: {
-		alignItems: 'center',
-		flexDirection: 'row',
-		gap: 13,
-		marginBottom: 10,
-		paddingHorizontal: 16,
-		paddingVertical: 14
-	},
-	badge: { alignItems: 'center', borderRadius: 13, height: 40, justifyContent: 'center', width: 40 },
-	badgeLabel: { fontSize: 16, lineHeight: 20 },
+	yesterday: { marginBottom: 10, paddingHorizontal: 16, paddingVertical: 14 },
 	rowTitle: { fontSize: 12.5 },
-	rowSub: { fontSize: 11, marginTop: 2 },
+	rowSub: { fontSize: 11, lineHeight: 16, marginTop: 3 },
 	chart: { paddingHorizontal: 16, paddingVertical: 15 },
 	chartHead: { alignItems: 'baseline', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 },
 	chartTitle: { fontSize: 15, lineHeight: 19 },
 	small: { fontSize: 11 },
-	bars: { alignItems: 'flex-end', flexDirection: 'row', gap: 3, height: 84 },
+	scaleLabel: { fontSize: 10, marginBottom: 3, textAlign: 'right' },
+	bars: {
+		alignItems: 'flex-end',
+		borderTopWidth: StyleSheet.hairlineWidth,
+		flexDirection: 'row',
+		gap: 3,
+		height: 84
+	},
 	bar: {
 		borderBottomLeftRadius: 1,
 		borderBottomRightRadius: 1,

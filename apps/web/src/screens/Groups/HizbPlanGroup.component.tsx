@@ -38,7 +38,7 @@ import {
 } from '@/lib/utils/turkishSuffixes';
 import type { TabStackParamList } from '@/navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { FlatButton } from '@/components/FlatButton/FlatButton.component';
 import { HizbBookSheet } from './HizbBookSheet.component';
@@ -72,23 +72,6 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 	const enroll = useEnrollHizb(group.id);
 	const pullToRefresh = usePullToRefresh(query);
 	const closeSheet = () => navigation.setParams({ sheet: undefined });
-	const sheetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-	useEffect(
-		() => () => {
-			if (sheetTimer.current) {
-				clearTimeout(sheetTimer.current);
-			}
-		},
-		[]
-	);
-	const openMembers = () => {
-		closeSheet();
-		if (sheetTimer.current) {
-			clearTimeout(sheetTimer.current);
-		}
-		// iOS cannot present another sheet while the current one is dismissing.
-		sheetTimer.current = setTimeout(() => navigation.setParams({ sheet: 'members' }), 320);
-	};
 	const data = query.data?.pages[0];
 	const today = data?.today ?? null;
 	// Today's reading, written from this screen: undo, and marking it read from the book (R1, R2, R4).
@@ -212,6 +195,8 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 	// T2, T3, T4 and T5 of the design.
 	const openMissed = () => navigation.navigate('HizbMissed', { groupId: group.id });
 	const openHistory = () => navigation.navigate('HizbPlanHistory', { groupId: group.id });
+	// A shared plan's "Tüm geçmiş" is the group's, day by day.
+	const openGroupHistory = () => navigation.navigate('HizbGroupHistory', { groupId: group.id });
 	const openProgress = () => navigation.navigate('HizbGroupProgress', { groupId: group.id });
 	const openReaders = () => navigation.navigate('HizbReaders', { groupId: group.id });
 
@@ -386,11 +371,11 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 
 	const coverageGrid = <HizbCoverageGrid cells={cells} isOnBand={isGroupDone} />;
 
-	// Rounds: done, and where this one stands; the whole card opens the history (T3). It sits under
-	// "Grup ilerlemesi" in a shared group, and under "Benim ilerlemem" in an individual reading.
-	// Shown from the first day, as the Cevşen's and Kur'an's are.
+	// Rounds: done, and where this one stands; the whole card opens the group's history. A shared
+	// group's only — an individual reading draws its own round card. Shown from the first day, as the
+	// Cevşen's and Kur'an's are.
 	const roundsCard = data.enrollment ? (
-		<CardSurface isFlush onPress={openHistory} style={styles.sectionEnd}>
+		<CardSurface isFlush onPress={openGroupHistory} style={styles.sectionEnd}>
 			<View style={styles.statsRow}>
 				<View style={[styles.statCell, styles.statCellDivided, { borderRightColor: theme.colors.divider }]}>
 					<Typography style={styles.statNumber} variant='numeric'>
@@ -1375,12 +1360,7 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 				<ShareSheet group={group} isVisible={route.params.sheet === 'share'} onClose={closeSheet} />
 			) : null}
 			{group.isOwner ? (
-				<ManageSheet
-					group={group}
-					isVisible={route.params.sheet === 'manage'}
-					onClose={closeSheet}
-					onOpenMembers={openMembers}
-				/>
+				<ManageSheet group={group} isVisible={route.params.sheet === 'manage'} onClose={closeSheet} />
 			) : null}
 			{isShared ? (
 				<MembersSheet groupId={group.id} isVisible={route.params.sheet === 'members'} onClose={closeSheet} />

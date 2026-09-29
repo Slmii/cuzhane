@@ -49,7 +49,7 @@ const privacyTr: LegalPage = {
 				'Ayarların: arayüz dili, tema, hatırlatma saati, bildirim tercihlerin ve okuma ekranının yazı tipi ile boyutu.',
 				'Bildirim kutun: gruplarında olan bitenin kaydı — olayın türü, grubun adı ve ilgili üyenin görünen adı.',
 				'Bildirim için cihaz anahtarın (push token).',
-				'Uygulamadan geri bildirim gönderdiysen: mesajın, konusu, hesabının e-posta adresi ve cihazının platform, sürüm ve dil bilgisi.'
+				'Uygulamadan geri bildirim gönderdiysen: mesajın, konusu, hesabının e-posta adresi, cihazının platform, sürüm ve dil bilgisi ve bir hatayı bulabilmemiz için uygulamada son açtığın en fazla 30 ekran (ekran adları ve bab numarası gibi sayılar; isim ya da metin yok).'
 			]
 		},
 		{
@@ -67,7 +67,7 @@ const privacyTr: LegalPage = {
 		{
 			heading: 'Verini kimler görür',
 			paragraphs: [
-				'Grup üyeleri birbirinin adını, payını ve ilerlemesini görür — bir hatmi birlikte yürütmenin gereği budur. Bunun dışında verin yalnızca aşağıdaki hizmet sağlayıcılarında işlenir:'
+				'Grup üyeleri birbirinin adını, payını ve ilerlemesini görür — bir hatmi birlikte yürütmenin gereği budur. Grubu kuran kişi isimleri gizleyebilir; o zaman adları yalnızca kurucu görür ve Hizbü’l-Hakaik gruplarında kurucunun seçtiği en fazla üç okuma sorumlusu da görür. Bunun dışında verin yalnızca aşağıdaki hizmet sağlayıcılarında işlenir:'
 			],
 			bullets: [
 				'Clerk — hesap ve oturum yönetimi.',
@@ -78,7 +78,7 @@ const privacyTr: LegalPage = {
 		{
 			heading: 'Bildirimler',
 			paragraphs: [
-				'Günlük hatırlatma cihazında kurulur ve sunucuya çıkmaz. Ayrıca sunucu altı durumda bildirim gönderir: havuzdan üstlendiğin bir bab başkasına geçtiğinde, grubundaki biri payını tamamladığında, grubun turu bitirdiğinde, biri ortak havuzdan bab üstlendiğinde, gruba biri katıldığında ve gruptan biri ayrıldığında. İlki dışındakileri Bildirimler ekranındaki ayarlardan ayrı ayrı açıp kapatabilirsin.'
+				'Günlük hatırlatma cihazında kurulur ve sunucuya çıkmaz. Ayrıca sunucu altı durumda bildirim gönderir: havuzdan üstlendiğin bir bab başkasına geçtiğinde, grubundaki biri payını tamamladığında, grubun turu bitirdiğinde, biri ortak havuzdan bab üstlendiğinde, gruba biri katıldığında ve gruptan biri ayrıldığında. İlki dışındakileri Bildirimler ekranındaki ayarlardan ayrı ayrı açıp kapatabilirsin. Tek istisna: okuma sorumluları seçilmiş bir Hizbü’l-Hakaik grubunda “okudu” bildirimini yalnızca bu sorumlular alır, kendi ayarları ne olursa olsun; diğer üyeler almaz.'
 			]
 		},
 		{
@@ -121,7 +121,7 @@ const privacyEn: LegalPage = {
 				'Your settings: interface language, theme, reminder time, your notification preferences, and the reader’s typeface and size.',
 				'Your notification inbox: a record of what happened in your groups — the kind of event, the group’s name, and the display name of the member it concerns.',
 				'A device key for notifications (a push token).',
-				'If you send feedback from the app: your message, its topic, your account email, and your device’s platform, version and language.'
+				'If you send feedback from the app: your message, its topic, your account email, your device’s platform, version and language, and — so we can trace a bug — the last 30 or fewer screens you opened in the app (screen names and numbers such as a bab’s; no names or text).'
 			]
 		},
 		{
@@ -139,7 +139,7 @@ const privacyEn: LegalPage = {
 		{
 			heading: 'Who can see your data',
 			paragraphs: [
-				'Members of a group can see each other’s name, share and progress — that is what running a hatim together means. Beyond that, your data is processed only by these providers:'
+				'Members of a group can see each other’s name, share and progress — that is what running a hatim together means. A group’s creator can hide names; then only the creator sees them, and in a Hizbü’l-Hakaik group so do up to three responsible members the creator chooses. Beyond that, your data is processed only by these providers:'
 			],
 			bullets: [
 				'Clerk — accounts and sessions.',
@@ -150,7 +150,7 @@ const privacyEn: LegalPage = {
 		{
 			heading: 'Notifications',
 			paragraphs: [
-				'The daily reminder is scheduled on your device and never leaves it. Separately, the server sends a notification in six cases: when a bab you claimed from the pool passes to somebody else, when someone in your group finishes their share, when your group completes a round, when someone takes babs from the shared pool, when someone joins one of your groups, and when someone leaves one. All but the first can each be turned off from the notification settings.'
+				'The daily reminder is scheduled on your device and never leaves it. Separately, the server sends a notification in six cases: when a bab you claimed from the pool passes to somebody else, when someone in your group finishes their share, when your group completes a round, when someone takes babs from the shared pool, when someone joins one of your groups, and when someone leaves one. All but the first can each be turned off from the notification settings. One exception: in a Hizbü’l-Hakaik group with responsible members, only they get the “has read” notification, whatever their own settings; the other members don’t.'
 			]
 		},
 		{
@@ -193,7 +193,7 @@ const privacyNl: LegalPage = {
 				'Je instellingen: taal, thema, herinneringstijd, je meldingsvoorkeuren, en het lettertype en de lettergrootte van het leesscherm.',
 				'Je meldingenoverzicht: een verslag van wat er in je groepen gebeurde — het soort gebeurtenis, de naam van de groep en de weergavenaam van het betrokken lid.',
 				'Een apparaatsleutel voor meldingen (push token).',
-				'Als je feedback stuurt vanuit de app: je bericht, het onderwerp, je e-mailadres en het platform, de versie en de taal van je toestel.'
+				'Als je feedback stuurt vanuit de app: je bericht, het onderwerp, je e-mailadres, het platform, de versie en de taal van je toestel en — zodat we een fout kunnen terugvinden — de laatste hoogstens 30 schermen die je in de app opende (schermnamen en getallen zoals een babnummer; geen namen of tekst).'
 			]
 		},
 		{
@@ -211,7 +211,7 @@ const privacyNl: LegalPage = {
 		{
 			heading: 'Wie je gegevens ziet',
 			paragraphs: [
-				'Leden van een groep zien elkaars naam, deel en voortgang — dat is nu eenmaal wat samen een hatim doen betekent. Verder worden je gegevens alleen verwerkt door deze partijen:'
+				'Leden van een groep zien elkaars naam, deel en voortgang — dat is nu eenmaal wat samen een hatim doen betekent. Wie een groep maakt, kan namen verbergen; dan ziet alleen de maker ze, en in een Hizbü’l-Hakaik-groep ook maximaal drie verantwoordelijken die de maker kiest. Verder worden je gegevens alleen verwerkt door deze partijen:'
 			],
 			bullets: [
 				'Clerk — accounts en sessies.',
@@ -222,7 +222,7 @@ const privacyNl: LegalPage = {
 		{
 			heading: 'Meldingen',
 			paragraphs: [
-				'De dagelijkse herinnering wordt op je toestel ingepland en verlaat het niet. Daarnaast stuurt de server in zes gevallen een melding: wanneer een bab die je uit de pool nam naar iemand anders gaat, wanneer iemand in je groep het eigen deel afrondt, wanneer je groep een ronde voltooit, wanneer iemand babs uit de gedeelde pool neemt, wanneer iemand lid wordt van een groep van jou en wanneer iemand er een verlaat. Alles behalve de eerste kun je afzonderlijk uitzetten bij de meldingsinstellingen.'
+				'De dagelijkse herinnering wordt op je toestel ingepland en verlaat het niet. Daarnaast stuurt de server in zes gevallen een melding: wanneer een bab die je uit de pool nam naar iemand anders gaat, wanneer iemand in je groep het eigen deel afrondt, wanneer je groep een ronde voltooit, wanneer iemand babs uit de gedeelde pool neemt, wanneer iemand lid wordt van een groep van jou en wanneer iemand er een verlaat. Alles behalve de eerste kun je afzonderlijk uitzetten bij de meldingsinstellingen. Eén uitzondering: in een Hizbü’l-Hakaik-groep met verantwoordelijken krijgen alleen zij de melding “heeft gelezen”, ongeacht hun eigen instellingen; de andere leden krijgen hem niet.'
 			]
 		},
 		{

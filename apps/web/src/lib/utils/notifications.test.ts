@@ -130,12 +130,20 @@ describe('notificationText', () => {
 		);
 	});
 
-	it('names portions in a Hizb group, singular for a range of one', () => {
+	it('names portions and their works in a Hizb group, singular for a range of one', () => {
 		expect(notificationText(row('SHARE_READ', { range: '15–16', readerName: 'Ali' }, 'HIZB'), t).body).toBe(
-			'notifShareReadBodyHizb(range=15–16)'
+			'notifShareReadBodyHizbWorks(range=15–16,works=hizbWorkDelail)'
 		);
 		expect(notificationText(row('SHARE_READ', { range: '19', readerName: 'Ali' }, 'HIZB'), t).body).toBe(
-			'notifShareReadBodyHizbOne(range=19)'
+			'notifShareReadBodyHizbWorksOne(range=19,works=hizbWorkSekine)'
+		);
+		// A day across two works names both, in reading order.
+		expect(notificationText(row('SHARE_READ', { range: '12–14', readerName: 'Ali' }, 'HIZB'), t).body).toBe(
+			'notifShareReadBodyHizbWorks(range=12–14,works=hizbWorkEvrad, hizbWorkDelail)'
+		);
+		// A range it cannot read still says the portions.
+		expect(notificationText(row('SHARE_READ', { range: '', readerName: 'Ali' }, 'HIZB'), t).body).toBe(
+			'notifShareReadBodyHizbOne(range=)'
 		);
 	});
 

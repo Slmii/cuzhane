@@ -3,6 +3,7 @@ import { AppBottomSheet } from '@/components/ui/BottomSheet/BottomSheet.componen
 import { CuzPicker } from '@/components/CuzPicker/CuzPicker.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Collapsible } from '@/components/ui/Collapsible/Collapsible.component';
+import { Divider } from '@/components/ui/Divider/Divider.component';
 import { Field } from '@/components/ui/Form/Field/Field.component';
 import { Form } from '@/components/ui/Form/Form.component';
 import { FormKindOptionGroup } from '@/components/ui/Form/KindOptionGroup/KindOptionGroup.component';
@@ -287,6 +288,7 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 						inactivityDays:
 							!values.hizbIndividual && values.inactivityEnabled ? values.inactivityDays : null,
 						kind: 'HIZB',
+						readSeersEnabled: !values.hizbIndividual && values.readSeersEnabled,
 						splitMode: values.splitMode,
 						spots: isFlexible ? partCountFor('HIZB') : values.spots
 				  }
@@ -482,17 +484,19 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 										 */}
 										{kind === 'HIZB' ? (
 											<>
-												<ToggleRow
-													hint={t('hpIndividualHint')}
-													onValueChange={next => {
-														setValue('hizbIndividual', next);
-														if (next && watch('hizbPlan') === '0') {
-															setValue('hizbPlan', '33');
-														}
-													}}
-													title={t('hpIndividual')}
-													value={watch('hizbIndividual')}
-												/>
+												<CardSurface isFlush>
+													<ToggleRow
+														hint={t('hpIndividualHint')}
+														onValueChange={next => {
+															setValue('hizbIndividual', next);
+															if (next && watch('hizbPlan') === '0') {
+																setValue('hizbPlan', '33');
+															}
+														}}
+														title={t('hpIndividual')}
+														value={watch('hizbIndividual')}
+													/>
+												</CardSurface>
 												<CardSurface style={styles.kindNoteCard}>
 													<View style={styles.kindNote}>
 														<Icon
@@ -557,12 +561,29 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 												 * names who holds each cüz, and nothing there reads the switch.
 												 */}
 												{kind !== 'HATIM' ? (
-													<ToggleRow
-														hint={t('hideMemberNamesHint')}
-														onValueChange={next => setValue('hideMemberNames', next)}
-														title={t('hideMemberNames')}
-														value={watch('hideMemberNames')}
-													/>
+													<CardSurface isFlush>
+														<ToggleRow
+															hint={t('hideMemberNamesHint')}
+															onValueChange={next => setValue('hideMemberNames', next)}
+															title={t('hideMemberNames')}
+															value={watch('hideMemberNames')}
+														/>
+														{/* A Hizb plan's owner starts as the one responsible; the rest are
+														    chosen in Yönet once people have joined. */}
+														{kind === 'HIZB' ? (
+															<>
+																<Divider />
+																<ToggleRow
+																	hint={t('hpSeersSwitchCreateHint')}
+																	onValueChange={next =>
+																		setValue('readSeersEnabled', next)
+																	}
+																	title={t('hpSeersSwitch')}
+																	value={watch('readSeersEnabled')}
+																/>
+															</>
+														) : null}
+													</CardSurface>
 												) : null}
 											</>
 										) : (
@@ -968,26 +989,28 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 								{!createGroup.isPending && step === 4 && kind === 'HIZB' && !individual ? (
 									<>
 										<BodyText>{t('hpBeginHint')}</BodyText>
-										<ToggleRow
-											title={t('hpInactivity')}
-											hint={t('hpInactivityHint')}
-											value={watch('inactivityEnabled')}
-											onValueChange={v => setValue('inactivityEnabled', v)}
-										/>
-										{watch('inactivityEnabled') ? (
-											<>
-												<FieldLabelText style={styles.fieldLabel}>
-													{t('hpInactiveDays')}
-												</FieldLabelText>
-												<CardSurface style={styles.spotsCard}>
-													<FormStepper
-														name='inactivityDays'
-														values={INACTIVITY_DAY_OPTIONS}
-														caption={t('hpDays', { days: watch('inactivityDays') })}
-													/>
-												</CardSurface>
-											</>
-										) : null}
+										{/* One card, as in Yönet: the switch, and under it the days it counts. */}
+										<CardSurface isFlush>
+											<ToggleRow
+												title={t('hpInactivity')}
+												hint={t('hpInactivityHint')}
+												value={watch('inactivityEnabled')}
+												onValueChange={v => setValue('inactivityEnabled', v)}
+											/>
+											{watch('inactivityEnabled') ? (
+												<>
+													<Divider />
+													<View style={styles.inactivityDays}>
+														<FieldLabelText>{t('hpInactiveDays')}</FieldLabelText>
+														<FormStepper
+															name='inactivityDays'
+															values={INACTIVITY_DAY_OPTIONS}
+															caption={t('hpDays', { days: watch('inactivityDays') })}
+														/>
+													</View>
+												</>
+											) : null}
+										</CardSurface>
 									</>
 								) : null}
 
@@ -1033,6 +1056,11 @@ const styles = StyleSheet.create({
 	 */
 	spotsCard: {
 		padding: 16
+	},
+	// Under a toggle row in a flush card: the row's own 15, so the stepper lines up under its title.
+	inactivityDays: {
+		gap: 12,
+		padding: 15
 	},
 	/*
 	 * **Step 1's own rhythm, on top of the container's 12** — HC1 opens the gap to about 20 under

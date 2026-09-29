@@ -1,6 +1,8 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
 	enrollHizbReading,
+	getHizbHistoryDay,
+	getHizbHistoryDays,
 	getHizbReading,
 	getHizbAssignment,
 	setHizbReadsFromBook,
@@ -25,6 +27,21 @@ export const useHizbReading = (groupId: string, isEnabled = true) => {
 		refetchInterval
 	});
 };
+/** "Tüm geçmiş": the group's days, a page of thirty at a time. */
+export const useHizbHistoryDays = (groupId: string) =>
+	useInfiniteQuery({
+		queryKey: [...hizbReadingKey(groupId), 'history'],
+		queryFn: ({ pageParam }) => getHizbHistoryDays(groupId, pageParam),
+		initialPageParam: undefined as number | undefined,
+		getNextPageParam: last => last.nextBefore ?? undefined
+	});
+/** One day of "Tüm geçmiş": its readers. */
+export const useHizbHistoryDay = (groupId: string, day: number | undefined) =>
+	useQuery({
+		enabled: day !== undefined,
+		queryKey: [...hizbReadingKey(groupId), 'history', 'day', day],
+		queryFn: () => getHizbHistoryDay(groupId, day ?? 0)
+	});
 export const useEnrollHizb = (groupId: string) => {
 	const client = useQueryClient();
 	return useMutation({

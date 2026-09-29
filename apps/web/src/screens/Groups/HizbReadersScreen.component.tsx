@@ -1,5 +1,6 @@
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
+import { AppButton } from '@/components/ui/Button/Button.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
 import { PullToRefresh } from '@/components/ui/PullToRefresh/PullToRefresh.component';
@@ -7,22 +8,25 @@ import { SearchBox } from '@/components/ui/SearchBox/SearchBox.component';
 import { SearchInput } from '@/components/ui/SearchInput/SearchInput.component';
 import { SegmentedControl } from '@/components/ui/SegmentedControl/SegmentedControl.component';
 import { CaptionText } from '@/components/ui/Typography/Typography.component';
-import type { HizbReadingState } from '@/api/hizbReading.api';
+import type { HizbHistoryDay } from '@/api/hizbReading.api';
 import { useGetGroupById } from '@/lib/hooks/useGroup';
-import { useHizbReading } from '@/lib/hooks/useHizbReading';
+import { useHizbHistoryDay, useHizbReading } from '@/lib/hooks/useHizbReading';
 import { useHizbPlanText } from '@/lib/hooks/useHizbPlanText';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { TabStackParamList } from '@/navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { FlatList, Platform, StyleSheet, View } from 'react-native';
 import { HizbReadersSkeleton } from './HizbReadersSkeleton.component';
 
 type Props = NativeStackScreenProps<TabStackParamList, 'HizbReaders'>;
 type Filter = 'all' | 'done' | 'waiting';
-type Reader = HizbReadingState['members'][number];
+type Reader = HizbHistoryDay['members'][number];
+
+/** A group day number as its civil date ("2026-09-28") — the server's own `dateOf`. */
+const dateOfDay = (day: number) => new Date(day * 86400000).toISOString().slice(0, 10);
 
 /**
  * T5 of "Hizb Kişisel Plan" — today's readers: everyone with a plan (members who haven't chosen one,
@@ -31,21 +35,50 @@ type Reader = HizbReadingState['members'][number];
  * it covers, so different plans compare by text rather than by number. Search matches a name or a
  * portion number.
  *
+ * **With a `day`, one day of "Tüm geçmiş"**: that day's readers, including those who have left
+ * since. An unread day there is "Okumadı", not "Bekliyor". Either way only the viewer's own unread
+ * row has "Oku" — nobody reads another's portion from here.
+ *
  * **A windowed list**: a group has no member limit, so the readers can run to hundreds. The header,
  * the search and the filters travel as its `ListHeaderComponent`, and the rows draw one card
  * between them — the first carries the top corners, the last the bottom ones.
  */
-export const HizbReadersScreen = ({ route }: Props) => {
-	const { groupId } = route.params;
+export const HizbReadersScreen = ({ navigation, route }: Props) => {
+	const { day, groupId } = route.params;
+	const isHistory = day !== undefined;
 	const { language, t } = useTranslation();
 	const { theme } = useThemeContext();
 	const text = useHizbPlanText();
 	const group = useGetGroupById(groupId);
-	const query = useHizbReading(groupId);
+	const todayQuery = useHizbReading(groupId, !isHistory);
+	const dayQuery = useHizbHistoryDay(groupId, day);
+	const query = isHistory ? dayQuery : todayQuery;
 	const pullToRefresh = usePullToRefresh(query, group);
 	const [search, setSearch] = useState('');
 	const [filter, setFilter] = useState<Filter>('all');
-	const readers = useMemo(() => query.data?.pages[0]?.members ?? [], [query.data]);
+	const readers = useMemo<Reader[]>(() => {
+		if (isHistory) {
+			return dayQuery.data?.members ?? [];
+		}
+
+		const page = todayQuery.data?.pages[0];
+
+		return (page?.members ?? []).map(reader => ({
+			...reader,
+			hasLeft: false,
+			assignmentId: reader.isMe ? page?.today?.id ?? null : null
+		}));
+	}, [dayQuery.data, isHistory, todayQuery.data]);
+	// A past day's unread reading was missed; today's is still to come.
+	const isPastDay = isHistory && dayQuery.data?.isToday === false;
+	const title =
+		isHistory && !(dayQuery.data?.isToday ?? false) ? text.monthDay(dateOfDay(day), 'long') : t('hpReadersTitle');
+	// One who has left took their name along; a hidden one is "Üye".
+	const nameOf = useCallback(
+		(reader: Reader) =>
+			reader.isMe ? t('hpYou') : reader.displayName ?? t(reader.hasLeft ? 'hpLeftReader' : 'hpAnonymousReader'),
+		[t]
+	);
 
 	// You first, and always there, whatever the filter or the search.
 	const list = useMemo(() => {
@@ -55,7 +88,7 @@ export const HizbReadersScreen = ({ route }: Props) => {
 				return true;
 			}
 
-			const name = (reader.displayName ?? t('hpAnonymousReader')).toLocaleLowerCase(language);
+			const name = nameOf(reader).toLocaleLowerCase(language);
 
 			return name.includes(needle) || text.portionsOf(reader).some(number => String(number) === needle);
 		};
@@ -66,7 +99,7 @@ export const HizbReadersScreen = ({ route }: Props) => {
 			...readers.filter(reader => reader.isMe),
 			...readers.filter(reader => !reader.isMe && inFilter(reader) && matches(reader))
 		];
-	}, [filter, language, readers, search, t, text]);
+	}, [filter, language, nameOf, readers, search, text]);
 
 	if (query.isError) {
 		return <ErrorState queries={[query]} />;
@@ -77,13 +110,16 @@ export const HizbReadersScreen = ({ route }: Props) => {
 			<HizbReadersSkeleton
 				hideMemberNames={group.data?.hideMemberNames ?? false}
 				isOwner={group.data?.isOwner ?? false}
+				seesReaders={group.data?.seesReaders ?? false}
+				title={title}
 			/>
 		);
 	}
 
 	const doneCount = readers.filter(reader => reader.completed).length;
 	const memberCount = group.data?.memberCount ?? readers.length;
-	const notReaders = Math.max(0, memberCount - readers.length);
+	// Today's only: members now against readers now. A past day's readers include those since gone.
+	const notReaders = isHistory ? 0 : Math.max(0, memberCount - readers.length);
 
 	const tones = [
 		[theme.colors.accentSoft, theme.colors.accent],
@@ -94,8 +130,11 @@ export const HizbReadersScreen = ({ route }: Props) => {
 	const status = (reader: Reader) =>
 		reader.completed
 			? { background: theme.colors.accentSoft, foreground: theme.colors.accent, label: t('hpStatusDone') }
-			: reader.started
+			: // Begun and left: still unread once the day is over.
+			reader.started && !isPastDay
 			? { background: theme.colors.sand, foreground: theme.colors.sandText, label: t('hpStatusStarted') }
+			: isPastDay
+			? { background: theme.colors.missedSurface, foreground: theme.colors.missed, label: t('hpStatusMissed') }
 			: {
 					background: theme.colors.segmentTrack,
 					foreground: theme.colors.faintText,
@@ -106,15 +145,25 @@ export const HizbReadersScreen = ({ route }: Props) => {
 		<View>
 			<ScreenHeader
 				hasBackButton
-				subtitle={t('hpReadersSubtitle', { members: memberCount, read: doneCount, readers: readers.length })}
-				title={t('hpReadersTitle')}
+				subtitle={
+					isHistory
+						? t('hpDayReadersSubtitle', { read: doneCount, readers: readers.length })
+						: t('hpReadersSubtitle', { members: memberCount, read: doneCount, readers: readers.length })
+				}
+				title={title}
 			/>
 			{/* S4: names hidden — members are told, and the creator is reminded their list shows names. */}
 			{group.data?.hideMemberNames ? (
 				<View style={[styles.hiddenNote, { backgroundColor: theme.colors.sand }]}>
 					<Icon color={theme.colors.sandText} name='lock' size={16} strokeWidth={1.8} />
 					<CaptionText color={theme.colors.sandText} style={styles.hiddenNoteText}>
-						{t(group.data.isOwner ? 'hpNamesHiddenOwner' : 'hpNamesHiddenMember')}
+						{t(
+							group.data.isOwner
+								? 'hpNamesHiddenOwner'
+								: group.data.seesReaders
+								? 'hpNamesHiddenSeer'
+								: 'hpNamesHiddenMember'
+						)}
 					</CaptionText>
 				</View>
 			) : null}
@@ -150,7 +199,12 @@ export const HizbReadersScreen = ({ route }: Props) => {
 				options={[
 					{ label: t('hpFilterAll', { count: readers.length }), value: 'all' },
 					{ label: t('hpFilterDone', { count: doneCount }), value: 'done' },
-					{ label: t('hpFilterWaiting', { count: readers.length - doneCount }), value: 'waiting' }
+					{
+						label: t(isPastDay ? 'hpFilterMissed' : 'hpFilterWaiting', {
+							count: readers.length - doneCount
+						}),
+						value: 'waiting'
+					}
 				]}
 				style={styles.filters}
 				value={filter}
@@ -182,8 +236,10 @@ export const HizbReadersScreen = ({ route }: Props) => {
 							? [theme.colors.segmentTrack, theme.colors.faintText]
 							: tones[index % tones.length] ?? tones[0];
 						const isAnonymous = !reader.isMe && reader.displayName === null;
-						const name = reader.isMe ? t('hpYou') : reader.displayName ?? t('hpAnonymousReader');
+						const name = nameOf(reader);
 						const chip = status(reader);
+						// Only your own unread day can be read from here.
+						const readingId = reader.isMe && !reader.completed ? reader.assignmentId : null;
 
 						return (
 							<View
@@ -220,16 +276,28 @@ export const HizbReadersScreen = ({ route }: Props) => {
 									</CaptionText>
 									<CaptionText color={theme.colors.faintText} style={styles.line}>
 										{t('hpReaderLine', {
-											plan: t('hpPlanDay', { day: reader.portion, days: reader.planDays }),
+											day: reader.portion,
 											portions: text.portionsLabel(reader)
 										})}
 									</CaptionText>
 								</View>
-								<View style={[styles.chip, { backgroundColor: chip.background }]}>
-									<CaptionText color={chip.foreground} style={styles.chipLabel} weight='semibold'>
-										{chip.label}
-									</CaptionText>
-								</View>
+								{readingId ? (
+									<AppButton
+										fullWidth={false}
+										onPress={() =>
+											navigation.navigate('HizbPlanReader', { assignmentId: readingId, groupId })
+										}
+										size='sm'
+										title={t('hpReadAction')}
+										variant='primary'
+									/>
+								) : (
+									<View style={[styles.chip, { backgroundColor: chip.background }]}>
+										<CaptionText color={chip.foreground} style={styles.chipLabel} weight='semibold'>
+											{chip.label}
+										</CaptionText>
+									</View>
+								)}
 							</View>
 						);
 					}}

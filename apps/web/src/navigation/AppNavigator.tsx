@@ -1,6 +1,7 @@
 import { HizbPlanReader } from '@/screens/Hizb/HizbPlanReader.component';
 import { HizbGroupProgressScreen } from '@/screens/Groups/HizbGroupProgressScreen.component';
 import { HizbMissedScreen } from '@/screens/Groups/HizbMissedScreen.component';
+import { HizbGroupHistoryScreen } from '@/screens/Groups/HizbGroupHistoryScreen.component';
 import { HizbPlanHistoryScreen } from '@/screens/Groups/HizbPlanHistoryScreen.component';
 import { HizbReadersScreen } from '@/screens/Groups/HizbReadersScreen.component';
 import { GroupHowItWorksScreen } from '@/screens/Groups/GroupHowItWorksScreen.component';
@@ -510,6 +511,7 @@ const sharedTabScreens = ({ isProfileRoot = false }: { isProfileRoot?: boolean }
 			options={nativeBackScreenOptions}
 		/>
 		<TabStack.Screen name='HizbReaders' component={HizbReadersScreen} options={nativeBackScreenOptions} />
+		<TabStack.Screen name='HizbGroupHistory' component={HizbGroupHistoryScreen} options={nativeBackScreenOptions} />
 		{/* O1–O5, after joining any group: its own "Atla" and buttons are the way on, so no bar. */}
 		<TabStack.Screen name='GroupHowItWorks' component={GroupHowItWorksScreen} options={{ headerShown: false }} />
 		<TabStack.Screen name='HizbSections' component={HizbSectionsScreen} options={nativeBackScreenOptions} />

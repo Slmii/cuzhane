@@ -66,11 +66,8 @@ export const HizbGroupProgressSkeleton = () => {
 				</CardSurface>
 
 				<CardSurface style={styles.yesterday}>
-					<View style={[styles.badge, { backgroundColor: theme.colors.missedSurface }]} />
-					<View style={styles.flex}>
-						<Bone height={9} radius={4.5} style={styles.rowTitle} width='64%' />
-						<Bone height={8} radius={4} style={styles.rowSub} tone='soft' width='42%' />
-					</View>
+					<Bone height={9} radius={4.5} style={styles.rowTitle} width='64%' />
+					<Bone height={8} radius={4} style={styles.rowSub} tone='soft' width='42%' />
 				</CardSurface>
 
 				<CardSurface style={styles.chart}>
@@ -78,7 +75,11 @@ export const HizbGroupProgressSkeleton = () => {
 						<Bone height={11} radius={5.5} style={styles.chartTitle} width={120} />
 						<Bone height={8} radius={4} tone='soft' width={70} />
 					</View>
-					<View style={styles.bars}>
+					{/* The scale's "33", then the chart under its top line. */}
+					<View style={styles.scaleLabel}>
+						<Bone height={7} radius={3.5} tone='soft' width={14} />
+					</View>
+					<View style={[styles.bars, styles.barsTop, { borderTopColor: divider }]}>
 						{Array.from({ length: BAR_COUNT }, (_, index) => (
 							<View
 								key={index}
@@ -118,7 +119,6 @@ export const HizbGroupProgressSkeleton = () => {
 
 /* `HizbGroupProgressScreen`'s own measures, each bone centred in the line it stands in for. */
 const styles = StyleSheet.create({
-	flex: { flex: 1, minWidth: 0 },
 	coverage: { marginBottom: 10, paddingHorizontal: 16, paddingVertical: 15 },
 	coverageHead: { alignItems: 'flex-end', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 13 },
 	// 26pt line.
@@ -133,15 +133,7 @@ const styles = StyleSheet.create({
 	// 14 above a 14pt line and 8 below it.
 	unreadLabel: { marginBottom: 11.5, marginTop: 17.5 },
 	unreadChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
-	yesterday: {
-		alignItems: 'center',
-		flexDirection: 'row',
-		gap: 13,
-		marginBottom: 10,
-		paddingHorizontal: 16,
-		paddingVertical: 14
-	},
-	badge: { borderRadius: 13, height: 40, width: 40 },
+	yesterday: { marginBottom: 10, paddingHorizontal: 16, paddingVertical: 14 },
 	// 17pt line.
 	rowTitle: { marginVertical: 4 },
 	// 2 above a 17pt line.
@@ -150,7 +142,10 @@ const styles = StyleSheet.create({
 	chartHead: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 },
 	// 19pt line.
 	chartTitle: { marginVertical: 4 },
+	// The scale's 13pt line and 3 below it, the bone at its right end.
+	scaleLabel: { alignItems: 'flex-end', height: 13, justifyContent: 'center', marginBottom: 3 },
 	bars: { alignItems: 'flex-end', flexDirection: 'row', gap: 3, height: 84 },
+	barsTop: { borderTopWidth: StyleSheet.hairlineWidth },
 	bar: {
 		borderBottomLeftRadius: 1,
 		borderBottomRightRadius: 1,

@@ -5,6 +5,8 @@ import {
 	enrollHizb,
 	getHizbState,
 	getHizbAssignment,
+	getHizbHistoryDay,
+	getHizbHistoryDays,
 	setHizbReadsFromBook,
 	updateHizbAssignment
 } from '@services/hizbReading.service';
@@ -43,6 +45,15 @@ const handle =
 router.get(
 	'/',
 	handle((req, user, id) => getHizbState(user, id, z.string().min(1).optional().parse(req.query.cursor)))
+);
+const day = z.coerce.number().int().min(0).max(1_000_000);
+router.get(
+	'/history',
+	handle((req, user, id) => getHizbHistoryDays(user, id, day.optional().parse(req.query.before)))
+);
+router.get(
+	'/history/:day',
+	handle((req, user, id) => getHizbHistoryDay(user, id, day.parse(req.params.day)))
 );
 router.post(
 	'/enroll',

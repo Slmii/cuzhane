@@ -1,5 +1,6 @@
 import prisma from '@db/prisma';
 import { partCountFor, type GroupKindName } from '@utils/groupKinds';
+import { hizbWorksOf } from '@utils/hizbWorks';
 import { normalizeUserId } from '@utils/normalizeUserId';
 
 /**
@@ -156,9 +157,18 @@ export const poolClaimReleasedPush = (language: PushLanguage, input: { kind: Gro
  */
 export const groupReadPush = (
 	language: PushLanguage,
-	input: { groupName: string; kind: GroupKindName; range: string; readerName: string }
+	input: {
+		groupName: string;
+		kind: GroupKindName;
+		range: string;
+		readerName: string;
+		/** A Hizb reading's portions, so the line can name their works: "· Delâilü’n-Nûr". */
+		portions?: readonly number[];
+	}
 ) => {
-	const { groupName, kind, range, readerName } = input;
+	const { groupName, kind, portions, range, readerName } = input;
+	const works = kind === 'HIZB' && portions ? hizbWorksOf(portions, language) : '';
+	const reader = readerName || anonymousMember(language);
 
 	if (language === 'tr') {
 		return {
@@ -166,21 +176,26 @@ export const groupReadPush = (
 			// "Okumasını", not "payını": the range can carry a pool block taken on top of the
 			// share, and calling that their share would be untrue. English and Dutch state the
 			// babs rather than claim anything about whose they were, so they needed no change.
-			// It names no noun at all, which is why a Hizb group's line reads the same.
-			body: `${readerName || anonymousMember(language)} okumasını tamamladı (${range}).`
+			// It names no noun at all, which is why a Hizb group's line reads the same — unless
+			// its works are known, when the portion and its work say what was read.
+			body: works
+				? `${reader} okumasını tamamladı: ${range}. bölüm · ${works}.`
+				: `${reader} okumasını tamamladı (${range}).`
 		};
 	}
+
+	const worksSuffix = works ? ` · ${works}` : '';
 
 	if (language === 'nl') {
 		return {
 			title: groupName,
-			body: `${readerName || anonymousMember(language)} is klaar met ${partNoun(language, kind, range)} ${range}.`
+			body: `${reader} is klaar met ${partNoun(language, kind, range)} ${range}${worksSuffix}.`
 		};
 	}
 
 	return {
 		title: groupName,
-		body: `${readerName || anonymousMember(language)} finished ${partNoun(language, kind, range)} ${range}.`
+		body: `${reader} finished ${partNoun(language, kind, range)} ${range}${worksSuffix}.`
 	};
 };
 

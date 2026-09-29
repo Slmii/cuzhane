@@ -202,6 +202,8 @@ const CreateHizbBodySchema = CreateGroupBaseSchema.extend({
 	hizbStartPortion: z.number().int().min(1).max(33).default(1),
 	hizbPlan: z.union([z.literal(0), z.literal(7), z.literal(15), z.literal(33)]).optional(),
 	inactivityDays: z.number().int().min(1).max(365).nullable().optional(),
+	// "Okuma sorumluları" — a shared plan's "has read" notice to the ticked members only.
+	readSeersEnabled: z.boolean().default(false),
 	splitMode: z.enum(['ROTATION', 'FIXED', 'FLEXIBLE']).default('ROTATION'),
 	cycle: z.enum(['DAILY', 'WEEKLY', 'MONTHLY']).default('WEEKLY'),
 	// 20 stays the default because it is valid for both seat-based kinds: the Cevşen's
@@ -261,6 +263,8 @@ export const UpdateGroupBodySchema = z
 		dedication: z.string().trim().max(120).nullable().optional(),
 		visibility: GroupVisibilitySchema.optional(),
 		hideMemberNames: z.boolean().optional(),
+		readerSeerUserIds: z.array(z.string().trim().min(1).max(64)).max(3).optional(),
+		readSeersEnabled: z.boolean().optional(),
 		openToJoin: z.boolean().optional(),
 		reminderEnabled: z.boolean().optional(),
 		reminderTime: TimeStringSchema.optional(),

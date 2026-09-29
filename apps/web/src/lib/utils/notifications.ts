@@ -2,6 +2,15 @@ import type { StringKey } from '@/lib/i18n/strings';
 import type { AppNotification } from '@/lib/types/domain';
 import { PART_COUNT } from '@/lib/utils/groupKinds';
 import { isSinglePart } from '@/lib/utils/groups';
+import { worksForParts } from '@/lib/content/hizbPortions';
+
+/** The portions a notice's range names — "12–14, 19" is 12, 13, 14 and 19; anything else, none. */
+const portionsOfRange = (range: string): number[] =>
+	range.split(',').flatMap(run => {
+		const [from, to = from] = run.trim().split('–').map(Number);
+
+		return from && to && to >= from ? Array.from({ length: to - from + 1 }, (_, i) => from + i) : [];
+	});
 
 /**
  * The three buckets design P2 groups its list into.
@@ -167,13 +176,23 @@ export const notificationText = (
 				})
 			};
 		}
-		case 'SHARE_READ':
+		case 'SHARE_READ': {
+			// A Hizb reading names its works too — "9. bölüm (Evrâd-ı Kudsiye) okundu".
+			const works = isHizb
+				? worksForParts(portionsOfRange(range))
+						.map(work => t(work.titleKey))
+						.join(', ')
+				: '';
+
 			return {
-				body: isHizb
-					? t(isOne ? 'notifShareReadBodyHizbOne' : 'notifShareReadBodyHizb', { range })
-					: t('notifShareReadBody', { range }),
+				body: !isHizb
+					? t('notifShareReadBody', { range })
+					: works
+					? t(isOne ? 'notifShareReadBodyHizbWorksOne' : 'notifShareReadBodyHizbWorks', { range, works })
+					: t(isOne ? 'notifShareReadBodyHizbOne' : 'notifShareReadBodyHizb', { range }),
 				title: t('notifShareReadTitle', { name: text('readerName') })
 			};
+		}
 		case 'ROUND_COMPLETE':
 			return {
 				body: isHizb

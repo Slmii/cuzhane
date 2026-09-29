@@ -17,6 +17,13 @@ describe('visibleMemberIdentity', () => {
 		);
 		expect(visibleMemberIdentity(member, { hideMemberNames: true, isOwner: true }, 'me', 'Anonymous')).toBe(member);
 	});
+	it('shows names to a member ticked to see who read, and to them only', () => {
+		const ticked = { hideMemberNames: true, isOwner: false, seesReaders: true };
+		expect(visibleMemberIdentity(member, ticked, 'me', 'Anonymous')).toBe(member);
+		expect(visibleMemberIdentity(member, { ...ticked, seesReaders: false }, 'me', 'Anonymous').displayName).toBe(
+			'Anonymous'
+		);
+	});
 	it('localizes anonymous server identities even before the group policy arrives', () => {
 		expect(visibleMemberIdentity({ ...member, userId: 'anonymous:123' }, undefined, 'me', 'Lid').displayName).toBe(
 			'Lid'

@@ -72,9 +72,6 @@ import { LobbySkeleton } from './LobbySkeleton.component';
 
 type Sheet = 'share' | 'manage' | 'members' | null;
 
-/** Long enough for a sheet to finish dismissing before the next is presented. */
-const SHEET_SWAP_DELAY_MS = 320;
-
 const CHEVRON_DOWN_DEGREES = 90;
 const CHEVRON_UP_DEGREES = -90;
 /** One duration for the panel and the chevron, so the two read as a single movement. */
@@ -405,30 +402,6 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 	// days otherwise, "1 day" for one. Both kinds' cards show it.
 	const leftValue = roundTimeLeftLabel({ cycle: detail.cycle, daysLeft: detail.daysLeft, ...untilReset }, t);
 
-	// One sheet swaps for the other rather than stacking: Yönet's members row is a way
-	// *into* the list, not a second surface on top of the settings it came from.
-	/*
-	 * **Dismiss Yönet first, then present Üyeler — never in the same commit.** A natively
-	 * presented sheet cannot be presented while another is still dismissing; iOS drops the second
-	 * one and the row read as dead. Swapping the value in one go did exactly that, because the
-	 * two sheets share this state and so close and open together.
-	 *
-	 * The delay is the dismissal's own, not a guess at when React settles.
-	 */
-	const handleOpenMembers = () => {
-		/*
-		 * **Both halves of "open", or Yönet never closes.** `openSheet` is `sheet ?? requestedSheet`
-		 * and the toolbar opens Yönet through the *param* — so clearing the state alone changed
-		 * nothing, the param kept it open, and the two sheets still swapped in one commit. iOS will
-		 * not present a sheet while another is dismissing, so the members list was dropped and the
-		 * row read as dead.
-		 */
-		setSheet(null);
-		navigation.setParams({ sheet: undefined });
-		// Presented only once Yönet's dismissal has run — see `SHEET_SWAP_DELAY_MS`.
-		setTimeout(() => setSheet('members'), SHEET_SWAP_DELAY_MS);
-	};
-
 	/*
 	 * **The heading is the screen's again, and the bar carries only controls.**
 	 *
@@ -516,12 +489,7 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 				</ScreenContainer>
 				<ShareSheet group={detail} isVisible={openSheet === 'share'} onClose={closeSheet} />
 				{detail.isOwner ? (
-					<ManageSheet
-						group={detail}
-						isVisible={openSheet === 'manage'}
-						onClose={closeSheet}
-						onOpenMembers={handleOpenMembers}
-					/>
+					<ManageSheet group={detail} isVisible={openSheet === 'manage'} onClose={closeSheet} />
 				) : null}
 				<MembersSheet groupId={groupId} isVisible={openSheet === 'members'} onClose={closeSheet} />
 			</>
@@ -1119,12 +1087,7 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 
 			<ShareSheet group={detail} isVisible={openSheet === 'share'} onClose={closeSheet} />
 			{detail.isOwner ? (
-				<ManageSheet
-					group={detail}
-					isVisible={openSheet === 'manage'}
-					onClose={closeSheet}
-					onOpenMembers={handleOpenMembers}
-				/>
+				<ManageSheet group={detail} isVisible={openSheet === 'manage'} onClose={closeSheet} />
 			) : null}
 			<MembersSheet groupId={groupId} isVisible={openSheet === 'members'} onClose={closeSheet} />
 		</>

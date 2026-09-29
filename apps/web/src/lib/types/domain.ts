@@ -50,6 +50,8 @@ export type GroupMember = {
 	/** Percentage of this member's own babs that are read, 0–100. */
 	percent: number;
 	cheeredByMe: boolean;
+	/** Ticked to see who read in a shared Hizb plan. Told to the owner only — false for everyone else. */
+	seesReaders: boolean;
 };
 
 export type GroupBab = {
@@ -79,6 +81,8 @@ export type GroupSummary = {
 	hizbStartPortion?: number;
 	inactivityDays?: number | null;
 	hideMemberNames: boolean;
+	/** "Okuma sorumluları": a shared Hizb plan's "has read" notice goes to the ticked members only. */
+	readSeersEnabled: boolean;
 	id: string;
 	name: string;
 	dedication: string | null;
@@ -196,6 +200,8 @@ export type GroupDetail = GroupSummary & {
 	/** How many cüz one person may hold, and what the boundary does with them. Null for Cevşen. */
 	maxPerMember: number | null;
 	boundaryPolicy: CuzBoundaryPolicy | null;
+	/** The viewer is ticked to see who read (a shared Hizb plan): names show to them as to the owner. */
+	seesReaders: boolean;
 };
 
 /** Unauthenticated-ish preview shown when opening an invite link or entering a code. */
@@ -401,6 +407,11 @@ export type UserSettings = {
 	hatimRoundCompleteEnabled: boolean;
 	/** Nothing raises this yet — taking a cüz out of the havuz is Q3. */
 	hatimPoolClaimEnabled: boolean;
+	/**
+	 * A Hizb group's "someone finished their reading". Responsible members hear it whatever this
+	 * says; a Hizb group's other notices follow the Cevşen switches.
+	 */
+	hizbGroupReadsEnabled: boolean;
 	/** Somebody joined a group of mine. */
 	memberJoinedEnabled: boolean;
 	/** Somebody left a group of mine, or was removed from it. */
