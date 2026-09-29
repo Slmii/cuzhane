@@ -119,6 +119,9 @@ Three kinds: the **Cevşen** (`CEVSEN`, 100 babs), the **Kur'an** (`HATIM`, 30 c
     → `clerkMiddleware()` → routers.
 -   **Public: `/health` only.** Everything else is under `/api` behind `requireAuthApi` +
     `populateAuthLocals`, including the mushaf page images.
+-   **Every server change ships with tests** in `test/` (Vitest, against `cuzhane_test`): a new route or
+    service path gets tests for its happy path, its refusals and its privacy rules; a bug fix starts with
+    a test that reproduces it. Run `pnpm --filter @cuzhane/server test` before calling it done.
 -   Routes are thin (`src/routes/*.route.ts`); logic in `src/services/*`; Zod in `src/schemas/`
     via `validate.middleware.ts`. Id params are capped at 64 characters.
 -   Per-user rate limits (`middleware/rateLimit.middleware.ts`): a new route that writes rows for other
@@ -165,6 +168,11 @@ Three kinds: the **Cevşen** (`CEVSEN`, 100 babs), the **Kur'an** (`HATIM`, 30 c
     `typeof tr`, so a missing key fails the build). TR is the default. Plain words for older readers.
 -   Components: `components/<Name>/<Name>.component.tsx` + `<Name>.types.ts`, named exports,
     `StyleSheet.create` at the bottom. Text only through `components/ui/Typography`.
+-   **Reuse the shared components; never hand-roll one they cover.** Buttons are `ui/Button`
+    (`AppButton` — pick a `variant`, not a new `Pressable`), segmented choices `ui/SegmentedControl`,
+    switches `ui/Switch`/`ToggleRow`, rows `ui/NavRow`, chips `ui/Chip`, inputs `ui/Input`/`Form`,
+    progress `ui/ProgressBar`/`ProgressRing`, sheets `ui/BottomSheet`. Look in `components/ui/` first;
+    if nothing fits, extend the shared component rather than adding a look-alike.
 -   **Icons** only via `components/ui/Icon` (stroke only, ≥14px). **Never a typographic character as an
     icon**, not even inside a string. Beside a glass control use `ui/Icon/SymbolIcon`. An icon-only
     `AppButton` is the 44pt disc; it goes glass only for icons in `GLYPH_BY_ICON`, and needs
