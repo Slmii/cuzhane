@@ -1,19 +1,13 @@
 name: Server tests
 
-# The API's unit and integration tests on every pull request that touches the server, so a PR
-# shows a red check before it can be merged. Same triggers as the Claude review: PRs into
-# `development`. The Expo app is not tested here yet.
+# The API's unit and integration tests on every pull request into `development`, so a PR shows a
+# red check before it can be merged. **No path filter, on purpose**: `server-tests` is a required
+# check in the branch rules, and a required check that never starts leaves a web-only PR waiting
+# on it forever. The Expo app is not tested here yet.
 on:
     pull_request:
         types: [opened, synchronize, ready_for_review, reopened]
         branches: [development]
-        paths:
-            - "apps/server/**"
-            - "package.json"
-            - "pnpm-lock.yaml"
-            - "pnpm-workspace.yaml"
-            - ".npmrc"
-            - ".github/workflows/server-tests.yml"
     workflow_dispatch:
 
 # A new push to the same PR makes the older run pointless.
@@ -22,7 +16,7 @@ concurrency:
     cancel-in-progress: true
 
 jobs:
-    test:
+    server-tests:
         runs-on: ubuntu-latest
         permissions:
             contents: read

@@ -49,7 +49,9 @@ in its `overrides` (`react`/`react-dom` 19.1.0, `@react-navigation/native` 7.2.2
     the root package files: builds the image to GHCR, copies the deploy files onto the server, runs
     `up -d --wait`, smoke-tests. `deploy-marketing.yml` (main only) ships the Astro build.
 -   `server-tests.yml` runs the server's type check, lint and tests (against a Postgres service) on
-    every PR into `development` that touches `apps/server/**` or the root package files.
+    every PR into `development`. Its job `server-tests` is a **required check** in the branch rules,
+    so it has no path filter — a required check that never starts blocks the PR. Renaming the job
+    means re-selecting it in the rule.
 -   Secrets are never in the repo. Edit deploy files here, never on the server — CI overwrites them.
 -   **Two compose files.** `deploy/compose.yml`, `Caddyfile` and `backup.sh` always ship from `main`;
     `deploy/compose.preview.yml` (only `api-preview` — the workflow refuses anything else) ships from
