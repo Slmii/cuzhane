@@ -113,7 +113,7 @@ export const HizbSharePanel = ({
 			isFlush
 			style={isOpen ? null : { backgroundColor: theme.colors.accentSoft }}
 		>
-			{/* Stop 6 of the first-use tour frames this row, as it frames the Cevşen's. */}
+			{/* C1 of the first-use tour frames this row, as it frames the Cevşen's. */}
 			<TourTarget id='assigned'>
 				<Pressable
 					accessibilityLabel={`${t('thisRoundPortions')} ${shareLabel}`}

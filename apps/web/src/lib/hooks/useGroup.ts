@@ -202,12 +202,14 @@ export const useGetPoolSlots = (
 	{ isEnabled = true }: { isEnabled?: boolean } = {}
 ) => {
 	const refetchInterval = useLiveRefetchInterval();
+	// The tour's Cevşen reader asks for these too; its stand-in group has no seat slots on offer.
+	const isDemo = useIsTourDemo();
 
 	return useQuery({
-		queryKey: groupQueryKeys.pool(groupId),
-		queryFn: () => getPoolSlots(groupId),
+		queryKey: isDemo ? tourDemoQueryKeys.pool(groupId) : groupQueryKeys.pool(groupId),
+		queryFn: isDemo ? async (): Promise<PoolSlot[]> => [] : () => getPoolSlots(groupId),
 		enabled: !!groupId && isEnabled,
-		refetchInterval
+		...(isDemo ? { initialData: [], staleTime: Infinity } : { refetchInterval })
 	});
 };
 

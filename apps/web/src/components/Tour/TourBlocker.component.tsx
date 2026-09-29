@@ -1,9 +1,9 @@
 import { StyleSheet, View } from 'react-native';
 import type { ReactNode } from 'react';
-import { useTour, WELCOME_STEP } from './Tour.context';
+import { useTour } from './Tour.context';
 
 /**
- * Makes the app underneath the tour untouchable while it is running.
+ * Makes the app underneath the tour untouchable while it is running ("Uygulama kilitli").
  *
  * **The scrim is not enough, and reasoning from what it covers is how that was missed.** The
  * overlay paints over the whole screen, tab bar and navigation bar included, so it looked as
@@ -20,19 +20,17 @@ import { useTour, WELCOME_STEP } from './Tour.context';
  * The overlay keeps its own full-screen blocker as well. Belt and braces: this one is the
  * guarantee, that one is what stops a tap in the cut-out reaching the control it frames.
  *
- * **It engages exactly when the overlay is on screen, and not a moment before.** The two used to
- * disagree: this read `isActive`, the overlay drew on `isActive && !isBlocked` and rendered only
- * an OS sheet at the welcome step. So there were two states where the app was inert with nothing
- * over it to explain why — and one of them was the documented "the sheet never presented" race,
- * which would have left no way out but killing the app. The welcome card needs nothing from this
- * anyway: it is a platform sheet, and a platform sheet already blocks what is behind it.
+ * **It engages exactly when the overlay is on screen, and not a moment before** — the two read
+ * the same `isActive && !isBlocked`, so the app is never inert with nothing over it to explain
+ * why. Every stop is drawn by the overlay now, T1 and the closing card included; the closing
+ * card sits over the reader's own Ana sayfa, which stays inert until "Tamam".
  *
  * Hiding it from assistive technology goes with the flag. `pointerEvents` stops a finger and
  * nothing else — VoiceOver would still walk into the dimmed app and activate a control there.
  */
 export const TourBlocker = ({ children }: { children: ReactNode }) => {
-	const { isActive, isBlocked, stepIndex } = useTour();
-	const isTourOverApp = isActive && !isBlocked && stepIndex > WELCOME_STEP;
+	const { isActive, isBlocked } = useTour();
+	const isTourOverApp = isActive && !isBlocked;
 
 	return (
 		<View

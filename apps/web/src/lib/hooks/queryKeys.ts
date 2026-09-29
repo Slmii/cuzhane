@@ -90,9 +90,13 @@ export const tourDemoQueryKeys = {
 	groups: () => [...tourDemoQueryKeys.root(), 'list'] as const,
 	groupById: (groupId: string) => [...tourDemoQueryKeys.root(), 'detail', groupId] as const,
 	babs: (groupId: string) => [...tourDemoQueryKeys.root(), 'babs', groupId] as const,
+	pool: (groupId: string) => [...tourDemoQueryKeys.root(), 'pool', groupId] as const,
 	rounds: (groupId: string) => [...tourDemoQueryKeys.root(), 'rounds', groupId] as const,
 	myProgress: (groupId: string) => [...tourDemoQueryKeys.root(), 'my-progress', groupId] as const,
 	stats: () => [...tourDemoQueryKeys.root(), 'stats'] as const,
 	notifications: () => [...tourDemoQueryKeys.root(), 'notifications'] as const,
-	unreadCount: () => [...tourDemoQueryKeys.root(), 'unreadCount'] as const
+	unreadCount: () => [...tourDemoQueryKeys.root(), 'unreadCount'] as const,
+	preview: (groupId: string) => [...tourDemoQueryKeys.root(), 'preview', groupId] as const,
+	hizbReading: (groupId: string) => [...tourDemoQueryKeys.root(), 'hizb-reading', groupId] as const,
+	hizbAssignment: (id: string) => [...tourDemoQueryKeys.root(), 'hizb-assignment', id] as const
 };

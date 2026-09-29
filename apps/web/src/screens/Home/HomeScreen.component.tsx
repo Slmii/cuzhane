@@ -180,9 +180,8 @@ export const HomeScreen = () => {
 	const pagesRead = useCuzPagesRead(userId, cuzKeys, isHusrev ? 'husrev' : 'text');
 
 	/*
-	 * The group the first-use tour walks through, and the unit it opens: "Sıradaki", whose card and
-	 * button the tour points at. Null while there is nothing owed, which keeps the later stops on
-	 * their centred cards.
+	 * The group the first-use tour walks through, and the unit it opens: "Sıradaki", whose card the
+	 * tour points at. Null while there is nothing owed; the tour then walks its own stand-in.
 	 */
 	const tourSubject = useMemo(() => {
 		const first = pending[0];

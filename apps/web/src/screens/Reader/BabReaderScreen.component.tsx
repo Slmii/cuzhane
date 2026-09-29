@@ -771,7 +771,7 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 						 * Drag or tap anywhere along it to jump — the arrows step one bab, which is
 						 * ninety-nine taps end to end.
 						 */}
-						{/* Stop 9 of the first-use tour — the strip, and that it can be dragged. */}
+						{/* C6 of the first-use tour — the strip, and that it can be slid along. */}
 						<TourTarget id='readerMap' style={styles.babMapRow}>
 							<GestureDetector gesture={railGesture}>
 								<View
@@ -847,38 +847,38 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 						{readHint}
 					</Typography>
 				) : null}
-				{/* Stop 8 of the first-use tour: Okudum and the two arrows, as one row. */}
-				<TourTarget id='readerActions'>
-					<View style={styles.footerRow}>
-						<AppButton
-							accessibilityLabel={t('previousBab')}
-							disabled={previousBabNumber === undefined}
-							fullWidth={false}
-							icon='chevronLeft'
-							onPress={() => goToBab(previousBabNumber)}
-							variant='surface'
-						/>
-						{/*
-						 * Live for your own babs and for the pool's; muted otherwise.
-						 *
-						 * `disabled` as well as muted — the reader now walks all hundred, so most
-						 * babs on most days are somebody else's, and a button that merely looked
-						 * inert but still fired would let anyone mark anyone's work. The server
-						 * refuses it too; this is so the screen never asks.
-						 */}
-						{/*
-						 * `AppButton`, so this button is the platform's own where the platform has one.
-						 * **The arrows either side are the same**, since `AppButton` learned to be a
-						 * glyph with no label — the whole row is native together or drawn together,
-						 * rather than a native button flanked by two hand-drawn ones.
-						 *
-						 * The three states map onto variants: unread is the filled `accent`, read is
-						 * `accentOutline` — accent hairline over no fill, which is what the outlined
-						 * state already was — and locked is a disabled `surface`. **That last one is
-						 * a change worth knowing about.** Locked used to be a filled `secondary`
-						 * block; `AppButton` expresses disabled as a 0.45 dim, which is closer to the
-						 * muting the design rejected than to the solid "not yours today" it had.
-						 */}
+				<View style={styles.footerRow}>
+					<AppButton
+						accessibilityLabel={t('previousBab')}
+						disabled={previousBabNumber === undefined}
+						fullWidth={false}
+						icon='chevronLeft'
+						onPress={() => goToBab(previousBabNumber)}
+						variant='surface'
+					/>
+					{/*
+					 * Live for your own babs and for the pool's; muted otherwise.
+					 *
+					 * `disabled` as well as muted — the reader now walks all hundred, so most
+					 * babs on most days are somebody else's, and a button that merely looked
+					 * inert but still fired would let anyone mark anyone's work. The server
+					 * refuses it too; this is so the screen never asks.
+					 */}
+					{/*
+					 * `AppButton`, so this button is the platform's own where the platform has one.
+					 * **The arrows either side are the same**, since `AppButton` learned to be a
+					 * glyph with no label — the whole row is native together or drawn together,
+					 * rather than a native button flanked by two hand-drawn ones.
+					 *
+					 * The three states map onto variants: unread is the filled `accent`, read is
+					 * `accentOutline` — accent hairline over no fill, which is what the outlined
+					 * state already was — and locked is a disabled `surface`. **That last one is
+					 * a change worth knowing about.** Locked used to be a filled `secondary`
+					 * block; `AppButton` expresses disabled as a 0.45 dim, which is closer to the
+					 * muting the design rejected than to the solid "not yours today" it had.
+					 */}
+					{/* C5 of the first-use tour: "Okudum" on its own, the slot around it. */}
+					<TourTarget id='readMark' style={styles.markButtonSlot}>
 						<AppButton
 							disabled={
 								!canMark ||
@@ -888,7 +888,6 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 								setBabRead.isPending
 							}
 							onPress={isCovering ? handleCover : isPoolBab ? handleTakeAndRead : toggleCurrentRead}
-							style={styles.markButtonSlot}
 							/*
 							 * A pool bab says **"Üstlen ve oku"**, not "Okudum".
 							 *
@@ -936,16 +935,16 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 							}
 							variant={isRead ? 'accentOutline' : 'accent'}
 						/>
-						<AppButton
-							accessibilityLabel={t('nextBab')}
-							disabled={nextBabNumber === undefined}
-							fullWidth={false}
-							icon='chevronRight'
-							onPress={() => goToBab(nextBabNumber)}
-							variant='surface'
-						/>
-					</View>
-				</TourTarget>
+					</TourTarget>
+					<AppButton
+						accessibilityLabel={t('nextBab')}
+						disabled={nextBabNumber === undefined}
+						fullWidth={false}
+						icon='chevronRight'
+						onPress={() => goToBab(nextBabNumber)}
+						variant='surface'
+					/>
+				</View>
 			</View>
 
 			{/*

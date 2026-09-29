@@ -95,6 +95,8 @@ const GLYPH_BY_ICON: Partial<Record<IconName, GlyphSource>> = {
 	readInApp: { assetName: 'uygulamada-oku-read-in-app' },
 	// Beside it on Q4 — the frame's hand-over card, converted the same way.
 	handOver: { assetName: 'devret-hand-over' },
+	// The Hizb day card's "Kitaptan okudum", beside "Uygulamada oku" — converted from `ui/Icon`'s own paths.
+	bookPages: { assetName: 'kitaptan-oku-read-from-book' },
 	search: { assetName: 'ara-search' },
 	/*
 	 * **Converted because its own other half already was.** The pool's one button says

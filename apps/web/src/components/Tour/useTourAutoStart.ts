@@ -23,8 +23,8 @@ export const useTourAutoStart = ({ subject }: { subject: TourSubject | null }) =
 	const isFocused = useIsFocused();
 
 	/*
-	 * Ana sayfa nominates the group the later stops walk through — the topmost row, the same one
-	 * whose Read button is stop 3. It is kept current rather than captured once at the start: the
+	 * Ana sayfa nominates the group the Cevşen part walks through — the topmost row, the same one
+	 * T2 points at. It is kept current rather than captured once at the start: the
 	 * shelf can still be loading when the tour opens, and a tour that had nothing to point at
 	 * then would keep nothing for its whole run.
 	 */

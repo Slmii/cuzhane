@@ -10,21 +10,33 @@ import {
 	type HizbAssignment,
 	type HizbAssignmentPatch
 } from '@/api/hizbReading.api';
-import { groupQueryKeys, profileQueryKeys } from './queryKeys';
+import { useIsTourDemo } from '@/components/Tour/Tour.context';
+import { tourDemoHizbAssignment, tourDemoHizbReading } from '@/components/Tour/tourDemoData';
+import { groupQueryKeys, profileQueryKeys, tourDemoQueryKeys } from './queryKeys';
 import { useLiveRefetchInterval } from './useLiveRefetchInterval';
 export const hizbReadingKey = (groupId: string) => ['groups', 'hizb-reading', groupId] as const;
 export const hizbAssignmentKey = (groupId: string, id: string) =>
 	[...hizbReadingKey(groupId), 'assignment', id] as const;
-/** `isEnabled` off for a screen that serves every kind and only reads this for a Hizb group. */
+/**
+ * `isEnabled` off for a screen that serves every kind and only reads this for a Hizb group.
+ *
+ * H1 stands on the tour's Hizb group, which answers from its demo — the first page in place from
+ * the first render, as every demo-aware hook does (see `useGetGroups`).
+ */
 export const useHizbReading = (groupId: string, isEnabled = true) => {
 	const refetchInterval = useLiveRefetchInterval();
+	const isDemo = useIsTourDemo();
+
 	return useInfiniteQuery({
 		enabled: isEnabled,
-		queryKey: [...hizbReadingKey(groupId), 'state'],
-		queryFn: ({ pageParam }) => getHizbReading(groupId, pageParam),
+		queryKey: isDemo ? tourDemoQueryKeys.hizbReading(groupId) : [...hizbReadingKey(groupId), 'state'],
+		queryFn: ({ pageParam }) =>
+			isDemo ? Promise.resolve(tourDemoHizbReading()) : getHizbReading(groupId, pageParam),
 		initialPageParam: undefined as string | undefined,
 		getNextPageParam: last => last.nextCursor ?? undefined,
-		refetchInterval
+		...(isDemo
+			? { initialData: () => ({ pageParams: [undefined], pages: [tourDemoHizbReading()] }), staleTime: Infinity }
+			: { refetchInterval })
 	});
 };
 /** "Tüm geçmiş": the group's days, a page of thirty at a time. */
@@ -57,8 +69,16 @@ export const useSetHizbReadsFromBook = (groupId: string) => {
 		onSuccess: () => client.invalidateQueries({ queryKey: hizbReadingKey(groupId) })
 	});
 };
-export const useHizbAssignment = (groupId: string, id: string) =>
-	useQuery({ queryKey: hizbAssignmentKey(groupId, id), queryFn: () => getHizbAssignment(groupId, id) });
+/** H2 opens the tour's demo reading, answered from its demo like the rest of the tour. */
+export const useHizbAssignment = (groupId: string, id: string) => {
+	const isDemo = useIsTourDemo();
+
+	return useQuery({
+		queryKey: isDemo ? tourDemoQueryKeys.hizbAssignment(id) : hizbAssignmentKey(groupId, id),
+		queryFn: isDemo ? async () => tourDemoHizbAssignment() : () => getHizbAssignment(groupId, id),
+		...(isDemo ? { initialData: () => tourDemoHizbAssignment(), staleTime: Infinity } : {})
+	});
+};
 export const useUpdateHizbAssignment = (groupId: string, id: string) => {
 	const client = useQueryClient();
 	const key = hizbAssignmentKey(groupId, id);

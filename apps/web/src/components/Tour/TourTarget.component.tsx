@@ -1,13 +1,27 @@
 import { useIsFocused } from '@react-navigation/native';
 import { useCallback, useEffect, useRef, type ReactNode } from 'react';
-import { View, type ViewStyle } from 'react-native';
+import { useWindowDimensions, View, type ViewStyle } from 'react-native';
 import { useTour } from './Tour.context';
+import { useTourScroll } from './TourScroll.context';
 import type { TourTargetId } from './tourSteps';
+
+/**
+ * What counts as in view: clear of the navigation bar at the top, and of a reader's footer and
+ * the tab bar at the bottom.
+ */
+const VISIBLE_TOP = 100;
+const VISIBLE_BOTTOM = 140;
+/** How far under the scroller's top a target scrolled into view comes to rest — the design's 96. */
+const SCROLL_CLEARANCE = 96;
+/** Long enough for a tab switch and a header to settle before the stop's target measures again. */
+const SETTLE_MS = 400;
 
 type TourTargetProps = {
 	id: TourTargetId;
 	children: ReactNode;
 	style?: ViewStyle;
+	/** The spotlight's corner, for a target that is not a card — see `TourRect`. */
+	radius?: number;
 };
 
 /**
@@ -34,11 +48,32 @@ type TourTargetProps = {
  * **And again at every step**, for the same reason one screen later: the Cevşen reader's strip
  * is measured as the reader lays out, before its top inset lands, and the header's safe area
  * moving it down leaves its own box untouched — its stop cut the hole a status bar too high.
+ *
+ * **A target below the fold brings itself into view** when it is the stop being shown, inside a
+ * screen that handed its scroll view over (`TourScrollProvider`): the Hizb reader's counter sits
+ * under a page of text, and the spotlight would otherwise frame the tab bar. It scrolls once per
+ * stop, to stand `SCROLL_CLEARANCE` under the scroller's top as the design's tour does, and is
+ * measured again where it landed.
+ *
+ * **And once more when its stop has settled.** A header's bar item is placed by UIKit after React
+ * has laid it out, which moves it without touching its own box — measured as the tab switched in,
+ * T3's + came out at its offset inside the bar, at the top left of the screen.
  */
-export const TourTarget = ({ children, id, style }: TourTargetProps) => {
-	const { isActive, registerTarget, stepIndex } = useTour();
+export const TourTarget = ({ children, id, radius, style }: TourTargetProps) => {
+	const { isActive, registerTarget, run, stepIndex } = useTour();
 	const isFocused = useIsFocused();
+	const tourScroll = useTourScroll();
+	const { height: windowHeight } = useWindowDimensions();
 	const ref = useRef<View | null>(null);
+	// The stop this target last scrolled itself into view for — once each, never in a loop.
+	const scrolledForStep = useRef<number | null>(null);
+	const isCurrent = isActive && run[stepIndex]?.target === id;
+
+	const register = useCallback(
+		(x: number, y: number, width: number, height: number) =>
+			registerTarget(id, { height, width, x, y, ...(radius === undefined ? {} : { radius }) }),
+		[id, radius, registerTarget]
+	);
 
 	const measure = useCallback(() => {
 		if (!isFocused) {
@@ -50,9 +85,24 @@ export const TourTarget = ({ children, id, style }: TourTargetProps) => {
 				return;
 			}
 
-			registerTarget(id, { height, width, x, y });
+			const scroll = tourScroll?.scrollRef.current;
+			const inner = tourScroll?.innerRef.current;
+			const isHidden = y < VISIBLE_TOP || y + height > windowHeight - VISIBLE_BOTTOM;
+
+			if (isCurrent && isHidden && scroll && inner && ref.current && scrolledForStep.current !== stepIndex) {
+				scrolledForStep.current = stepIndex;
+				ref.current.measureLayout(inner, (_left, top) => {
+					scroll.scrollTo({ animated: false, y: Math.max(0, top - SCROLL_CLEARANCE) });
+					// A frame for the scroll to land, then where the target now is.
+					requestAnimationFrame(() => ref.current?.measureInWindow(register));
+				});
+
+				return;
+			}
+
+			register(x, y, width, height);
 		});
-	}, [id, isFocused, registerTarget]);
+	}, [isCurrent, isFocused, register, stepIndex, tourScroll, windowHeight]);
 
 	useEffect(() => {
 		if (!isFocused) {
@@ -62,6 +112,16 @@ export const TourTarget = ({ children, id, style }: TourTargetProps) => {
 
 		measure();
 	}, [id, isActive, isFocused, measure, registerTarget, stepIndex]);
+
+	useEffect(() => {
+		if (!isCurrent) {
+			return;
+		}
+
+		const timer = setTimeout(measure, SETTLE_MS);
+
+		return () => clearTimeout(timer);
+	}, [isCurrent, measure]);
 
 	useEffect(() => () => registerTarget(id, null), [id, registerTarget]);
 

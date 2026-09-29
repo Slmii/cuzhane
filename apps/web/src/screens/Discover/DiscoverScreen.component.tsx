@@ -87,7 +87,12 @@ export const DiscoverScreen = () => {
 			 * with `padding: 8px 0 16px` and no eyebrow, the way G1 and G3 do. Gruplarım (D2)
 			 * is the one tab root with that row, because it has a greeting to put in it.
 			 */}
-			<ScreenTitle hasReservedSecondaryLabel={false} isUnderNavigationBar label={t('discover')} />
+			<ScreenTitle
+				description={t('discoverSub')}
+				hasReservedSecondaryLabel={false}
+				isUnderNavigationBar
+				label={t('discover')}
+			/>
 		</View>
 	);
 

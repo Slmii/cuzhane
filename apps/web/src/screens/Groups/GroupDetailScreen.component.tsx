@@ -537,7 +537,6 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 				 * exactly. Split apart, the countdown reads as the reader's own clock when it
 				 * never was.
 				 */}
-				{/* Stop 3 of the first-use tour: the group's whole rhythm in one card. */}
 				{/*
 				 * The Hizb's summary card counts what the group has read, where the Cevşen's counts its
 				 * members, and says how long the round has left under one label whatever the cycle. A
@@ -545,109 +544,105 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 				 * count already reads "33 / 33", and when the next one starts is still worth knowing.
 				 */}
 				{isHizb ? (
-					<TourTarget id='groupSummary'>
-						<CardSurface isFlush>
-							<View style={styles.statsRow}>
-								<View
-									style={[
-										styles.statCell,
-										styles.statCellDivided,
-										{ borderRightColor: theme.colors.divider }
-									]}
-								>
-									<NumericText color={isRoundComplete ? theme.colors.accent : theme.colors.text}>
-										{`${detail.readCount} `}
-										<Typography
-											color={theme.colors.faintText}
-											style={styles.statTotal}
-											variant='numeric'
-										>
-											{`/ ${detail.partCount}`}
-										</Typography>
-									</NumericText>
-									<StatText
-										color={isRoundComplete ? theme.colors.accent : theme.colors.faintText}
-										style={styles.statLabel}
+					<CardSurface isFlush>
+						<View style={styles.statsRow}>
+							<View
+								style={[
+									styles.statCell,
+									styles.statCellDivided,
+									{ borderRightColor: theme.colors.divider }
+								]}
+							>
+								<NumericText color={isRoundComplete ? theme.colors.accent : theme.colors.text}>
+									{`${detail.readCount} `}
+									<Typography
+										color={theme.colors.faintText}
+										style={styles.statTotal}
+										variant='numeric'
 									>
-										{t(isRoundComplete ? 'roundCompleted' : 'portionsReadStat')}
-									</StatText>
-								</View>
-								<View style={styles.statCell}>
-									<NumericText>{leftValue}</NumericText>
-									<StatText color={theme.colors.faintText} style={styles.statLabel}>
-										{t('untilRoundEnd')}
-									</StatText>
-								</View>
-							</View>
-							{reset ? (
-								<RoundResetRow
-									groupLabel={reset.group}
-									localLabel={reset.local}
-									style={[styles.statsReset, { borderTopColor: theme.colors.divider }]}
-									variant='panel'
-								/>
-							) : null}
-						</CardSurface>
-					</TourTarget>
-				) : (
-					<TourTarget id='groupSummary'>
-						<CardSurface isFlush>
-							<View style={styles.statsRow}>
-								<View
-									style={[
-										styles.statCell,
-										styles.statCellDivided,
-										{ borderRightColor: theme.colors.divider }
-									]}
+										{`/ ${detail.partCount}`}
+									</Typography>
+								</NumericText>
+								<StatText
+									color={isRoundComplete ? theme.colors.accent : theme.colors.faintText}
+									style={styles.statLabel}
 								>
-									<NumericText>{`${detail.memberCount} / ${detail.spots}`}</NumericText>
-									<StatText color={theme.colors.faintText} style={styles.statLabel}>
-										{t('members')}
-									</StatText>
-								</View>
-								{/*
-								 * **The round closing is shown here rather than in a banner of its own.**
-								 * This is the card whose whole job is "where is this round", so the
-								 * answer "it is finished" belongs in it — and it needs no new furniture
-								 * to design, space and then take away again when the round rolls.
-								 *
-								 * The countdown is what it replaces, deliberately: once the hundred is
-								 * closed, how long is left has stopped being the interesting number.
-								 * `RoundResetRow` below still says when it starts again, so nothing is
-								 * lost. The state clears itself — `ensureCurrentRound` wipes
-								 * `completedAt` at the boundary along with the board.
-								 */}
-								<View style={styles.statCell}>
-									{isRoundComplete ? (
-										<>
-											<NumericText color={theme.colors.accent}>
-												{`${unitCount} / ${unitCount}`}
-											</NumericText>
-											<StatText color={theme.colors.accent} style={styles.statLabel}>
-												{t('roundCompleted')}
-											</StatText>
-										</>
-									) : (
-										<>
-											<NumericText>{leftValue}</NumericText>
-											<StatText color={theme.colors.faintText} style={styles.statLabel}>
-												{/* A DAILY round counts down in hours — "1 gün" would say nothing. */}
-												{isDaily ? t('untilMidnight') : t('left')}
-											</StatText>
-										</>
-									)}
-								</View>
+									{t(isRoundComplete ? 'roundCompleted' : 'portionsReadStat')}
+								</StatText>
 							</View>
-							{reset ? (
-								<RoundResetRow
-									groupLabel={reset.group}
-									localLabel={reset.local}
-									style={[styles.statsReset, { borderTopColor: theme.colors.divider }]}
-									variant='panel'
-								/>
-							) : null}
-						</CardSurface>
-					</TourTarget>
+							<View style={styles.statCell}>
+								<NumericText>{leftValue}</NumericText>
+								<StatText color={theme.colors.faintText} style={styles.statLabel}>
+									{t('untilRoundEnd')}
+								</StatText>
+							</View>
+						</View>
+						{reset ? (
+							<RoundResetRow
+								groupLabel={reset.group}
+								localLabel={reset.local}
+								style={[styles.statsReset, { borderTopColor: theme.colors.divider }]}
+								variant='panel'
+							/>
+						) : null}
+					</CardSurface>
+				) : (
+					<CardSurface isFlush>
+						<View style={styles.statsRow}>
+							<View
+								style={[
+									styles.statCell,
+									styles.statCellDivided,
+									{ borderRightColor: theme.colors.divider }
+								]}
+							>
+								<NumericText>{`${detail.memberCount} / ${detail.spots}`}</NumericText>
+								<StatText color={theme.colors.faintText} style={styles.statLabel}>
+									{t('members')}
+								</StatText>
+							</View>
+							{/*
+							 * **The round closing is shown here rather than in a banner of its own.**
+							 * This is the card whose whole job is "where is this round", so the
+							 * answer "it is finished" belongs in it — and it needs no new furniture
+							 * to design, space and then take away again when the round rolls.
+							 *
+							 * The countdown is what it replaces, deliberately: once the hundred is
+							 * closed, how long is left has stopped being the interesting number.
+							 * `RoundResetRow` below still says when it starts again, so nothing is
+							 * lost. The state clears itself — `ensureCurrentRound` wipes
+							 * `completedAt` at the boundary along with the board.
+							 */}
+							<View style={styles.statCell}>
+								{isRoundComplete ? (
+									<>
+										<NumericText color={theme.colors.accent}>
+											{`${unitCount} / ${unitCount}`}
+										</NumericText>
+										<StatText color={theme.colors.accent} style={styles.statLabel}>
+											{t('roundCompleted')}
+										</StatText>
+									</>
+								) : (
+									<>
+										<NumericText>{leftValue}</NumericText>
+										<StatText color={theme.colors.faintText} style={styles.statLabel}>
+											{/* A DAILY round counts down in hours — "1 gün" would say nothing. */}
+											{isDaily ? t('untilMidnight') : t('left')}
+										</StatText>
+									</>
+								)}
+							</View>
+						</View>
+						{reset ? (
+							<RoundResetRow
+								groupLabel={reset.group}
+								localLabel={reset.local}
+								style={[styles.statsReset, { borderTopColor: theme.colors.divider }]}
+								variant='panel'
+							/>
+						) : null}
+					</CardSurface>
 				)}
 
 				{/*
@@ -663,16 +658,11 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 				 */}
 				{myProgressQuery.isLoading ? <MyProgressCardSkeleton /> : null}
 				{myProgress ? (
-					// Stop 4 of the first-use tour. Inside the guard, as the closed-round and pool
-					// stops are, so a group with nothing to report registers no rect and that
-					// stop simply centres its card.
-					<TourTarget id='myProgress'>
-						<MyProgressCard
-							isHatim={isHatim}
-							onPress={() => navigation.navigate('MyProgress', { groupId })}
-							progress={myProgress}
-						/>
-					</TourTarget>
+					<MyProgressCard
+						isHatim={isHatim}
+						onPress={() => navigation.navigate('MyProgress', { groupId })}
+						progress={myProgress}
+					/>
 				) : null}
 
 				{/*
@@ -702,7 +692,7 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 						isFlush
 						style={isMyBabsOpen ? null : { backgroundColor: theme.colors.accentSoft }}
 					>
-						{/* Stop 5 of the first-use tour frames this row, closed or open. */}
+						{/* C1 of the first-use tour frames this row, closed or open. */}
 						<TourTarget id='assigned'>
 							<Pressable
 								// The eyebrow and the sentence are gone from the row, so the label they carried
@@ -899,44 +889,40 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 				 * worse than no row.
 				 */}
 				{lastClosedRound ? (
-					// Stop 6 of the first-use tour. Inside the guard, so a group with no closed
-					// round registers nothing and that stop centres its card.
-					<TourTarget id='lastRound'>
-						<CardSurface
-							onPress={() => navigation.navigate('Rounds', { groupId })}
-							style={styles.lastRoundCard}
+					<CardSurface
+						onPress={() => navigation.navigate('Rounds', { groupId })}
+						style={styles.lastRoundCard}
+					>
+						<View
+							style={[
+								styles.lastRoundBadge,
+								{
+									backgroundColor: lastClosedRound.missedCount
+										? theme.colors.missedSurface
+										: theme.colors.accentSoft
+								}
+							]}
 						>
-							<View
-								style={[
-									styles.lastRoundBadge,
-									{
-										backgroundColor: lastClosedRound.missedCount
-											? theme.colors.missedSurface
-											: theme.colors.accentSoft
-									}
-								]}
+							<Typography
+								color={lastClosedRound.missedCount ? theme.colors.missed : theme.colors.accent}
+								style={styles.lastRoundBadgeLabel}
+								variant='title'
 							>
-								<Typography
-									color={lastClosedRound.missedCount ? theme.colors.missed : theme.colors.accent}
-									style={styles.lastRoundBadgeLabel}
-									variant='title'
-								>
-									{lastClosedRound.missedCount}
-								</Typography>
-							</View>
-							<View style={styles.lastRoundCopy}>
-								<CaptionText weight='semibold'>
-									{`${t('lastRound')} · ${t('roundN')} ${lastClosedRound.roundIndex + 1}`}
-								</CaptionText>
-								<CaptionText color={theme.colors.subtext} style={styles.lastRoundSub}>
-									{isHizb
-										? hizbMissedLine(lastClosedRound.missedCount)
-										: `${lastClosedRound.missedCount} ${t(isHatim ? 'missedCuz' : 'missedBabs')}`}
-								</CaptionText>
-							</View>
-							<Icon color={theme.colors.faintText} name='chevronRight' size={15} strokeWidth={1.8} />
-						</CardSurface>
-					</TourTarget>
+								{lastClosedRound.missedCount}
+							</Typography>
+						</View>
+						<View style={styles.lastRoundCopy}>
+							<CaptionText weight='semibold'>
+								{`${t('lastRound')} · ${t('roundN')} ${lastClosedRound.roundIndex + 1}`}
+							</CaptionText>
+							<CaptionText color={theme.colors.subtext} style={styles.lastRoundSub}>
+								{isHizb
+									? hizbMissedLine(lastClosedRound.missedCount)
+									: `${lastClosedRound.missedCount} ${t(isHatim ? 'missedCuz' : 'missedBabs')}`}
+							</CaptionText>
+						</View>
+						<Icon color={theme.colors.faintText} name='chevronRight' size={15} strokeWidth={1.8} />
+					</CardSurface>
 				) : null}
 
 				{/*
@@ -984,32 +970,29 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 				 * it. The count comes from the group, so nothing here waits on the board.
 				 */}
 				{detail.poolAllBabNumbers.length > 0 ? (
-					// Stop 7 of the first-use tour, guarded the same way as the row above.
-					<TourTarget id='pool'>
-						<CardSurface
-							onPress={() => navigation.navigate('Pool', { groupId, kind: detail.kind })}
-							style={styles.lastRoundCard}
-						>
-							<View style={[styles.lastRoundBadge, { backgroundColor: theme.colors.sand }]}>
-								<Typography
-									color={theme.colors.sandText}
-									style={styles.lastRoundBadgeLabel}
-									variant='title'
-								>
-									{isHizb ? hizbPoolCount : detail.poolAllBabNumbers.length}
-								</Typography>
-							</View>
-							<View style={styles.lastRoundCopy}>
-								<CaptionText weight='semibold'>{t('pool')}</CaptionText>
-								<CaptionText color={theme.colors.subtext} style={styles.lastRoundSub}>
-									{isHizb
-										? hizbPoolLine()
-										: `${detail.poolAllBabNumbers.length} ${t(unitLabelKey(detail.kind))}`}
-								</CaptionText>
-							</View>
-							<Icon color={theme.colors.faintText} name='chevronRight' size={15} strokeWidth={1.8} />
-						</CardSurface>
-					</TourTarget>
+					<CardSurface
+						onPress={() => navigation.navigate('Pool', { groupId, kind: detail.kind })}
+						style={styles.lastRoundCard}
+					>
+						<View style={[styles.lastRoundBadge, { backgroundColor: theme.colors.sand }]}>
+							<Typography
+								color={theme.colors.sandText}
+								style={styles.lastRoundBadgeLabel}
+								variant='title'
+							>
+								{isHizb ? hizbPoolCount : detail.poolAllBabNumbers.length}
+							</Typography>
+						</View>
+						<View style={styles.lastRoundCopy}>
+							<CaptionText weight='semibold'>{t('pool')}</CaptionText>
+							<CaptionText color={theme.colors.subtext} style={styles.lastRoundSub}>
+								{isHizb
+									? hizbPoolLine()
+									: `${detail.poolAllBabNumbers.length} ${t(unitLabelKey(detail.kind))}`}
+							</CaptionText>
+						</View>
+						<Icon color={theme.colors.faintText} name='chevronRight' size={15} strokeWidth={1.8} />
+					</CardSurface>
 				) : null}
 
 				{/*

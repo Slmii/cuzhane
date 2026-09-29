@@ -1,4 +1,4 @@
-import { useContext, useMemo, useRef } from 'react';
+import { type RefObject, useContext, useMemo, useRef } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -19,6 +19,7 @@ import { HIZB_SECTIONS, isCevsenSection } from '@/lib/content/hizbulhakaik';
 import { hizbPlanDescriptionKey } from '@/lib/utils/hizbPlanLabels';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { FlatButton } from '@/components/FlatButton/FlatButton.component';
+import { TourScrollProvider } from '@/components/Tour/TourScroll.context';
 import { BodyText, CaptionText, EyebrowText, TitleText } from '@/components/ui/Typography/Typography.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { TextSizeSheet } from '@/screens/Reader/TextSizeSheet.component';
@@ -62,6 +63,7 @@ const AssignmentReader = ({
 	const settingsQuery = useGetUserSettings();
 	const updateSettings = useUpdateUserSettings();
 	const scroll = useRef<ScrollView>(null);
+	const scrollContent = useRef<View>(null);
 	const a = query.data;
 	const planDays = a?.planDays;
 	const portion = a?.portion;
@@ -134,37 +136,46 @@ const AssignmentReader = ({
 				</CaptionText>
 				<TitleText>{t(hizbPlanDescriptionKey(a.planDays, a.portion))}</TitleText>
 			</View>
-			<ScrollView ref={scroll} contentContainerStyle={styles.body} style={styles.scroll}>
-				{isSekine ? <BodyText>{t('hpSekine')}</BodyText> : null}
-				<HizbBody
-					// Whole, every lap: `HizbBody` cuts Sekine's once-read opening off by the text itself.
-					block={current.block}
-					delailProgress={{
-						count: a.delailRepetitions,
-						disabled: a.completedAt !== null,
-						onChange: count => change({ delailRepetitions: count })
-					}}
-					istighfarProgress={{
-						count: a.istighfarRepetitions,
-						target: a.istighfarTarget,
-						disabled: a.completedAt !== null,
-						onChange: change
-					}}
-					// Each count scrolls back to the top for the next lap (`change`).
-					{...(isSekine
-						? {
-								sekineProgress: {
-									count: a.repetitions,
-									disabled: a.completedAt !== null,
-									onChange: repetitions => change({ repetitions })
-								}
-						  }
-						: {})}
-					font={settings.readerArabicFont}
-					fontSize={settings.readerFontSize}
-					numerals={settings.readerNumerals}
-					isCevsenBab={isCevsenSection(current.sectionIndex)}
-				/>
+			<ScrollView
+				ref={scroll}
+				contentContainerStyle={styles.body}
+				// React Native types this ref as never null, which a React 19 ref is until it mounts.
+				innerViewRef={scrollContent as RefObject<View>}
+				style={styles.scroll}
+			>
+				{/* H2 of the first-use tour points at the counter below the text: it scrolls itself up. */}
+				<TourScrollProvider innerRef={scrollContent} scrollRef={scroll}>
+					{isSekine ? <BodyText>{t('hpSekine')}</BodyText> : null}
+					<HizbBody
+						// Whole, every lap: `HizbBody` cuts Sekine's once-read opening off by the text itself.
+						block={current.block}
+						delailProgress={{
+							count: a.delailRepetitions,
+							disabled: a.completedAt !== null,
+							onChange: count => change({ delailRepetitions: count })
+						}}
+						istighfarProgress={{
+							count: a.istighfarRepetitions,
+							target: a.istighfarTarget,
+							disabled: a.completedAt !== null,
+							onChange: change
+						}}
+						// Each count scrolls back to the top for the next lap (`change`).
+						{...(isSekine
+							? {
+									sekineProgress: {
+										count: a.repetitions,
+										disabled: a.completedAt !== null,
+										onChange: repetitions => change({ repetitions })
+									}
+							  }
+							: {})}
+						font={settings.readerArabicFont}
+						fontSize={settings.readerFontSize}
+						numerals={settings.readerNumerals}
+						isCevsenBab={isCevsenSection(current.sectionIndex)}
+					/>
+				</TourScrollProvider>
 			</ScrollView>
 			<View style={[styles.footer, { borderTopColor: theme.colors.readerRule }]}>
 				{update.isError ? (

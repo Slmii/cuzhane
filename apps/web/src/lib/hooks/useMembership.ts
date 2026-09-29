@@ -8,11 +8,13 @@ import {
 	removeGroupMember,
 	type RemoveGroupMemberInput
 } from '@/api/memberships.api';
+import { useIsTourDemo } from '@/components/Tour/Tour.context';
+import { tourDemoPreview } from '@/components/Tour/tourDemoData';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import type { GroupSummary } from '@/lib/types/domain';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert } from 'react-native';
-import { groupOwnedQueryKeys, groupQueryKeys } from './queryKeys';
+import { groupOwnedQueryKeys, groupQueryKeys, tourDemoQueryKeys } from './queryKeys';
 import { useLiveRefetchInterval } from './useLiveRefetchInterval';
 
 /**
@@ -33,10 +35,16 @@ export const useLookupGroupByCode = () => useMutation({ mutationFn: (code: strin
  * with its code 404'd here and could not be joined at all.
  */
 export const useGroupPreviewById = (groupId: string, inviteCode?: string) => {
+	// K1 chooses cüz in a hatim the reader is joining — the tour's own, answered from its demo.
+	const isDemo = useIsTourDemo();
+
 	return useQuery({
-		queryKey: groupQueryKeys.previewByGroup(groupId),
-		queryFn: () => (inviteCode ? previewGroupByCode(inviteCode) : previewGroupById(groupId)),
-		enabled: !!groupId
+		queryKey: isDemo ? tourDemoQueryKeys.preview(groupId) : groupQueryKeys.previewByGroup(groupId),
+		queryFn: isDemo
+			? async () => tourDemoPreview()
+			: () => (inviteCode ? previewGroupByCode(inviteCode) : previewGroupById(groupId)),
+		enabled: !!groupId,
+		...(isDemo ? { initialData: () => tourDemoPreview(), staleTime: Infinity } : {})
 	});
 };
 

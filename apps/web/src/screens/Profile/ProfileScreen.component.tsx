@@ -1,6 +1,6 @@
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenTitle } from '@/components/ScreenTitle/ScreenTitle.component';
-import { TourTarget } from '@/components/Tour/TourTarget.component';
+import { TourPickSheet } from '@/components/Tour/TourPickSheet.component';
 import { ActivityHeatmap } from '@/components/ui/ActivityHeatmap/ActivityHeatmap.component';
 import { Avatar } from '@/components/ui/Avatar/Avatar.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
@@ -59,6 +59,7 @@ export const ProfileScreen = () => {
 	const [isFeedbackSheetOpen, setIsFeedbackSheetOpen] = useState(false);
 	const [isLanguageSheetOpen, setIsLanguageSheetOpen] = useState(false);
 	const [isWhatsNewOpen, setIsWhatsNewOpen] = useState(false);
+	const [isTourPickOpen, setIsTourPickOpen] = useState(false);
 	const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
 	const profileSchema = useMemo(() => createProfileSchema(t), [t]);
@@ -344,18 +345,15 @@ export const ProfileScreen = () => {
 			 * stayed flat. It graduated: every section surface in the app is glass now, so saying
 			 * it at each call site would only imply the others aren't.
 			 */}
-			{/* Stops 14 and 15 of the first-use tour — the last two. */}
-			<TourTarget id='stats' style={styles.statsRow}>
+			<View style={styles.statsRow}>
 				<StatTile label={t('babsRead')} style={styles.statTile} tone='accent' value={stats.babsRead} />
 				<StatTile label={t('roundsDone')} style={styles.statTile} tone='accent' value={stats.roundsCompleted} />
 				<StatTile label={t('streak')} style={styles.statTile} tone='accent' value={stats.streakDays} />
-			</TourTarget>
-			<TourTarget id='heatmap'>
-				<CardSurface>
-					<BodyStrongText style={styles.heatmapTitle}>{t('last30')}</BodyStrongText>
-					<ActivityHeatmap columns={15} days={stats.last30Days} />
-				</CardSurface>
-			</TourTarget>
+			</View>
+			<CardSurface>
+				<BodyStrongText style={styles.heatmapTitle}>{t('last30')}</BodyStrongText>
+				<ActivityHeatmap columns={15} days={stats.last30Days} />
+			</CardSurface>
 			<CardSurface isFlush>
 				{/*
 				 * G3 → G4: the language is a row that opens a list, not a control in the row. A
@@ -416,17 +414,12 @@ export const ProfileScreen = () => {
 				 * which is what separates it from the two controls above it.
 				 */}
 				{/*
-				 * Section O's own way back in, and it starts by leaving this screen. The first
-				 * two stops point at Ana sayfa's next-up card and its Read button, so `useTourNavigation` unwinds to Ana sayfa on the welcome card — see
-				 * `goToTourHome`. It was left where it stood at first, on the grounds that
-				 * `TourTarget` withdraws its rectangle on **blur** so those stops would simply
-				 * centre their cards over Profil rather than cut a hole at another screen's
-				 * coordinates. True, and beside the point: three cards describing a screen that
-				 * is not the one you are looking at is not a walkthrough.
+				 * Section T's own way back in (TP): a sheet asks what to show — everything, or one
+				 * kind's part — and the tour then leaves this screen for the first stop's own.
 				 */}
 				<Pressable
 					accessibilityRole='button'
-					onPress={() => startTour({ isReplay: true })}
+					onPress={() => setIsTourPickOpen(true)}
 					style={({ pressed }) => [styles.settingsRow, { opacity: pressed ? 0.6 : 1 }]}
 				>
 					<View style={styles.settingsCopy}>
@@ -553,6 +546,7 @@ export const ProfileScreen = () => {
 				platform={Platform.OS}
 			/>
 			<LanguageSheet isVisible={isLanguageSheetOpen} onClose={() => setIsLanguageSheetOpen(false)} />
+			<TourPickSheet isVisible={isTourPickOpen} onClose={() => setIsTourPickOpen(false)} onStart={startTour} />
 			<WhatsNewSheet
 				isVisible={isWhatsNewOpen}
 				onClose={() => setIsWhatsNewOpen(false)}

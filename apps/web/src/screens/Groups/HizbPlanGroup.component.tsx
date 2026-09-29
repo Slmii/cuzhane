@@ -2,6 +2,7 @@ import type { HizbAssignment } from '@/api/hizbReading.api';
 import { HizbCoverageGrid } from '@/components/HizbCoverageGrid/HizbCoverageGrid.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
+import { TourTarget } from '@/components/Tour/TourTarget.component';
 import { AppBottomSheet } from '@/components/ui/BottomSheet/BottomSheet.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
@@ -40,7 +41,6 @@ import type { TabStackParamList } from '@/navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { FlatButton } from '@/components/FlatButton/FlatButton.component';
 import { HizbBookSheet } from './HizbBookSheet.component';
 import { HizbPlanGroupSkeleton } from './HizbPlanGroupSkeleton.component';
 import { LeaveGroupButton } from './LeaveGroupButton.component';
@@ -672,185 +672,198 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 
 					{isPicking ? null : eyebrow(t('hpMyProgress'), removed ? styles.removedEyebrow : undefined)}
 
-					{/* W1/W4: today's reading, the one dark button. */}
+					{/* W1/W4: today's reading, the one dark button. H1 of the first-use tour — the wrapper
+					    carries the card's gap, so the spotlight is the card alone. */}
 					{today && !isTodayDone ? (
-						<CardSurface isFlush style={styles.cardGap}>
-							<View style={styles.todayBody}>
-								<View style={styles.spread}>
-									<Typography
-										color={theme.colors.accent}
-										style={styles.cardEyebrow}
-										variant='stat'
-										weight='medium'
-									>
-										{/* Always the date: the tag beside it is the reader's own plan day, and a
-										    group's "day 1" beside a joiner's "day 2" read as two answers. */}
-										{t('hpTodayDate', { date: monthDay(data.date, 'long') })}
-									</Typography>
-									<View style={[styles.tag, { backgroundColor: theme.colors.segmentTrack }]}>
+						<TourTarget id='hizbToday' style={styles.cardGap}>
+							<CardSurface isFlush>
+								<View style={styles.todayBody}>
+									<View style={styles.spread}>
 										<Typography
-											color={theme.colors.subtext}
-											style={styles.tagLabel}
+											color={theme.colors.accent}
+											style={styles.cardEyebrow}
 											variant='stat'
-											weight='semibold'
+											weight='medium'
 										>
-											{isShared
-												? t('hpPlanDay', { day: today.portion, days: today.planDays })
-												: hizbPortionLabel(formatBabRange(myPortions), t)}
+											{/* Always the date: the tag beside it is the reader's own plan day, and a
+										    group's "day 1" beside a joiner's "day 2" read as two answers. */}
+											{t('hpTodayDate', { date: monthDay(data.date, 'long') })}
 										</Typography>
-									</View>
-								</View>
-								<TitleText style={styles.readingTitle}>{workTitle(today)}</TitleText>
-								{portionDesc(today) ? (
-									<CaptionText color={theme.colors.subtext} style={styles.readingDesc}>
-										{portionDesc(today)}
-									</CaptionText>
-								) : null}
-								{/* A shorter plan's day covers several of the 33 — named as chips. */}
-								{myPortions.length > 1 ? (
-									<View style={styles.portionChips}>
-										{myPortions.map(number => {
-											// Marked from the book already: filled, as the read state draws them.
-											const isRead = bookPortionsRead.includes(number);
-
-											return (
-												<View
-													key={number}
-													style={[
-														styles.portionChip,
-														{
-															backgroundColor: isRead
-																? theme.colors.accent
-																: theme.colors.accentMuted
-														}
-													]}
-												>
-													<CaptionText
-														color={isRead ? theme.colors.onAccent : theme.colors.accent}
-														style={styles.portionChipLabel}
-														weight='semibold'
-													>
-														{number}
-													</CaptionText>
-												</View>
-											);
-										})}
-										<CaptionText color={theme.colors.faintText} style={styles.portionCount}>
-											{bookPortionsRead.length > 0
-												? t('hbFromBookPartial', {
-														read: bookPortionsRead.length,
-														total: myPortions.length
-												  })
-												: t('hpPortionsCount', { count: myPortions.length })}
-										</CaptionText>
-										{/* A part-read day's ticks are locked in the sheet; this is the way back. */}
-										{bookPortionsRead.length > 0 ? (
-											<Pressable
-												accessibilityRole='button'
-												disabled={todayUpdate.isPending}
-												hitSlop={8}
-												onPress={confirmUndo}
-												style={styles.partialUndo}
-											>
-												<CaptionText color={theme.colors.accent} weight='semibold'>
-													{t('hpUndoShort')}
-												</CaptionText>
-											</Pressable>
-										) : null}
-									</View>
-								) : null}
-								{/* Started is not read: the page and the counts carry on where they were. */}
-								{isStarted ? (
-									<View style={[styles.progressBox, { backgroundColor: theme.colors.background }]}>
-										{/* On its own line above the rows, so it heads them all rather than the page. */}
-										<View style={[styles.startedTag, { backgroundColor: theme.colors.sand }]}>
+										<View style={[styles.tag, { backgroundColor: theme.colors.segmentTrack }]}>
 											<Typography
-												color={theme.colors.sandText}
-												style={styles.startedLabel}
+												color={theme.colors.subtext}
+												style={styles.tagLabel}
 												variant='stat'
 												weight='semibold'
 											>
-												{t('hpStarted')}
+												{isShared
+													? t('hpPlanDay', { day: today.portion, days: today.planDays })
+													: hizbPortionLabel(formatBabRange(myPortions), t)}
 											</Typography>
 										</View>
-										<View style={styles.progressLine}>
-											<CaptionText
-												color={theme.colors.subtext}
-												style={styles.smallStrong}
-												weight='semibold'
-											>
-												{t('hpPageOf', { page, total: pageCount })}
+									</View>
+									<TitleText style={styles.readingTitle}>{workTitle(today)}</TitleText>
+									{portionDesc(today) ? (
+										<CaptionText color={theme.colors.subtext} style={styles.readingDesc}>
+											{portionDesc(today)}
+										</CaptionText>
+									) : null}
+									{/* A shorter plan's day covers several of the 33 — named as chips. */}
+									{myPortions.length > 1 ? (
+										<View style={styles.portionChips}>
+											{myPortions.map(number => {
+												// Marked from the book already: filled, as the read state draws them.
+												const isRead = bookPortionsRead.includes(number);
+
+												return (
+													<View
+														key={number}
+														style={[
+															styles.portionChip,
+															{
+																backgroundColor: isRead
+																	? theme.colors.accent
+																	: theme.colors.accentMuted
+															}
+														]}
+													>
+														<CaptionText
+															color={isRead ? theme.colors.onAccent : theme.colors.accent}
+															style={styles.portionChipLabel}
+															weight='semibold'
+														>
+															{number}
+														</CaptionText>
+													</View>
+												);
+											})}
+											<CaptionText color={theme.colors.faintText} style={styles.portionCount}>
+												{bookPortionsRead.length > 0
+													? t('hbFromBookPartial', {
+															read: bookPortionsRead.length,
+															total: myPortions.length
+													  })
+													: t('hpPortionsCount', { count: myPortions.length })}
 											</CaptionText>
-											<View style={[styles.bar, { backgroundColor: theme.colors.progressTrack }]}>
+											{/* A part-read day's ticks are locked in the sheet; this is the way back. */}
+											{bookPortionsRead.length > 0 ? (
+												<Pressable
+													accessibilityRole='button'
+													disabled={todayUpdate.isPending}
+													hitSlop={8}
+													onPress={confirmUndo}
+													style={styles.partialUndo}
+												>
+													<CaptionText color={theme.colors.accent} weight='semibold'>
+														{t('hpUndoShort')}
+													</CaptionText>
+												</Pressable>
+											) : null}
+										</View>
+									) : null}
+									{/* Started is not read: the page and the counts carry on where they were. */}
+									{isStarted ? (
+										<View
+											style={[styles.progressBox, { backgroundColor: theme.colors.background }]}
+										>
+											{/* On its own line above the rows, so it heads them all rather than the page. */}
+											<View style={[styles.startedTag, { backgroundColor: theme.colors.sand }]}>
+												<Typography
+													color={theme.colors.sandText}
+													style={styles.startedLabel}
+													variant='stat'
+													weight='semibold'
+												>
+													{t('hpStarted')}
+												</Typography>
+											</View>
+											<View style={styles.progressLine}>
+												<CaptionText
+													color={theme.colors.subtext}
+													style={styles.smallStrong}
+													weight='semibold'
+												>
+													{t('hpPageOf', { page, total: pageCount })}
+												</CaptionText>
 												<View
 													style={[
-														styles.barFill,
-														{
-															backgroundColor: theme.colors.accent,
-															width: `${(page * 100) / Math.max(1, pageCount)}%`
-														}
+														styles.bar,
+														{ backgroundColor: theme.colors.progressTrack }
 													]}
-												/>
+												>
+													<View
+														style={[
+															styles.barFill,
+															{
+																backgroundColor: theme.colors.accent,
+																width: `${(page * 100) / Math.max(1, pageCount)}%`
+															}
+														]}
+													/>
+												</View>
 											</View>
+											{today.requiresSekine
+												? counterRow(t('hpCounterSekine'), today.repetitions, 19)
+												: null}
+											{today.requiresIstighfar
+												? counterRow(
+														t('hpCounterIstighfar'),
+														today.istighfarRepetitions,
+														today.istighfarTarget
+												  )
+												: null}
+											{today.requiresDelailRepetition
+												? counterRow(t('hpCounterSalavat'), today.delailRepetitions, 3)
+												: null}
 										</View>
-										{today.requiresSekine
-											? counterRow(t('hpCounterSekine'), today.repetitions, 19)
-											: null}
-										{today.requiresIstighfar
-											? counterRow(
-													t('hpCounterIstighfar'),
-													today.istighfarRepetitions,
-													today.istighfarTarget
-											  )
-											: null}
-										{today.requiresDelailRepetition
-											? counterRow(t('hpCounterSalavat'), today.delailRepetitions, 3)
-											: null}
-									</View>
-								) : null}
-								{/*
-								 * R1: two ways to read — the app is the dark button, the book the grey one.
-								 * R4: a member who always reads from the book gets them the other way round,
-								 * with the app a link.
-								 */}
-								{data.readsFromBook ? (
-									<>
-										<FlatButton
-											disabled={todayUpdate.isPending}
-											icon='bookPages'
-											onPress={readFromBook}
-											style={styles.firstButton}
-											title={t('hbReadFromBook')}
-											variant='ink'
-										/>
-										<FlatButton
-											onPress={() => open(today.id)}
-											style={styles.appLink}
-											title={t(isStarted ? 'hpContinue' : 'hbReadInApp')}
-											variant='link'
-										/>
-									</>
-								) : (
-									<>
-										<FlatButton
-											onPress={() => open(today.id)}
-											style={styles.firstButton}
-											title={t(isStarted ? 'hpContinue' : 'hbReadInApp')}
-											variant='ink'
-										/>
-										<FlatButton
-											disabled={todayUpdate.isPending}
-											icon='bookPages'
-											onPress={readFromBook}
-											style={styles.bookButton}
-											title={t('hbReadFromBook')}
-											variant='muted'
-										/>
-									</>
-								)}
-							</View>
-							{nextRow(nextAt)}
-						</CardSurface>
+									) : null}
+									{/*
+									 * R1: two ways to read — the app is the dark button, the book the grey one.
+									 * R4: a member who always reads from the book gets them the other way round,
+									 * with the app a link.
+									 */}
+									{data.readsFromBook ? (
+										<>
+											<AppButton
+												disabled={todayUpdate.isPending}
+												icon='bookPages'
+												onPress={readFromBook}
+												size='lg'
+												style={styles.firstButton}
+												title={t('hbReadFromBook')}
+												variant='primary'
+											/>
+											<AppButton
+												onPress={() => open(today.id)}
+												style={styles.appLink}
+												title={t(isStarted ? 'hpContinue' : 'hbReadInApp')}
+												variant='ghost'
+											/>
+										</>
+									) : (
+										<>
+											<AppButton
+												onPress={() => open(today.id)}
+												size='lg'
+												style={styles.firstButton}
+												title={t(isStarted ? 'hpContinue' : 'hbReadInApp')}
+												variant='primary'
+											/>
+											<AppButton
+												disabled={todayUpdate.isPending}
+												icon='bookPages'
+												onPress={readFromBook}
+												size='lg'
+												style={styles.bookButton}
+												title={t('hbReadFromBook')}
+												variant='tonal'
+											/>
+										</>
+									)}
+								</View>
+								{nextRow(nextAt)}
+							</CardSurface>
+						</TourTarget>
 					) : null}
 
 					{/*
