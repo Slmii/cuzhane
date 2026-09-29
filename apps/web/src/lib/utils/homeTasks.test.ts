@@ -138,6 +138,62 @@ describe('buildHomeTasks — the audit’s cases', () => {
 		expect(shareCount).toBe(1);
 	});
 
+	it('turns a flexible group with nothing chosen, and a Hizb plan not begun, into tasks to choose', () => {
+		const { pending } = buildHomeTasks(
+			[
+				group({ id: 'flexible', kind: 'HIZB', myBabNumbers: [], myNextBabNumber: null, splitMode: 'FLEXIBLE' }),
+				group({ hizbPlan: 7, hizbToday: null, id: 'plan', kind: 'HIZB', myBabNumbers: [] })
+			],
+			now
+		);
+
+		expect(pending.map(task => [task.groupId, task.mustChoose])).toEqual([
+			['flexible', 'flexible'],
+			['plan', 'plan']
+		]);
+	});
+
+	it('reads a Hizb plan day as one reading of the portions it covers, owed until it is completed', () => {
+		const planGroup = (completed: boolean) =>
+			group({
+				hizbPlan: 7,
+				hizbToday: { assignmentId: 'today-5', completed, planDays: 7, portion: 5 },
+				id: 'plan',
+				kind: 'HIZB',
+				myBabNumbers: []
+			});
+
+		const owed = buildHomeTasks([planGroup(false)], now);
+		const done = buildHomeTasks([planGroup(true)], now);
+
+		// Named by the board's 33, as the group's card names it: the 7-day plan's fifth day is 20–22.
+		expect(owed.pending.map(task => [task.range, task.nextNumber, task.mustChoose])).toEqual([['20–22', 5, null]]);
+		expect(owed.pending[0]?.unitNumbers).toEqual([20, 21, 22]);
+		// A plan has no board, so its owed day opens by assignment in the plan reader.
+		expect(owed.pending[0]?.isPlan).toBe(true);
+		expect(owed.pending[0]?.planAssignmentId).toBe('today-5');
+		expect(done.pending).toHaveLength(0);
+		expect(done.finishedCount).toBe(1);
+	});
+
+	it('lists a completed Hizb plan day under read today', () => {
+		const { readToday } = buildHomeTasks(
+			[
+				group({
+					hizbPlan: 7,
+					hizbToday: { assignmentId: 'today-5', completed: true, planDays: 7, portion: 5 },
+					id: 'plan',
+					kind: 'HIZB',
+					myBabNumbers: [],
+					myShareDoneAt: at(25, 8, 0)
+				})
+			],
+			now
+		);
+
+		expect(readToday.map(task => task.groupId)).toEqual(['plan']);
+	});
+
 	it('counts a daily share finished this round as read today, whatever the phone’s date', () => {
 		// Finished yesterday by the phone's calendar — after the group's own midnight, in its round.
 		const { readToday } = buildHomeTasks(

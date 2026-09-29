@@ -1,7 +1,9 @@
+import type { HizbAssignment, HizbReadingState } from '@/api/hizbReading.api';
 import type {
 	GroupBab,
 	GroupCycle,
 	GroupDetail,
+	GroupInvitePreview,
 	GroupSummary,
 	GroupVisibility,
 	MyProgress,
@@ -9,29 +11,38 @@ import type {
 	ProfileStats,
 	RoundSummary
 } from '@/lib/types/domain';
+import { boardPortionsOf } from '@/lib/utils/hizbPlanBoard';
+import {
+	hasDelailRepetition,
+	hasIstighfar,
+	hasSekine,
+	PLAN_SPANS,
+	PLAN_VERSION,
+	spansFor
+} from '@/lib/utils/hizbPlans';
 
 /**
  * Stand-in data for the first-use tour, and the reason it exists: **the tour opens on an account
  * that has nothing.**
  *
- * It runs straight after onboarding, when Ana sayfa is "İlk adım", the group screen cannot
- * be reached at all and Profil reads zero babs over an empty month. Ten of the thirteen stops
- * describe things that are not on screen, so the walkthrough would be a tour of a blank app —
- * and the rest would pause on a spinner each time it navigated.
+ * It runs straight after onboarding, when Ana sayfa is "İlk adım" and no group screen can be
+ * reached at all. Nearly every stop describes something that is not on screen, so the walkthrough
+ * would be a tour of a blank app — and would pause on a spinner each time it navigated.
  *
  * So while the tour is running, the queries behind those screens answer with this instead —
  * **for everybody, not only for an empty account**. It was conditional at first, so that a reader
  * with real groups would walk their own; that made the walkthrough two different things, because
  * the copy has to describe what is on screen and what was on screen depended on who was looking.
- * The cost is that a reader with groups of their own sees these three and these numbers for the
- * minute it lasts, and their own are one tap away the moment it ends.
+ * The cost is that a reader with groups of their own sees these and these numbers for the minute
+ * it lasts, and their own are one tap away the moment it ends — at the closing card, which already
+ * stands on them.
  *
- * **Three Cevşen groups, because one is not a day.** Stop 2 points at "Sıradaki" and stop 3 at its
- * button, and both read better with more behind them. The three differ in the ways shares
- * actually differ: one owned and mid-share, one joined and nearly done, one finished, which is
- * the one under "Bugün okunanlar". **And one Kur'an group** for the tour's Kur'an leg, which also
- * shows on Ana sayfa as a "Sonra" row. Everything is deliberately unremarkable, because it is a
- * demonstration rather than a brag.
+ * **Three Cevşen groups, because one is not a day.** T2 points at "Sıradaki", which reads better
+ * with more behind it. The three differ in the ways shares actually differ: one owned and
+ * mid-share, one joined and nearly done, one finished, which is the one under "Bugün okunanlar".
+ * **One Kur'an group and one Hizb group** for those parts of the tour, which also show on Ana sayfa
+ * as "Sonra" rows; and a hatim the reader has not joined, for K1's cüz picker. Everything is
+ * deliberately unremarkable, because it is a demonstration rather than a brag.
  *
  * **Each group is built by one factory**, so its share, its board, its counts and its rounds
  * cannot disagree with each other — the group screen derives the assigned panel's progress from
@@ -164,6 +175,8 @@ const summaryOf = (spec: DemoGroupSpec): GroupSummary => {
 
 	return {
 		completedAt: null,
+		hideMemberNames: false,
+		readSeersEnabled: false,
 		createdAt: daysAgo(24),
 		cycle: spec.cycle,
 		// These specs are the Cevşen groups — a hundred babs split by seat. The Kur'an leg's group
@@ -191,6 +204,7 @@ const summaryOf = (spec: DemoGroupSpec): GroupSummary => {
 		mySlotIndex: 3,
 		name: spec.name,
 		openToJoin: spec.openToJoin,
+		partCount: 100,
 		percent: readCount,
 		poolAllBabNumbers: pool,
 		poolBabNumbers: pool,
@@ -215,6 +229,7 @@ const detailOf = (spec: DemoGroupSpec): GroupDetail => ({
 	boundaryPolicy: null,
 	hasSkippedRound: false,
 	maxPerMember: null,
+	seesReaders: false,
 	babs: babsOf(spec),
 	inviteCode: spec.inviteCode,
 	members: [
@@ -228,6 +243,7 @@ const detailOf = (spec: DemoGroupSpec): GroupDetail => ({
 			percent: Math.round((spec.readInShare / SHARE_LENGTH) * 100),
 			readCount: spec.readInShare,
 			role: spec.isOwner ? 'OWNER' : 'MEMBER',
+			seesReaders: false,
 			slotIndex: 3,
 			userId: DEMO_USER_ID
 		}
@@ -244,8 +260,10 @@ const roundsOf = (spec: DemoGroupSpec): RoundSummary[] => [
 		endsAt: hoursFromNow(spec.hoursLeft),
 		isOpen: true,
 		missedCount: 0,
+		missedPartNumbers: [],
 		myOwedCount: SHARE_LENGTH,
 		myReadCount: spec.readInShare,
+		partCount: 100,
 		readCount: spec.readInShare + spec.othersReadCount,
 		roundIndex: 9,
 		startedAt: hoursFromNow(spec.hoursLeft - 24)
@@ -254,8 +272,11 @@ const roundsOf = (spec: DemoGroupSpec): RoundSummary[] => [
 		endsAt: hoursFromNow(spec.hoursLeft - 24),
 		isOpen: false,
 		missedCount: 12,
+		// The first twelve — clear of every demo share (14, 40 and 79 onward), which were all read.
+		missedPartNumbers: Array.from({ length: 12 }, (_, index) => index + 1),
 		myOwedCount: SHARE_LENGTH,
 		myReadCount: SHARE_LENGTH,
+		partCount: 100,
 		readCount: 88,
 		roundIndex: 8,
 		startedAt: hoursFromNow(spec.hoursLeft - 48)
@@ -308,7 +329,10 @@ const hatimSummary = (): GroupSummary => {
 		completedAt: null,
 		createdAt: daysAgo(24),
 		cycle: 'WEEKLY',
+		hideMemberNames: false,
+		readSeersEnabled: false,
 		kind: 'HATIM',
+		partCount: CUZ_TOTAL,
 		roundDays: 7,
 		daysLeft: 3,
 		dedication: 'Geçmişlerimiz için',
@@ -327,7 +351,7 @@ const hatimSummary = (): GroupSummary => {
 		myShareDoneAt: null,
 		myRoundRange: null,
 		mySlotIndex: 2,
-		name: 'Cuma Hatmi',
+		name: 'Ramazan Hatmi',
 		openToJoin: true,
 		percent: Math.round((readCount / CUZ_TOTAL) * 100),
 		poolAllBabNumbers: HATIM_POOL,
@@ -352,6 +376,7 @@ const hatimDetail = (): GroupDetail => ({
 	boundaryPolicy: 'KEEP',
 	hasSkippedRound: false,
 	maxPerMember: 3,
+	seesReaders: false,
 	babs: hatimBabs(),
 	inviteCode: 'CUMA-5H3T',
 	members: [
@@ -365,6 +390,7 @@ const hatimDetail = (): GroupDetail => ({
 			percent: Math.round((HATIM_MINE_READ.size / HATIM_MINE.length) * 100),
 			readCount: HATIM_MINE_READ.size,
 			role: 'MEMBER',
+			seesReaders: false,
 			slotIndex: 2,
 			userId: DEMO_USER_ID
 		}
@@ -381,8 +407,10 @@ const hatimRounds = (): RoundSummary[] => [
 		endsAt: hoursFromNow(HATIM_HOURS_LEFT),
 		isOpen: true,
 		missedCount: 0,
+		missedPartNumbers: [],
 		myOwedCount: HATIM_MINE.length,
 		myReadCount: HATIM_MINE_READ.size,
+		partCount: CUZ_TOTAL,
 		readCount: HATIM_MINE_READ.size + HATIM_OTHERS_READ,
 		roundIndex: HATIM_ROUND,
 		startedAt: hoursFromNow(HATIM_HOURS_LEFT - 24 * 7)
@@ -391,8 +419,10 @@ const hatimRounds = (): RoundSummary[] => [
 		endsAt: hoursFromNow(HATIM_HOURS_LEFT - 24 * 7),
 		isOpen: false,
 		missedCount: 0,
+		missedPartNumbers: [],
 		myOwedCount: HATIM_MINE.length,
 		myReadCount: HATIM_MINE.length,
+		partCount: CUZ_TOTAL,
 		readCount: CUZ_TOTAL,
 		roundIndex: HATIM_ROUND - 1,
 		startedAt: hoursFromNow(HATIM_HOURS_LEFT - 24 * 14)
@@ -431,7 +461,238 @@ const hatimMyProgress = (): MyProgress => {
 	};
 };
 
-export const TOUR_DEMO_GROUPS: GroupSummary[] = [...SPECS.map(summaryOf), hatimSummary()];
+/*
+ * **K1's hatim: one the reader has not joined yet.** The cüz picker is where a joiner chooses,
+ * so it reads an invite preview, not a group of theirs — twenty-two of thirty taken, eight still
+ * free to choose from.
+ */
+export const TOUR_DEMO_JOIN_HATIM_ID = 'tour-demo-hatim-join';
+const JOIN_HATIM_FREE = [3, 9, 14, 18, 23, 26, 28, 30];
+const JOIN_HATIM_READ = [1, 2, 4, 5, 7, 8, 10];
+
+const joinHatimPreview = (): GroupInvitePreview => ({
+	autoStartWhenFull: false,
+	boundaryPolicy: 'KEEP',
+	createdByName: 'Yusuf',
+	cycle: 'WEEKLY',
+	daysLeft: 5,
+	dedication: 'Hastalarımız için',
+	hideMemberNames: false,
+	id: TOUR_DEMO_JOIN_HATIM_ID,
+	isFull: false,
+	isMember: false,
+	kind: 'HATIM',
+	maxPerMember: null,
+	memberCount: 11,
+	memberNames: [],
+	name: 'Şifa Hatmi',
+	nextRange: null,
+	openToJoin: true,
+	partCount: CUZ_TOTAL,
+	percent: Math.round((JOIN_HATIM_READ.length / CUZ_TOTAL) * 100),
+	poolBabNumbers: JOIN_HATIM_FREE,
+	readBabNumbers: JOIN_HATIM_READ,
+	readCount: JOIN_HATIM_READ.length,
+	roundDayIndex: 3,
+	roundDays: 7,
+	roundEndsAt: hoursFromNow(24 * 5),
+	spots: CUZ_TOTAL,
+	spotsLeft: JOIN_HATIM_FREE.length,
+	splitMode: 'FIXED',
+	startedAt: daysAgo(16),
+	status: 'RUNNING',
+	timezone: 'Europe/Istanbul',
+	visibility: 'OPEN'
+});
+
+/*
+ * **H1 and H2's group: a Hizb plan where each member chose their own plan** ("Karma plan") — the
+ * viewer on 33 days, on day 1 of it, part-way through the opening istighfar: four of eleven. That
+ * is the reading whose card H1 points at and whose counter H2 shows, so the two stops describe
+ * the same thing. Everyone else's reading today covers a believable part of the 33.
+ */
+const HIZB_ID = 'tour-demo-hizb';
+const HIZB_PLAN_DAYS = 33;
+const HIZB_PORTION = 1;
+const HIZB_ASSIGNMENT_ID = 'tour-demo-hizb-today';
+const HIZB_MEMBERS = 312;
+const HIZB_READERS = 290;
+const HIZB_READ_TODAY = 140;
+/** Portions somebody finished today — the board's green cells. */
+const HIZB_BOARD_READ = [2, 3, 4, 5, 6, 8, 9, 10, 12, 13, 15, 16, 17, 18, 19, 21, 22, 24, 25, 27, 28];
+
+const hizbCoveredSpans = () => [...new Set(HIZB_BOARD_READ.flatMap(portion => spansFor(HIZB_PLAN_DAYS, portion)))];
+
+const hizbAssignment = (): HizbAssignment => ({
+	bookmark: 0,
+	boardPortions: boardPortionsOf(HIZB_PLAN_DAYS, HIZB_PORTION),
+	completedAt: null,
+	date: localKey(new Date()),
+	day: 1,
+	delailRepetitions: 0,
+	id: HIZB_ASSIGNMENT_ID,
+	istighfarRepetitions: 4,
+	istighfarTarget: 11,
+	planDays: HIZB_PLAN_DAYS,
+	planVersion: PLAN_VERSION,
+	portion: HIZB_PORTION,
+	readFrom: null,
+	readPortions: [],
+	repetitions: 0,
+	requiresDelailRepetition: hasDelailRepetition(HIZB_PLAN_DAYS, HIZB_PORTION),
+	requiresIstighfar: hasIstighfar(HIZB_PLAN_DAYS, HIZB_PORTION),
+	requiresSekine: hasSekine(HIZB_PLAN_DAYS, HIZB_PORTION),
+	round: 1,
+	traversal: 0,
+	version: 0
+});
+
+const hizbSummary = (): GroupSummary => {
+	const spans = hizbCoveredSpans();
+
+	return {
+		completedAt: null,
+		createdAt: daysAgo(40),
+		cycle: 'DAILY',
+		daysLeft: null,
+		dedication: 'Her gün bir bölüm',
+		endsAt: null,
+		hideMemberNames: false,
+		hizbCoveredSpans: spans,
+		hizbDay: 41,
+		hizbIndividual: false,
+		hizbPlan: 0,
+		hizbStartPortion: 1,
+		hizbToday: {
+			assignmentId: HIZB_ASSIGNMENT_ID,
+			completed: false,
+			planDays: HIZB_PLAN_DAYS,
+			portion: HIZB_PORTION
+		},
+		id: HIZB_ID,
+		inactivityDays: null,
+		isFull: false,
+		isMember: true,
+		isOwner: false,
+		kind: 'HIZB',
+		memberCount: HIZB_MEMBERS,
+		myBabNumbers: [],
+		myNextBabNumber: null,
+		myNextRoundRange: null,
+		myPoolBabNumbers: [],
+		myReadCount: 0,
+		myRoundRange: null,
+		myShareDoneAt: null,
+		mySlotIndex: null,
+		mustPickCuz: false,
+		name: 'Cuma Hizbi',
+		nextDayAt: hoursFromNow(9),
+		openToJoin: true,
+		partCount: 33,
+		percent: Math.round((HIZB_BOARD_READ.length / 33) * 100),
+		poolAllBabNumbers: [],
+		poolBabNumbers: [],
+		readCount: HIZB_BOARD_READ.length,
+		readSeersEnabled: false,
+		roundDays: 1,
+		roundEndsAt: hoursFromNow(9),
+		roundIndex: 40,
+		roundStartedAt: hoursFromNow(-15),
+		spots: 33,
+		spotsLeft: 0,
+		splitMode: 'FLEXIBLE',
+		startedAt: daysAgo(40),
+		status: 'RUNNING',
+		timezone: 'Europe/Istanbul',
+		visibility: 'OPEN'
+	};
+};
+
+const hizbDetail = (): GroupDetail => ({
+	...hizbSummary(),
+	autoStartWhenFull: false,
+	babs: [],
+	boundaryPolicy: null,
+	hasSkippedRound: false,
+	inviteCode: 'CUMA-8H2Z',
+	maxPerMember: null,
+	members: [],
+	ownerUserId: 'tour-demo-other',
+	poolReleases: [],
+	reminderEnabled: true,
+	reminderTime: '21:30',
+	seesReaders: false,
+	startsAt: daysAgo(40)
+});
+
+/** Fixed first names for the readers list's avatars — the first few rows are all it shows. */
+const HIZB_READER_NAMES = ['Ahmet', 'Meryem', 'Ömer', 'Zehra', 'Yusuf', 'Hatice'];
+
+const hizbReadingState = (): HizbReadingState => {
+	const spans = hizbCoveredSpans();
+	const today = new Date();
+	const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+	const coverage = { complete: spans.length === PLAN_SPANS.length, covered: spans.length, total: PLAN_SPANS.length };
+
+	return {
+		assignments: [],
+		completedTraversals: 0,
+		coverage,
+		coveredSpans: spans,
+		currentRound: { days: 1, number: 1, read: 0 },
+		dailyHistory: Array.from({ length: 31 }, (_, index) => {
+			const date = new Date(today.getFullYear(), today.getMonth(), today.getDate() - index);
+			const covered = index === 0 ? spans.length : Math.min(PLAN_SPANS.length, 24 + ((index * 7) % 12));
+
+			return { complete: covered === PLAN_SPANS.length, covered, date: localKey(date), total: PLAN_SPANS.length };
+		}),
+		date: localKey(today),
+		enrollment: {
+			endDay: null,
+			id: 'tour-demo-hizb-enrollment',
+			joinedDate: localKey(today),
+			planDays: HIZB_PLAN_DAYS,
+			reason: null,
+			removalDays: null,
+			sequence: 0
+		},
+		isReturnedToday: false,
+		members: Array.from({ length: HIZB_READERS }, (_, index) => ({
+			completed: index < HIZB_READ_TODAY,
+			displayName: index === 0 ? null : HIZB_READER_NAMES[index % HIZB_READER_NAMES.length] ?? null,
+			id: `tour-demo-hizb-reader-${index}`,
+			isMe: index === 0,
+			planDays: [33, 15, 7][index % 3] ?? 33,
+			portion: (index % 33) + 1,
+			started: false
+		})).map(member =>
+			member.isMe ? { ...member, completed: false, portion: HIZB_PORTION, started: true } : member
+		),
+		missed: [],
+		missedCount: 0,
+		nextCursor: null,
+		nextDayAt: hoursFromNow(9),
+		previousDay: {
+			complete: false,
+			coveredSpans: spans.slice(0, 28),
+			covered: 28,
+			date: localKey(yesterday),
+			total: PLAN_SPANS.length
+		},
+		readsFromBook: false,
+		startedDate: localKey(new Date(Date.now() - 40 * 86_400_000)),
+		today: hizbAssignment()
+	};
+};
+
+/** H1's group, and the reading H2 opens: today's. */
+export const TOUR_DEMO_HIZB_SUBJECT = { assignmentId: HIZB_ASSIGNMENT_ID, groupId: HIZB_ID };
+
+export const tourDemoHizbReading = (): HizbReadingState => hizbReadingState();
+export const tourDemoHizbAssignment = (): HizbAssignment => hizbAssignment();
+export const tourDemoPreview = (): GroupInvitePreview => joinHatimPreview();
+
+export const TOUR_DEMO_GROUPS: GroupSummary[] = [...SPECS.map(summaryOf), hatimSummary(), hizbSummary()];
 
 /** The group the tour walks, and the bab its reader stop opens: the first row on Ana sayfa. */
 export const TOUR_DEMO_SUBJECT = {
@@ -451,7 +712,7 @@ const isHatim = (groupId: string) => groupId === HATIM_ID;
 const specFor = (groupId: string) => SPECS.find(spec => spec.id === groupId) ?? SPECS[0]!;
 
 export const tourDemoGroup = (groupId: string): GroupDetail =>
-	isHatim(groupId) ? hatimDetail() : detailOf(specFor(groupId));
+	groupId === HIZB_ID ? hizbDetail() : isHatim(groupId) ? hatimDetail() : detailOf(specFor(groupId));
 export const tourDemoBabs = (groupId: string): GroupBab[] =>
 	isHatim(groupId) ? hatimBabs() : babsOf(specFor(groupId));
 export const tourDemoRounds = (groupId: string): RoundSummary[] =>

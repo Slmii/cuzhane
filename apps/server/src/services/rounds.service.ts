@@ -1,16 +1,33 @@
 import prisma from '@db/prisma';
-import { roundEndsAt, roundIndexSince, roundStartedAtFor } from '@utils/rounds';
+import { roundEndsAt, roundIndexSince, roundLengthFor, roundStartedAtFor } from '@utils/rounds';
 import type { Prisma } from '../generated/prisma/client';
 import type { Group } from '../generated/prisma/client';
+
+/**
+ * Takes the group row's write lock for the rest of the caller's transaction.
+ *
+ * Every path that mutates a group's board takes this FIRST, before touching any bab. The
+ * rollover locks the group and then the babs, so a path that grabbed babs first would
+ * deadlock against it — this keeps one lock order everywhere. Re-taking it inside the same
+ * transaction is free, which is why `syncCompletedAt` can call it unconditionally.
+ *
+ * It lives here, beside the rollover it orders against, rather than in `babs.service`: the
+ * services that take it import this file already, so none of them has to import another
+ * service — and `babs.service` itself imports one that takes it.
+ */
+export const lockGroup = async (tx: Prisma.TransactionClient, groupId: string): Promise<void> => {
+	await tx.$queryRaw`SELECT id FROM "Group" WHERE id = ${groupId} FOR UPDATE`;
+};
 
 /**
  * Which round the calendar says a group should be on right now.
  *
  * "The calendar" means the group's own — boundaries are local midnights in `group.timezone`,
- * so a group in New York rolls at New York midnight for all of its members, wherever they are.
+ * so a group in New York rolls at New York midnight for all of its members, wherever they are —
+ * and its own length, which `roundLengthFor` reads (days, or a Hizb's calendar month).
  */
 export const expectedRoundIndex = (
-	group: Pick<Group, 'cycle' | 'roundDays' | 'startedAt' | 'status' | 'timezone'>,
+	group: Pick<Group, 'cycle' | 'kind' | 'roundDays' | 'startedAt' | 'status' | 'timezone'>,
 	now = new Date()
 ) => {
 	/*
@@ -30,7 +47,7 @@ export const expectedRoundIndex = (
 	}
 
 	return group.status === 'RUNNING' && group.startedAt
-		? roundIndexSince(group.startedAt, group.roundDays, now, group.timezone)
+		? roundIndexSince(group.startedAt, roundLengthFor(group), now, group.timezone)
 		: 0;
 };
 
@@ -76,7 +93,7 @@ export const ensureCurrentRound = async (tx: Prisma.TransactionClient, groupId: 
 		return false;
 	}
 
-	const startedAt = roundStartedAtFor(group.startedAt, group.roundDays, target, group.timezone);
+	const startedAt = roundStartedAtFor(group.startedAt, roundLengthFor(group), target, group.timezone);
 
 	// Guarded on the round we believe we are leaving, so two requests arriving together
 	// after a boundary cannot both roll — the loser matches zero rows and stops here
@@ -86,7 +103,7 @@ export const ensureCurrentRound = async (tx: Prisma.TransactionClient, groupId: 
 		data: {
 			roundIndex: target,
 			roundStartedAt: startedAt,
-			endsAt: roundEndsAt(startedAt, group.roundDays, group.timezone),
+			endsAt: roundEndsAt(group.startedAt, roundLengthFor(group), target, group.timezone),
 			// A finished round's stamp belongs to that round, not to the fresh one.
 			completedAt: null
 		}

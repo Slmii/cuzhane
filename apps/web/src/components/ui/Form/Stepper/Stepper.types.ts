@@ -6,7 +6,7 @@ export interface FormStepperProps {
 	max?: number;
 	step?: number;
 	/** Allowed values, ascending — see `StepperProps.values`. */
-	values?: number[];
+	values?: readonly number[];
 	caption?: string;
 	style?: StyleProp<ViewStyle>;
 }

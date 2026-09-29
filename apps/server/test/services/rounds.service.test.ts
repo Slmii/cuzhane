@@ -1,6 +1,6 @@
 import prisma from '@db/prisma';
 import { ensureCurrentRound, expectedRoundIndex } from '@services/rounds.service';
-import { rangeForRound } from '@utils/babs';
+import { BAB_COUNT, rangeForRound } from '@utils/babs';
 import {
 	civilDayNumber,
 	DEFAULT_TIME_ZONE,
@@ -77,7 +77,7 @@ const createGroup = async (options: GroupOptions = {}) => {
 			startedAt,
 			roundIndex,
 			roundStartedAt,
-			endsAt: roundStartedAt ? roundEndsAt(roundStartedAt, ROUND_DAYS[cycle], timezone) : null,
+			endsAt: startedAt ? roundEndsAt(startedAt, ROUND_DAYS[cycle], roundIndex, timezone) : null,
 			completedAt: completed ? new Date() : null
 		}
 	});
@@ -133,6 +133,7 @@ describe('expectedRoundIndex', () => {
 	it('is 0 for a GATHERING group however long ago it was created', () => {
 		const group = {
 			cycle: 'DAILY' as const,
+			kind: 'CEVSEN' as const,
 			roundDays: 1,
 			startedAt: daysAgo(30),
 			status: 'GATHERING' as const,
@@ -144,6 +145,7 @@ describe('expectedRoundIndex', () => {
 	it('is 0 for a RUNNING group that somehow has no start stamp', () => {
 		const group = {
 			cycle: 'DAILY' as const,
+			kind: 'CEVSEN' as const,
 			roundDays: 1,
 			startedAt: null,
 			status: 'RUNNING' as const,
@@ -155,6 +157,7 @@ describe('expectedRoundIndex', () => {
 	it('jumps straight to the round the calendar is on after a quiet stretch', () => {
 		const group = {
 			cycle: 'DAILY' as const,
+			kind: 'CEVSEN' as const,
 			roundDays: 1,
 			startedAt: daysAgo(3),
 			status: 'RUNNING' as const,
@@ -166,12 +169,61 @@ describe('expectedRoundIndex', () => {
 	it('counts a WEEKLY group in weeks, not days', () => {
 		const group = {
 			cycle: 'WEEKLY' as const,
+			kind: 'CEVSEN' as const,
 			roundDays: 7,
 			startedAt: daysAgo(20),
 			status: 'RUNNING' as const,
 			timezone: DEFAULT_TIME_ZONE
 		};
 		expect(expectedRoundIndex(group)).toBe(2);
+	});
+
+	/*
+	 * A MONTHLY label means two calendars: thirty days for a Kur'an group (development's), the
+	 * calendar month anchored on the start's day for a Hizb group (the branch's).
+	 */
+	it('counts a monthly hatim in thirty-day rounds', () => {
+		const startedAt = new Date('2027-01-31T10:00:00Z');
+		const group = {
+			cycle: 'MONTHLY' as const,
+			kind: 'HATIM' as const,
+			roundDays: 30,
+			startedAt,
+			status: 'RUNNING' as const,
+			timezone: 'UTC'
+		};
+
+		expect(expectedRoundIndex(group, new Date('2027-03-01T12:00:00Z'))).toBe(0);
+		expect(expectedRoundIndex(group, new Date('2027-03-02T00:01:00Z'))).toBe(1);
+	});
+
+	it('counts a monthly Hizb group in calendar months, clamped to short ones', () => {
+		const startedAt = new Date('2027-01-31T10:00:00Z');
+		const group = {
+			cycle: 'MONTHLY' as const,
+			kind: 'HIZB' as const,
+			roundDays: 30,
+			startedAt,
+			status: 'RUNNING' as const,
+			timezone: 'UTC'
+		};
+
+		expect(expectedRoundIndex(group, new Date('2027-02-27T23:59:00Z'))).toBe(0);
+		expect(expectedRoundIndex(group, new Date('2027-02-28T00:01:00Z'))).toBe(1);
+		expect(expectedRoundIndex(group, new Date('2027-03-31T00:01:00Z'))).toBe(2);
+	});
+
+	it('never moves a CUSTOM group off round 0', () => {
+		const group = {
+			cycle: 'CUSTOM' as const,
+			kind: 'HATIM' as const,
+			roundDays: 12,
+			startedAt: daysAgo(100),
+			status: 'RUNNING' as const,
+			timezone: DEFAULT_TIME_ZONE
+		};
+
+		expect(expectedRoundIndex(group)).toBe(0);
 	});
 });
 
@@ -229,10 +281,15 @@ describe('ensureCurrentRound', () => {
 
 		await roll(group.id);
 		const rolled = await reload(group.id);
-		const expectedStart = roundStartedAtFor(daysAgo(startedDaysAgo), ROUND_DAYS.DAILY, 3, DEFAULT_TIME_ZONE);
+		const anchor = daysAgo(startedDaysAgo);
+		const expectedStart = roundStartedAtFor(anchor, ROUND_DAYS.DAILY, 3, DEFAULT_TIME_ZONE);
 
 		expect(rolled.roundStartedAt).toEqual(expectedStart);
-		expect(rolled.endsAt).toEqual(roundEndsAt(expectedStart, 1, DEFAULT_TIME_ZONE));
+		expect(rolled.endsAt).toEqual(roundEndsAt(anchor, ROUND_DAYS.DAILY, 3, DEFAULT_TIME_ZONE));
+		// The same boundary a day counted from the round's own start gives.
+		expect(rolled.endsAt).toEqual(
+			startOfCivilDay(civilDayNumber(expectedStart, DEFAULT_TIME_ZONE) + 1, DEFAULT_TIME_ZONE)
+		);
 	});
 
 	it('lands a seat on the block the skipped-to round owes it', async () => {
@@ -242,7 +299,9 @@ describe('ensureCurrentRound', () => {
 
 		// Seat 0 after three rounds reads seat 3's block — the same place it would have
 		// reached had it rolled each midnight.
-		expect(rangeForRound(0, SPOTS, (await reload(group.id)).roundIndex)).toEqual(rangeForRound(3, SPOTS, 0));
+		expect(rangeForRound(0, SPOTS, (await reload(group.id)).roundIndex, BAB_COUNT)).toEqual(
+			rangeForRound(3, SPOTS, 0, BAB_COUNT)
+		);
 	});
 
 	it('is idempotent — a second pass finds nothing to do', async () => {

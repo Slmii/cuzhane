@@ -1,26 +1,29 @@
+import { enrollHizbInTransaction, hizbSummary, expireHizb } from './hizbReading.service';
 import { BAD_REQUEST, INTERNAL_SERVER_ERROR } from '@config/httpCodes';
 import { HttpError } from '@config/httpError';
 import prisma from '@db/prisma';
+import { partCountFor } from '@utils/groupKinds';
 import { formatInviteCode, generateInviteCode } from '@utils/inviteCode';
 import { normalizeUserId } from '@utils/normalizeUserId';
-import { ROUND_DAYS, roundEndsAt } from '@utils/rounds';
+import { civilDayNumber, ROUND_DAYS, roundEndsAt, roundLengthFor } from '@utils/rounds';
 import { CUZ_COUNT, unitCountFor } from '@utils/units';
 import type { CuzBoundaryPolicy, CuzDistribution } from '../generated/prisma/client';
 import type { Prisma } from '../generated/prisma/client';
 import { getMemberProfiles } from '@utils/memberProfiles';
 import { requireMembership, requireOwner } from './groupAccess.service';
 import { toGroupDetail, toGroupSummary } from './groupSerializers';
-import { ensureCurrentRoundFor, ensureCurrentRoundsFor } from './rounds.service';
+import { lockGroup, ensureCurrentRoundFor, ensureCurrentRoundsFor } from './rounds.service';
 import { holdingsByGroupFor, holdingsFor } from './unitPlan';
 import type { GroupCycle, GroupDetail, GroupSplitMode, GroupSummary, GroupVisibility } from './groupSerializers';
 
 // `exactOptionalPropertyTypes` is on, so optional fields must admit `undefined`
 // explicitly — Zod's inferred output types always include it on optional keys.
-/** What both kinds are told. The halves that differ are the two branches below. */
+/** What every kind is told. The halves that differ are the branches below. */
 type CreateGroupCommon = {
 	name: string;
 	dedication?: string | null | undefined;
 	visibility: GroupVisibility;
+	hideMemberNames?: boolean | undefined;
 	reminderEnabled: boolean;
 	reminderTime: string;
 	autoStartWhenFull?: boolean | undefined;
@@ -44,11 +47,25 @@ export type CreateGroupInput =
 			splitMode: GroupSplitMode;
 			/**
 			 * **Only the two the body schema admits.** `GroupCycle` gained MONTHLY and CUSTOM for
-			 * the hatim flow, and CUSTOM is not a preset at all — it means "the creator typed a
-			 * number", which `ROUND_DAYS` cannot answer for. A Cevşen group never types one.
+			 * the hatim and Hizb flows, and CUSTOM is not a preset at all — it means "the creator
+			 * typed a number", which `ROUND_DAYS` cannot answer for. A Cevşen group never types one.
 			 */
 			cycle: Exclude<GroupCycle, 'MONTHLY' | 'CUSTOM'>;
 			spots: number;
+	  })
+	| (CreateGroupCommon & {
+			kind: 'HIZB';
+			splitMode: GroupSplitMode;
+			/** A Hizb MONTHLY is a calendar month — see `roundLengthFor`. */
+			cycle: Exclude<GroupCycle, 'CUSTOM'>;
+			spots: number;
+			hizbIndividual?: boolean | undefined;
+			hizbStartPortion?: number | undefined;
+			/** A personal plan: 0 lets each member choose, otherwise 7/15/33 days. */
+			hizbPlan?: number | undefined;
+			inactivityDays?: number | null | undefined;
+			/** "Okuma sorumluları" — a shared plan's "has read" notice to the ticked members only. */
+			readSeersEnabled?: boolean | undefined;
 	  })
 	| (CreateGroupCommon & {
 			kind: 'HATIM';
@@ -72,40 +89,56 @@ export type CreateGroupInput =
  * taken rather than when thirty people have joined, so the seat cap is only the ceiling
  * `slotIndex` needs, never a divisor of anything. `splitMode` is inert for the same reason —
  * there are no blocks to rotate — so it records the value that never moves.
+ *
+ * A seat-based kind (Cevşen, Hizb) takes its length from the cadence preset. A personal Hizb
+ * plan runs by the day and has no seats, and neither has a flexible group, so both are sized
+ * to the whole book. A Hizb MONTHLY stores thirty days too, though the calendar reads it as a
+ * calendar month (`roundLengthFor`).
  */
-const planColumnsFor = (input: CreateGroupInput) =>
-	input.kind === 'HATIM'
-		? {
-				boundaryPolicy: input.boundaryPolicy,
-				cycle: (input.roundDays === 1
-					? 'DAILY'
-					: input.roundDays === 7
-					? 'WEEKLY'
-					: input.roundDays === 30
-					? 'MONTHLY'
-					: 'CUSTOM') as GroupCycle,
-				distribution: input.distribution,
-				kind: 'HATIM' as const,
-				maxPerMember: input.maxPerMember,
-				roundDays: input.roundDays,
-				splitMode: 'FIXED' as GroupSplitMode,
-				spots: CUZ_COUNT
-		  }
-		: {
-				boundaryPolicy: null,
-				cycle: input.cycle as GroupCycle,
-				distribution: null,
-				kind: 'CEVSEN' as const,
-				maxPerMember: null,
-				roundDays: ROUND_DAYS[input.cycle],
-				splitMode: input.splitMode,
-				spots: input.spots
-		  };
+const planColumnsFor = (input: CreateGroupInput, { flexible, personal }: { flexible: boolean; personal: boolean }) => {
+	if (input.kind === 'HATIM') {
+		return {
+			boundaryPolicy: input.boundaryPolicy,
+			cycle: (input.roundDays === 1
+				? 'DAILY'
+				: input.roundDays === 7
+				? 'WEEKLY'
+				: input.roundDays === 30
+				? 'MONTHLY'
+				: 'CUSTOM') as GroupCycle,
+			distribution: input.distribution,
+			kind: input.kind,
+			maxPerMember: input.maxPerMember,
+			roundDays: input.roundDays,
+			splitMode: 'FIXED' as GroupSplitMode,
+			spots: CUZ_COUNT
+		};
+	}
+
+	const cycle = personal ? 'DAILY' : input.cycle;
+
+	return {
+		boundaryPolicy: null,
+		cycle: cycle as GroupCycle,
+		distribution: null,
+		kind: input.kind,
+		maxPerMember: null,
+		roundDays: ROUND_DAYS[cycle],
+		splitMode: (personal ? 'FLEXIBLE' : input.splitMode) as GroupSplitMode,
+		spots: flexible ? partCountFor(input.kind) : input.spots
+	};
+};
 
 export type UpdateGroupInput = {
+	inactivityDays?: number | null | undefined;
 	name?: string | undefined;
 	dedication?: string | null | undefined;
 	visibility?: GroupVisibility | undefined;
+	hideMemberNames?: boolean | undefined;
+	/** A shared Hizb plan's members who see who read (the owner may be one of them), at most three. */
+	readerSeerUserIds?: string[] | undefined;
+	/** "Okuma sorumluları" on or off; the ticks are kept either way. */
+	readSeersEnabled?: boolean | undefined;
 	openToJoin?: boolean | undefined;
 	reminderEnabled?: boolean | undefined;
 	reminderTime?: string | undefined;
@@ -122,6 +155,8 @@ export type DiscoverGroupsQuery = {
 };
 
 const DISCOVER_LIMIT = 50;
+/** How many members of a shared Hizb plan may see who read. Mirrored in the web app's Yönet. */
+export const MAX_READER_SEERS = 3;
 const MAX_INVITE_CODE_ATTEMPTS = 5;
 
 const isUniqueConstraintError = (error: unknown): boolean =>
@@ -188,15 +223,19 @@ export const listGroupsForUser = async (userId: string): Promise<GroupSummary[]>
 			  });
 	const skippedGroupIds = new Set(skips.map(skip => skip.groupId));
 
-	return groups.map(group =>
-		toGroupSummary(
-			group,
-			group.babs,
-			group.members,
-			normalizedUserId,
-			holdingsByGroupId.get(group.id) ?? [],
-			skippedGroupIds.has(group.id)
-		)
+	return Promise.all(
+		groups.map(async group => ({
+			...toGroupSummary(
+				group,
+				group.babs,
+				group.members,
+				normalizedUserId,
+				holdingsByGroupId.get(group.id) ?? [],
+				skippedGroupIds.has(group.id)
+			),
+			// A personal Hizb plan's share is the member's own assignment, not a seat's block.
+			...(group.hizbPlan !== null ? await hizbSummary(group.id, normalizedUserId) : {})
+		}))
 	);
 };
 
@@ -221,7 +260,7 @@ export const getGroupDetailForUser = async (userId: string, groupId: string): Pr
 	const profiles = await getMemberProfiles(group.members.map(member => member.userId));
 	const holdings = await holdingsFor(prisma, group, group.roundIndex);
 
-	return toGroupDetail(
+	const detail = toGroupDetail(
 		group,
 		group.babs,
 		group.members,
@@ -232,6 +271,7 @@ export const getGroupDetailForUser = async (userId: string, groupId: string): Pr
 		holdings,
 		group.roundSkips.map(skip => skip.roundIndex)
 	);
+	return group.hizbPlan !== null ? { ...detail, ...(await hizbSummary(group.id, normalizedUserId)) } : detail;
 };
 
 export const createGroupForUser = async (
@@ -241,15 +281,35 @@ export const createGroupForUser = async (
 ): Promise<GroupDetail> => {
 	const normalizedUserId = normalizeUserId(userId);
 	const startsAt = new Date();
-	// A placeholder until the owner starts: `startGroupForUser` recomputes it from the
-	// moment round 0 actually begins, so gathering time doesn't eat into the round.
+	// The Hizb's plan settings, or none for the other kinds (the body schema refuses them there).
+	const hizb = input.kind === 'HIZB' ? input : null;
+	const personal = hizb?.hizbPlan !== undefined;
+	const individual = hizb?.hizbIndividual ?? false;
+	const startPortion = hizb?.hizbStartPortion ?? 1;
+	if (
+		!Number.isInteger(startPortion) ||
+		startPortion < 1 ||
+		(individual ? !personal || !hizb?.hizbPlan || startPortion > hizb.hizbPlan : startPortion !== 1)
+	) {
+		throw new HttpError(BAD_REQUEST, 'Invalid individual reading start');
+	}
+	if (hizb?.hizbPlan !== undefined && ![0, 7, 15, 33].includes(hizb.hizbPlan)) {
+		throw new HttpError(BAD_REQUEST, 'Invalid personal plan');
+	}
+	const flexible = personal || (input.kind !== 'HATIM' && input.splitMode === 'FLEXIBLE');
+	if (flexible && !personal && input.visibility !== 'OPEN') {
+		throw new HttpError(BAD_REQUEST, 'Flexible groups must be open');
+	}
 	/*
 	 * **The cadence is a label; the calendar wants a number.** A Cevşen cycle maps to a fixed
 	 * length, so the preset answers for it — a hatim's round can be any number of days, which
-	 * no enum carries, and that is why `roundDays` is stored rather than looked up.
+	 * no enum carries, and that is why `roundDays` is stored rather than looked up. A Hizb
+	 * MONTHLY is the one calendar month, which `roundLengthFor` answers for.
 	 */
-	const plan = planColumnsFor(input);
-	const endsAt = roundEndsAt(startsAt, plan.roundDays, input.timezone);
+	const plan = planColumnsFor(input, { flexible, personal });
+	// A placeholder until the owner starts: `startGroupForUser` recomputes it from the
+	// moment round 0 actually begins, so gathering time doesn't eat into the round.
+	const endsAt = roundEndsAt(startsAt, roundLengthFor(plan), 0, input.timezone);
 
 	// Resolve the invite code BEFORE opening the transaction. Postgres aborts the whole
 	// transaction on a unique violation, so retrying `create` inside one can never
@@ -262,31 +322,44 @@ export const createGroupForUser = async (
 				ownerUserId: normalizedUserId,
 				name: input.name,
 				dedication: input.dedication ?? null,
-				visibility: input.visibility,
+				visibility: individual ? 'PRIVATE' : input.visibility,
+				hideMemberNames: input.hideMemberNames ?? false,
 				...plan,
+				hizbPlan: hizb?.hizbPlan ?? null,
+				hizbIndividual: individual,
+				hizbStartPortion: startPortion,
+				openToJoin: !individual,
+				inactivityDays: personal && !individual ? hizb?.inactivityDays ?? null : null,
+				readSeersEnabled: personal && !individual ? hizb?.readSeersEnabled ?? false : false,
 				// The owner's zone becomes the group's day. Everyone's board resets on this
 				// clock, which is why it is captured once and never changed.
 				timezone: input.timezone,
 				inviteCode,
 				reminderEnabled: input.reminderEnabled,
 				reminderTime: input.reminderTime,
-				autoStartWhenFull: input.autoStartWhenFull ?? true,
+				autoStartWhenFull: flexible ? false : input.autoStartWhenFull ?? true,
 				// A new group gathers members first — the owner starts day 1 explicitly, so
 				// nothing is counted while people are still joining.
-				status: 'GATHERING',
-				startedAt: null,
+				status: flexible ? 'RUNNING' : 'GATHERING',
+				startedAt: flexible ? startsAt : null,
+				roundStartedAt: flexible ? startsAt : null,
 				startsAt,
 				endsAt
 			}
 		});
 
-		// A hundred rows with nothing but their number. Ownership isn't stored: who reads
-		// which block falls out of the seat and the round, and `assignedUserId` is reserved
-		// for pool volunteering.
-		await tx.groupBab.createMany({
-			// One row per unit — a hundred babs, or thirty cüz. See `unitCountFor`.
-			data: Array.from({ length: unitCountFor(group) }, (_, index) => ({ groupId: group.id, number: index + 1 }))
-		});
+		// One row per unit — a hundred babs, thirty cüz or 33 Hizb portions (`unitCountFor`) —
+		// with nothing but its number. Ownership isn't stored: who reads which block falls out
+		// of the seat and the round (or, for a hatim, `CuzHolding`), and `assignedUserId` is
+		// reserved for pool volunteering. A personal Hizb plan has no shared board.
+		if (!personal) {
+			await tx.groupBab.createMany({
+				data: Array.from({ length: unitCountFor(group) }, (_, index) => ({
+					groupId: group.id,
+					number: index + 1
+				}))
+			});
+		}
 
 		/*
 		 * **The creator's cüz, written in the same transaction as the group.**
@@ -317,9 +390,15 @@ export const createGroupForUser = async (
 				userId: normalizedUserId,
 				displayName,
 				role: 'OWNER',
-				slotIndex: 0
+				slotIndex: 0,
+				// A shared Hizb plan's owner sees who read unless they untick themselves.
+				seesReaders: personal && !individual
 			}
 		});
+
+		if (personal && group.hizbPlan !== 0) {
+			await enrollHizbInTransaction(tx, group, normalizedUserId);
+		}
 
 		// A hatim's owner can take all thirty on the way in — full before anyone else arrives,
 		// so it starts now rather than waiting for a join that can never come.
@@ -337,12 +416,53 @@ export const updateGroupForUser = async (
 	input: UpdateGroupInput
 ): Promise<GroupDetail> => {
 	await requireOwner(userId, groupId);
+	const existing = await prisma.group.findUniqueOrThrow({ where: { id: groupId } });
+	if (
+		existing.hizbIndividual &&
+		(input.visibility === 'OPEN' || input.openToJoin === true || input.inactivityDays != null)
+	) {
+		throw new HttpError(BAD_REQUEST, 'Individual reading stays private with no inactivity removal');
+	}
+	if (
+		existing.hizbPlan === null &&
+		existing.splitMode === 'FLEXIBLE' &&
+		(input.visibility === 'PRIVATE' || input.openToJoin === false || input.autoStartWhenFull === true)
+	) {
+		throw new HttpError(BAD_REQUEST, 'Flexible groups stay open to everyone');
+	}
 
 	if (input.spots !== undefined || input.splitMode !== undefined || input.cycle !== undefined) {
 		throw new HttpError(BAD_REQUEST, 'Spots, split mode, and cycle cannot be changed after creation');
 	}
 
+	const seers = input.readerSeerUserIds?.map(normalizeUserId);
+	if (
+		(seers !== undefined || input.readSeersEnabled !== undefined) &&
+		(existing.hizbPlan === null || existing.hizbIndividual)
+	) {
+		throw new HttpError(BAD_REQUEST, 'Only a shared Hizb plan has readers to watch');
+	}
+	if (seers !== undefined) {
+		if (new Set(seers).size !== seers.length || seers.length > MAX_READER_SEERS) {
+			throw new HttpError(BAD_REQUEST, `Choose at most ${MAX_READER_SEERS} members`);
+		}
+		const found = await prisma.groupMember.count({ where: { groupId, userId: { in: seers } } });
+		if (found !== seers.length) {
+			throw new HttpError(BAD_REQUEST, 'Only members of this group can be chosen');
+		}
+	}
+
 	const data: Prisma.GroupUpdateInput = {};
+	if (input.readSeersEnabled !== undefined) {
+		data.readSeersEnabled = input.readSeersEnabled;
+	}
+	if (input.inactivityDays !== undefined) {
+		if (existing.hizbPlan === null) {
+			throw new HttpError(BAD_REQUEST, 'Inactivity applies to personal Hizb plans');
+		}
+		data.inactivityDays = input.inactivityDays;
+		data.inactivitySinceDay = civilDayNumber(new Date(), existing.timezone);
+	}
 
 	if (input.name !== undefined) {
 		data.name = input.name;
@@ -354,6 +474,9 @@ export const updateGroupForUser = async (
 
 	if (input.visibility !== undefined) {
 		data.visibility = input.visibility;
+	}
+	if (input.hideMemberNames !== undefined) {
+		data.hideMemberNames = input.hideMemberNames;
 	}
 
 	if (input.openToJoin !== undefined) {
@@ -372,9 +495,35 @@ export const updateGroupForUser = async (
 		data.autoStartWhenFull = input.autoStartWhenFull;
 	}
 
-	await prisma.group.update({
-		where: { id: groupId },
-		data
+	await prisma.$transaction(async tx => {
+		await lockGroup(tx, groupId);
+		const previous = await tx.group.findUniqueOrThrow({ where: { id: groupId } });
+		if (previous.hizbPlan !== null) {
+			await expireHizb(tx, previous);
+		}
+		await tx.group.update({ where: { id: groupId }, data });
+		if (seers !== undefined) {
+			await tx.groupMember.updateMany({ where: { groupId }, data: { seesReaders: false } });
+			await tx.groupMember.updateMany({ where: { groupId, userId: { in: seers } }, data: { seesReaders: true } });
+		}
+		if (input.hideMemberNames === true) {
+			const current = await tx.group.findUniqueOrThrow({ where: { id: groupId } });
+			// Responsible members may still see who read: their own "has read" rows keep the name,
+			// marked so it stays theirs alone (listing hides it once they are no longer ticked, and for
+			// good once the group is deleted).
+			if (current.readSeersEnabled) {
+				await tx.$executeRaw`UPDATE "Notification"
+					SET "payload" = "payload"::jsonb || '{"seersOnly":true}'::jsonb
+					WHERE "groupId" = ${groupId} AND "kind" = 'SHARE_READ'
+					AND "userId" IN (
+						SELECT "userId" FROM "GroupMember" WHERE "groupId" = ${groupId} AND "seesReaders"
+					)`;
+			}
+			// Older inbox rows outlive the group. Remove their names permanently as well.
+			await tx.$executeRaw`UPDATE "Notification"
+				SET "payload" = ("payload"::jsonb - 'readerName' - 'takerName' - 'memberName') || '{"anonymous":true}'::jsonb
+				WHERE "groupId" = ${groupId} AND NOT ("payload"::jsonb ? 'seersOnly')`;
+		}
 	});
 
 	return getGroupDetailForUser(userId, groupId);
@@ -392,7 +541,7 @@ export const startGroupForUser = async (userId: string, groupId: string): Promis
 
 	const group = await prisma.group.findUniqueOrThrow({
 		where: { id: groupId },
-		select: { roundDays: true, timezone: true }
+		select: { cycle: true, kind: true, roundDays: true, timezone: true }
 	});
 	const startedAt = new Date();
 
@@ -408,7 +557,7 @@ export const startGroupForUser = async (userId: string, groupId: string): Promis
 			// and treat the very first round as overdue.
 			roundIndex: 0,
 			roundStartedAt: startedAt,
-			endsAt: roundEndsAt(startedAt, group.roundDays, group.timezone)
+			endsAt: roundEndsAt(startedAt, roundLengthFor(group), 0, group.timezone)
 		}
 	});
 
@@ -470,7 +619,7 @@ export const autoStartIfFull = async (tx: Prisma.TransactionClient, groupId: str
 			startedAt,
 			roundIndex: 0,
 			roundStartedAt: startedAt,
-			endsAt: roundEndsAt(startedAt, group.roundDays, group.timezone)
+			endsAt: roundEndsAt(startedAt, roundLengthFor(group), 0, group.timezone)
 		}
 	});
 
@@ -509,12 +658,16 @@ export const discoverGroups = async (userId: string, query: DiscoverGroupsQuery)
 		AND: [
 			// Discover is the *public* shelf: a PRIVATE group never appears here, not even
 			// to its own owner — it is reachable from "my groups" and by invite only.
-			{ visibility: 'OPEN' },
+			{ visibility: 'OPEN', hizbIndividual: false },
 			{ openToJoin: true },
 			// Nor does a group you are already in. Discover exists to find groups to join,
 			// and yours are one tab away in Gruplarım — listing them here offers a "Katıl"
 			// you cannot take and buries the ones you actually could.
 			{ id: { notIn: joinedGroupIds } },
+			// A Hizb group without a plan — the seat board or the flexible one — never appears:
+			// Discover shows only the personal-plan model (design decision 11). Its existing
+			// members keep their group screen.
+			{ NOT: { kind: 'HIZB', hizbPlan: null } },
 			...filters
 		]
 	};
@@ -541,13 +694,26 @@ export const discoverGroups = async (userId: string, query: DiscoverGroupsQuery)
 	// hatim. See `holdingsByGroupFor`.
 	const holdingsByGroupId = await holdingsByGroupFor(prisma, groups);
 
-	return groups.map(group =>
-		toGroupSummary(group, group.babs, group.members, normalizedUserId, holdingsByGroupId.get(group.id) ?? [])
+	return Promise.all(
+		groups.map(async group => ({
+			...toGroupSummary(
+				group,
+				group.babs,
+				group.members,
+				normalizedUserId,
+				holdingsByGroupId.get(group.id) ?? []
+			),
+			...(group.hizbPlan !== null ? await hizbSummary(group.id, normalizedUserId) : {})
+		}))
 	);
 };
 
 export const regenerateInviteCodeForUser = async (userId: string, groupId: string): Promise<{ inviteCode: string }> => {
 	await requireOwner(userId, groupId);
+	const group = await prisma.group.findUniqueOrThrow({ where: { id: groupId } });
+	if (group.hizbIndividual) {
+		throw new HttpError(BAD_REQUEST, 'Individual reading has no invitations');
+	}
 
 	for (let attempt = 0; attempt < MAX_INVITE_CODE_ATTEMPTS; attempt++) {
 		try {

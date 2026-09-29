@@ -9,6 +9,7 @@ import type { BabRowProps } from './BabRow.types';
 const CHECK_DURATION_MS = 300;
 
 export const BabRow = ({
+	accessibilityHint,
 	isRead,
 	isReadByOthers,
 	onOpen,
@@ -41,6 +42,7 @@ export const BabRow = ({
 			 * landed, and the tick is the thing being acted on.
 			 */}
 			<Pressable
+				accessibilityHint={accessibilityHint}
 				accessibilityRole='checkbox'
 				accessibilityState={{ checked: isRead, disabled: isReadByOthers }}
 				disabled={isReadByOthers}

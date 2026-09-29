@@ -3,6 +3,7 @@ import { Typography } from '@/components/ui/Typography/Typography.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { toAlphaColor } from '@/lib/theme/tokens';
+import { hizbPartsLabel } from '@/lib/utils/groups';
 import { StyleSheet, View } from 'react-native';
 import type { HomeDoneCardProps } from './HomeDoneCard.types';
 import { HomeTopCard } from './HomeTopCard.component';
@@ -50,7 +51,11 @@ export const HomeDoneCard = ({ count, tomorrow }: HomeDoneCardProps) => {
 							{t('homeTomorrowNext')}
 						</Typography>
 						<Typography numberOfLines={1} style={styles.tomorrowRange} variant='title' weight='regular'>
-							{t(tomorrow.kind === 'HATIM' ? 'homeCuzRange' : 'homeBabRange', { range: tomorrow.range })}
+							{tomorrow.kind === 'HIZB'
+								? hizbPartsLabel(tomorrow.range, t)
+								: t(tomorrow.kind === 'HATIM' ? 'homeCuzRange' : 'homeBabRange', {
+										range: tomorrow.range
+								  })}
 							{/* The group's name runs on in the body face, as one line with the place. */}
 							<Typography
 								color={toAlphaColor(theme.colors.text, 0.55)}

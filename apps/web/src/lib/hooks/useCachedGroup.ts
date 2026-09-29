@@ -3,7 +3,18 @@ import { useQueryClient } from '@tanstack/react-query';
 import { groupQueryKeys } from './queryKeys';
 
 /** What a skeleton needs to know about a group to draw the right shape. */
-export type CachedGroupShape = { kind: GroupKind; status: GroupStatus };
+export type CachedGroupShape = {
+	kind: GroupKind;
+	status: GroupStatus;
+	/** A Hizb personal-plan group's heading, so its skeleton draws the real title and chips. */
+	plan: {
+		hizbIndividual: boolean;
+		hizbPlan: number;
+		hizbStartPortion: number;
+		memberCount: number;
+		name: string;
+	} | null;
+};
 
 /**
  * A group's kind and status before its own query has answered — for choosing which skeleton
@@ -34,5 +45,22 @@ export const useCachedGroup = (groupId: string): CachedGroupShape | undefined =>
 			.flatMap(rows => rows ?? [])
 			.find(row => row.id === groupId);
 
-	return found ? { kind: found.kind, status: found.status } : undefined;
+	if (!found) {
+		return undefined;
+	}
+
+	return {
+		kind: found.kind,
+		plan:
+			found.hizbPlan == null
+				? null
+				: {
+						hizbIndividual: found.hizbIndividual ?? false,
+						hizbPlan: found.hizbPlan,
+						hizbStartPortion: found.hizbStartPortion ?? 1,
+						memberCount: found.memberCount,
+						name: found.name
+				  },
+		status: found.status
+	};
 };

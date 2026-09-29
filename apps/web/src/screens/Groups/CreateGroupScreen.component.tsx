@@ -1,11 +1,12 @@
 import { PlanPreview } from '@/components/PlanPreview/PlanPreview.component';
-import { ReadingTypePicker } from '@/components/ReadingTypePicker/ReadingTypePicker.component';
 import { AppBottomSheet } from '@/components/ui/BottomSheet/BottomSheet.component';
 import { CuzPicker } from '@/components/CuzPicker/CuzPicker.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Collapsible } from '@/components/ui/Collapsible/Collapsible.component';
+import { Divider } from '@/components/ui/Divider/Divider.component';
 import { Field } from '@/components/ui/Form/Field/Field.component';
 import { Form } from '@/components/ui/Form/Form.component';
+import { FormKindOptionGroup } from '@/components/ui/Form/KindOptionGroup/KindOptionGroup.component';
 import { FormOptionGroup } from '@/components/ui/Form/OptionGroup/OptionGroup.component';
 import { Select } from '@/components/ui/Form/Select/Select.component';
 import { FormStepper } from '@/components/ui/Form/Stepper/Stepper.component';
@@ -13,23 +14,26 @@ import { FormToggleRow } from '@/components/ui/Form/ToggleRow/ToggleRow.componen
 import { Icon } from '@/components/ui/Icon/Icon.component';
 import { NoteCard } from '@/components/ui/NoteCard/NoteCard.component';
 import { SpotsGrid } from '@/components/ui/SpotsGrid/SpotsGrid.component';
-import { BodyStrongText, CaptionText, FieldLabelText } from '@/components/ui/Typography/Typography.component';
+import { ToggleRow } from '@/components/ui/ToggleRow/ToggleRow.component';
+import { BodyStrongText, BodyText, CaptionText, FieldLabelText } from '@/components/ui/Typography/Typography.component';
 import { useCreateGroup } from '@/lib/hooks/useGroup';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { pluralKey } from '@/lib/i18n/plural';
+import type { StringKey } from '@/lib/i18n/strings';
 import {
 	createGroupSchema,
 	CUZ_COUNT,
 	ROUND_DAYS_MAX,
 	ROUND_DAYS_PRESETS,
-	SPOTS_VALUES,
 	type GroupForm
 } from '@/lib/schemas/group.schema';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import type { StringKey } from '@/lib/i18n/strings';
 import type { GroupKind } from '@/lib/types/domain';
-import { babsPerPerson } from '@/lib/utils/babs';
-import { CYCLE_OPTIONS, cycleLabelKey } from '@/lib/utils/groups';
+import { babsPerPerson, formatBabRange } from '@/lib/utils/babs';
+import { CREATE_DEFAULTS_FOR_KIND, partCountFor, SPOTS_FOR_KIND } from '@/lib/utils/groupKinds';
+import { cycleLabelKey, cycleOptionsFor, hizbPartsLabel } from '@/lib/utils/groups';
+import { boardPortionsOf } from '@/lib/utils/hizbPlanBoard';
+import { hizbPlanDescriptionKey } from '@/lib/utils/hizbPlanLabels';
 import { roundEndPreview } from '@/lib/utils/roundReset';
 import { deviceTimeZone } from '@/lib/utils/timezone';
 import { RootStackParamList } from '@/navigation/types';
@@ -51,14 +55,14 @@ type CreateGroupScreenProps = NativeStackScreenProps<RootStackParamList, 'Create
  * the message under the control it belongs to.
  *
  * **Scoped by kind as well as by step**, for the same reason: steps 3 and 4 ask a Cevşen group
- * about seats and a cadence and a hatim about distribution and a round length, and the fields
- * for the branch not taken are never rendered. Validating them would block a step on a control
- * that does not exist.
+ * about seats and a cadence, a hatim about distribution and a round length, and a Hizb group
+ * about its reading plan, and the fields for the branches not taken are never rendered.
+ * Validating them would block a step on a control that does not exist.
  */
 const FIELDS_BY_STEP: Record<GroupKind, Record<CreateGroupStep, (keyof GroupForm)[]>> = {
 	CEVSEN: {
 		1: ['kind'],
-		2: ['name', 'dedication', 'visibility'],
+		2: ['name', 'dedication', 'visibility', 'hideMemberNames'],
 		3: ['spots', 'splitMode', 'cycle'],
 		// Unreachable — a Cevşen group ends at step 3. See `LAST_STEP_BY_KIND`.
 		4: [],
@@ -71,6 +75,14 @@ const FIELDS_BY_STEP: Record<GroupKind, Record<CreateGroupStep, (keyof GroupForm
 		4: ['roundDays', 'boundaryPolicy'],
 		// QC4's picks are held outside the form — see `selectedCuz`. Nothing to validate here;
 		// the ✓ is disabled until at least one is chosen.
+		5: []
+	},
+	HIZB: {
+		1: ['kind'],
+		2: ['name', 'dedication', 'visibility', 'hideMemberNames'],
+		3: ['spots', 'splitMode', 'hizbPlan'],
+		4: ['cycle', 'inactivityDays', 'hizbStartPortion'],
+		// Unreachable — a Hizb group ends at step 4.
 		5: []
 	}
 };
@@ -96,12 +108,30 @@ const FIELDS_BY_STEP: Record<GroupKind, Record<CreateGroupStep, (keyof GroupForm
  * change height has no transition to get wrong, and the steps read as pages of one sheet rather
  * than as four sheets of different sizes.
  *
+ * A Hizb group's plan options, and the Cevşen's seat lattice under a flexible plan's absence, fit
+ * inside the same height; anything taller scrolls, never the sheet. A remount would also drop the
+ * book chosen at step 1.
+ *
  * The cost is accepted deliberately: the shorter steps carry some room below their last control.
  */
 const SHEET_HEIGHT_RATIO = 0.82;
 
-/** The tallest the seat lattice ever gets, which is the height it always reserves. */
-const MAX_SPOTS = Math.max(...SPOTS_VALUES);
+/** The tallest each kind's seat lattice gets, which is the height it always reserves. */
+const MAX_SPOTS_FOR_KIND: Record<GroupKind, number> = {
+	CEVSEN: Math.max(...SPOTS_FOR_KIND.CEVSEN),
+	HATIM: Math.max(...SPOTS_FOR_KIND.HATIM),
+	HIZB: Math.max(...SPOTS_FOR_KIND.HIZB)
+};
+
+/** Ten a row for the Cevşen's twenty, eleven for the Hizb — its 33 fill three whole rows. */
+const SPOTS_COLUMNS_FOR_KIND: Record<GroupKind, number> = { CEVSEN: 10, HATIM: 10, HIZB: 11 };
+
+// A hatim is never shown the seat lattice; its entry keeps the record total.
+const SPOTS_NOTE_KEY_FOR_KIND: Record<GroupKind, StringKey> = {
+	CEVSEN: 'spotsNote',
+	HATIM: 'spotsNote',
+	HIZB: 'spotsNoteHizb'
+};
 
 /**
  * QC2's cap walks every number from one cüz to all thirty — unlike the seat stepper, whose
@@ -111,6 +141,9 @@ const MAX_PER_MEMBER_VALUES = Array.from({ length: CUZ_COUNT }, (_, index) => in
 
 /** QC3's stepper: any length up to a quarter, with 7 and 30 also reachable as presets. */
 const ROUND_DAYS_VALUES = Array.from({ length: ROUND_DAYS_MAX }, (_, index) => index + 1);
+
+/** How many days without a completed reading before a Hizb reader is removed: up to a year. */
+const INACTIVITY_DAY_OPTIONS = Array.from({ length: 365 }, (_, index) => index + 1);
 
 /**
  * What each preset is called. Keyed by the length rather than positionally, so adding one
@@ -130,6 +163,18 @@ const NO_TAKEN_CUZ: number[] = [];
  * tapping the card would light one of them up instead of itself.
  */
 const CUSTOM_ROUND_DAYS = 10;
+
+/**
+ * An individual plan's starting day as the group card will name it: "15 gün · 5. gün · 11–13. bölüm".
+ * A start past a shorter plan's end (33 → 15 after choosing 20) waits for the stepper to clamp it.
+ */
+const startPortionCaption = (days: number, start: number, t: ReturnType<typeof useTranslation>['t']) => {
+	const day = t('hpPlanDay', { day: start, days });
+
+	return Number.isInteger(start) && start >= 1 && start <= days
+		? `${day} · ${hizbPartsLabel(formatBabRange(boardPortionsOf(days, start)), t)}`
+		: day;
+};
 
 export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 	const { theme } = useThemeContext();
@@ -191,6 +236,7 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 	};
 
 	const handleCreate = (values: GroupForm) => {
+		const isFlexible = values.splitMode === 'FLEXIBLE';
 		const common = {
 			dedication: values.dedication.trim() || undefined,
 			name: values.name.trim(),
@@ -207,13 +253,14 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 			// every member wherever they are. Not a form field — asking someone to pick a
 			// time zone to start a hatim would be absurd.
 			timezone: deviceTimeZone(),
-			visibility: values.visibility
+			// A flexible group is open by definition — step 2 does not offer it "Özel".
+			visibility: isFlexible ? ('OPEN' as const) : values.visibility
 		};
 
 		createGroup.mutate(
 			/*
-			 * **The form is flat; the payload is not.** Only the half the chosen kind was
-			 * actually asked about is sent, so the other half's defaults — which no control on
+			 * **The form is flat; the payload is not.** Only the part the chosen kind was
+			 * actually asked about is sent, so the other kinds' defaults — which no control on
 			 * screen ever set — cannot reach the server and become immutable columns on a group
 			 * nobody configured that way.
 			 */
@@ -229,12 +276,29 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 						maxPerMember: values.hasMaxPerMember ? values.maxPerMember : null,
 						roundDays: values.roundDays
 				  }
+				: values.kind === 'HIZB'
+				? {
+						...common,
+						// A Hizb group's rhythm is its plan: a portion a day, whatever the plan's length.
+						cycle: 'DAILY',
+						hideMemberNames: values.hideMemberNames,
+						hizbIndividual: values.hizbIndividual,
+						hizbPlan: Number(values.hizbPlan),
+						hizbStartPortion: values.hizbIndividual ? values.hizbStartPortion : 1,
+						inactivityDays:
+							!values.hizbIndividual && values.inactivityEnabled ? values.inactivityDays : null,
+						kind: 'HIZB',
+						readSeersEnabled: !values.hizbIndividual && values.readSeersEnabled,
+						splitMode: values.splitMode,
+						spots: isFlexible ? partCountFor('HIZB') : values.spots
+				  }
 				: {
 						...common,
 						cycle: values.cycle,
+						hideMemberNames: values.hideMemberNames,
 						kind: 'CEVSEN',
 						splitMode: values.splitMode,
-						spots: values.spots
+						spots: isFlexible ? partCountFor('CEVSEN') : values.spots
 				  },
 			{
 				onSuccess: created =>
@@ -244,12 +308,16 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 					// `Tabs` dismisses the sheet and delivers the params in one dispatch, so
 					// there's no separate `goBack` to fire an unhandled action.
 					//
-					// Straight to the lobby: a new group always starts out gathering, so the
-					// group board would only redirect there anyway. Inside the Groups tab, so
-					// it keeps the bottom bar and a sensible back stack.
+					// A hatim goes straight to its lobby: it always starts out gathering, so the
+					// group board would only redirect there anyway. Any other group opens on itself:
+					// "how the group works" (O1–O5) is for joiners — the creator has just set it up.
+					// Inside the Groups tab, so it keeps the bottom bar and a sensible back stack.
 					navigation.popTo('Tabs', {
 						screen: 'Groups',
-						params: { screen: 'Lobby', params: { groupId: created.id } }
+						params:
+							created.kind === 'HATIM'
+								? { screen: 'Lobby' as const, params: { groupId: created.id } }
+								: { screen: 'GroupDetail' as const, params: { groupId: created.id } }
 					})
 			}
 		);
@@ -267,17 +335,23 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 				 * the field is right, which is the only way it ever goes away here.
 				 */
 				mode='onChange'
+				// The Cevşen's, because its card is the one selected on arrival; choosing another kind
+				// at step 1 swaps that kind's own three in (`handleKindChange`).
 				defaultValues={{
+					...CREATE_DEFAULTS_FOR_KIND.CEVSEN,
 					boundaryPolicy: 'KEEP',
-					cycle: 'DAILY',
 					dedication: '',
 					distribution: 'FREE_PICK',
+					hideMemberNames: false,
+					hizbIndividual: false,
+					hizbPlan: '33',
+					hizbStartPortion: 1,
+					inactivityDays: 10,
+					inactivityEnabled: false,
 					kind: 'CEVSEN',
 					maxPerMember: 3,
 					name: '',
 					roundDays: 30,
-					spots: 20,
-					splitMode: 'ROTATION',
 					visibility: 'OPEN'
 				}}
 				isDisabled={createGroup.isPending}
@@ -289,6 +363,36 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 					const hasMaxPerMember = watch('hasMaxPerMember');
 					// "Özel" is every length that is not one of the two presets.
 					const isCustomRoundLength = !ROUND_DAYS_PRESETS.includes(roundDays);
+					const individual = kind === 'HIZB' && watch('hizbIndividual');
+					const isFlexible = kind !== 'HATIM' && watch('splitMode') === 'FLEXIBLE';
+					const perPart = babsPerPerson(spots, partCountFor(kind));
+					// The Hizb's line names its own unit, and "1 portion" and a lone seat are lines of
+					// their own — see `perPersonHizbOne` / `perPersonHizbSolo`. The Cevşen's is the
+					// one it has always had.
+					const hizbCaptionKey: StringKey =
+						spots === 1 ? 'perPersonHizbSolo' : perPart === 1 ? 'perPersonHizbOne' : 'perPersonHizb';
+					const spotsCaption =
+						kind === 'HIZB'
+							? t(hizbCaptionKey, { perPart, spots })
+							: t('perPersonTr', { perBab: perPart, spots });
+
+					/*
+					 * **A new kind starts from that kind's own defaults.** Everything after step 2
+					 * depends on the book: a size picked for the Cevşen is not a Hizb default (and
+					 * most Hizb sizes are not Cevşen sizes at all), and a month chosen for the Hizb
+					 * is a cycle the Cevşen refuses. Resetting all three is what keeps a trip back to
+					 * step 1 from carrying a value the new kind's controls cannot show. Only on an
+					 * actual change — `FormKindOptionGroup` doesn't call this for the card already
+					 * chosen — so re-tapping it keeps what was set. A hatim's own answers (its cap,
+					 * its round length, its cüz) are separate fields and are kept.
+					 */
+					const handleKindChange = (next: GroupKind) => {
+						const defaults = CREATE_DEFAULTS_FOR_KIND[next];
+
+						setValue('spots', defaults.spots);
+						setValue('splitMode', defaults.splitMode);
+						setValue('cycle', defaults.cycle);
+					};
 
 					/*
 					 * **Forward is a validation, not just a state change.** The step buttons used
@@ -327,7 +431,7 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 						 */
 						<View style={styles.sheetColumn}>
 							{createGroup.isPending ? (
-								<CreatingGroupStep />
+								<CreatingGroupStep isFlexible={isFlexible} />
 							) : (
 								<CreateGroupStepHeader
 									/*
@@ -348,6 +452,10 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 											: () => void handleNext()
 									}
 									step={step}
+									titleKey={
+										// A personal Hizb plan's fourth step asks where it starts, not about idle members.
+										kind === 'HIZB' && step === 4 && individual ? 'hpStartPortion' : undefined
+									}
 								/>
 							)}
 							{/*
@@ -364,17 +472,52 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 								{!createGroup.isPending && step === 1 ? (
 									<>
 										<CaptionText color={theme.colors.subtext}>{t('qWhatReadSub')}</CaptionText>
-										{/*
-										 * Set through `setValue` rather than bound by name like every other
-										 * control here: the two cards are one choice, and `FormOptionGroup`
-										 * draws a title-and-hint row where this frame draws the board each
-										 * kind produces. `shouldValidate` keeps it in step with `trigger`.
-										 */}
-										<ReadingTypePicker
-											onChange={next => setValue('kind', next, { shouldValidate: true })}
-											value={kind}
+										<FormKindOptionGroup
+											name='kind'
+											onChange={handleKindChange}
+											style={styles.kindCards}
 										/>
-										<NoteCard text={t('qTypeNote')} />
+										{/*
+										 * Under the Hizb: the personal-plan switch and the note on how its
+										 * portions come. Under the others, Q1's note on how a Kur'an group
+										 * differs. Both sit below the cards, so appearing moves nothing above.
+										 */}
+										{kind === 'HIZB' ? (
+											<>
+												<CardSurface isFlush>
+													<ToggleRow
+														hint={t('hpIndividualHint')}
+														onValueChange={next => {
+															setValue('hizbIndividual', next);
+															if (next && watch('hizbPlan') === '0') {
+																setValue('hizbPlan', '33');
+															}
+														}}
+														title={t('hpIndividual')}
+														value={watch('hizbIndividual')}
+													/>
+												</CardSurface>
+												<CardSurface style={styles.kindNoteCard}>
+													<View style={styles.kindNote}>
+														<Icon
+															color={theme.colors.accent}
+															name='info'
+															size={17}
+															strokeWidth={1.8}
+															style={styles.kindNoteIcon}
+														/>
+														<BodyText
+															color={theme.colors.subtext}
+															style={styles.kindNoteText}
+														>
+															{t('hpDailyHint')}
+														</BodyText>
+													</View>
+												</CardSurface>
+											</>
+										) : (
+											<NoteCard text={t('qTypeNote')} />
+										)}
 									</>
 								) : null}
 
@@ -391,15 +534,61 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 											name='dedication'
 											placeholder={t('dedicationHint')}
 										/>
-										<FieldLabelText style={styles.fieldLabel}>{t('visibility')}</FieldLabelText>
-										<FormOptionGroup
-											direction='row'
-											name='visibility'
-											options={[
-												{ hint: t('openHint'), title: t('open'), value: 'OPEN' },
-												{ hint: t('privateHint'), title: t('private'), value: 'PRIVATE' }
-											]}
-										/>
+										{!individual ? (
+											<>
+												<FieldLabelText style={styles.fieldLabel}>
+													{t('visibility')}
+												</FieldLabelText>
+												<FormOptionGroup
+													direction='row'
+													name='visibility'
+													options={[
+														{ hint: t('openHint'), title: t('open'), value: 'OPEN' },
+														// A flexible group is open to anyone — see `flexiblePublicHint`.
+														...(!isFlexible
+															? [
+																	{
+																		hint: t('privateHint'),
+																		title: t('private'),
+																		value: 'PRIVATE'
+																	}
+															  ]
+															: [])
+													]}
+												/>
+												{/*
+												 * Member privacy is a Cevşen and Hizb setting: a hatim's cüz map
+												 * names who holds each cüz, and nothing there reads the switch.
+												 */}
+												{kind !== 'HATIM' ? (
+													<CardSurface isFlush>
+														<ToggleRow
+															hint={t('hideMemberNamesHint')}
+															onValueChange={next => setValue('hideMemberNames', next)}
+															title={t('hideMemberNames')}
+															value={watch('hideMemberNames')}
+														/>
+														{/* A Hizb plan's owner starts as the one responsible; the rest are
+														    chosen in Yönet once people have joined. */}
+														{kind === 'HIZB' ? (
+															<>
+																<Divider />
+																<ToggleRow
+																	hint={t('hpSeersSwitchCreateHint')}
+																	onValueChange={next =>
+																		setValue('readSeersEnabled', next)
+																	}
+																	title={t('hpSeersSwitch')}
+																	value={watch('readSeersEnabled')}
+																/>
+															</>
+														) : null}
+													</CardSurface>
+												) : null}
+											</>
+										) : (
+											<BodyText>{t('hpIndividualPrivacy')}</BodyText>
+										)}
 									</>
 								) : null}
 
@@ -491,23 +680,35 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 
 								{!createGroup.isPending && step === 3 && kind === 'CEVSEN' ? (
 									<>
-										<FieldLabelText style={styles.fieldLabel}>{t('spots')}</FieldLabelText>
-										<CardSurface style={styles.spotsCard}>
-											{/* Three sizes, not a range: 5, 10 and 20 each divide the hundred
-										    evenly, so +/- walk the list rather than adding a constant. */}
-											<FormStepper
-												caption={t('perPersonTr', { perBab: babsPerPerson(spots), spots })}
-												name='spots'
-												style={styles.stepper}
-												values={SPOTS_VALUES}
-											/>
-											{/* Every seat is a seat that will be filled — the grid shows the
-										    capacity being chosen, not who has joined yet. */}
-											{/* Sized for the largest option, so stepping 20 → 10 doesn't drop a
-										    row out from under the plan options below it. */}
-											<SpotsGrid filled={spots} maxTotal={MAX_SPOTS} total={spots} />
-										</CardSurface>
-										<CaptionText color={theme.colors.faintText}>{t('spotsNote')}</CaptionText>
+										{/* Flexible has no seats to size, so the seat card goes with it. */}
+										{isFlexible ? null : (
+											<>
+												<FieldLabelText style={styles.fieldLabel}>{t('spots')}</FieldLabelText>
+												<CardSurface style={styles.spotsCard}>
+													{/* The kind's own sizes: 5, 10 and 20 each divide the hundred
+												    evenly, so +/- walk the list rather than adding a constant. */}
+													<FormStepper
+														caption={spotsCaption}
+														name='spots'
+														style={styles.stepper}
+														values={SPOTS_FOR_KIND[kind]}
+													/>
+													{/* Every seat is a seat that will be filled — the grid shows the
+												    capacity being chosen, not who has joined yet. */}
+													{/* Sized for the largest option, so stepping 20 → 10 doesn't drop a
+												    row out from under the plan options below it. */}
+													<SpotsGrid
+														columns={SPOTS_COLUMNS_FOR_KIND[kind]}
+														filled={spots}
+														maxTotal={MAX_SPOTS_FOR_KIND[kind]}
+														total={spots}
+													/>
+												</CardSurface>
+												<CaptionText color={theme.colors.faintText}>
+													{t(SPOTS_NOTE_KEY_FOR_KIND[kind])}
+												</CaptionText>
+											</>
+										)}
 										{/*
 										 * **The cadence lives here, above the plan, rather than on a step of
 										 * its own.** It is two chips; a whole step for one control read as a
@@ -520,7 +721,7 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 										<FieldLabelText style={styles.fieldLabel}>{t('cycle')}</FieldLabelText>
 										<Select
 											name='cycle'
-											options={CYCLE_OPTIONS.map(option => ({
+											options={cycleOptionsFor(kind).map(option => ({
 												label: t(cycleLabelKey(option)),
 												value: option
 											}))}
@@ -529,16 +730,53 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 										<FormOptionGroup
 											direction='column'
 											name='splitMode'
+											onChange={next => {
+												if (next === 'FLEXIBLE') {
+													setValue('visibility', 'OPEN', { shouldValidate: true });
+												}
+											}}
 											options={[
 												{
 													hint: t('planRotationHint'),
 													title: t('planRotation'),
 													value: 'ROTATION'
 												},
-												{ hint: t('planFixedHint'), title: t('planFixed'), value: 'FIXED' }
+												{ hint: t('planFixedHint'), title: t('planFixed'), value: 'FIXED' },
+												{
+													hint: t('planFlexibleHint'),
+													title: t('planFlexible'),
+													value: 'FLEXIBLE'
+												}
 											]}
 										/>
-										<PlanPreview splitMode={watch('splitMode')} spots={spots} />
+										{isFlexible ? (
+											<BodyText color={theme.colors.subtext}>{t('flexiblePublicHint')}</BodyText>
+										) : (
+											<PlanPreview kind={kind} splitMode={watch('splitMode')} spots={spots} />
+										)}
+									</>
+								) : null}
+
+								{!createGroup.isPending && step === 3 && kind === 'HIZB' ? (
+									<>
+										<FieldLabelText>{t('hpPlan')}</FieldLabelText>
+										<FormOptionGroup
+											name='hizbPlan'
+											onChange={() => setValue('hizbStartPortion', 1)}
+											direction='column'
+											options={(individual ? [7, 15, 33] : [7, 15, 33, 0]).map(days => ({
+												value: String(days),
+												title: days ? t('hpDays', { days }) : t('hpMixed'),
+												hint: t(
+													individual
+														? 'hpIndividualPlanHint'
+														: days
+														? 'hpFixedHint'
+														: 'hpMixedHint'
+												)
+											}))}
+										/>
+										<BodyText>{t('hpDailyHint')}</BodyText>
 									</>
 								) : null}
 
@@ -719,6 +957,63 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 									</>
 								) : null}
 
+								{!createGroup.isPending && step === 4 && individual ? (
+									<>
+										<BodyText>{t('hpStartHint')}</BodyText>
+										<FieldLabelText>{t('hpStartPortion')}</FieldLabelText>
+										<FormStepper
+											name='hizbStartPortion'
+											values={Array.from(
+												{ length: Number(watch('hizbPlan')) || 33 },
+												(_, i) => i + 1
+											)}
+											// The group card's words: "15 gün · 1. gün · 1–3. bölüm" — "bölüm" is
+											// only ever one of the 33, never the plan's own day.
+											caption={startPortionCaption(
+												Number(watch('hizbPlan')) || 33,
+												Number(watch('hizbStartPortion')),
+												t
+											)}
+										/>
+										<BodyText>
+											{t(
+												hizbPlanDescriptionKey(
+													Number(watch('hizbPlan')) || 33,
+													watch('hizbStartPortion')
+												)
+											)}
+										</BodyText>
+										<CaptionText>{t('hpDailyHint')}</CaptionText>
+									</>
+								) : null}
+								{!createGroup.isPending && step === 4 && kind === 'HIZB' && !individual ? (
+									<>
+										<BodyText>{t('hpBeginHint')}</BodyText>
+										{/* One card, as in Yönet: the switch, and under it the days it counts. */}
+										<CardSurface isFlush>
+											<ToggleRow
+												title={t('hpInactivity')}
+												hint={t('hpInactivityHint')}
+												value={watch('inactivityEnabled')}
+												onValueChange={v => setValue('inactivityEnabled', v)}
+											/>
+											{watch('inactivityEnabled') ? (
+												<>
+													<Divider />
+													<View style={styles.inactivityDays}>
+														<FieldLabelText>{t('hpInactiveDays')}</FieldLabelText>
+														<FormStepper
+															name='inactivityDays'
+															values={INACTIVITY_DAY_OPTIONS}
+															caption={t('hpDays', { days: watch('inactivityDays') })}
+														/>
+													</View>
+												</>
+											) : null}
+										</CardSurface>
+									</>
+								) : null}
+
 								{/*
 								 * **There is no fourth step for a Cevşen group.** The cadence moved up
 								 * beside the split on step 3, and the reminder that once shared this
@@ -761,6 +1056,35 @@ const styles = StyleSheet.create({
 	 */
 	spotsCard: {
 		padding: 16
+	},
+	// Under a toggle row in a flush card: the row's own 15, so the stepper lines up under its title.
+	inactivityDays: {
+		gap: 12,
+		padding: 15
+	},
+	/*
+	 * **Step 1's own rhythm, on top of the container's 12** — HC1 opens the gap to about 20 under
+	 * the sub line and 16 above the note. Added here rather than to `gap`, which every other
+	 * step shares.
+	 */
+	kindCards: {
+		marginTop: 8
+	},
+	// Glyph beside the text, both from the top: the note runs three lines and the glyph marks the first.
+	kindNote: {
+		alignItems: 'flex-start',
+		flexDirection: 'row',
+		gap: 12
+	},
+	kindNoteCard: {
+		marginTop: 4
+	},
+	// Centres the 17pt glyph on the body's 21pt first line.
+	kindNoteIcon: {
+		marginTop: 2
+	},
+	kindNoteText: {
+		flex: 1
 	},
 	/** "Tur bitişi … 30 Eyl" — a row, not a section: the glyph, the label, the date at the end. */
 	roundEndRow: {

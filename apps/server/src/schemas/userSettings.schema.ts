@@ -22,6 +22,8 @@ export const UpdateUserSettingsBodySchema = z
 		hatimGroupReadsEnabled: z.boolean().optional(),
 		hatimRoundCompleteEnabled: z.boolean().optional(),
 		hatimPoolClaimEnabled: z.boolean().optional(),
+		// A Hizb group's reads, its own switch; its other notices follow the Cevşen's.
+		hizbGroupReadsEnabled: z.boolean().optional(),
 		// The same three Cevşen switches under their 1.2.0 names — that build still sends them.
 		// See `serializeSettings`; the new name wins when both arrive.
 		groupReadsEnabled: z.boolean().optional(),
@@ -31,6 +33,9 @@ export const UpdateUserSettingsBodySchema = z
 		memberLeftEnabled: z.boolean().optional(),
 		hasSeenOnboarding: z.boolean().optional(),
 		hasSeenTour: z.boolean().optional(),
+		cevsenIntroEnabled: z.boolean().optional(),
+		hatimIntroEnabled: z.boolean().optional(),
+		hizbIntroEnabled: z.boolean().optional(),
 		reminderTime: TimeStringSchema.optional(),
 		readerFontSize: z.number().int().min(16).max(40).optional(),
 		// Mirrors the `ReaderNumerals` / `ReaderArabicFont` enums. Kept as literal unions

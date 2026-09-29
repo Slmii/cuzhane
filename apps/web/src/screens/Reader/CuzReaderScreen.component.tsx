@@ -1,6 +1,5 @@
 import { useGetGroupById } from '@/lib/hooks/useGroup';
 import { useRequireRoundCuz } from '@/lib/hooks/useHatimRoundGate';
-import { TourTarget } from '@/components/Tour/TourTarget.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CaptionText, EyebrowText, TitleText } from '@/components/ui/Typography/Typography.component';
 import { READER_FONT_SIZE_DEFAULT } from '@/lib/content/cevsen';
@@ -437,19 +436,17 @@ export const CuzReaderScreen = ({ navigation, route }: Props) => {
 					variant='surface'
 				/>
 				{/* Marking the place, and saying so once it is marked — one control, two readings,
-				    so the row never twitches under the thumb. Stop 13 of the first-use tour, so the
-				    slot's flex sits on the tour's wrapper and the spotlight is the button alone. */}
-				<TourTarget id='cuzBookmark' style={styles.markButtonSlot}>
-					<AppButton
-						disabled={isPlaceMarked}
-						// The set's own bookmark, converted to an SF Symbol (`kaldigin-yer-bookmark`) so the
-						// glass button can draw it on iOS, and drawn by `ui/Icon` on Android — one glyph on both.
-						icon={isPlaceMarked ? 'check' : 'bookmark'}
-						onPress={handleMarkPlace}
-						title={t(isPlaceMarked ? 'qPlaceMarked' : 'qMarkPlace')}
-						variant={isPlaceMarked ? 'surface' : 'accent'}
-					/>
-				</TourTarget>
+				    so the row never twitches under the thumb. */}
+				<AppButton
+					disabled={isPlaceMarked}
+					// The set's own bookmark, converted to an SF Symbol (`kaldigin-yer-bookmark`) so the
+					// glass button can draw it on iOS, and drawn by `ui/Icon` on Android — one glyph on both.
+					icon={isPlaceMarked ? 'check' : 'bookmark'}
+					onPress={handleMarkPlace}
+					style={styles.markButtonSlot}
+					title={t(isPlaceMarked ? 'qPlaceMarked' : 'qMarkPlace')}
+					variant={isPlaceMarked ? 'surface' : 'accent'}
+				/>
 				<AppButton
 					accessibilityLabel={t('nextPage')}
 					disabled={isLastPage && nextHeldCuz === undefined}

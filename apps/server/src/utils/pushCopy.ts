@@ -1,7 +1,7 @@
 import prisma from '@db/prisma';
+import { partCountFor, type GroupKindName } from '@utils/groupKinds';
+import { hizbWorksOf } from '@utils/hizbWorks';
 import { normalizeUserId } from '@utils/normalizeUserId';
-import { CUZ_COUNT } from '@utils/units';
-import type { GroupKind } from '../generated/prisma/client';
 
 /**
  * Push copy lives on the server because the server is what sends it — the phone is not
@@ -13,6 +13,8 @@ import type { GroupKind } from '../generated/prisma/client';
  * stays in the client's table, where it can use the interpolation and typing that exist there.
  */
 export type PushLanguage = 'tr' | 'en' | 'nl';
+
+const anonymousMember = (language: PushLanguage) => ({ tr: 'Bir üye', en: 'A member', nl: 'Een lid' }[language]);
 
 /**
  * The reader's language, defaulting the way `UserSettings` does.
@@ -39,30 +41,103 @@ export const toPushLanguage = (language: string | null | undefined): PushLanguag
 	language === 'tr' || language === 'nl' ? language : 'en';
 
 /**
+ * **What a group reads decides the noun.** A Cevşen group reads babs, a hatim cüz ("juz" in
+ * English) and a Hizb group portions — "bölüm", "portion", "gedeelte" — and a notification
+ * naming the wrong one would describe a book the reader is not reading: "all 100 babs read" is
+ * simply false about thirty cüz.
+ *
+ * A range can also be a single part: a Hizb group of more than sixteen seats hands some of
+ * them one portion each, so "portion 19" and "portions 1–3" both occur. A Cevşen share never
+ * drops below five babs, but the rule is the same for it. A range is one part exactly when it
+ * has neither a dash nor a comma — `formatRun` writes a lone part as its bare number.
+ */
+const isSinglePart = (range: string) => !/[–,]/.test(range);
+
+const PART_NOUNS: Record<'en' | 'nl', Record<GroupKindName, { one: string; many: string }>> = {
+	en: {
+		CEVSEN: { one: 'bab', many: 'babs' },
+		HATIM: { one: 'juz', many: 'juz' },
+		HIZB: { one: 'portion', many: 'portions' }
+	},
+	nl: {
+		CEVSEN: { one: 'bab', many: 'babs' },
+		HATIM: { one: 'cüz', many: 'cüz' },
+		HIZB: { one: 'gedeelte', many: 'gedeelten' }
+	}
+};
+
+/**
+ * Turkish puts the noun in whichever case the sentence needs, and vowel harmony picks each
+ * suffix, so the forms are spelled out rather than built. A noun after a number stays
+ * singular — "33 bölümün hepsi", never "bölümlerin".
+ */
+const TR_PART_NOUNS: Record<
+	GroupKindName,
+	{ one: string; many: string; accusative: string; possessiveAccusative: string; genitive: string }
+> = {
+	CEVSEN: { one: 'bab', many: 'bablar', accusative: 'babı', possessiveAccusative: 'bablarını', genitive: 'babın' },
+	// Vowel harmony puts "cüz" at "cüzün" where "bab" is at "babın", so nothing here is built.
+	HATIM: { one: 'cüz', many: 'cüzler', accusative: 'cüzü', possessiveAccusative: 'cüzlerini', genitive: 'cüzün' },
+	HIZB: {
+		one: 'bölüm',
+		many: 'bölümler',
+		accusative: 'bölümü',
+		possessiveAccusative: 'bölümlerini',
+		genitive: 'bölümün'
+	}
+};
+
+const partNoun = (language: 'en' | 'nl', kind: GroupKindName, range: string) =>
+	isSinglePart(range) ? PART_NOUNS[language][kind].one : PART_NOUNS[language][kind].many;
+
+const capitalized = (word: string) => word.charAt(0).toUpperCase() + word.slice(1);
+
+/**
  * "A joiner took over the block you volunteered for."
  *
  * Names the range, because that is the only detail that makes it actionable — and closes on
  * what was *not* lost, since "your babs were taken" is the reading to avoid: the reads they
  * already made still stand.
  */
-export const poolClaimReleasedPush = (language: PushLanguage, range: string) => {
+export const poolClaimReleasedPush = (language: PushLanguage, input: { kind: GroupKindName; range: string }) => {
+	const { kind, range } = input;
+	const isSingle = isSinglePart(range);
+
 	if (language === 'tr') {
+		const nouns = TR_PART_NOUNS[kind];
+		const noun = isSingle ? nouns.one : nouns.many;
+
 		return {
-			title: 'Üstlendiğin bablar devredildi',
-			body: `${range}. bablar gruba yeni katılan üyenin payı oldu. Okuduğun bablar sende kalır.`
+			title: `Üstlendiğin ${noun} devredildi`,
+			// The closing line is about whatever they read, not about this range, so it stays plural.
+			body: `${range}. ${noun} gruba yeni katılan üyenin payı oldu. Okuduğun ${nouns.many} sende kalır.`
 		};
 	}
 
+	const noun = partNoun(language, kind, range);
+	const lead = capitalized(noun);
+
 	if (language === 'nl') {
+		/*
+		 * "Het deel geworden van" says share with *deel*, which beside "gedeelte" reads as the
+		 * same word twice meaning two things — so the Hizb line says it with "hoort bij". The
+		 * Cevşen line keeps the wording it has always had.
+		 */
+		const became =
+			kind === 'HIZB'
+				? `${isSingle ? 'hoort' : 'horen'} nu bij`
+				: `${isSingle ? 'is' : 'zijn'} het deel geworden van`;
+
 		return {
-			title: 'De babs die je overnam zijn doorgegeven',
-			body: `Babs ${range} zijn het deel geworden van het nieuwe lid. Wat je al gelezen hebt, blijft van jou.`
+			// No article: Dutch would have to know the noun's gender, and "je" needs none.
+			title: isSingle ? `Je overgenomen ${noun} is doorgegeven` : `De ${noun} die je overnam zijn doorgegeven`,
+			body: `${lead} ${range} ${became} het nieuwe lid. Wat je al gelezen hebt, blijft van jou.`
 		};
 	}
 
 	return {
-		title: 'Babs you took were passed on',
-		body: `Babs ${range} became a new member's share. Anything you already read still counts for you.`
+		title: isSingle ? `The ${noun} you took was passed on` : `${lead} you took were passed on`,
+		body: `${lead} ${range} became a new member's share. Anything you already read still counts for you.`
 	};
 };
 
@@ -80,26 +155,20 @@ export const poolClaimReleasedPush = (language: PushLanguage, range: string) => 
  * No pronoun for the reader in any of the three: a name says nothing about how somebody is
  * addressed, and "his share" would be a guess printed on someone else's lock screen.
  */
-/**
- * What the group's units are called in a push, and how many of them there are.
- *
- * The phone is not involved in composing a notification it receives while closed, so this is a
- * second, smaller copy table beside the client's `strings.ts` — and the unit word is the part
- * of it that a hatim changes: "all 100 babs read" is simply false about thirty cüz.
- */
-const UNITS: Record<GroupKind, { count: number; trPossessive: string; word: Record<PushLanguage, string> }> = {
-	// `trPossessive` is spelled out rather than built from the word: Turkish vowel harmony
-	// puts "bab" at "babın" and "cüz" at "cüzün", so a shared `${word}ın` would write "cüzın".
-	CEVSEN: { count: 100, trPossessive: 'babın', word: { en: 'babs', nl: 'babs', tr: 'bab' } },
-	HATIM: { count: CUZ_COUNT, trPossessive: 'cüzün', word: { en: 'juz', nl: 'cüz', tr: 'cüz' } }
-};
-
 export const groupReadPush = (
 	language: PushLanguage,
-	input: { groupName: string; kind: GroupKind; range: string; readerName: string }
+	input: {
+		groupName: string;
+		kind: GroupKindName;
+		range: string;
+		readerName: string;
+		/** A Hizb reading's portions, so the line can name their works: "· Delâilü’n-Nûr". */
+		portions?: readonly number[];
+	}
 ) => {
-	const { groupName, kind, range, readerName } = input;
-	const unit = UNITS[kind].word[language];
+	const { groupName, kind, portions, range, readerName } = input;
+	const works = kind === 'HIZB' && portions ? hizbWorksOf(portions, language) : '';
+	const reader = readerName || anonymousMember(language);
 
 	if (language === 'tr') {
 		return {
@@ -107,25 +176,31 @@ export const groupReadPush = (
 			// "Okumasını", not "payını": the range can carry a pool block taken on top of the
 			// share, and calling that their share would be untrue. English and Dutch state the
 			// babs rather than claim anything about whose they were, so they needed no change.
-			body: `${readerName} okumasını tamamladı (${range}).`
+			// It names no noun at all, which is why a Hizb group's line reads the same — unless
+			// its works are known, when the portion and its work say what was read.
+			body: works
+				? `${reader} okumasını tamamladı: ${range}. bölüm · ${works}.`
+				: `${reader} okumasını tamamladı (${range}).`
 		};
 	}
+
+	const worksSuffix = works ? ` · ${works}` : '';
 
 	if (language === 'nl') {
 		return {
 			title: groupName,
-			body: `${readerName} is klaar met ${unit} ${range}.`
+			body: `${reader} is klaar met ${partNoun(language, kind, range)} ${range}${worksSuffix}.`
 		};
 	}
 
 	return {
 		title: groupName,
-		body: `${readerName} finished ${unit} ${range}.`
+		body: `${reader} finished ${partNoun(language, kind, range)} ${range}${worksSuffix}.`
 	};
 };
 
 /**
- * "The group closed the hundred."
+ * "The group closed the hundred" — or, in a hatim, the thirty, and in a Hizb group the 33.
  *
  * The one notification in the app that is purely good news — every other one is a task, a
  * reminder, or something that was taken away. It names the round, because a group that has run
@@ -136,37 +211,37 @@ export const groupReadPush = (
  */
 export const roundCompletePush = (
 	language: PushLanguage,
-	input: { groupName: string; kind: GroupKind; roundNumber: number }
+	input: { groupName: string; kind: GroupKindName; roundNumber: number }
 ) => {
 	const { groupName, kind, roundNumber } = input;
-	const { count, trPossessive } = UNITS[kind];
-	const unit = UNITS[kind].word[language];
+	// The group's own count — 100, 30 or 33 — so the line says what was actually closed.
+	const partCount = partCountFor(kind);
 
 	if (language === 'tr') {
 		return {
 			title: groupName,
-			body: `${roundNumber}. tur tamamlandı — ${count} ${trPossessive} hepsi okundu.`
+			body: `${roundNumber}. tur tamamlandı — ${partCount} ${TR_PART_NOUNS[kind].genitive} hepsi okundu.`
 		};
 	}
 
 	if (language === 'nl') {
 		return {
 			title: groupName,
-			body: `Ronde ${roundNumber} is voltooid — alle ${count} ${unit} gelezen.`
+			body: `Ronde ${roundNumber} is voltooid — alle ${partCount} ${PART_NOUNS.nl[kind].many} gelezen.`
 		};
 	}
 
 	return {
 		title: groupName,
-		body: `Round ${roundNumber} is complete — all ${count} ${unit} read.`
+		body: `Round ${roundNumber} is complete — all ${partCount} ${PART_NOUNS.en[kind].many} read.`
 	};
 };
 
 /**
  * "Somebody took a block out of the shared pool."
  *
- * The pool is the babs nobody's seat is covering this round, and a group only finishes the
- * hundred if they are covered — so somebody taking one is the group closing a gap, which is
+ * The pool is the babs nobody's seat is covering this round, and a group only finishes its
+ * board if they are covered — so somebody taking one is the group closing a gap, which is
  * worth knowing and is *not* the same event as a share being finished. It names the range for
  * the same reason `groupReadPush` does: what was taken on is the information.
  *
@@ -175,30 +250,41 @@ export const roundCompletePush = (
  */
 export const poolClaimPush = (
 	language: PushLanguage,
-	input: { groupName: string; kind: GroupKind; range: string; takerName: string }
+	input: { groupName: string; kind: GroupKindName; range: string; takerName: string }
 ) => {
 	const { groupName, kind, range, takerName } = input;
-	const unit = UNITS[kind].word[language];
 
 	if (language === 'tr') {
+		const nouns = TR_PART_NOUNS[kind];
+
 		return {
 			title: groupName,
-			// "bablarını" / "cüzlerini" — the plural accusative, spelled per unit for the same
-			// harmony reason as `trPossessive` above.
-			body: `${takerName} havuzdan ${range} ${kind === 'HATIM' ? 'cüzlerini' : 'bablarını'} üstlendi.`
+			// A lone part takes the ordinal — "19. bölümü", the nineteenth — since "19 bölümü"
+			// would read as nineteen of them.
+			body: isSinglePart(range)
+				? `${takerName || anonymousMember(language)} havuzdan ${range}. ${nouns.accusative} üstlendi.`
+				: `${takerName || anonymousMember(language)} havuzdan ${range} ${nouns.possessiveAccusative} üstlendi.`
 		};
 	}
 
 	if (language === 'nl') {
 		return {
 			title: groupName,
-			body: `${takerName} heeft ${unit} ${range} uit de pool genomen.`
+			body: `${takerName || anonymousMember(language)} heeft ${partNoun(
+				language,
+				kind,
+				range
+			)} ${range} uit de pool genomen.`
 		};
 	}
 
 	return {
 		title: groupName,
-		body: `${takerName} took ${unit} ${range} from the pool.`
+		body: `${takerName || anonymousMember(language)} took ${partNoun(
+			language,
+			kind,
+			range
+		)} ${range} from the pool.`
 	};
 };
 
@@ -218,20 +304,26 @@ export const memberJoinedPush = (
 	if (language === 'tr') {
 		return {
 			title: groupName,
-			body: `${memberName} gruba katıldı — ${memberCount}/${spots} kişi.`
+			body: `${memberName || anonymousMember(language)} gruba katıldı — ${
+				spots > 0 ? `${memberCount}/${spots}` : memberCount
+			} kişi.`
 		};
 	}
 
 	if (language === 'nl') {
 		return {
 			title: groupName,
-			body: `${memberName} is lid geworden — ${memberCount}/${spots} leden.`
+			body: `${memberName || anonymousMember(language)} is lid geworden — ${
+				spots > 0 ? `${memberCount}/${spots}` : memberCount
+			} leden.`
 		};
 	}
 
 	return {
 		title: groupName,
-		body: `${memberName} joined — ${memberCount}/${spots} members.`
+		body: `${memberName || anonymousMember(language)} joined — ${
+			spots > 0 ? `${memberCount}/${spots}` : memberCount
+		} members.`
 	};
 };
 
@@ -255,19 +347,25 @@ export const memberLeftPush = (
 	if (language === 'tr') {
 		return {
 			title: groupName,
-			body: `${memberName} gruptan ayrıldı — ${memberCount}/${spots} kişi.`
+			body: `${memberName || anonymousMember(language)} gruptan ayrıldı — ${
+				spots > 0 ? `${memberCount}/${spots}` : memberCount
+			} kişi.`
 		};
 	}
 
 	if (language === 'nl') {
 		return {
 			title: groupName,
-			body: `${memberName} heeft de groep verlaten — ${memberCount}/${spots} leden.`
+			body: `${memberName || anonymousMember(language)} heeft de groep verlaten — ${
+				spots > 0 ? `${memberCount}/${spots}` : memberCount
+			} leden.`
 		};
 	}
 
 	return {
 		title: groupName,
-		body: `${memberName} left — ${memberCount}/${spots} members.`
+		body: `${memberName || anonymousMember(language)} left — ${
+			spots > 0 ? `${memberCount}/${spots}` : memberCount
+		} members.`
 	};
 };

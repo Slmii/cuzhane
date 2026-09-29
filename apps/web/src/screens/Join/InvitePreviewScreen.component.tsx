@@ -1,7 +1,13 @@
+import { DetailsCard } from '@/components/DetailsCard/DetailsCard.component';
+import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { CuzMap, CuzMapLegend } from '@/components/CuzMap/CuzMap.component';
 import type { CuzCellState } from '@/components/CuzMap/CuzMap.types';
+import { WrapperApiError } from '@/api/wrapper.api';
 import { HatimPreviewSkeleton } from './HatimPreviewSkeleton.component';
+import { HizbInvitePreview } from './HizbInvitePreview.component';
+import { HizbInvitePreviewSkeleton } from './HizbInvitePreviewSkeleton.component';
+import { HizbPreviewError } from './HizbPreviewError.component';
 import { InvitePreviewSkeleton } from './InvitePreviewSkeleton.component';
 import { SCREEN_TITLE_PADDING_UNDER_BAR } from '@/components/ScreenTitle/ScreenTitle.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
@@ -9,6 +15,7 @@ import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Chip } from '@/components/ui/Chip/Chip.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
+import { KindMark } from '@/components/ui/KindMark/KindMark.component';
 import { ProgressBar } from '@/components/ui/ProgressBar/ProgressBar.component';
 import { SeatStack } from '@/components/ui/SeatStack/SeatStack.component';
 import {
@@ -21,14 +28,18 @@ import {
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useCachedGroup } from '@/lib/hooks/useCachedGroup';
 import { useGroupPreviewById, useJoinGroup } from '@/lib/hooks/useMembership';
+import { useGetUserSettings } from '@/lib/hooks/useUserSettings';
+import { INTRO_SETTING } from '@/lib/utils/groupIntro';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useRoundReset } from '@/lib/hooks/useRoundReset';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import { cycleLabelKey, splitModeLabelKey } from '@/lib/utils/groups';
+import { babsPerPerson } from '@/lib/utils/babs';
+import { cycleLabelKey, planLabelKey, splitModeLabelKey } from '@/lib/utils/groups';
+import { cadenceLabel } from '@/lib/utils/roundReset';
 import { CUZ_COUNT } from '@/lib/utils/units';
 import type { TabStackParamList } from '@/navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 type Props = NativeStackScreenProps<TabStackParamList, 'InvitePreview'>;
@@ -38,6 +49,8 @@ type Props = NativeStackScreenProps<TabStackParamList, 'InvitePreview'>;
  * never so long that the rows outgrow the card — 100 babs over the smallest group is 20.
  */
 const BAB_COLUMNS = 8;
+/** HJ1 and HJ2 draw the Hizb's mark at 44 beside the name. */
+const KIND_MARK_SIZE = 44;
 
 const chunk = (numbers: number[], size: number): number[][] => {
 	const rows: number[][] = [];
@@ -50,26 +63,53 @@ const chunk = (numbers: number[], size: number): number[][] => {
 };
 
 export const InvitePreviewScreen = ({ navigation, route }: Props) => {
-	const { groupId } = route.params;
+	const { groupId, inviteCode } = route.params;
 	const { theme } = useThemeContext();
-	const { t } = useTranslation();
+	const { language, t } = useTranslation();
 
-	const preview = useGroupPreviewById(groupId);
+	const preview = useGroupPreviewById(groupId, inviteCode);
 	// Which skeleton to hold while the preview loads: Keşfet's rows already know the kind.
-	const cachedKind = useCachedGroup(groupId)?.kind;
+	const cached = useCachedGroup(groupId);
+	const cachedKind = cached?.kind;
 	const joinByGroupId = useJoinGroup();
+	// Whether a join shows "how the group works" (O1–O5) — the account's "bir daha gösterme", per kind.
+	const userSettings = useGetUserSettings();
+	const showsIntro = userSettings.data?.[INTRO_SETTING[preview.data?.kind ?? 'CEVSEN']] !== false;
 	const pullToRefresh = usePullToRefresh(preview);
 	/** Set on press — see `shownRows` below, which explains why the card has to stop updating. */
 	const [joinedShare, setJoinedShare] = useState<{ poolCount: number; rows: number[][] } | null>(null);
 	// Above the early returns with the other hooks — the loading branch below returns first.
 	const reset = useRoundReset({
 		cycle: preview.data?.cycle ?? 'WEEKLY',
+		kind: preview.data?.kind ?? 'CEVSEN',
 		roundDays: preview.data?.roundDays ?? 7,
 		roundEndsAt: preview.data?.roundEndsAt ?? null,
+		startedAt: preview.data?.startedAt ?? null,
 		timezone: preview.data?.timezone ?? 'UTC'
 	});
 
+	const handleDiscover = () => {
+		// Reached from Keşfet, this screen sits *on* the Discover stack, so switching to the
+		// Discover tab is a no-op and the button did nothing. Popping the tab's own stack is
+		// what uncovers the list; the tab switch after it only matters when the preview was
+		// opened from another tab (an invite code typed on Gruplarım).
+		navigation.popToTop();
+		navigation.navigate('Tabs', { screen: 'Discover' });
+	};
+
+	// A Hizb plan group — known from the card it was opened from, or reached by a code (P4).
+	const isHizbPlan = cached?.plan != null || (preview.data?.kind === 'HIZB' && preview.data.hizbPlan != null);
+
 	if (preview.isLoading) {
+		if (cached?.plan || inviteCode) {
+			// P7: the Hizb preview's own frame, a fixed or a mixed plan as the card already knew.
+			return (
+				<ScreenContainer contentContainerStyle={styles.hizbContent}>
+					<HizbInvitePreviewSkeleton plan={cached?.plan ?? null} />
+				</ScreenContainer>
+			);
+		}
+
 		// A hatim previews with a map and rules rather than a progress bar and seats, so it
 		// holds its own shape — with the button at the foot, laid out as the screen lays it.
 		return cachedKind === 'HATIM' ? (
@@ -84,10 +124,86 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 	}
 
 	if (preview.isError || !preview.data) {
-		return <ErrorState queries={[preview]} />;
+		// P8: a Hizb preview says whether the invite is gone or only the connection failed.
+		return isHizbPlan || inviteCode ? (
+			<HizbPreviewError
+				isInvalid={preview.error instanceof WrapperApiError && preview.error.status === 404}
+				onBackToDiscover={handleDiscover}
+				onEnterAnotherCode={() => {
+					navigation.popToTop();
+					// The code sheet belongs to Gruplarım, which opens it on this flag.
+					navigation.navigate('Tabs', {
+						params: { params: { shouldOpenJoinSheet: true }, screen: 'Groups' },
+						screen: 'Groups'
+					});
+				}}
+				onRetry={() => void preview.refetch()}
+			/>
+		) : (
+			<ErrorState queries={[preview]} />
+		);
 	}
 
 	const data = preview.data;
+
+	if (data.kind === 'HIZB' && data.hizbPlan != null) {
+		return (
+			<HizbInvitePreview
+				data={data}
+				hasJoinError={joinByGroupId.isError}
+				isByCode={inviteCode !== undefined}
+				// Through to the next screen: a join refetches this preview, and "already in" must not flash.
+				isJoining={joinByGroupId.isPending || joinByGroupId.isSuccess}
+				onJoin={() =>
+					joinByGroupId.mutate(
+						{ groupId, ...(inviteCode ? { inviteCode } : {}) },
+						{
+							/*
+							 * O1 straight after a fixed plan's join; a members-choose group opens on its
+							 * plan picker first, and O2 follows the pick. Unless the account said "bir
+							 * daha gösterme" — then the group, as it is.
+							 */
+							onSuccess: joined => {
+								if (!showsIntro) {
+									navigation.replace('GroupDetail', { groupId: joined.id });
+								} else if (data.hizbPlan === 0) {
+									navigation.replace('GroupDetail', { groupId: joined.id, isJustJoined: true });
+								} else {
+									navigation.replace('GroupHowItWorks', { groupId: joined.id });
+								}
+							}
+						}
+					)
+				}
+				onOpenGroup={() => navigation.replace('GroupDetail', { groupId: data.id })}
+				pullToRefresh={pullToRefresh}
+			/>
+		);
+	}
+	// HJ1/HJ2 — the Hizb's preview. Its branches below are what those frames change: the
+	// mark beside the name, the subtitles, the details rows and the counts' wording. A hatim
+	// (QJ1/QJ2, below) and a Cevşen group take the other branches.
+	const isHizb = data.kind === 'HIZB';
+	/**
+	 * A Hizb heading carries the book's mark at its right, level with the chip row. The mark
+	 * clears the navigator's bar the way the chip row beside it does. The Cevşen's heading is
+	 * handed back untouched.
+	 */
+	const withKindMark = (heading: ReactNode) =>
+		isHizb ? (
+			<View style={styles.headingRow}>
+				<View style={styles.headingCopy}>{heading}</View>
+				<View style={styles.headingMark}>
+					<KindMark kind='HIZB' size={KIND_MARK_SIZE} />
+				</View>
+			</View>
+		) : (
+			heading
+		);
+	/** "Haftalık · Pazartesi" — the Hizb's Ritim row; the Cevşen's and a hatim's name the cycle alone. */
+	const cadenceValue = isHizb
+		? cadenceLabel(data.cycle, data.startedAt, data.timezone, language, t)
+		: t(cycleLabelKey(data.cycle));
 	/*
 	 * **A hatim preview counts cüz, not seats** — QJ1 and QJ2.
 	 *
@@ -137,43 +253,78 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 	// mind about which cüz — nothing has been taken yet.
 	const handlePickCuz = () => navigation.push('PickCuz', { groupId: data.id });
 
-	const handleDiscover = () => {
-		// Reached from Keşfet, this screen sits *on* the Discover stack, so switching to the
-		// Discover tab is a no-op and the button did nothing. Popping the tab's own stack is
-		// what uncovers the list; the tab switch after it only matters when the preview was
-		// opened from another tab (an invite code typed on Gruplarım).
-		navigation.popToTop();
-		navigation.navigate('Tabs', { screen: 'Discover' });
-	};
+	if (data.splitMode === 'FLEXIBLE') {
+		return (
+			<ScreenContainer pullToRefresh={pullToRefresh}>
+				<ScreenHeader hasBackButton title={data.name} subtitle={data.dedication ?? undefined} />
+				<CardSurface>
+					<TitleText>{t('planFlexible')}</TitleText>
+					<CaptionText color={theme.colors.subtext}>{t('planFlexibleHint')}</CaptionText>
+					<CaptionText>{t('flexibleMembers', { count: data.memberCount })}</CaptionText>
+					<CaptionText>{`${t(cycleLabelKey(data.cycle))} · ${data.readCount} / ${
+						data.partCount
+					}`}</CaptionText>
+				</CardSurface>
+				{joinByGroupId.isError ? (
+					<CaptionText color={theme.colors.danger}>{t('genericError')}</CaptionText>
+				) : null}
+				<AppButton
+					title={t(data.isMember ? 'view' : 'joinNow')}
+					disabled={joinByGroupId.isPending}
+					onPress={() =>
+						data.isMember
+							? navigation.replace('GroupDetail', { groupId })
+							: joinByGroupId.mutate(
+									{ groupId },
+									// No seats for O3 to draw: the flexible board is its own explanation.
+									{ onSuccess: joined => navigation.replace('GroupDetail', { groupId: joined.id }) }
+							  )
+					}
+				/>
+			</ScreenContainer>
+		);
+	}
 
 	if (data.isFull) {
+		// HJ2 names the plan by what it does to the portions: "Aylık · sabit bölümler".
+		const fullPlanKey = isHizb
+			? data.splitMode === 'FIXED'
+				? 'portionsFixed'
+				: 'portionsRotating'
+			: splitModeLabelKey(data.splitMode);
+
 		return (
 			<ScreenContainer contentContainerStyle={styles.content} isScrollable pullToRefresh={pullToRefresh}>
 				<View>
-					{/* Clears the navigator's back button, which this screen draws no link of
-					    its own beside. Same band every pushed screen's heading starts below. */}
-					<View style={[styles.chipRow, styles.chipRowUnderBar]}>
-						{isHatim ? <Chip label={t('qHatim')} tone='sand' /> : null}
-						{/* What is full, by the measure that kind of group uses: seats for a
-						    Cevşen group, cüz for a hatim — whose seats are still nearly all
-						    free while there is nothing left to read. */}
-						<Chip
-							label={`${t('full')} · ${
-								isHatim ? `${takenCuzCount}/${CUZ_COUNT}` : `${data.memberCount}/${data.spots}`
-							}`}
-							tone='neutral'
-						/>
-						<Chip label={t(cycleLabelKey(data.cycle))} tone='accent' />
-					</View>
+					{withKindMark(
+						<>
+							{/* Clears the navigator's back button, which this screen draws no link of
+							    its own beside. Same band every pushed screen's heading starts below. */}
+							<View style={[styles.chipRow, styles.chipRowUnderBar]}>
+								{/* A Hizb heading carries its mark instead of a chip. */}
+								{isHatim ? <Chip label={t('qHatim')} tone='sand' /> : null}
+								{/* What is full, by the measure that kind of group uses: seats for a
+								    Cevşen or Hizb group, cüz for a hatim — whose seats are still nearly
+								    all free while there is nothing left to read. */}
+								<Chip
+									label={`${t('full')} · ${
+										isHatim ? `${takenCuzCount}/${CUZ_COUNT}` : `${data.memberCount}/${data.spots}`
+									}`}
+									tone='neutral'
+								/>
+								<Chip label={t(cycleLabelKey(data.cycle))} tone='accent' />
+							</View>
 
-					<Header2 style={styles.previewName}>{data.name}</Header2>
-					<CaptionText color={theme.colors.subtext} style={styles.dedication}>
-						{/* A hatim has no split mode to name — everybody picks — so it says who is
-						    in it instead, which is what QJ2 puts here. */}
-						{isHatim
-							? `${t(cycleLabelKey(data.cycle))} · ${data.memberCount} ${t('members')}`
-							: `${t(cycleLabelKey(data.cycle))} · ${t(splitModeLabelKey(data.splitMode))}`}
-					</CaptionText>
+							<Header2 style={styles.previewName}>{data.name}</Header2>
+							<CaptionText color={theme.colors.subtext} style={styles.dedication}>
+								{/* A hatim has no split mode to name — everybody picks — so it says who is
+								    in it instead, which is what QJ2 puts here. */}
+								{isHatim
+									? `${t(cycleLabelKey(data.cycle))} · ${data.memberCount} ${t('members')}`
+									: `${t(cycleLabelKey(data.cycle))} · ${t(fullPlanKey)}`}
+							</CaptionText>
+						</>
+					)}
 
 					{/* Why you can't join, stated plainly and centred — this is the whole reason
 					    the screen exists, so it leads rather than sitting under the stats. */}
@@ -201,49 +352,67 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 						</CaptionText>
 					</CardSurface>
 
-					{/* The round still shows: you can see how it is going, you just can't join it. */}
+					{/* The round still shows: you can see how it is going, you just can't join it.
+					    A hatim shows its map. A Hizb group full but not yet started has no round
+					    to show, so HJ2 drops it. */}
 					{isHatim ? (
 						cuzMapCard(false)
-					) : (
+					) : !isHizb || data.status === 'RUNNING' ? (
 						<CardSurface style={styles.sectionCard}>
 							<View style={styles.sectionHead}>
 								<EyebrowText color={theme.colors.faintText}>{t('roundNow')}</EyebrowText>
-								<CaptionText color={theme.colors.subtext}>{`${data.readCount} / 100`}</CaptionText>
+								<CaptionText
+									color={theme.colors.subtext}
+								>{`${data.readCount} / ${data.partCount}`}</CaptionText>
 							</View>
 							<ProgressBar percent={data.percent} style={styles.sectionBar} />
-							<CaptionText color={theme.colors.subtext}>{t('allClaimed')}</CaptionText>
+							<CaptionText color={theme.colors.subtext}>
+								{isHizb ? t('allClaimedPortions', { count: data.partCount }) : t('allClaimed')}
+							</CaptionText>
 						</CardSurface>
-					)}
+					) : null}
 
 					{/* No "round ends" row here, unlike 03b — it only matters to someone who is
-					    about to start reading. */}
-					<CardSurface isFlush style={styles.metaCard}>
-						{[
-							{ label: t('cadence'), value: t(cycleLabelKey(data.cycle)) },
-							// A hatim's seat count says nothing, so it states the cap instead —
-							// the rule that decides how many of the thirty one reader may hold.
-							isHatim
-								? { label: t('qMaxPer'), value: maxPerMemberLabel }
-								: { label: t('groupSize'), value: `${data.memberCount} / ${data.spots}` },
-							{ label: t('createdBy'), value: data.createdByName }
-						].map((row, index, rows) => (
-							<View
-								key={row.label}
-								style={[
-									styles.metaRow,
-									index < rows.length - 1
-										? {
-												borderBottomColor: theme.colors.divider,
-												borderBottomWidth: StyleSheet.hairlineWidth
-										  }
-										: null
-								]}
-							>
-								<CaptionText color={theme.colors.subtext}>{row.label}</CaptionText>
-								<CaptionText weight='semibold'>{row.value}</CaptionText>
-							</View>
-						))}
-					</CardSurface>
+					    about to start reading. HJ2 adds the plan and names the Ritim's day. */}
+					{isHizb ? (
+						<DetailsCard
+							rows={[
+								{ label: t('cadence'), value: cadenceValue },
+								{ label: t('readingPlan'), value: t(planLabelKey(data.splitMode)) },
+								{ label: t('groupSize'), value: `${data.memberCount} / ${data.spots}` },
+								{ label: t('createdBy'), value: data.createdByName || t('anonymousMember') }
+							]}
+							style={styles.metaCard}
+						/>
+					) : (
+						<CardSurface isFlush style={styles.metaCard}>
+							{[
+								{ label: t('cadence'), value: t(cycleLabelKey(data.cycle)) },
+								// A hatim's seat count says nothing, so it states the cap instead —
+								// the rule that decides how many of the thirty one reader may hold.
+								isHatim
+									? { label: t('qMaxPer'), value: maxPerMemberLabel }
+									: { label: t('groupSize'), value: `${data.memberCount} / ${data.spots}` },
+								{ label: t('createdBy'), value: data.createdByName || t('anonymousMember') }
+							].map((row, index, rows) => (
+								<View
+									key={row.label}
+									style={[
+										styles.metaRow,
+										index < rows.length - 1
+											? {
+													borderBottomColor: theme.colors.divider,
+													borderBottomWidth: StyleSheet.hairlineWidth
+											  }
+											: null
+									]}
+								>
+									<CaptionText color={theme.colors.subtext}>{row.label}</CaptionText>
+									<CaptionText weight='semibold'>{row.value}</CaptionText>
+								</View>
+							))}
+						</CardSurface>
+					)}
 				</View>
 				<View style={styles.footer}>
 					{/* One way out, and it is forward: back to the groups you could join. */}
@@ -255,17 +424,30 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 
 	const isRunning = data.status === 'RUNNING';
 	const spotsToFill = Math.max(0, data.spots - data.memberCount);
+	// HJ1's "kişi başı 2 bölüm" — the same rounded share the create sheet quotes.
+	const perPart = babsPerPerson(data.spots, data.partCount);
+	const hizbPerPerson = t(perPart === 1 ? 'hizbPerPersonOne' : 'hizbPerPerson', { count: perPart });
 	// A running group is joined for its intention; a gathering one is judged on how it will
 	// be read, so 03c names the split mode alongside it.
 	const subtitle = isRunning
 		? data.dedication
 			? t('forName', { dedication: data.dedication })
 			: ''
-		: // A hatim has no split mode: everybody picks, which is the one thing "Serbest seçim"
+		: isHizb
+		? [data.dedication, t(planLabelKey(data.splitMode)), hizbPerPerson].filter(Boolean).join(' · ')
+		: isHatim
+		? // A hatim has no split mode: everybody picks, which is the one thing "Serbest seçim"
 		  // would be saying, and QC2 has already said it.
-		  [data.dedication, isHatim ? '' : t(splitModeLabelKey(data.splitMode))].filter(Boolean).join(' · ');
+		  data.dedication ?? ''
+		: [data.dedication, t(splitModeLabelKey(data.splitMode))].filter(Boolean).join(' · ');
 	// What a joiner would actually be handed: their seat's share, capped by what's unclaimed.
 	const shareSize = data.nextRange ? data.nextRange.end - data.nextRange.start + 1 : 0;
+	// A Hizb seat can hold a single portion, which English and Dutch can't say with "these {count}".
+	const joinRangeNoteKey = isHizb
+		? shareSize === 1
+			? 'joinRangeNoteHizbOne'
+			: 'joinRangeNoteHizb'
+		: 'joinRangeNote';
 	// The seat's own block, spelled out. This is what a joiner is actually handed, and it
 	// exists whenever a seat is free — unlike `poolBabNumbers`, which carries only the part
 	// nobody has volunteered for and comes back empty in a group whose free seats have all
@@ -298,10 +480,11 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 
 		const joined = await joinByGroupId.mutateAsync({ groupId: data.id });
 
-		// Joining from Keşfet and joining by code produce the same thing, so both land on
-		// the same welcome, which decides whether it is showing "your babs are ready" or
-		// "waiting to start".
-		navigation.replace('JoinedWelcome', { groupId: joined.id });
+		// A Cevşen seat: how the group works (O3), unless the account said "bir daha gösterme" —
+		// then the welcome. An old seat-based Hizb group has no such screen and goes straight there.
+		navigation.replace(showsIntro && data.kind === 'CEVSEN' ? 'GroupHowItWorks' : 'JoinedWelcome', {
+			groupId: joined.id
+		});
 	};
 
 	/**
@@ -310,7 +493,7 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 	 * and drops the round row entirely — "when it starts" is the card above.
 	 */
 	const metaRows: { label: string; value: string; secondary?: string }[] = [
-		{ label: t('cadence'), value: t(cycleLabelKey(data.cycle)) },
+		{ label: t('cadence'), value: cadenceValue },
 		/*
 		 * Both clocks, as everywhere else the reset is stated. Someone deciding whether to join
 		 * is exactly who needs the local one — the group's zone is the creator's and they may
@@ -329,11 +512,12 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 					}
 			  ]
 			: []),
+		...(isHizb ? [{ label: t('readingPlan'), value: t(planLabelKey(data.splitMode)) }] : []),
 		{
 			label: t('groupSize'),
 			value: isRunning ? `${data.memberCount} / ${data.spots}` : `${data.spots}`
 		},
-		{ label: t('createdBy'), value: data.createdByName }
+		{ label: t('createdBy'), value: data.createdByName || t('anonymousMember') }
 	];
 
 	/**
@@ -380,12 +564,16 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 					</View>
 					<CaptionText weight='semibold'>{t('startsManual')}</CaptionText>
 				</View>
-				<View style={styles.startRow}>
-					<View style={[styles.startIcon, { backgroundColor: theme.colors.accentSoft }]}>
-						<Icon color={theme.colors.accent} name='memberCheck' size={13} strokeWidth={1.9} />
+				{/* The Hizb promises the full-group start only when the group will keep it; the
+				    Cevşen's and a hatim's cards have always shown both ways in. */}
+				{!isHizb || data.autoStartWhenFull ? (
+					<View style={styles.startRow}>
+						<View style={[styles.startIcon, { backgroundColor: theme.colors.accentSoft }]}>
+							<Icon color={theme.colors.accent} name='memberCheck' size={13} strokeWidth={1.9} />
+						</View>
+						<CaptionText weight='semibold'>{t(isHatim ? 'qAutoStartFull' : 'startsFull')}</CaptionText>
 					</View>
-					<CaptionText weight='semibold'>{t(isHatim ? 'qAutoStartFull' : 'startsFull')}</CaptionText>
-				</View>
+				) : null}
 			</View>
 			<ProgressBar
 				percent={Math.round(
@@ -397,10 +585,14 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 				<CaptionText color={theme.colors.subtext}>
 					{isHatim
 						? `${takenCuzCount} / ${CUZ_COUNT} ${t('qCuzTaken')}`
+						: isHizb
+						? t('peopleJoined', { count: data.memberCount })
 						: t('membersJoined', { count: data.memberCount, spots: data.spots })}
 				</CaptionText>
 				<CaptionText color={theme.colors.accent} weight='semibold'>
-					{isHatim ? `${freeCuz.size} ${t('qFree')}` : t('spotsToFill', { count: spotsToFill })}
+					{isHatim
+						? `${freeCuz.size} ${t('qFree')}`
+						: t(isHizb ? 'spotsRemaining' : 'spotsToFill', { count: spotsToFill })}
 				</CaptionText>
 			</View>
 		</CardSurface>
@@ -409,23 +601,31 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 	return (
 		<ScreenContainer contentContainerStyle={styles.content} isScrollable pullToRefresh={pullToRefresh}>
 			<View>
-				{/* Status first, then cadence. The status chip takes the tone that says
-				    something — sage for running, sand for waiting — and the cadence chip
-				    takes whichever is left, so the two never carry the same weight. */}
-				<View style={[styles.chipRow, styles.chipRowUnderBar]}>
-					{/* What is read leads, as it does on a group card — before a hatim's status
-					    or its cadence means anything, you have to know it is a hatim. */}
-					{isHatim ? <Chip label={t('qHatim')} tone='neutral' /> : null}
-					<Chip label={t(isRunning ? 'running' : 'notStarted')} tone={isRunning ? 'accent' : 'sand'} />
-					<Chip label={t(cycleLabelKey(data.cycle))} tone={isRunning ? 'sand' : 'accent'} />
-				</View>
+				{withKindMark(
+					<>
+						{/* Status first, then cadence. The status chip takes the tone that says
+						    something — sage for running, sand for waiting — and the cadence chip
+						    takes whichever is left, so the two never carry the same weight. */}
+						<View style={[styles.chipRow, styles.chipRowUnderBar]}>
+							{/* What is read leads, as it does on a group card — before a hatim's status
+							    or its cadence means anything, you have to know it is a hatim. A Hizb
+							    heading says it with its mark instead. */}
+							{isHatim ? <Chip label={t('qHatim')} tone='neutral' /> : null}
+							<Chip
+								label={t(isRunning ? 'running' : 'notStarted')}
+								tone={isRunning ? 'accent' : 'sand'}
+							/>
+							<Chip label={t(cycleLabelKey(data.cycle))} tone={isRunning ? 'sand' : 'accent'} />
+						</View>
 
-				<Header2 style={styles.previewName}>{data.name}</Header2>
-				{subtitle ? (
-					<CaptionText color={theme.colors.subtext} style={styles.dedication}>
-						{subtitle}
-					</CaptionText>
-				) : null}
+						<Header2 style={styles.previewName}>{data.name}</Header2>
+						{subtitle ? (
+							<CaptionText color={theme.colors.subtext} style={styles.dedication}>
+								{subtitle}
+							</CaptionText>
+						) : null}
+					</>
+				)}
 
 				{isHatim ? (
 					/*
@@ -482,11 +682,16 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 						<CardSurface style={[styles.sectionCard, styles.firstCard]}>
 							<View style={styles.sectionHead}>
 								<EyebrowText color={theme.colors.faintText}>{t('roundNow')}</EyebrowText>
-								<CaptionText color={theme.colors.subtext}>{`${data.readCount} / 100`}</CaptionText>
+								<CaptionText
+									color={theme.colors.subtext}
+								>{`${data.readCount} / ${data.partCount}`}</CaptionText>
 							</View>
 							<ProgressBar percent={data.percent} style={styles.sectionBar} />
 							<CaptionText color={theme.colors.subtext}>
-								{t('inProgressNote', { day: data.roundDayIndex ?? 1, read: data.readCount })}
+								{t(isHizb ? 'inProgressNoteHizb' : 'inProgressNote', {
+									day: data.roundDayIndex ?? 1,
+									read: data.readCount
+								})}
 							</CaptionText>
 						</CardSurface>
 
@@ -505,13 +710,15 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 						{shownRows.length > 0 ? (
 							<CardSurface style={styles.sectionCard}>
 								<View style={styles.sectionHead}>
-									<EyebrowText color={theme.colors.faintText}>{t('yourRange')}</EyebrowText>
+									<EyebrowText color={theme.colors.faintText}>
+										{t(isHizb ? 'yourPortions' : 'yourRange')}
+									</EyebrowText>
 									{/* Not a second count of the chips below — every bab sitting in
 									    an empty seat, which is the group's state rather than your
 									    share, and includes the block you are about to take. The
 									    same number its Havuz screen shows. */}
 									<CaptionText color={theme.colors.accent}>
-										{t('unclaimedCount', { count: shownPoolCount })}
+										{t(isHizb ? 'unclaimedCountHizb' : 'unclaimedCount', { count: shownPoolCount })}
 									</CaptionText>
 								</View>
 								{/*
@@ -552,7 +759,7 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 									))}
 								</View>
 								<CaptionText color={theme.colors.subtext} style={styles.sectionNote}>
-									{t('joinRangeNote', { count: shareSize })}
+									{t(joinRangeNoteKey, { count: shareSize })}
 								</CaptionText>
 							</CardSurface>
 						) : null}
@@ -564,7 +771,7 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 
 						{/* Outside the card: it explains the card above rather than belonging to it. */}
 						<CaptionText color={theme.colors.subtext} style={styles.startsNote}>
-							{t('startsNote')}
+							{t(isHizb && !data.autoStartWhenFull ? 'startsNoteManual' : 'startsNote')}
 						</CaptionText>
 					</>
 				)}
@@ -643,6 +850,8 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 };
 
 const styles = StyleSheet.create({
+	// `HizbInvitePreview`'s column: its content, then the foot pushed down.
+	hizbContent: { flexGrow: 1, justifyContent: 'space-between' },
 	fullCard: {
 		alignItems: 'center',
 		marginTop: 20,
@@ -708,6 +917,18 @@ const styles = StyleSheet.create({
 	// gap between two stacked cards.
 	firstCard: {
 		marginTop: 20
+	},
+	headingCopy: {
+		flex: 1,
+		minWidth: 0
+	},
+	headingMark: {
+		paddingTop: SCREEN_TITLE_PADDING_UNDER_BAR
+	},
+	headingRow: {
+		alignItems: 'flex-start',
+		flexDirection: 'row',
+		gap: 12
 	},
 	membersRow: {
 		alignItems: 'center',

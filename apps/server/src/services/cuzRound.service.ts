@@ -4,7 +4,7 @@ import prisma from '@db/prisma';
 import { normalizeUserId } from '@utils/normalizeUserId';
 import { CUZ_COUNT } from '@utils/units';
 import type { Group, Prisma } from '../generated/prisma/client';
-import { lockGroup } from './babs.service';
+import { lockGroup } from './rounds.service';
 import { requireMembership } from './groupAccess.service';
 import { ensureCurrentRound } from './rounds.service';
 

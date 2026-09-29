@@ -12,6 +12,7 @@ import {
 	Header1,
 	Typography
 } from '@/components/ui/Typography/Typography.component';
+import { worksForParts } from '@/lib/content/hizbPortions';
 import { useCachedGroup } from '@/lib/hooks/useCachedGroup';
 import { useGetGroupById } from '@/lib/hooks/useGroup';
 import { useRoundReset } from '@/lib/hooks/useRoundReset';
@@ -47,8 +48,10 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 	// With the other hooks: the loading branch below returns before the body runs.
 	const reset = useRoundReset({
 		cycle: group.data?.cycle ?? 'WEEKLY',
+		kind: group.data?.kind ?? 'CEVSEN',
 		roundDays: group.data?.roundDays ?? 7,
 		roundEndsAt: group.data?.roundEndsAt ?? null,
+		startedAt: group.data?.startedAt ?? null,
 		timezone: group.data?.timezone ?? 'UTC'
 	});
 
@@ -79,6 +82,22 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 	const rangeValue = formatBabRange(babNumbers);
 	// Nothing is counted until the owner opens day 1, so the range is only a reservation.
 	const isProvisional = detail.status === 'GATHERING';
+	/*
+	 * HJ3 — the Hizb's wait, and its welcome into a running group. The same screen with its
+	 * own noun, and one line more in both states: which of the book's works the portions sit
+	 * in, since "15–16" alone says nothing to someone who hasn't learnt the division by
+	 * number. Nothing is recomputed for the wait: while the group gathers the server derives
+	 * `myBabNumbers` from the seat alone, which is exactly round 0's share —
+	 * `babNumbersForRound(slot, spots, 0, partCount)`.
+	 */
+	const isHizb = detail.kind === 'HIZB';
+	const worksLine = isHizb
+		? worksForParts(babNumbers)
+				.map(work => t(work.titleKey))
+				.join(' · ')
+		: '';
+	// "biri sana atandı" / "An unclaimed portion" — a Hizb seat can hold a single portion.
+	const midSubKey = isHizb ? (babNumbers.length === 1 ? 'midSubHizbOne' : 'midSubHizb') : 'midSub';
 	// While settings are still loading we don't know either way, so fall back to the unset
 	// (ghost button) state rather than flashing the soft-green row and then swapping it out.
 	//
@@ -143,15 +162,15 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 				</View>
 
 				<Header1 style={styles.title} textAlign='center'>
-					{t(isProvisional ? 'lobbyTitle' : isHatim ? 'qJoinedTitle2' : 'midTitle')}
+					{t(isProvisional ? 'lobbyTitle' : isHatim ? 'qJoinedTitle2' : isHizb ? 'midTitleHizb' : 'midTitle')}
 				</Header1>
 				<BodyText color={theme.colors.subtext} style={styles.sub} textAlign='center'>
 					{isProvisional
-						? t(isHatim ? 'qLobbyWaitSub' : 'lobbySub')
+						? t(isHatim ? 'qLobbyWaitSub' : isHizb ? 'lobbySubHizb' : 'lobbySub')
 						: t(
 								isHatim
 									? pluralKey(language, babNumbers.length, 'qJoinedSub2One', 'qJoinedSub2')
-									: 'midSub',
+									: midSubKey,
 								{ count: babNumbers.length }
 						  )}
 				</BodyText>
@@ -163,7 +182,7 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 						<CardSurface style={styles.rangeCard}>
 							<Hatch radius={theme.radius.lg} />
 							<EyebrowText color={theme.colors.subtext} textAlign='center'>
-								{t(isHatim ? 'qMyCuz' : 'yourRange')}
+								{t(isHatim ? 'qMyCuz' : isHizb ? 'yourPortions' : 'yourRange')}
 							</EyebrowText>
 							<Typography
 								color={theme.colors.faintText}
@@ -173,6 +192,11 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 							>
 								{rangeValue}
 							</Typography>
+							{worksLine ? (
+								<CaptionText color={theme.colors.subtext} style={styles.works} textAlign='center'>
+									{worksLine}
+								</CaptionText>
+							) : null}
 							<View style={styles.lockPillRow}>
 								<View style={[styles.lockPill, { backgroundColor: theme.colors.secondary }]}>
 									<Icon color={theme.colors.subtext} name='lock' size={12} strokeWidth={1.9} />
@@ -205,7 +229,7 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 								<CaptionText color={theme.colors.accent} weight='semibold'>
 									{isHatim
 										? `${detail.poolBabNumbers.length} ${t('qFree')}`
-										: t('spotsToFill', { count: spotsToFill })}
+										: t(isHizb ? 'morePeople' : 'spotsToFill', { count: spotsToFill })}
 								</CaptionText>
 							</View>
 						</CardSurface>
@@ -215,7 +239,9 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 						{/* The count rides the eyebrow — "CÜZLERİN · 3" — so the heading says how
 						    many without a line of its own above a list that is already short. */}
 						<EyebrowText color={theme.colors.subtext} textAlign='center'>
-							{isHatim ? `${t('qMyCuz')} · ${babNumbers.length}` : t('yourRange')}
+							{isHatim
+								? `${t('qMyCuz')} · ${babNumbers.length}`
+								: t(isHizb ? 'yourPortions' : 'yourRange')}
 						</EyebrowText>
 						{/*
 						 * **A cüz is a row, a bab is a pill.** The pills were a run of numbers with
@@ -287,6 +313,12 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 								))}
 							</View>
 						)}
+						{/* HJ3: which of the book's works a Hizb share sits in. Empty for the others. */}
+						{worksLine ? (
+							<CaptionText color={theme.colors.subtext} style={styles.works} textAlign='center'>
+								{worksLine}
+							</CaptionText>
+						) : null}
 						{/*
 						 * Both clocks, as everywhere else the reset is stated. The reset is a
 						 * group-wide fact on the creator's zone, so for anyone in another one the
@@ -496,5 +528,8 @@ const styles = StyleSheet.create({
 	title: {
 		fontSize: 29,
 		lineHeight: 33
+	},
+	works: {
+		marginTop: 8
 	}
 });

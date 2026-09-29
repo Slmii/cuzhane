@@ -1,3 +1,4 @@
+import type { GroupKind } from '@/lib/types/domain';
 import { NavigatorScreenParams } from '@react-navigation/native';
 
 /** Why a hatim's round-start screen (QR1) is being shown — see `RoundStart`. */
@@ -26,7 +27,8 @@ export type TabDetailParamList = {
 	 * The read-only preview of a group tapped in Keşfet — frames 03b/03c/03f — is still a
 	 * screen, because browsing genuinely is navigation.
 	 */
-	InvitePreview: { groupId: string };
+	/** `inviteCode` when reached by a code or the QR (P4): a private group previews and joins by it. */
+	InvitePreview: { groupId: string; inviteCode?: string };
 	/**
 	 * QJ3 — which cüz you are joining a hatim with. Pushed from the preview's CTA.
 	 * `isRoundPick` reuses the same map for a member choosing again at a new round (QR1's
@@ -59,7 +61,13 @@ export type TabDetailParamList = {
 	 * its state. Same device as `shouldOpenJoinSheet`, and cleared on dismissal for the same
 	 * reason — left set, the flag would reopen the sheet on the next render.
 	 */
-	GroupDetail: { groupId: string; sheet?: GroupDetailSheet };
+	/**
+	 * `isJustJoined`: a members-choose Hizb group was just joined, so picking the plan opens O2
+	 * (how it works) — set only by the join, and only while the account still wants to see it.
+	 */
+	GroupDetail: { groupId: string; sheet?: GroupDetailSheet; isJustJoined?: boolean };
+	/** O1–O5 — how the group works, after joining. `isOverGroup` when pushed over its screen (O2). */
+	GroupHowItWorks: { groupId: string; isOverGroup?: boolean };
 	/**
 	 * `shouldOpenTextSize` asks the reader to open its text-size sheet, for the same reason
 	 * `GroupDetail.sheet` exists: the control lives in the navigator's bar, outside the screen
@@ -79,8 +87,16 @@ export type TabDetailParamList = {
 	/** Where a GATHERING group lives — the creator's start screen, or the member's wait. */
 	Lobby: { groupId: string };
 	/** Shown once, right after the owner opens day 1. */
-	/** The share of the seats nobody took. */
-	Pool: { groupId: string };
+	/**
+	 * The share of the seats nobody took. `kind` picks the screen — a Cevşen block at a time or a
+	 * Hizb portion at a time — and travels with the route because a group's kind never changes,
+	 * so it can't go stale, and the right screen is drawn without waiting on the group's query.
+	 * Optional: the hatim screens (and a cold open) arrive without it, and the group's own kind
+	 * wins once known — see `PoolScreen`.
+	 */
+	Pool: { groupId: string; kind?: GroupKind };
+	/** HZ2 — a Hizb group's portions, work by work, from the board's "Fihrist ›"; a row opens `HizbReader`. */
+	HizbIndex: { groupId: string };
 	/**
 	 * B7 — the whole cevşen, read outside any group. **No params**: the bab is screen state,
 	 * because a free read is a place you are rather than one you are sent to, and nothing —
@@ -108,6 +124,30 @@ export type TabDetailParamList = {
 	Reminders: undefined;
 	/** P3 — the release notes, pushed from Profil's version row and from P1's sheet. */
 	ReleaseNotes: undefined;
+	/** The Hizb-ül Hakaik's table of contents, from a row on Profil; a row opens `HizbReader`. */
+	HizbSections: undefined;
+	/**
+	 * The Hizb-ül Hakaik. `sectionIndex` is free reading, one section of `HIZB_SECTIONS` from
+	 * the list on Profil. `groupId` + `partNumber` is a Hizb group's portion, read and marked
+	 * there (`HizbPortionReader`). `roundIndex` below the group's puts it in cover mode for that
+	 * closed round; the open round **omits it**, and the reader treats the open round's own index
+	 * exactly as no index, so a caller holding one may pass it. `shouldOpenTextSize` as on
+	 * `BabReader`, in either shape.
+	 */
+	HizbPlanReader: { groupId: string; assignmentId: string; shouldOpenTextSize?: boolean };
+	/** A personal-plan group's missed days, newest first — opened from "Senin ilerlemen" (T2). */
+	HizbMissed: { groupId: string };
+	/** A personal-plan group's history: every reading of the viewer's, newest first — from the rounds card (T3). */
+	HizbPlanHistory: { groupId: string };
+	/** A personal-plan group's day in full: today's 33, yesterday, the last 30 days (T4). */
+	HizbGroupProgress: { groupId: string };
+	/** A personal-plan group's readers today (T5), or on `day` (a group day number) from "Tüm geçmiş". */
+	HizbReaders: { groupId: string; day?: number };
+	/** A shared plan's "Tüm geçmiş": the group's days, newest first, each opening its readers. */
+	HizbGroupHistory: { groupId: string };
+	HizbReader:
+		| { sectionIndex: number; shouldOpenTextSize?: boolean }
+		| { groupId: string; partNumber: number; roundIndex?: number; shouldOpenTextSize?: boolean };
 	Profile: undefined;
 	/** Android only: search is pushed from the bar's magnifier rather than being a tab. */
 	Search: undefined;

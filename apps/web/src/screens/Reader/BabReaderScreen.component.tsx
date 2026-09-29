@@ -1,4 +1,5 @@
 import { WrapperApiError } from '@/api/wrapper.api';
+import { LateReadingNotice } from '@/components/LateReadingNotice/LateReadingNotice.component';
 import { TourTarget } from '@/components/Tour/TourTarget.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
@@ -7,7 +8,7 @@ import { EyebrowText, Typography } from '@/components/ui/Typography/Typography.c
 import type { CevsenInvocation } from '@/lib/content/cevsen';
 import { READER_FONT_SIZE_DEFAULT } from '@/lib/content/cevsen';
 import { useGetBabs, useSetBabRead } from '@/lib/hooks/useBab';
-import { useGetGroupById, useGetPoolSlots, useTakePoolSlot } from '@/lib/hooks/useGroup';
+import { useGetGroupById, useGetPoolSlots, useTakePoolPart, useTakePoolSlot } from '@/lib/hooks/useGroup';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useCoverBabs, useGetRoundDetail } from '@/lib/hooks/useRounds';
 import { useGetUserSettings, useUpdateUserSettings } from '@/lib/hooks/useUserSettings';
@@ -81,6 +82,7 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 	// The three that describe the group's state; the text itself is bundled and never stale.
 	const pullToRefresh = usePullToRefresh(groupQuery, babsQuery, poolQuery);
 	const takePoolSlot = useTakePoolSlot();
+	const takePoolPart = useTakePoolPart();
 	const settingsQuery = useGetUserSettings();
 	const updateSettings = useUpdateUserSettings();
 	const setBabRead = useSetBabRead();
@@ -167,9 +169,14 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 			return group?.myBabNumbers ?? NO_BAB_NUMBERS;
 		}
 
+		if (group.splitMode === 'FLEXIBLE') {
+			return NO_BAB_NUMBERS;
+		}
+
+		// The group's own count: a share is a slice of the parts the group divides.
 		return group.splitMode === 'ROTATION'
-			? babNumbersForRound(group.mySlotIndex, group.spots, coveredRoundIndex)
-			: babNumbersForSlot(group.mySlotIndex, group.spots);
+			? babNumbersForRound(group.mySlotIndex, group.spots, coveredRoundIndex, group.partCount)
+			: babNumbersForSlot(group.mySlotIndex, group.spots, group.partCount);
 	}, [coveredRoundIndex, groupQuery.data]);
 
 	/** "12 Eylül Cuma" in the reader's language, in the group's zone. */
@@ -428,6 +435,7 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 	 * pool and nobody's yet, or it is another member's.
 	 */
 	const isMine = myBabNumbers.includes(babNumber);
+	const isFlexiblePoolDone = groupQuery.data?.splitMode === 'FLEXIBLE' && isPoolBab && isRead;
 	/*
 	 * **The same gate as the open round**: your own bab or an unclaimed one, never another
 	 * member's. Covering changes *which* round the question is asked about, not who may
@@ -488,6 +496,8 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 
 	const readHint = coverErrorHint
 		? coverErrorHint
+		: isFlexiblePoolDone
+		? t('coverDone')
 		: isMine
 		? t('longPressHint')
 		: isCovering && isPoolBab && !isRead
@@ -594,6 +604,27 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 	};
 
 	const handleTakeAndRead = () => {
+		if (isFlexiblePoolDone) {
+			return;
+		}
+		if (groupQuery.data?.splitMode === 'FLEXIBLE') {
+			takePoolPart.mutate(
+				{ groupId, babNumber },
+				{
+					onSuccess: () =>
+						setBabRead.mutate(
+							{ groupId, babNumber, read: true },
+							{
+								onSuccess: () => {
+									tapBack();
+									goToBab(nextBabNumber);
+								}
+							}
+						)
+				}
+			);
+			return;
+		}
 		if (poolSlotIndex === null) {
 			return;
 		}
@@ -740,7 +771,7 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 						 * Drag or tap anywhere along it to jump — the arrows step one bab, which is
 						 * ninety-nine taps end to end.
 						 */}
-						{/* Stop 9 of the first-use tour — the strip, and that it can be dragged. */}
+						{/* C6 of the first-use tour — the strip, and that it can be slid along. */}
 						<TourTarget id='readerMap' style={styles.babMapRow}>
 							<GestureDetector gesture={railGesture}>
 								<View
@@ -749,6 +780,9 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 									onLayout={event => setRailWidth(event.nativeEvent.layout.width)}
 								>
 									<ReaderBabMap
+										// The group's part count whenever `spots` goes with it — the map's own rule,
+										// since its pool blocks are cut from that split. The text's hundred until then.
+										count={groupQuery.data?.partCount ?? readableTotal}
 										currentBab={displayBab}
 										scrubRatio={scrubRatio}
 										myBabNumbers={myBabNumbers}
@@ -794,6 +828,12 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 			<View style={[styles.footer, { borderTopColor: theme.colors.readerRule }]}>
 				{/* Same flat surface as the header above, for the same reason — see the note there. */}
 				<View style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.readerSurface }]} />
+				{coveredRound && canMark && !isRead ? <LateReadingNotice daysLate={coveredRound.daysLate} /> : null}
+				{takePoolPart.isError || setBabRead.isError ? (
+					<Typography color={theme.colors.danger} variant='caption'>
+						{t('genericError')}
+					</Typography>
+				) : null}
 				{/*
 				 * One line saying why the button below reads the way it does — and only when
 				 * there is something to say. A bab already in your share gets no line at all.
@@ -807,42 +847,47 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 						{readHint}
 					</Typography>
 				) : null}
-				{/* Stop 8 of the first-use tour: Okudum and the two arrows, as one row. */}
-				<TourTarget id='readerActions'>
-					<View style={styles.footerRow}>
+				<View style={styles.footerRow}>
+					<AppButton
+						accessibilityLabel={t('previousBab')}
+						disabled={previousBabNumber === undefined}
+						fullWidth={false}
+						icon='chevronLeft'
+						onPress={() => goToBab(previousBabNumber)}
+						variant='surface'
+					/>
+					{/*
+					 * Live for your own babs and for the pool's; muted otherwise.
+					 *
+					 * `disabled` as well as muted — the reader now walks all hundred, so most
+					 * babs on most days are somebody else's, and a button that merely looked
+					 * inert but still fired would let anyone mark anyone's work. The server
+					 * refuses it too; this is so the screen never asks.
+					 */}
+					{/*
+					 * `AppButton`, so this button is the platform's own where the platform has one.
+					 * **The arrows either side are the same**, since `AppButton` learned to be a
+					 * glyph with no label — the whole row is native together or drawn together,
+					 * rather than a native button flanked by two hand-drawn ones.
+					 *
+					 * The three states map onto variants: unread is the filled `accent`, read is
+					 * `accentOutline` — accent hairline over no fill, which is what the outlined
+					 * state already was — and locked is a disabled `surface`. **That last one is
+					 * a change worth knowing about.** Locked used to be a filled `secondary`
+					 * block; `AppButton` expresses disabled as a 0.45 dim, which is closer to the
+					 * muting the design rejected than to the solid "not yours today" it had.
+					 */}
+					{/* C5 of the first-use tour: "Okudum" on its own, the slot around it. */}
+					<TourTarget id='readMark' style={styles.markButtonSlot}>
 						<AppButton
-							accessibilityLabel={t('previousBab')}
-							disabled={previousBabNumber === undefined}
-							fullWidth={false}
-							icon='chevronLeft'
-							onPress={() => goToBab(previousBabNumber)}
-							variant='surface'
-						/>
-						{/*
-						 * Live for your own babs and for the pool's; muted otherwise.
-						 *
-						 * `disabled` as well as muted — the reader now walks all hundred, so most
-						 * babs on most days are somebody else's, and a button that merely looked
-						 * inert but still fired would let anyone mark anyone's work. The server
-						 * refuses it too; this is so the screen never asks.
-						 */}
-						{/*
-						 * `AppButton`, so this button is the platform's own where the platform has one.
-						 * **The arrows either side are the same**, since `AppButton` learned to be a
-						 * glyph with no label — the whole row is native together or drawn together,
-						 * rather than a native button flanked by two hand-drawn ones.
-						 *
-						 * The three states map onto variants: unread is the filled `accent`, read is
-						 * `accentOutline` — accent hairline over no fill, which is what the outlined
-						 * state already was — and locked is a disabled `surface`. **That last one is
-						 * a change worth knowing about.** Locked used to be a filled `secondary`
-						 * block; `AppButton` expresses disabled as a 0.45 dim, which is closer to the
-						 * muting the design rejected than to the solid "not yours today" it had.
-						 */}
-						<AppButton
-							disabled={!canMark || (isCovering && isRead)}
+							disabled={
+								!canMark ||
+								isFlexiblePoolDone ||
+								(isCovering && isRead) ||
+								takePoolPart.isPending ||
+								setBabRead.isPending
+							}
 							onPress={isCovering ? handleCover : isPoolBab ? handleTakeAndRead : toggleCurrentRead}
-							style={styles.markButtonSlot}
 							/*
 							 * A pool bab says **"Üstlen ve oku"**, not "Okudum".
 							 *
@@ -854,7 +899,9 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 							 * Okudum · Geri al on the next render.
 							 */
 							title={
-								!canMark
+								isFlexiblePoolDone
+									? t('coverDone')
+									: !canMark
 									? t('readLocked')
 									: isCovering && isRead
 									? /*
@@ -888,16 +935,16 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 							}
 							variant={isRead ? 'accentOutline' : 'accent'}
 						/>
-						<AppButton
-							accessibilityLabel={t('nextBab')}
-							disabled={nextBabNumber === undefined}
-							fullWidth={false}
-							icon='chevronRight'
-							onPress={() => goToBab(nextBabNumber)}
-							variant='surface'
-						/>
-					</View>
-				</TourTarget>
+					</TourTarget>
+					<AppButton
+						accessibilityLabel={t('nextBab')}
+						disabled={nextBabNumber === undefined}
+						fullWidth={false}
+						icon='chevronRight'
+						onPress={() => goToBab(nextBabNumber)}
+						variant='surface'
+					/>
+				</View>
 			</View>
 
 			{/*

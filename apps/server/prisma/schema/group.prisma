@@ -9,6 +9,7 @@ enum GroupSplitMode {
     ROTATION
     FIXED
     FREE
+    FLEXIBLE
 }
 
 enum GroupStatus {
@@ -27,10 +28,12 @@ enum GroupCycle {
 ///
 /// `CEVSEN` is the hundred babs split across seats; `HATIM` is the thirty cüz of the
 /// Qur'an, held individually. It defaults to `CEVSEN`, and that default *is* the backfill —
-/// every existing row is one, and nothing else needed writing.
+/// every existing row is one, and nothing else needed writing. `HIZB` is the Hizbü'l-Hakaik:
+/// 33 portions split across seats, on the Cevşen's seat model.
 enum GroupKind {
     CEVSEN
     HATIM
+    HIZB
 }
 
 /// How a hatim's cüz are handed out **at the moment it starts**. Null on a Cevşen group.
@@ -62,7 +65,11 @@ model Group {
     name              String
     dedication        String?
     visibility        GroupVisibility    @default(OPEN)
-    splitMode         GroupSplitMode     @default(ROTATION)
+    hideMemberNames   Boolean            @default(false)
+    // A shared Hizb plan's "Okuma sorumluları": the "has read" notice goes only to the members ticked
+    // to see who read (`GroupMember.seesReaders`), whatever anyone's own settings say.
+    readSeersEnabled  Boolean            @default(false)
+    splitMode        GroupSplitMode     @default(ROTATION)
     status            GroupStatus        @default(GATHERING)
     cycle             GroupCycle         @default(WEEKLY)
     /// What this group reads. See `GroupKind`.
@@ -82,6 +89,17 @@ model Group {
     maxPerMember      Int?
     /// Hatim only: keep your cüz at the boundary, or take again. See `CuzBoundaryPolicy`.
     boundaryPolicy    CuzBoundaryPolicy?
+    /// Hizb only. Null for legacy groups; 0 lets members choose, otherwise 7/15/33 days.
+    hizbPlan           Int?
+    hizbIndividual     Boolean            @default(false)
+    hizbStartPortion   Int                @default(1)
+    inactivityDays     Int?
+    hizbNext7          Int                @default(0)
+    hizbNext15         Int                @default(0)
+    hizbNext33         Int                @default(0)
+    inactivitySinceDay Int?
+    hizbNextSlot       Int                @default(1)
+    hizbEnrollments    HizbEnrollment[]
     spots             Int                @default(20)
     inviteCode        String             @unique
     openToJoin        Boolean            @default(true)
@@ -111,6 +129,7 @@ model Group {
     eventNotices  GroupEventNotice[]
     roundNotices  RoundCompleteNotice[]
     notifications Notification[]
+    repetitions   GroupPartRepetition[]
 
     @@index([ownerUserId])
     @@index([visibility, openToJoin, createdAt])

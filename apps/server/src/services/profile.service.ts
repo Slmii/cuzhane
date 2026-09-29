@@ -1,10 +1,13 @@
+import { coverageFor } from '@utils/hizbPlans';
 import prisma from '@db/prisma';
 import { unitCountFor } from '@utils/units';
 import { normalizeUserId } from '@utils/normalizeUserId';
 import { civilDayNumber, DEFAULT_TIME_ZONE } from '@utils/rounds';
 
 export type ProfileStats = {
+	/** Cevşen babs (and a hatim's cüz) — the label says babs, and a Hizb portion is not one. */
 	babsRead: number;
+	/** Every group's completed rounds, whatever it reads. */
 	roundsCompleted: number;
 	streakDays: number;
 	/** The longest run of consecutive reading days, ever — what the current streak is measured against. */
@@ -44,7 +47,11 @@ export const getProfileStatsForUser = async (
 	// `GroupBab.readByUserId` / `readAt` describe only the CURRENT round — a rollover wipes
 	// them clean. `BabRead` is the append-only log that survives rollovers, so every
 	// historical stat here (total read, streak, heatmap, completed rounds) is derived from it.
-	const [memberships, userReads] = await Promise.all([
+	const [personalReads, memberships, userReads] = await Promise.all([
+		prisma.hizbAssignment.findMany({
+			where: { enrollment: { userId: normalizedUserId }, completedAt: { not: null } },
+			include: { enrollment: true }
+		}),
 		prisma.groupMember.findMany({
 			where: { userId: normalizedUserId },
 			select: { joinedAt: true }
@@ -55,7 +62,12 @@ export const getProfileStatsForUser = async (
 		})
 	]);
 
-	const babsRead = userReads.length;
+	/*
+	 * What each group reads, for the two stats that depend on it. One lookup over the groups
+	 * this reader has touched rather than a join on every read: a `BabRead` row can't outlive
+	 * its group (the relation cascades), so every id here resolves.
+	 */
+	const groupIds = [...new Set(userReads.map(read => read.groupId))];
 
 	/*
 	 * A round is "completed" once every unit of a (groupId, roundIndex) has been read by
@@ -63,36 +75,66 @@ export const getProfileStatsForUser = async (
 	 * `BabRead` rows exist in total for each of those rounds.
 	 *
 	 * **How many "every" is depends on the group**, which is why the kinds are fetched below:
-	 * a hundred babs or thirty cüz. This was a literal `=== 100`, and against a hatim it would
-	 * never have matched — the number would simply have stopped rising, with nothing to say
-	 * why.
+	 * a hundred babs, thirty cüz or 33 Hizb portions (`unitCountFor`). This was a literal
+	 * `=== 100`, and against a hatim it would never have matched — the number would simply
+	 * have stopped rising, with nothing to say why.
 	 */
 	const roundKeys = new Map<string, { groupId: string; roundIndex: number }>();
 	for (const read of userReads) {
 		roundKeys.set(`${read.groupId}:${read.roundIndex}`, { groupId: read.groupId, roundIndex: read.roundIndex });
 	}
 
-	const roundCounts =
+	// Both are derived from the reads alone, so neither waits on the other.
+	const [groups, roundCounts] = await Promise.all([
+		groupIds.length > 0
+			? prisma.group.findMany({ where: { id: { in: groupIds } }, select: { id: true, kind: true } })
+			: [],
 		roundKeys.size > 0
-			? await prisma.babRead.groupBy({
+			? prisma.babRead.groupBy({
 					by: ['groupId', 'roundIndex'],
 					where: { OR: Array.from(roundKeys.values()) },
 					_count: { _all: true }
 			  })
-			: [];
+			: []
+	]);
+	const kindByGroupId = new Map(groups.map(group => [group.id, group.kind]));
 
-	const kindByGroupId = new Map(
-		(
-			await prisma.group.findMany({
-				where: { id: { in: [...new Set(roundCounts.map(round => round.groupId))] } },
-				select: { id: true, kind: true }
-			})
-		).map(group => [group.id, group.kind])
-	);
+	/*
+	 * **Babs are the Cevşen's.** The screen labels this number "bab", and a Hizb portion is
+	 * a different unit and a far longer one, so adding the two would make the total mean
+	 * neither. Hizb reading still shows in the streak and the heatmap below, which count
+	 * reading days rather than babs. A hatim's cüz still count, as they always have.
+	 */
+	const babsRead = userReads.filter(read => kindByGroupId.get(read.groupId) !== 'HIZB').length;
 
-	const roundsCompleted = roundCounts.filter(
-		round => round._count._all === unitCountFor({ kind: kindByGroupId.get(round.groupId) ?? 'CEVSEN' })
-	).length;
+	let roundsCompleted = roundCounts.filter(round => {
+		const kind = kindByGroupId.get(round.groupId);
+
+		return kind !== undefined && round._count._all === unitCountFor({ kind });
+	}).length;
+
+	const contributed = [
+		...new Map(
+			personalReads.map(a => [
+				`${a.enrollment.groupId}:${a.day}`,
+				{ day: a.day, enrollment: { groupId: a.enrollment.groupId } }
+			])
+		).values()
+	];
+	const shared = contributed.length
+		? await prisma.hizbAssignment.findMany({
+				where: { OR: contributed, completedAt: { not: null } },
+				include: { enrollment: true }
+		  })
+		: [];
+	const byDay = new Map<string, { planDays: number; portion: number }[]>();
+	for (const a of shared) {
+		const key = `${a.enrollment.groupId}:${a.day}`;
+		const list = byDay.get(key) ?? [];
+		list.push({ planDays: a.enrollment.planDays, portion: a.portion });
+		byDay.set(key, list);
+	}
+	roundsCompleted += [...byDay.values()].filter(reads => coverageFor(reads).complete).length;
 
 	const joinDates = memberships.map(membership => membership.joinedAt.getTime());
 	const memberSince =
@@ -104,6 +146,10 @@ export const getProfileStatsForUser = async (
 		countsByDay.set(day, (countsByDay.get(day) ?? 0) + 1);
 	}
 
+	for (const read of personalReads) {
+		const day = civilDayNumber(read.completedAt!, timeZone);
+		countsByDay.set(day, (countsByDay.get(day) ?? 0) + 1);
+	}
 	const today = civilDayNumber(new Date(), timeZone);
 
 	// A streak may end today or yesterday — not having read yet today shouldn't break one.

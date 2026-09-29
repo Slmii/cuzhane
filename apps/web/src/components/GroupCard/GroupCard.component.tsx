@@ -9,6 +9,7 @@ import { ReadingTypeMark } from '@/components/ui/ReadingTypeMark/ReadingTypeMark
 import { BodyStrongText, CaptionText, TitleText } from '@/components/ui/Typography/Typography.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
+import { kindLabelKey } from '@/lib/utils/groups';
 import { StyleSheet, View } from 'react-native';
 import type { GroupCardProps } from './GroupCard.types';
 
@@ -22,18 +23,19 @@ export const GroupCard = ({
 	badgeIcon,
 	badgeLabel,
 	badgeTone = 'accent',
+	children,
 	footerCaption,
 	footerLabel,
 	footerLeading,
 	footerMoreCount = 0,
+	footerTrailing,
 	isActionDisabled = false,
 	isActionPrimary = true,
 	kind,
 	name,
 	onAction,
 	onPress,
-	percent,
-	readCount,
+	progress,
 	resetRow,
 	extraBadges,
 	style,
@@ -41,7 +43,7 @@ export const GroupCard = ({
 }: GroupCardProps) => {
 	const { t } = useTranslation();
 	const { theme } = useThemeContext();
-	const hasProgress = readCount !== undefined && percent !== undefined;
+	const hasProgress = progress !== undefined;
 	const hasFooter = Boolean(footerLabel || footerLeading || actionLabel);
 
 	/*
@@ -57,7 +59,7 @@ export const GroupCard = ({
 	 * chips, and a running Cevşen group as two identical sage ones. `neutral` is the warm
 	 * grey neither of them is, and it suits a chip naming a category rather than news.
 	 */
-	const typeBadge = { label: kind === 'HATIM' ? t('qHatim') : t('qCevsen'), tone: 'neutral' } as const;
+	const typeBadge = { label: t(kindLabelKey(kind)), tone: 'neutral' } as const;
 	const trailingBadges: { icon?: IconName; label: string; tone?: ChipTone }[] = [
 		{ ...(badgeIcon ? { icon: badgeIcon } : {}), label: badgeLabel, tone: badgeTone },
 		...(extraBadges ?? [])
@@ -75,9 +77,10 @@ export const GroupCard = ({
 				 */}
 				<ReadingTypeMark backgroundColor={theme.colors.card} kind={kind} size={TYPE_MARK_SIZE} />
 				<View style={styles.headerCopy}>
-					<TitleText>{name}</TitleText>
+					{/* One line each: a long name or intention is the preview's to show in full. */}
+					<TitleText numberOfLines={1}>{name}</TitleText>
 					{subtitle ? (
-						<CaptionText color={theme.colors.subtext} style={styles.subtitle}>
+						<CaptionText color={theme.colors.subtext} numberOfLines={1} style={styles.subtitle}>
 							{subtitle}
 						</CaptionText>
 					) : null}
@@ -99,7 +102,9 @@ export const GroupCard = ({
 				</View>
 			</View>
 
-			{hasProgress ? <GroupProgressSummary kind={kind} percent={percent} readCount={readCount} /> : null}
+			{children}
+
+			{progress ? <GroupProgressSummary {...progress} /> : null}
 
 			{resetRow ? <View style={styles.resetRow}>{resetRow}</View> : null}
 
@@ -131,6 +136,7 @@ export const GroupCard = ({
 							</CaptionText>
 						) : null}
 					</View>
+					{footerTrailing}
 					{actionLabel && onAction ? (
 						<AppButton
 							disabled={isActionDisabled}

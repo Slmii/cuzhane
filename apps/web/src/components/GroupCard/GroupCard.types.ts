@@ -1,3 +1,4 @@
+import type { GroupProgressSummaryProps } from '@/components/GroupProgressSummary/GroupProgressSummary.types';
 import type { IconName } from '@/components/ui/Icon/Icon.types';
 import type { ReactNode } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
@@ -7,7 +8,8 @@ import type { GroupKind } from '@/lib/types/domain';
 export interface GroupCardProps {
 	/**
 	 * What the group reads. Decides the type chip, and the denominator and unit word on the
-	 * progress line — a hatim counts to thirty cüz, not a hundred babs.
+	 * progress line — a hatim counts to thirty cüz, not a hundred babs. Its mark (tesbih,
+	 * mushaf or the Hizb's star) sits beside the name.
 	 */
 	kind: GroupKind;
 	name: string;
@@ -22,9 +24,13 @@ export interface GroupCardProps {
 	 */
 	extraBadges?: { label: string; tone?: ChipTone }[];
 	onPress?: () => void;
-	/** Progress block — omitted on Discover cards, which show seats instead. */
-	readCount?: number;
-	percent?: number;
+	/**
+	 * Progress block — omitted on Discover cards, which show seats instead. One object, so a
+	 * count can't arrive without the total and the noun it is read against.
+	 */
+	progress?: Omit<GroupProgressSummaryProps, 'style'>;
+	/** A kind's own body under the header — the Hizb card's 33 notches, plan and rules (Keşfet). */
+	children?: ReactNode;
 	/** The round-reset row, between the progress bar and the footer. Omitted while gathering. */
 	resetRow?: ReactNode;
 	/** Footer: label + caption on the left, an action on the right. */
@@ -33,6 +39,8 @@ export interface GroupCardProps {
 	footerMoreCount?: number;
 	footerCaption?: string;
 	footerLeading?: ReactNode;
+	/** At the footer's right — Keşfet's next-reset time in the reader's own clock. */
+	footerTrailing?: ReactNode;
 	actionLabel?: string;
 	/**
 	 * Omit to render the action as a static pill. Keşfet does this: the row is a link into

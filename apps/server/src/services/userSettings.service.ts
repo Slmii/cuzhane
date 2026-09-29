@@ -49,11 +49,15 @@ export const updateUserSettingsForUser = async (userId: string, input: UpdateUse
 			? { hatimRoundCompleteEnabled: input.hatimRoundCompleteEnabled }
 			: {}),
 		...(input.hatimPoolClaimEnabled !== undefined ? { hatimPoolClaimEnabled: input.hatimPoolClaimEnabled } : {}),
+		...(input.hizbGroupReadsEnabled !== undefined ? { hizbGroupReadsEnabled: input.hizbGroupReadsEnabled } : {}),
 		...(input.memberJoinedEnabled !== undefined ? { memberJoinedEnabled: input.memberJoinedEnabled } : {}),
 		...(input.memberLeftEnabled !== undefined ? { memberLeftEnabled: input.memberLeftEnabled } : {}),
 		...(input.reminderTime !== undefined ? { reminderTime: input.reminderTime } : {}),
 		...(input.hasSeenOnboarding !== undefined ? { hasSeenOnboarding: input.hasSeenOnboarding } : {}),
 		...(input.hasSeenTour !== undefined ? { hasSeenTour: input.hasSeenTour } : {}),
+		...(input.cevsenIntroEnabled !== undefined ? { cevsenIntroEnabled: input.cevsenIntroEnabled } : {}),
+		...(input.hatimIntroEnabled !== undefined ? { hatimIntroEnabled: input.hatimIntroEnabled } : {}),
+		...(input.hizbIntroEnabled !== undefined ? { hizbIntroEnabled: input.hizbIntroEnabled } : {}),
 		...(input.readerFontSize !== undefined ? { readerFontSize: input.readerFontSize } : {}),
 		...(input.readerNumerals !== undefined ? { readerNumerals: input.readerNumerals } : {}),
 		...(input.readerArabicFont !== undefined ? { readerArabicFont: input.readerArabicFont } : {})

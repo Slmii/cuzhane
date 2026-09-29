@@ -35,4 +35,11 @@ export type ReaderBabMapProps = {
 	 * nothing to key — every tick there means the same thing.
 	 */
 	hasLegend?: boolean;
+	/**
+	 * How many ticks the strip has — the Cevşen reader's hundred, or the Hizb reader's current
+	 * section's block count, so one strip serves both texts. **With `spots`, it must be the
+	 * group's part count**: the pool's blocks are cut from the seat split of exactly that many
+	 * parts, and any other number would bracket the wrong ticks.
+	 */
+	count: number;
 };

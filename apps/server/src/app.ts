@@ -1,7 +1,9 @@
+import { hizbCompatibility } from '@middleware/hizbCompatibility.middleware';
 import { clerkMiddleware, getAuth } from '@clerk/express';
 import { env } from '@config/env';
 import { UNAUTHORIZED } from '@config/httpCodes';
 import { populateAuthLocals } from '@middleware/auth.middleware';
+import { clientCapabilities } from '@middleware/clientCapabilities.middleware';
 import { errorHandler, notFoundHandler } from '@middleware/error.middleware';
 import accountRouter from '@routes/account.route';
 import babsRouter from '@routes/babs.route';
@@ -58,6 +60,8 @@ export const createApp = () => {
 			}
 		})
 	);
+	// Which group kinds this build can draw, for the guard in `clientCompatibility.service.ts`
+	app.use('/api', clientCapabilities, hizbCompatibility);
 	app.use('/api/groups', groupsRouter);
 	app.use('/api/memberships', membershipRouter);
 	app.use('/api/babs', babsRouter);

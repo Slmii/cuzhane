@@ -75,7 +75,7 @@ export const isDivineName = (token: string) => DIVINE_NAME.test(token);
  * at 46, and everything past the first sixteen was clipped — the text simply stopped, at every
  * face and size. The spans now carry the paragraph's line, so there is only one to measure by.
  */
-const withDivineName = (
+export const withDivineName = (
 	text: string,
 	style: { color: string; fontFamily: string; fontSize: number; lineHeight: number }
 ) => {

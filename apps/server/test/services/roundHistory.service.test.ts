@@ -1,13 +1,21 @@
 import prisma from '@db/prisma';
-import { babNumbersForRound } from '@utils/babs';
+import { BAB_COUNT, babNumbersForRound } from '@utils/babs';
 import {
 	coverMissedBabsForUser,
 	getMyProgressForUser,
 	getRoundDetailForUser,
 	listRoundsForUser
 } from '@services/roundHistory.service';
-import { civilDayNumber, DEFAULT_TIME_ZONE, ROUND_DAYS, startOfCivilDay } from '@utils/rounds';
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import {
+	civilDayNumber,
+	DEFAULT_TIME_ZONE,
+	ROUND_DAYS,
+	roundIndexSince,
+	roundLengthFor,
+	startOfCivilDay
+} from '@utils/rounds';
+import { unitCountFor } from '@utils/units';
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { assertIsTestDatabase, testDatabaseUrl } from '../support/testDatabase';
 
 assertIsTestDatabase(testDatabaseUrl());
@@ -37,14 +45,19 @@ const daysAgo = (days: number): Date => {
  * WEEKLY group is on round 2, which is the case the strip's eight-column slice has to handle.
  */
 const createGroup = async ({
-	cycle = 'DAILY' as 'DAILY' | 'WEEKLY',
-	kind = 'CEVSEN' as 'CEVSEN' | 'HATIM',
+	cycle = 'DAILY' as 'DAILY' | 'WEEKLY' | 'MONTHLY',
+	kind = 'CEVSEN' as 'CEVSEN' | 'HATIM' | 'HIZB',
 	startedDaysAgo = 3,
 	seats = [0, 1],
 	splitMode = 'ROTATION' as 'ROTATION' | 'FIXED'
 } = {}) => {
 	const startedAt = daysAgo(startedDaysAgo);
-	const roundIndex = Math.floor(startedDaysAgo / ROUND_DAYS[cycle]);
+	const roundIndex = roundIndexSince(
+		startedAt,
+		roundLengthFor({ kind, cycle, roundDays: ROUND_DAYS[cycle] }),
+		new Date(),
+		DEFAULT_TIME_ZONE
+	);
 
 	const group = await prisma.group.create({
 		data: {
@@ -83,7 +96,7 @@ const createGroup = async ({
 	});
 
 	await prisma.groupBab.createMany({
-		data: Array.from({ length: kind === 'HATIM' ? 30 : 100 }, (_, index) => ({
+		data: Array.from({ length: unitCountFor({ kind }) }, (_, index) => ({
 			groupId: group.id,
 			number: index + 1
 		}))
@@ -103,6 +116,10 @@ beforeEach(async () => {
 
 afterAll(async () => {
 	await prisma.$disconnect();
+});
+
+afterEach(() => {
+	vi.useRealTimers();
 });
 
 describe('listRoundsForUser', () => {
@@ -125,6 +142,29 @@ describe('listRoundsForUser', () => {
 		expect(round1?.missedCount).toBe(95);
 	});
 
+	it('names a closed round’s missed parts, the complement of what was read', async () => {
+		const group = await createGroup({ startedDaysAgo: 3 });
+		await recordHistory(
+			group.id,
+			1,
+			Array.from({ length: 100 }, (_, index) => index + 1).filter(number => ![16, 24, 31].includes(number))
+		);
+
+		const round1 = (await listRoundsForUser(OWNER, group.id)).find(round => round.roundIndex === 1);
+
+		expect(round1?.missedPartNumbers).toEqual([16, 24, 31]);
+		expect(round1?.missedCount).toBe(3);
+	});
+
+	it('lists every part as missed for a closed round nobody read', async () => {
+		const group = await createGroup({ startedDaysAgo: 3 });
+
+		const round0 = (await listRoundsForUser(OWNER, group.id)).find(round => round.roundIndex === 0);
+
+		expect(round0?.missedPartNumbers).toHaveLength(100);
+		expect(round0?.missedPartNumbers.slice(0, 3)).toEqual([1, 2, 3]);
+	});
+
 	it('never reports the open round as having missed anything — the day is not over', async () => {
 		const group = await createGroup({ startedDaysAgo: 3 });
 
@@ -132,10 +172,64 @@ describe('listRoundsForUser', () => {
 
 		expect(open?.readCount).toBe(0);
 		expect(open?.missedCount).toBe(0);
+		expect(open?.missedPartNumbers).toEqual([]);
 	});
 });
 
 describe('getRoundDetailForUser', () => {
+	it('hides other members’ identities in private history while preserving own reads and counts', async () => {
+		const group = await createGroup({ startedDaysAgo: 2 });
+		await prisma.group.update({ where: { id: group.id }, data: { hideMemberNames: true } });
+		await recordHistory(group.id, 0, [1], OWNER);
+		await recordHistory(group.id, 0, [11], SEAT_ONE);
+
+		const detail = await getRoundDetailForUser(SEAT_ONE, group.id, 0);
+
+		expect(detail.babs[0]?.readByUserId).toMatch(/^anonymous:/);
+		expect(detail.babs[0]?.readByUserId).toBe(detail.babs[0]?.owedByUserId);
+		expect(detail.babs[10]?.readByUserId).toBe(SEAT_ONE);
+		expect(detail.babs[10]?.owedByUserId).toBe(SEAT_ONE);
+		expect(detail.readCount).toBe(2);
+		expect(detail.missedPeopleCount).toBe(2);
+
+		const ownerDetail = await getRoundDetailForUser(OWNER, group.id, 0);
+		expect(ownerDetail.babs[0]?.readByUserId).toBe(OWNER);
+		expect(ownerDetail.babs[10]?.readByUserId).toBe(SEAT_ONE);
+	});
+
+	it.each([
+		['open round', 'DAILY', 'UTC', '2026-09-24T12:00:00Z', '2026-09-24T23:59:59Z', 0],
+		['the exact deadline', 'DAILY', 'UTC', '2026-09-24T12:00:00Z', '2026-09-25T00:00:00Z', 1],
+		['two days late', 'DAILY', 'UTC', '2026-09-24T12:00:00Z', '2026-09-26T15:00:00Z', 2],
+		['older missed day', 'DAILY', 'UTC', '2026-09-24T12:00:00Z', '2026-09-30T15:00:00Z', 6],
+		['weekly deadline', 'WEEKLY', 'UTC', '2026-09-01T12:00:00Z', '2026-09-10T15:00:00Z', 3],
+		['clamped monthly deadline', 'MONTHLY', 'UTC', '2026-01-31T12:00:00Z', '2026-03-02T15:00:00Z', 3],
+		['spring DST midnight', 'DAILY', 'Europe/Amsterdam', '2026-03-28T12:00:00Z', '2026-03-29T22:00:00Z', 2],
+		['fall DST long day', 'DAILY', 'Europe/Amsterdam', '2026-10-24T12:00:00Z', '2026-10-25T22:30:00Z', 1],
+		[
+			'group midnight before UTC midnight',
+			'DAILY',
+			'Europe/Istanbul',
+			'2026-09-24T12:00:00Z',
+			'2026-09-24T21:00:00Z',
+			1
+		]
+	] as const)('reports calendar days late for %s', async (_label, cycle, timezone, start, now, daysLate) => {
+		vi.useFakeTimers({ toFake: ['Date'] });
+		vi.setSystemTime(new Date(now));
+		// The clamped month is a Hizb group's calendar; every other kind counts days.
+		const group = await createGroup({ cycle, kind: cycle === 'MONTHLY' ? 'HIZB' : 'CEVSEN', startedDaysAgo: 0 });
+		await prisma.group.update({
+			where: { id: group.id },
+			data: { startedAt: new Date(start), roundStartedAt: new Date(start), timezone }
+		});
+
+		const detail = await getRoundDetailForUser(OWNER, group.id, 0);
+
+		expect(detail.daysLate).toBe(daysLate);
+		expect(detail.isOpen).toBe(daysLate === 0);
+	});
+
 	it('attributes each bab to the seat that owed it in THAT round, not today', async () => {
 		const group = await createGroup({ startedDaysAgo: 3, splitMode: 'ROTATION' });
 
@@ -257,6 +351,7 @@ describe('coverMissedBabsForUser', () => {
 		const detail = await coverMissedBabsForUser(SEAT_ONE, group.id, 1, block);
 
 		expect(detail.readCount).toBe(block.length);
+		expect(detail.daysLate).toBe(2);
 		expect(await prisma.babRead.count({ where: { groupId: group.id, roundIndex: 1, userId: SEAT_ONE } })).toBe(
 			block.length
 		);
@@ -408,7 +503,8 @@ describe('covering a closed round is silent', () => {
 	 *
 	 * So these assert on the rows the notify paths would leave behind, not on a mock.
 	 */
-	const readsOf = (slotIndex: number, roundIndex: number) => babNumbersForRound(slotIndex, SPOTS, roundIndex);
+	const readsOf = (slotIndex: number, roundIndex: number) =>
+		babNumbersForRound(slotIndex, SPOTS, roundIndex, BAB_COUNT);
 
 	it('files no inbox rows and claims no notice when a whole share is covered', async () => {
 		const group = await createGroup({ startedDaysAgo: 3 });

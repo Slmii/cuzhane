@@ -171,6 +171,11 @@ export const AppButton = ({
 			borderColor: theme.colors.borderStrong,
 			textColor: theme.colors.text
 		},
+		tonal: {
+			backgroundColor: theme.colors.segmentTrack,
+			borderColor: theme.colors.segmentTrack,
+			textColor: theme.colors.text
+		},
 		danger: {
 			backgroundColor: theme.colors.surface,
 			borderColor: theme.colors.danger,

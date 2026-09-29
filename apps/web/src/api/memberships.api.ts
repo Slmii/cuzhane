@@ -6,11 +6,30 @@ export type RemoveGroupMemberInput = {
 	memberUserId: string;
 };
 
+type GroupInvitePreviewResponse = Omit<GroupInvitePreview, 'memberNames'> & { memberNames?: string[] | null };
+
+// Some deployed APIs omit memberNames, and older ones sent names. A preview never shows who is
+// in a group (it answers someone outside it), so the field is always normalised to the empty
+// legacy list before caching — every consumer can still count/join it safely.
+const normalizePreview = ({
+	memberNames: _memberNames,
+	...preview
+}: GroupInvitePreviewResponse): GroupInvitePreview => ({
+	...preview,
+	memberNames: []
+});
+
 export const previewGroupByCode = async (code: string) =>
-	wrapperApi<GroupInvitePreview>(`/memberships/preview/code/${encodeURIComponent(code)}`, { method: 'GET' });
+	normalizePreview(
+		await wrapperApi<GroupInvitePreviewResponse>(`/memberships/preview/code/${encodeURIComponent(code)}`, {
+			method: 'GET'
+		})
+	);
 
 export const previewGroupById = async (groupId: string) =>
-	wrapperApi<GroupInvitePreview>(`/memberships/preview/group/${groupId}`, { method: 'GET' });
+	normalizePreview(
+		await wrapperApi<GroupInvitePreviewResponse>(`/memberships/preview/group/${groupId}`, { method: 'GET' })
+	);
 
 /** `cuzNumbers` as for `joinGroup` — a hatim is joined with the cüz it takes. */
 export const joinGroupByCode = async (code: string, cuzNumbers?: number[]) =>

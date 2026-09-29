@@ -1,6 +1,5 @@
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { toAlphaColor } from '@/lib/theme/tokens';
-import { navigationRef } from '@/navigation/navigationRef';
 import { useEffect, useState } from 'react';
 import { BackHandler, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, {
@@ -11,22 +10,27 @@ import Animated, {
 	withTiming
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTour, WELCOME_STEP, type TourRect } from './Tour.context';
-import { TourDoneCard } from './TourDoneCard.component';
-import { TourStepCard } from './TourStepCard.component';
-import { TourWelcomeSheet } from './TourWelcomeSheet.component';
-import { TOUR_STEPS } from './tourSteps';
+import { useTour, type TourRect } from './Tour.context';
+import { TourCenterCard } from './TourCenterCard.component';
+import { TourEndSheet } from './TourEndSheet.component';
+import { TourStepCard, type TourArrow } from './TourStepCard.component';
+import { legPosition } from './tourSteps';
 import { useTourNavigation } from './useTourNavigation';
 
 /** How far the cut-out stands off the element it frames, and how round its corners are. */
-const SPOTLIGHT_PADDING = 8;
+const SPOTLIGHT_PADDING = 6;
 const SPOTLIGHT_RADIUS = 18;
-/** The card's distance from the element it points at, and from the screen edges. */
-const CARD_GAP = 14;
+/** The card's distance from the element it points at, and from the screen's sides. */
+const CARD_GAP = 16;
 const CARD_INSET = 18;
-/** How dim the screen goes. The design uses a lighter scrim behind its two full-screen cards. */
-const SCRIM_SPOTLIGHT = 0.58;
-const SCRIM_PLAIN = 0.5;
+/** The arrow's half-width, and how close it may come to the card's left and right corners. */
+const ARROW_HALF = 7;
+const ARROW_MIN_LEFT = 16;
+const ARROW_MIN_RIGHT = 22;
+/** The card's height before it has been measured — the design's own guess. */
+const CARD_HEIGHT_GUESS = 210;
+/** How dim the screen goes: the spotlight's scrim and the centred cards' are the same. */
+const SCRIM = 0.58;
 /** Far enough past any screen's corner that the shadow reads as a full-bleed scrim. */
 const SCRIM_SPREAD = 2000;
 /** The design's own `.35s ease`, shared by the hole that moves and the card that follows it. */
@@ -51,7 +55,7 @@ const cardEntrance = {
 };
 
 /**
- * Section O, drawn over the live app.
+ * Section T, drawn over the live app.
  *
  * **An ordinary view over the navigator, not a `Modal`.** A modal was the first answer, on the
  * grounds that the bottom bar is a real UIKit tab bar and nothing inside the navigator draws over
@@ -64,28 +68,33 @@ const cardEntrance = {
  * because nothing else in the app uses `boxShadow`. It worked and it was slow: a full-screen
  * `Svg` whose `Mask` rectangle animates re-composites the whole screen every frame, and the tour
  * moved between stops in visible steps. One view costs a frame nothing, and it is the scrim, the
- * hole and the design's hairline ring all at once — the ring was a second view only because the
- * mask could not draw it.
+ * hole and the design's hairline ring all at once.
  *
- * **The backdrop is a sibling, never a parent, and nothing wraps the card.** It began as a
- * `Pressable` over the whole screen with the card nested inside a second `Pressable` whose
- * `onPress` did nothing, there to stop a tap on the card reaching the backdrop. A `Pressable`
- * around a native control is a lid on it: `AppButton` is a SwiftUI `Host` here, which never joins
- * React Native's responder chain, so the wrapper claimed the responder on touch-start and the
- * touch was cancelled on its way to the button. Ordering alone does the job — the backdrop fills
- * the screen underneath, the card is a later sibling above it, and a tap cannot reach a view it
- * is not inside.
- *
- * The welcome card is not part of this at all — the design draws it as a sheet pinned to the
- * bottom edge with a grabber, so it is one. See `TourWelcomeSheet`.
+ * **The backdrop is a sibling, never a parent, and nothing wraps the card.** A `Pressable` around
+ * the card to stop taps reaching the backdrop was a lid on its controls. Ordering alone does the
+ * job — the backdrop fills the screen underneath, the card is a later sibling above it, and a tap
+ * cannot reach a view it is not inside.
  */
 export const TourOverlay = () => {
-	const { back, finish, isActive, isBlocked, next, rects, stepIndex } = useTour();
+	const {
+		askToEnd,
+		back,
+		finish,
+		isActive,
+		isBlocked,
+		isConfirmingEnd,
+		keepGoing,
+		next,
+		rects,
+		run,
+		skipPart,
+		stepIndex
+	} = useTour();
 	const { theme } = useThemeContext();
-	const { height: windowHeight } = useWindowDimensions();
+	const { height: windowHeight, width: windowWidth } = useWindowDimensions();
 	const insets = useSafeAreaInsets();
 	const isReducedMotion = useReducedMotion();
-	// Measured, because whether the card collides with the spotlight depends on how tall it is.
+	// Measured, because which side of its target the card fits on depends on how tall it is.
 	const [cardHeight, setCardHeight] = useState(0);
 
 	// Takes the reader to the screen each stop is about — see `useTourNavigation`.
@@ -99,10 +108,9 @@ export const TourOverlay = () => {
 	 * not navigate back to it.
 	 *
 	 * Swallowed rather than wired to `finish`: the tour has its own way out on every card, and
-	 * back is not it. Registered only while the tour is over the app, so the welcome sheet keeps
-	 * the platform's own dismissal.
+	 * back is not it.
 	 */
-	const isOverApp = isActive && !isBlocked && stepIndex > WELCOME_STEP;
+	const isOverApp = isActive && !isBlocked;
 
 	useEffect(() => {
 		if (!isOverApp) {
@@ -114,8 +122,7 @@ export const TourOverlay = () => {
 		return () => subscription.remove();
 	}, [isOverApp]);
 
-	const isDone = stepIndex >= TOUR_STEPS.length;
-	const step = stepIndex === WELCOME_STEP || isDone ? undefined : TOUR_STEPS[stepIndex];
+	const step = run[stepIndex];
 	const rect: TourRect | undefined = step?.target ? rects[step.target] : undefined;
 
 	/*
@@ -179,45 +186,57 @@ export const TourOverlay = () => {
 	// on one value, so moving between a spotlit stop and a centred one has no seam.
 	const plainScrimStyle = useAnimatedStyle(() => ({ opacity: 1 - holeOpacity.value }));
 
-	if (!isActive || isBlocked) {
+	if (!isActive || isBlocked || step === undefined) {
 		return null;
 	}
 
-	if (stepIndex === WELCOME_STEP) {
-		return <TourWelcomeSheet onDismiss={finish} onStart={next} />;
-	}
+	const isSpot = step.kind === 'spot';
 
 	/*
-	 * **The card is pinned to the bottom, and only steps aside when it would sit on the thing it
-	 * is describing.**
+	 * **Where the card goes is the design's own rule (section T): beside its target, with an
+	 * arrow.** Below when it fits, above when it does not, and only when neither side has room is
+	 * it pinned low, with no arrow — an arrow from there would point at nothing in particular.
+	 * A stop whose target has not laid out yet takes that pinned place until it has.
 	 *
-	 * It used to take whichever side of the spotlight was free, which put it in a different place
-	 * at almost every stop: the reader's eye had to find the words again fourteen times over, and
-	 * the Devam button moved out from under their thumb between taps. A fixed home is worth more
-	 * than adjacency — the cut-out already says which thing is being talked about.
-	 *
-	 * The exception is unavoidable: a target low on the screen (the reader's action bar) would be
-	 * *behind* a card pinned there. Those stops, and only those, put the card at the top. It is
-	 * measured rather than guessed at from a threshold, so a stop moves only when it genuinely
-	 * collides.
+	 * The room each side is the screen less its safe areas. The design keeps a "Turu geç" pill in
+	 * the top right as well; the app has none — the way out is a link on the card itself.
 	 */
-	const pinnedBottom = insets.bottom + CARD_INSET;
-	const cardTopWhenPinned = windowHeight - pinnedBottom - cardHeight;
-	const spotlightBottom = rect === undefined ? 0 : rect.y + rect.height + SPOTLIGHT_PADDING + CARD_GAP;
-	const isCardAtTop = rect !== undefined && cardHeight > 0 && spotlightBottom > cardTopWhenPinned;
-
-	const cardPosition = isCardAtTop ? { top: insets.top + CARD_INSET } : { bottom: pinnedBottom };
-
-	/** The closing card's one way onward: end the tour, then open create-group. */
-	const leaveToCreateGroup = () => {
-		finish();
-
-		if (navigationRef.isReady()) {
-			// Typed loosely on purpose: create-group is a sheet route on the root stack, and the
-			// overlay lives outside every navigator.
-			(navigationRef.navigate as unknown as (name: string) => void)('CreateGroup');
-		}
+	const hole = rect && {
+		bottom: rect.y + rect.height + SPOTLIGHT_PADDING,
+		right: rect.x + rect.width + SPOTLIGHT_PADDING,
+		top: rect.y - SPOTLIGHT_PADDING,
+		x: rect.x - SPOTLIGHT_PADDING
 	};
+	const topLimit = insets.top + 12;
+	const bottomLimit = insets.bottom + 24;
+	const height = cardHeight || CARD_HEIGHT_GUESS;
+	const placement = !hole
+		? 'pinned'
+		: windowHeight - bottomLimit - (hole.bottom + CARD_GAP) >= height
+		? 'below'
+		: hole.top - CARD_GAP - topLimit >= height
+		? 'above'
+		: 'pinned';
+	const cardPosition =
+		!hole || placement === 'pinned'
+			? { bottom: bottomLimit + 72 }
+			: placement === 'below'
+			? { top: hole.bottom + CARD_GAP }
+			: { bottom: windowHeight - hole.top + CARD_GAP };
+	const arrow: TourArrow | null =
+		!hole || placement === 'pinned'
+			? null
+			: {
+					edge: placement === 'below' ? 'top' : 'bottom',
+					// Under the target's centre, kept clear of the card's rounded corners.
+					left: Math.max(
+						ARROW_MIN_LEFT,
+						Math.min(
+							windowWidth - CARD_INSET * 2 - ARROW_MIN_RIGHT,
+							(hole.x + hole.right) / 2 - CARD_INSET - ARROW_HALF
+						)
+					)
+			  };
 
 	return (
 		<View style={styles.root}>
@@ -228,36 +247,23 @@ export const TourOverlay = () => {
 			 */}
 			<Animated.View
 				pointerEvents='none'
-				style={[
-					styles.plainScrim,
-					plainScrimStyle,
-					{ backgroundColor: toAlphaColor(theme.colors.scrim, SCRIM_PLAIN) }
-				]}
+				style={[styles.fill, plainScrimStyle, { backgroundColor: toAlphaColor(theme.colors.scrim, SCRIM) }]}
 			/>
 
 			{/*
-			 * **A blocker, not a dismiss.** It was a `Pressable` calling `finish`, the way every
-			 * sheet in the app treats its backdrop — and a tour is not a sheet. The reader is
-			 * being walked through fourteen stops and a stray tap beside the card threw the whole
-			 * thing away, with the only way back a row in Profil. "Atla" is the way out, and it
-			 * says so on every card.
+			 * **A blocker, not a dismiss.** A stray tap beside the card must not throw the tour
+			 * away; the card's own links are the way out, and "Turu geç" asks first. A bare `View` is not a blocker —
+			 * React Native's responder search walks past a view that has claimed nothing — so this
+			 * one answers `onStartShouldSetResponder` and does nothing with the touch.
 			 *
-			 * **A bare `View` is not a blocker**, which is what it was left as and what let a tap
-			 * on the group row under the scrim open that group. React Native's responder search
-			 * walks past a view that has claimed nothing and keeps going to whatever is under it;
-			 * only a view that answers `onStartShouldSetResponder` ends the search. It claims the
-			 * touch and does nothing with it, which is the whole job.
-			 *
-			 * It is not the guarantee, though — `TourBlocker` is, and for the reason recorded
-			 * there. This one covers what that cannot: a tap inside the cut-out, on the very
-			 * control the stop is pointing at.
+			 * It is not the guarantee, though — `TourBlocker` is. This one covers what that cannot:
+			 * a tap inside the cut-out, on the very control the stop is pointing at.
 			 */}
 			<View onStartShouldSetResponder={() => true} style={StyleSheet.absoluteFill} />
 
 			{/*
 			 * The scrim, the cut-out and the design's hairline ring, in one view. The border is
-			 * light in both themes, like Home's bar glyph: it sits on the scrim, not on the page,
-			 * and `onAccent` goes dark when the theme does.
+			 * light in both themes: it sits on the scrim, not on the page.
 			 */}
 			<Animated.View
 				pointerEvents='none'
@@ -266,65 +272,68 @@ export const TourOverlay = () => {
 					spotlightStyle,
 					{
 						borderColor: toAlphaColor(theme.colors.onHeaderSurface, 0.85),
-						// A target may name its own shape — a bar glyph on iOS is a disc. See `TourRect`.
 						borderRadius: rect?.radius ?? SPOTLIGHT_RADIUS,
-						boxShadow: `0 0 0 ${SCRIM_SPREAD}px ${toAlphaColor(theme.colors.scrim, SCRIM_SPOTLIGHT)}`
+						boxShadow: `0 0 0 ${SCRIM_SPREAD}px ${toAlphaColor(theme.colors.scrim, SCRIM)}`
 					}
 				]}
 			/>
 
-			{/*
-			 * **Keyed on where the card sits, not on which stop it is showing.** It was keyed on
-			 * the step, so every stop was a fresh element and replayed the entrance — which made
-			 * sense while the card moved to a new place each time and is noise now that it does
-			 * not. Within one anchor the words simply change; the animation is kept for the thing
-			 * it is actually announcing, which is the card moving.
-			 */}
-			<Animated.View
-				key={isDone ? 'centred' : isCardAtTop ? 'top' : 'bottom'}
-				onLayout={event => setCardHeight(event.nativeEvent.layout.height)}
-				style={{
-					...styles.cardWrap,
-					// The closing card is a conclusion rather than a pointer, so it sits centred.
-					...(isDone ? styles.cardCentred : cardPosition),
-					...(isReducedMotion ? null : cardEntrance)
-				}}
-			>
-				{isDone ? (
-					<TourDoneCard onClose={finish} onCreateGroup={leaveToCreateGroup} />
-				) : (
+			{isSpot ? (
+				<Animated.View
+					key={`${stepIndex}-${placement}`}
+					onLayout={event => setCardHeight(event.nativeEvent.layout.height)}
+					style={{ ...styles.cardWrap, ...cardPosition, ...(isReducedMotion ? null : cardEntrance) }}
+				>
 					<TourStepCard
+						arrow={arrow}
 						{...(stepIndex > 0 ? { onBack: back } : {})}
 						onNext={next}
-						onSkip={finish}
-						stepIndex={stepIndex}
+						// One link in the card's corner: past this part, or — at the start, which has
+						// no part to skip — out of the tour.
+						{...(step.leg === 'cevsen' || step.leg === 'quran' || step.leg === 'hizb'
+							? { onSkipPart: skipPart }
+							: { onSkipTour: askToEnd })}
+						position={legPosition(run, stepIndex)}
+						step={step}
 					/>
-				)}
-			</Animated.View>
+				</Animated.View>
+			) : (
+				<Animated.View
+					key={stepIndex}
+					style={{ ...styles.cardWrap, ...styles.centred, ...(isReducedMotion ? null : cardEntrance) }}
+				>
+					<TourCenterCard
+						{...(step.kind === 'intro' ? { onLater: askToEnd } : {})}
+						onPrimary={next}
+						step={step}
+					/>
+				</Animated.View>
+			)}
+
+			<TourEndSheet isVisible={isConfirmingEnd} onEnd={finish} onKeepGoing={keepGoing} />
 		</View>
 	);
 };
 
 const styles = StyleSheet.create({
-	/**
-	 * A card with nothing to point at fills the height and centres itself inside it.
-	 *
-	 * It was `top: '50%'` with a `-50%` translate, which is the browser idiom and put "Hazırsın"
-	 * noticeably above centre: a percentage translate resolves against the *animated* box, and
-	 * this wrapper carries an entrance that moves it. Letting flex do the centring has nothing to
-	 * resolve against and cannot drift.
-	 */
-	cardCentred: {
-		bottom: 0,
-		justifyContent: 'center',
-		top: 0
-	},
 	cardWrap: {
 		left: CARD_INSET,
 		position: 'absolute',
 		right: CARD_INSET
 	},
-	plainScrim: {
+	centred: {
+		bottom: 0,
+		justifyContent: 'center',
+		top: 0
+	},
+	fill: {
+		bottom: 0,
+		left: 0,
+		position: 'absolute',
+		right: 0,
+		top: 0
+	},
+	root: {
 		bottom: 0,
 		left: 0,
 		position: 'absolute',
@@ -335,12 +344,5 @@ const styles = StyleSheet.create({
 		borderRadius: SPOTLIGHT_RADIUS,
 		borderWidth: 1.5,
 		position: 'absolute'
-	},
-	root: {
-		bottom: 0,
-		left: 0,
-		position: 'absolute',
-		right: 0,
-		top: 0
 	}
 });

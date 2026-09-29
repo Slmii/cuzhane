@@ -9,6 +9,7 @@ export type OptionGroupItem = {
 export interface FormOptionGroupProps {
 	name: string;
 	options: OptionGroupItem[];
+	onChange?: (value: string) => void;
 	/** The design lays visibility side by side and split mode stacked. */
 	direction?: 'row' | 'column';
 	error?: string;

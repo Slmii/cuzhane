@@ -1,3 +1,4 @@
+import { KindMark } from '@/components/ui/KindMark/KindMark.component';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { Circle, Path, Rect, Svg } from 'react-native-svg';
 import type { ReadingTypeMarkProps } from './ReadingTypeMark.types';
@@ -15,7 +16,8 @@ import type { ReadingTypeMarkProps } from './ReadingTypeMark.types';
  *
  * Cevşen is a **tesbih**: twenty-four beads on a ring, the imame below it and a tassel.
  * Kur'an is an **open mushaf on a rahle**. Both are one colour — `currentColor` in the
- * export — on the same 96 grid.
+ * export — on the same 96 grid. The Hizbü'l-Hakaik is its own **eight-pointed star**, drawn by
+ * `KindMark` (the create sheet's kind card) on the same grid and in the accent.
  *
  * **The book's spine and page rules are knocked out, not drawn on.** They are painted in
  * whatever the mark is sitting on, so `backgroundColor` has to match the ground: the same
@@ -29,6 +31,10 @@ export const ReadingTypeMark = ({ backgroundColor, color, kind, size }: ReadingT
 	const { theme } = useThemeContext();
 	const ink = color ?? theme.colors.accent;
 	const ground = backgroundColor ?? theme.colors.surface;
+
+	if (kind === 'HIZB') {
+		return <KindMark kind='HIZB' size={size} />;
+	}
 
 	return (
 		<Svg fill='none' height={size} viewBox='0 0 96 96' width={size}>

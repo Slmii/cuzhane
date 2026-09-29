@@ -8,13 +8,14 @@ import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { ProgressBar } from '@/components/ui/ProgressBar/ProgressBar.component';
 import { CaptionText, NumericText, TitleText } from '@/components/ui/Typography/Typography.component';
 import { useGetGroupById } from '@/lib/hooks/useGroup';
-import { cycleLabelKey } from '@/lib/utils/groups';
-import { unitCountFor, unitLabelKey } from '@/lib/utils/units';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useGetRounds } from '@/lib/hooks/useRounds';
 import { useTranslation } from '@/lib/i18n/I18n.context';
+import type { StringKey } from '@/lib/i18n/strings';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import type { GroupCycle, RoundSummary } from '@/lib/types/domain';
+import type { GroupCycle, GroupKind, RoundSummary } from '@/lib/types/domain';
+import { cycleLabelKey, partUnitKey } from '@/lib/utils/groups';
+import { hizbMissedNote, roundDateRange } from '@/lib/utils/rounds';
 import type { TabStackParamList } from '@/navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useMemo } from 'react';
@@ -27,6 +28,25 @@ type Props = NativeStackScreenProps<TabStackParamList, 'Rounds'>;
 const NO_ROUNDS: RoundSummary[] = [];
 
 /**
+ * The open round and the one before it, by cadence — "bugün" / "dün", "bu hafta" / "geçen
+ * hafta". A record, so a cycle without an answer fails the build.
+ *
+ * **Only a day and a week have words of their own.** A monthly hatim round is thirty days, not
+ * a calendar month, and a one-off has no "last one" — both are dated, or the open one read
+ * "bu hafta". A Hizb round (calendar months included) is dated by its range before this is read.
+ */
+const WHEN_LABELS: Record<GroupCycle, { current: StringKey; previous: StringKey } | null> = {
+	DAILY: { current: 'todayLabel', previous: 'yesterdayLabel' },
+	WEEKLY: { current: 'thisWeekLabel', previous: 'lastWeekLabel' },
+	MONTHLY: null,
+	CUSTOM: null
+};
+
+/** A round's read count as a share of what it had to cover, 0–100. */
+const roundPercent = (round: RoundSummary) =>
+	round.partCount > 0 ? Math.round((round.readCount / round.partCount) * 100) : 0;
+
+/**
  * 10. Every pass the group has made at the hundred, newest first.
  *
  * The open round leads in an accent-bordered card because it is the only one still
@@ -37,7 +57,7 @@ const NO_ROUNDS: RoundSummary[] = [];
 export const RoundsScreen = ({ navigation, route }: Props) => {
 	const { groupId } = route.params;
 	const { theme } = useThemeContext();
-	const { t } = useTranslation();
+	const { language, t } = useTranslation();
 
 	const groupQuery = useGetGroupById(groupId);
 	const roundsQuery = useGetRounds(groupId);
@@ -49,60 +69,79 @@ export const RoundsScreen = ({ navigation, route }: Props) => {
 	 * return a skeleton or an error, where none of this is read.
 	 */
 	const cycle: GroupCycle = groupQuery.data?.cycle ?? 'DAILY';
-	/*
-	 * The round's denominator, from the group rather than a constant — a hatim's rounds are
-	 * thirty cüz. Defaulted like `cycle` above, and for the same reason: this sits above the
-	 * guards, and the fallback is only ever read on the paths that render a skeleton.
-	 */
-	const unitCount = unitCountFor(groupQuery.data?.kind ?? 'CEVSEN');
-	const unitLabel = t(unitLabelKey(groupQuery.data?.kind ?? 'CEVSEN'));
+	const kind: GroupKind = groupQuery.data?.kind ?? 'CEVSEN';
+	const isHizb = kind === 'HIZB';
+	const timezone = groupQuery.data?.timezone ?? 'UTC';
 	const rounds = roundsQuery.data ?? NO_ROUNDS;
 	const openRound = rounds.find(round => round.isOpen);
 	const pastRounds = useMemo(() => rounds.filter(round => !round.isOpen), [rounds]);
+	/*
+	 * In the **group's** zone and the app's language, not the device's. A round opens at midnight
+	 * where the group is, so read from further west it began the evening before — and a monthly
+	 * round opening on 1 March in Istanbul was dated the last day of February in New York.
+	 */
+	const roundDate = useMemo(
+		() => new Intl.DateTimeFormat(language, { day: 'numeric', month: 'short', timeZone: timezone }),
+		[language, timezone]
+	);
 
 	// The design labels rounds by cadence rather than by date: a daily group's previous
-	// round is "dün", a weekly one's is "geçen hafta".
+	// round is "dün", a weekly one's is "geçen hafta". A monthly or one-off hatim round is dated.
+	//
+	// **HZ4 dates every Hizb round instead** — "20–26 Eyl · Bu tur", "13–19 Eyl" — because a
+	// Hizb round is often a month long, and "geçen ay" says less than the days it ran.
 	const whenLabel = useCallback(
 		(round: RoundSummary, isOpenRound: boolean) => {
-			// Only a day and a week have words of their own; a monthly or one-off round is dated,
-			// or its open round read "bu hafta".
-			const hasCadenceWords = cycle === 'DAILY' || cycle === 'WEEKLY';
+			if (isHizb) {
+				return roundDateRange(round.startedAt, round.endsAt, language, timezone);
+			}
 
-			if (isOpenRound && hasCadenceWords) {
-				return cycle === 'DAILY' ? t('todayLabel') : t('thisWeekLabel');
+			const words = WHEN_LABELS[cycle];
+
+			if (isOpenRound && words) {
+				return t(words.current);
 			}
 
 			const isPrevious = openRound !== undefined && round.roundIndex === openRound.roundIndex - 1;
 
-			if (isOpenRound || !isPrevious || !hasCadenceWords) {
+			if (isOpenRound || !isPrevious || !words) {
 				// Anything older than one round back is dated — "4 turdan önce" would make the
 				// reader count backwards.
-				return new Date(round.startedAt).toLocaleDateString(undefined, {
-					day: 'numeric',
-					month: 'short'
-				});
+				return roundDate.format(new Date(round.startedAt));
 			}
 
-			return cycle === 'DAILY' ? t('yesterdayLabel') : t('lastWeekLabel');
+			return t(words.previous);
 		},
-		[cycle, openRound, t]
+		[cycle, isHizb, language, openRound, roundDate, t, timezone]
 	);
 
 	const keyExtractor = useCallback((round: RoundSummary) => String(round.roundIndex), []);
 
 	const renderRound = useCallback(
-		({ item }: { item: RoundSummary }) => (
-			<RoundCard
-				isComplete={item.missedCount === 0}
-				label={`${t('roundN')} ${item.roundIndex + 1}`}
-				missedLabel={item.missedCount === 0 ? t('roundComplete') : `${item.missedCount} ${t('missedN')}`}
-				onPress={() => navigation.navigate('RoundDetail', { groupId, roundIndex: item.roundIndex })}
-				percent={Math.round((item.readCount / unitCount) * 100)}
-				readLabel={`${item.readCount}/${unitCount}`}
-				whenText={whenLabel(item, false)}
-			/>
-		),
-		[groupId, navigation, t, unitCount, whenLabel]
+		({ item }: { item: RoundSummary }) => {
+			// "16, 24 ve 31 okunmadı" — named up to three, counted past it. The Hizb's alone.
+			const missedNote = isHizb
+				? hizbMissedNote({ count: item.missedCount, numbers: item.missedPartNumbers }, t)
+				: null;
+
+			return (
+				<RoundCard
+					isComplete={item.missedCount === 0}
+					label={`${t('roundN')} ${item.roundIndex + 1}`}
+					missedLabel={
+						item.missedCount === 0
+							? t(isHizb ? 'roundCompleteHizb' : 'roundComplete')
+							: `${item.missedCount} ${t('missedN')}`
+					}
+					{...(missedNote ? { missedNote } : {})}
+					onPress={() => navigation.navigate('RoundDetail', { groupId, roundIndex: item.roundIndex })}
+					percent={roundPercent(item)}
+					readLabel={`${item.readCount}/${item.partCount}`}
+					whenText={whenLabel(item, false)}
+				/>
+			);
+		},
+		[groupId, isHizb, navigation, t, whenLabel]
 	);
 
 	if (groupQuery.isPending || roundsQuery.isPending) {
@@ -121,8 +160,12 @@ export const RoundsScreen = ({ navigation, route }: Props) => {
 		<>
 			<ScreenHeader
 				hasBackButton
-				// A hatim's cüz don't advance by five the way a Cevşen range does.
-				subtitle={t(groupQuery.data?.kind === 'HATIM' ? 'roundsSubCuz' : 'roundsSub')}
+				// A hatim's cüz don't advance by five the way a Cevşen range does; a Hizb round has its portions.
+				subtitle={
+					isHizb
+						? t('roundsSubHizb', { count: groupQuery.data.partCount })
+						: t(kind === 'HATIM' ? 'roundsSubCuz' : 'roundsSub')
+				}
 				title={t('rounds')}
 				titleTrailing={<Chip label={t(cycleLabelKey(cycle))} tone='accent' />}
 			/>
@@ -139,12 +182,16 @@ export const RoundsScreen = ({ navigation, route }: Props) => {
 					</View>
 					<View style={styles.openCounts}>
 						<NumericText color={theme.colors.accent}>{openRound.readCount}</NumericText>
-						<CaptionText color={theme.colors.faintText}>{`/ ${unitCount} ${unitLabel}`}</CaptionText>
+						<CaptionText color={theme.colors.faintText}>
+							{`/ ${openRound.partCount} ${t(partUnitKey(groupQuery.data.kind))}`}
+						</CaptionText>
 						<CaptionText color={theme.colors.faintText} style={styles.openMine}>
-							{`${openRound.myReadCount}/${openRound.myOwedCount} ${t('yourShare')}`}
+							{isHizb
+								? t('roundMineHizb', { owed: openRound.myOwedCount, read: openRound.myReadCount })
+								: `${openRound.myReadCount}/${openRound.myOwedCount} ${t('yourShare')}`}
 						</CaptionText>
 					</View>
-					<ProgressBar percent={Math.round((openRound.readCount / unitCount) * 100)} />
+					<ProgressBar percent={roundPercent(openRound)} />
 				</CardSurface>
 			) : null}
 		</>

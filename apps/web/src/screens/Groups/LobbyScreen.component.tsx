@@ -1,12 +1,15 @@
 import { CuzMap, CuzMapLegend } from '@/components/CuzMap/CuzMap.component';
+import { DetailsCard } from '@/components/DetailsCard/DetailsCard.component';
 import { InviteQr } from '@/components/InviteQr/InviteQr.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
+import { SCREEN_TITLE_PADDING_UNDER_BAR } from '@/components/ScreenTitle/ScreenTitle.component';
 import { AvatarStack } from '@/components/ui/AvatarStack/AvatarStack.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Chip } from '@/components/ui/Chip/Chip.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
+import { KindMark } from '@/components/ui/KindMark/KindMark.component';
 import { ProgressBar } from '@/components/ui/ProgressBar/ProgressBar.component';
 import { SpotsGrid } from '@/components/ui/SpotsGrid/SpotsGrid.component';
 import { ToggleRow } from '@/components/ui/ToggleRow/ToggleRow.component';
@@ -22,6 +25,7 @@ import { useGetGroupById, useStartGroup, useUpdateGroup } from '@/lib/hooks/useG
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
+import { cycleLabelKey, hizbSeatColumns, movesEachRound, planLabelKey } from '@/lib/utils/groups';
 import { unitCountFor } from '@/lib/utils/units';
 import type { TabStackParamList } from '@/navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -33,6 +37,11 @@ import { HatimLobbySkeleton } from './HatimLobbySkeleton.component';
 import { LobbySkeleton } from './LobbySkeleton.component';
 
 type Props = NativeStackScreenProps<TabStackParamList, 'Lobby'>;
+
+/** HC4 draws the book's mark at 40 beside the name. */
+const KIND_MARK_SIZE = 40;
+/** The faces the Hizb lobby's members row shows before its count takes over. */
+const MEMBER_FACES = 3;
 
 /**
  * A group that hasn't started yet. The owner sees the fill and the button that opens day
@@ -50,8 +59,9 @@ export const LobbyScreen = ({ navigation, route }: Props) => {
 	const { t } = useTranslation();
 	const group = useGetGroupById(groupId);
 	// Chooses the skeleton below: the group's kind once known, else what the list it came from said.
+	// A lobby missing from every cache simply gets the Cevşen's.
 	const cached = useCachedGroup(groupId);
-	const isHatimLoading = (group.data?.kind ?? cached?.kind) === 'HATIM';
+	const loadingKind = group.data?.kind ?? cached?.kind ?? 'CEVSEN';
 	const startGroup = useStartGroup();
 	const pullToRefresh = usePullToRefresh(group);
 
@@ -72,7 +82,7 @@ export const LobbyScreen = ({ navigation, route }: Props) => {
 	if (group.isLoading) {
 		return (
 			<ScreenContainer isScrollable={false}>
-				{isHatimLoading ? <HatimLobbySkeleton /> : <LobbySkeleton />}
+				{loadingKind === 'HATIM' ? <HatimLobbySkeleton /> : <LobbySkeleton kind={loadingKind} />}
 			</ScreenContainer>
 		);
 	}
@@ -82,11 +92,32 @@ export const LobbyScreen = ({ navigation, route }: Props) => {
 	}
 
 	const detail = group.data;
+	/*
+	 * Three lobbies share this screen. HC4 — the Hizb's — changes the heading, the seat caption,
+	 * the details card, the members row and the start copy, which counts rounds where the
+	 * Cevşen's still says "Gün 1". A hatim's fills with cüz rather than seats (see below).
+	 */
+	const isHizb = detail.kind === 'HIZB';
 	const isHatim = detail.kind === 'HATIM';
 	// By seat, so the creator leads and the order matches the order people arrived in.
-	const memberNames = [...detail.members].sort((a, b) => a.slotIndex - b.slotIndex).map(member => member.displayName);
+	const membersBySeat = [...detail.members]
+		.sort((a, b) => a.slotIndex - b.slotIndex)
+		.map(member => ({ imageUrl: member.imageUrl, name: member.displayName }));
 	const unitCount = unitCountFor(detail.kind);
 	const openSpots = detail.spots - detail.memberCount;
+	/*
+	 * A full Hizb lobby has no auto-start to offer: `autoStartIfFull` runs only inside a join,
+	 * and with no seat left there is no join to come — the owner's button is the only way in.
+	 * That includes every one-seat group, whose owner fills it on creation and can never leave.
+	 */
+	const hasAutoStartToggle = !isHizb || openSpots > 0;
+	const poolNoteKey = isHatim
+		? 'qLobbyPoolNote'
+		: isHizb
+		? movesEachRound(detail.splitMode, detail.spots)
+			? 'hizbSeatsNoteRotation'
+			: 'hizbSeatsNoteFixed'
+		: 'poolNote';
 	const fillPercent = Math.round((detail.memberCount / detail.spots) * 100);
 
 	const handleCopyInvite = async () => {
@@ -156,11 +187,18 @@ export const LobbyScreen = ({ navigation, route }: Props) => {
 					<CuzMapLegend mineLabel={t('legendMine')} />
 				</>
 			) : (
-				<SpotsGrid filled={detail.memberCount} total={detail.spots} />
+				<SpotsGrid
+					filled={detail.memberCount}
+					total={detail.spots}
+					{...(isHizb ? { columns: hizbSeatColumns(detail.spots) } : {})}
+				/>
 			)}
 			{detail.isOwner ? (
 				<CaptionText color={theme.colors.subtext} style={styles.poolNote}>
-					{t(isHatim ? 'qLobbyPoolNote' : 'poolNote')}
+					{/* A hatim says where its untaken cüz go; the Hizb how its portions will move rather
+					    than where the empty seats' ones go — and a plan that never moves (FIXED, or a
+					    lone seat) says so. */}
+					{t(poolNoteKey)}
 				</CaptionText>
 			) : null}
 		</CardSurface>
@@ -186,12 +224,43 @@ export const LobbyScreen = ({ navigation, route }: Props) => {
 			 * KURUCU row.
 			 */}
 			<View style={styles.top}>
-				<ScreenHeader hasBackButton subtitle={t('notCounting')} title={detail.name} />
-				<View style={styles.stateRow}>
-					<EyebrowText color={theme.colors.faintText}>{t('creator')}</EyebrowText>
-					<Chip label={t('lobbyState')} tone='sand' />
-				</View>
+				{isHizb ? (
+					/*
+					 * HC4 turns the heading over: the KURUCU row and its chip lead, the name comes
+					 * under them with the book's mark at its right. The row takes the band under
+					 * the navigator's back button itself — as the invite preview's chip row does —
+					 * so the heading under it is an ordinary one, and one block keeps the column's
+					 * gap from opening between the two.
+					 */
+					<View>
+						<View style={[styles.stateRow, styles.stateRowUnderBar]}>
+							<EyebrowText color={theme.colors.faintText}>{t('creator')}</EyebrowText>
+							<Chip label={t('lobbyState')} tone='sand' />
+						</View>
+						<ScreenHeader
+							action={<KindMark kind='HIZB' size={KIND_MARK_SIZE} />}
+							subtitle={t('notCounting')}
+							title={detail.name}
+						/>
+					</View>
+				) : (
+					<>
+						<ScreenHeader hasBackButton subtitle={t('notCounting')} title={detail.name} />
+						<View style={styles.stateRow}>
+							<EyebrowText color={theme.colors.faintText}>{t('creator')}</EyebrowText>
+							<Chip label={t('lobbyState')} tone='sand' />
+						</View>
+					</>
+				)}
 				{fillCard}
+				{isHizb ? (
+					<DetailsCard
+						rows={[
+							{ label: t('cycle'), value: t(cycleLabelKey(detail.cycle)) },
+							{ label: t('readingPlan'), value: t(planLabelKey(detail.splitMode)) }
+						]}
+					/>
+				) : null}
 				<CardSurface isFlush>
 					<View style={[styles.inviteBlock, { borderBottomColor: theme.colors.border }]}>
 						<EyebrowText color={theme.colors.faintText} style={styles.inviteLabel}>
@@ -237,28 +306,58 @@ export const LobbyScreen = ({ navigation, route }: Props) => {
 					 * card's own divider rather than in a card of its own: it is the answer to
 					 * the code directly above it.
 					 *
-					 * Both kinds get it. Nothing about "people have joined" is particular to
-					 * how the group divides its reading.
+					 * Every kind gets it. Nothing about "people have joined" is particular to
+					 * how the group divides its reading — the Hizb's HC4 simply draws it its own
+					 * way: three faces, and no rule under it once the switch is gone.
 					 */}
-					<View style={[styles.joinedRow, { borderBottomColor: theme.colors.border }]}>
-						{/*
-						 * Five, not the stack's default three. The frame draws five overlapping
-						 * faces and then the count — at three the row was two faces short and
-						 * carried a "+2" chip instead, which breaks the overlap's rhythm and
-						 * says the same number twice: once in the chip and again in "5 kişi
-						 * katıldı" right beside it.
-						 */}
-						<AvatarStack max={JOINED_AVATAR_MAX} names={memberNames} size={JOINED_AVATAR_SIZE} />
-						<CaptionText color={theme.colors.subtext}>
-							{t('joinedPeople', { count: detail.memberCount })}
-						</CaptionText>
-					</View>
-					<ToggleRow
-						hint={t(isHatim ? 'qAutoStartHint' : 'autoStartHint')}
-						onValueChange={value => updateGroup.mutate({ autoStartWhenFull: value, groupId })}
-						title={t(isHatim ? 'qAutoStartFull' : 'autoStartFull')}
-						value={detail.autoStartWhenFull}
-					/>
+					{isHizb ? (
+						// Who is already in, in seat order — faces for the first few, then the count.
+						<View
+							style={[
+								styles.membersRow,
+								// Last in the card when the toggle is gone, so no rule under it.
+								hasAutoStartToggle
+									? {
+											borderBottomColor: theme.colors.border,
+											borderBottomWidth: StyleSheet.hairlineWidth
+									  }
+									: null
+							]}
+						>
+							<AvatarStack people={membersBySeat.slice(0, MEMBER_FACES)} size={28} />
+							<CaptionText color={theme.colors.subtext}>
+								{t('peopleJoined', { count: detail.memberCount })}
+							</CaptionText>
+						</View>
+					) : (
+						<View style={[styles.joinedRow, { borderBottomColor: theme.colors.border }]}>
+							{/*
+							 * Five, not the stack's default three. The frame draws five overlapping
+							 * faces and then the count — at three the row was two faces short and
+							 * carried a "+2" chip instead, which breaks the overlap's rhythm and
+							 * says the same number twice: once in the chip and again in "5 kişi
+							 * katıldı" right beside it.
+							 */}
+							<AvatarStack max={JOINED_AVATAR_MAX} people={membersBySeat} size={JOINED_AVATAR_SIZE} />
+							<CaptionText color={theme.colors.subtext}>
+								{t('joinedPeople', { count: detail.memberCount })}
+							</CaptionText>
+						</View>
+					)}
+					{hasAutoStartToggle ? (
+						<ToggleRow
+							hint={t(isHatim ? 'qAutoStartHint' : isHizb ? 'autoStartHintHizb' : 'autoStartHint')}
+							onValueChange={value => updateGroup.mutate({ autoStartWhenFull: value, groupId })}
+							title={
+								isHatim
+									? t('qAutoStartFull')
+									: isHizb
+									? t('autoStartFullHizb', { spots: detail.spots })
+									: t('autoStartFull')
+							}
+							value={detail.autoStartWhenFull}
+						/>
+					) : null}
 				</CardSurface>
 			</View>
 			{/*
@@ -273,9 +372,13 @@ export const LobbyScreen = ({ navigation, route }: Props) => {
 			 * put 23 between everything here and nowhere else.
 			 */}
 			<View style={styles.footer}>
-				<AppButton isLoading={startGroup.isPending} onPress={handleStart} title={t('startNow')} />
+				<AppButton
+					isLoading={startGroup.isPending}
+					onPress={handleStart}
+					title={t(isHizb ? 'startNowHizb' : 'startNow')}
+				/>
 				<BodyText color={theme.colors.faintText} textAlign='center'>
-					{t('startHint')}
+					{t(isHizb ? 'startHintHizb' : 'startHint')}
 				</BodyText>
 			</View>
 		</ScreenContainer>
@@ -333,6 +436,13 @@ const styles = StyleSheet.create({
 	loading: {
 		flex: 1
 	},
+	membersRow: {
+		alignItems: 'center',
+		flexDirection: 'row',
+		gap: 10,
+		paddingHorizontal: 15,
+		paddingVertical: 12
+	},
 	openSpots: {
 		marginLeft: 'auto'
 	},
@@ -372,5 +482,19 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		flexDirection: 'row',
 		justifyContent: 'space-between'
+	},
+	/*
+	 * The Hizb's state row heads the screen, so it clears the navigator's bar — and gives up
+	 * most of its margin, since the heading under it opens with 8 of its own and HC4 leaves 10.
+	 *
+	 * **By hand, because `ScreenTitle` has nowhere to put this row.** Its eyebrow sits inside
+	 * the text column, left of `action`, at a pinned 14pt; HC4's chip is 22pt and stands at the
+	 * far right, over the mark — a full-width row above the title *and* its action. Owning that
+	 * would be a second layout in the component every screen heads with, for one screen, so
+	 * the row reserves the band itself, as the invite preview's chip row does.
+	 */
+	stateRowUnderBar: {
+		marginBottom: 2,
+		paddingTop: SCREEN_TITLE_PADDING_UNDER_BAR
 	}
 });

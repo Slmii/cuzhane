@@ -1,7 +1,7 @@
 import prisma from '@db/prisma';
 import { toGroupSummary } from '@services/groupSerializers';
 import { listGroupsForUser } from '@services/groups.service';
-import { babNumbersForRound } from '@utils/babs';
+import { BAB_COUNT, babNumbersForRound } from '@utils/babs';
 import { DEFAULT_TIME_ZONE, roundEndsAt } from '@utils/rounds';
 import { CUZ_COUNT } from '@utils/units';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
@@ -40,7 +40,7 @@ const createGroup = async ({ kind = 'CEVSEN', spots = SPOTS }: { kind?: 'CEVSEN'
 			startedAt,
 			roundIndex: 0,
 			roundStartedAt: startedAt,
-			endsAt: roundEndsAt(startedAt, 1, DEFAULT_TIME_ZONE),
+			endsAt: roundEndsAt(startedAt, 1, 0, DEFAULT_TIME_ZONE),
 			members: {
 				create: [
 					{ userId: OWNER, displayName: 'Owner', role: 'OWNER', slotIndex: 0 },
@@ -87,7 +87,7 @@ afterAll(async () => {
 describe('myShareDoneAt', () => {
 	it('is null while any of the share is unread', async () => {
 		const group = await createGroup();
-		const share = babNumbersForRound(1, SPOTS, 0);
+		const share = babNumbersForRound(1, SPOTS, 0, BAB_COUNT);
 
 		await markRead(group.id, share.slice(0, -1), new Date('2026-09-25T07:12:00Z'));
 
@@ -96,7 +96,7 @@ describe('myShareDoneAt', () => {
 
 	it('is the latest read once the whole share is read', async () => {
 		const group = await createGroup();
-		const share = babNumbersForRound(1, SPOTS, 0);
+		const share = babNumbersForRound(1, SPOTS, 0, BAB_COUNT);
 		const last = new Date('2026-09-25T13:40:00Z');
 
 		await markRead(group.id, share.slice(0, -1), new Date('2026-09-25T07:12:00Z'));
@@ -108,8 +108,8 @@ describe('myShareDoneAt', () => {
 	it('counts a pool block the viewer took, not only their seat', async () => {
 		// Three seats, the third empty: its block is the pool, and the reader has taken it.
 		const group = await createGroup({ spots: 3 });
-		const seat = babNumbersForRound(1, 3, 0);
-		const pool = babNumbersForRound(2, 3, 0);
+		const seat = babNumbersForRound(1, 3, 0, BAB_COUNT);
+		const pool = babNumbersForRound(2, 3, 0, BAB_COUNT);
 		const last = new Date('2026-09-25T13:40:00Z');
 
 		await prisma.groupBab.updateMany({
@@ -164,7 +164,7 @@ describe('myShareDoneAt', () => {
 	it('is null for a viewer with no share', async () => {
 		const group = await createGroup();
 
-		await markRead(group.id, babNumbersForRound(1, SPOTS, 0), new Date('2026-09-25T07:12:00Z'));
+		await markRead(group.id, babNumbersForRound(1, SPOTS, 0, BAB_COUNT), new Date('2026-09-25T07:12:00Z'));
 
 		expect((await summaryFor(group.id, STRANGER)).myShareDoneAt).toBeNull();
 	});

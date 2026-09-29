@@ -1,0 +1,47 @@
+model HizbEnrollment {
+    id               String   @id @default(cuid())
+    groupId          String
+    userId           String
+    planDays         Int
+    planVersion      Int      @default(1)
+    ordinal          Int      @default(0)
+    sequence         Int
+    joinedDay        Int
+    endDay           Int?
+    reason           String?
+    removalDays      Int?
+    lastReadDay      Int?
+    generatedThrough Int
+    createdAt        DateTime @default(now())
+    group            Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+    assignments      HizbAssignment[]
+
+    @@unique([groupId, planDays, sequence])
+    @@index([groupId, userId, endDay])
+}
+
+model HizbAssignment {
+    id           String   @id @default(cuid())
+    enrollmentId String
+    day          Int
+    portion      Int
+    traversal    Int
+    repetitions  Int      @default(0)
+    delailRepetitions Int @default(0)
+    istighfarRepetitions Int @default(0)
+    istighfarTarget Int @default(11)
+    version      Int      @default(0)
+    bookmark     Int      @default(0)
+    // Which of the board's 33 this day's reading has marked read from the book, before all of them
+    // are: a partial day shows on the board but stays owed. Cleared when the day is undone.
+    readPortions Int[]    @default([])
+    // How a completed reading was done: 'APP' (read in the reader) or 'BOOK' (marked from the book).
+    readFrom     String?
+    completedAt  DateTime?
+    // When the group was told this day was read — set once, so undoing and reading again stays quiet.
+    readNoticeSentAt DateTime?
+    enrollment   HizbEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+    @@unique([enrollmentId, day])
+    @@index([day, completedAt])
+}

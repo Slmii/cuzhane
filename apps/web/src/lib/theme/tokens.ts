@@ -77,6 +77,10 @@ export type AppTheme = {
 		borderStrong: string;
 		divider: string;
 		track: string;
+		/** A thin progress bar's empty part inside a muted panel — a shade under `track`. */
+		progressTrack: string;
+		/** A day's bar that fell short of the whole — the Hizb plan's thirty-day chart. */
+		barPartial: string;
 		danger: string;
 		dangerSurface: string;
 		/**
@@ -283,6 +287,8 @@ export const lightTheme: AppTheme = {
 		borderStrong: '#DAD8D1',
 		divider: '#EDEBE5',
 		track: '#ECEAE4',
+		progressTrack: '#E4E1D8',
+		barPartial: '#C9D9CF',
 		danger: '#8C3F3F',
 		dangerSurface: '#F6EDEC',
 		missed: '#A65D5D',
@@ -379,6 +385,8 @@ export const darkTheme: AppTheme = {
 		borderStrong: 'rgba(242,240,234,0.16)',
 		divider: 'rgba(242,240,234,0.09)',
 		track: 'rgba(242,240,234,0.1)',
+		progressTrack: 'rgba(242,240,234,0.16)',
+		barPartial: 'rgba(143,184,166,0.35)',
 		// Dark frames carry two reds: #C97B7B on cards and #8C3F3F on the invalid-code
 		// strip. The latter is the light value left in place and barely clears its own
 		// #3A2A2A background, so the card red is used for both.

@@ -3,6 +3,7 @@ import { CuzMap, CuzMapLegend } from '@/components/CuzMap/CuzMap.component';
 import type { CuzCellState } from '@/components/CuzMap/CuzMap.types';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
+import { TourTarget } from '@/components/Tour/TourTarget.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
@@ -12,6 +13,8 @@ import { cuzSuraRange } from '@/lib/content/cuz';
 import { useCurrentUserId } from '@/lib/hooks/useCurrentUserId';
 import { useGetGroupById, useGetPoolCuz, usePickRoundCuz } from '@/lib/hooks/useGroup';
 import { useGroupPreviewById, useJoinGroup } from '@/lib/hooks/useMembership';
+import { useGetUserSettings } from '@/lib/hooks/useUserSettings';
+import { INTRO_SETTING } from '@/lib/utils/groupIntro';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { markRoundScreenSeen } from '@/lib/utils/roundScreensSeen';
@@ -50,6 +53,8 @@ export const PickCuzScreen = ({ navigation, route }: Props) => {
 	const group = useGetGroupById(isRoundPick ? groupId : '');
 	const pool = useGetPoolCuz(isRoundPick ? groupId : '');
 	const join = useJoinGroup();
+	// Whether a join shows "how the group works" — the account's "bir daha gösterme".
+	const userSettings = useGetUserSettings();
 	const pickRound = usePickRoundCuz();
 	const userId = useCurrentUserId();
 	const [selected, setSelected] = useState<number[]>([]);
@@ -128,7 +133,13 @@ export const PickCuzScreen = ({ navigation, route }: Props) => {
 				...(inviteCode ? { inviteCode } : {})
 			});
 
-			navigation.replace('JoinedWelcome', { groupId: joined.id });
+			// How the group works (O4/O5) unless the account said "bir daha gösterme" — then the welcome.
+			navigation.replace(
+				userSettings.data?.[INTRO_SETTING.HATIM] !== false ? 'GroupHowItWorks' : 'JoinedWelcome',
+				{
+					groupId: joined.id
+				}
+			);
 		} catch (error) {
 			const isTaken = error instanceof WrapperApiError && error.status === 409;
 
@@ -152,41 +163,44 @@ export const PickCuzScreen = ({ navigation, route }: Props) => {
 					title={t('qPickTitle')}
 				/>
 
-				<CardSurface style={styles.mapCard}>
-					{/*
-					 * How far into the choice you are, above the thing you are choosing with.
-					 * Against a cap it is the whole rule in three characters — "2 / 5" says
-					 * both what you hold and what is left without a sentence — and uncapped it
-					 * still answers "how many have I picked", which the map alone makes you
-					 * count for yourself.
-					 */}
-					<View style={styles.pickHead}>
-						<CaptionText weight='semibold'>{t('qPickYours')}</CaptionText>
-						<CaptionText color={theme.colors.accent} weight='semibold'>
-							{/* Uncapped says so, rather than leaving the missing "/ N" to imply it. */}
-							{maxPerMember === null
-								? `${selected.length} ${t('cuz')} · ${t('qNoMax')}`
-								: `${selected.length} / ${maxPerMember}`}
-						</CaptionText>
-					</View>
-					<CuzMap
-						/*
-						 * **A cap stops selection, it does not hide cells.** At the cap the
-						 * unchosen cells stop responding but stay legible — greying the other
-						 * twenty-seven would say they are taken, which is a different and worse
-						 * claim. Chosen cells always answer, so the way out of a full selection
-						 * is to drop one.
-						 */
-						isPressable={number => free.has(number) && (!isAtCap || selected.includes(number))}
-						labelOf={labelOf}
-						onPress={handleToggle}
-						stateOf={stateOf}
-					/>
-					{/* "boşta", not "havuz" — the frame's own word here, and the right one: on
+				{/* K1 of the first-use tour points at the map: choosing is tapping it. */}
+				<TourTarget id='cuzGrid'>
+					<CardSurface style={styles.mapCard}>
+						{/*
+						 * How far into the choice you are, above the thing you are choosing with.
+						 * Against a cap it is the whole rule in three characters — "2 / 5" says
+						 * both what you hold and what is left without a sentence — and uncapped it
+						 * still answers "how many have I picked", which the map alone makes you
+						 * count for yourself.
+						 */}
+						<View style={styles.pickHead}>
+							<CaptionText weight='semibold'>{t('qPickYours')}</CaptionText>
+							<CaptionText color={theme.colors.accent} weight='semibold'>
+								{/* Uncapped says so, rather than leaving the missing "/ N" to imply it. */}
+								{maxPerMember === null
+									? `${selected.length} ${t('cuz')} · ${t('qNoMax')}`
+									: `${selected.length} / ${maxPerMember}`}
+							</CaptionText>
+						</View>
+						<CuzMap
+							/*
+							 * **A cap stops selection, it does not hide cells.** At the cap the
+							 * unchosen cells stop responding but stay legible — greying the other
+							 * twenty-seven would say they are taken, which is a different and worse
+							 * claim. Chosen cells always answer, so the way out of a full selection
+							 * is to drop one.
+							 */
+							isPressable={number => free.has(number) && (!isAtCap || selected.includes(number))}
+							labelOf={labelOf}
+							onPress={handleToggle}
+							stateOf={stateOf}
+						/>
+						{/* "boşta", not "havuz" — the frame's own word here, and the right one: on
 					    the screen where you are choosing, a hatched cell is a cüz going spare
 					    rather than a pool being pointed at. Every other board keeps "havuz". */}
-					<CuzMapLegend freeLabel={t('qFree')} mineLabel={t('qSelected')} />
-				</CardSurface>
+						<CuzMapLegend freeLabel={t('qFree')} mineLabel={t('qSelected')} />
+					</CardSurface>
+				</TourTarget>
 
 				{/*
 				 * What each chosen number actually is. A cüz is a span of the Kuran, not a
@@ -244,6 +258,8 @@ export const PickCuzScreen = ({ navigation, route }: Props) => {
 				    than merely that something will. Disabled until there is one. */}
 				<AppButton
 					disabled={selected.length === 0}
+					icon='chevronRight'
+					iconPosition='trailing'
 					isLoading={join.isPending || pickRound.isPending}
 					onPress={handleJoin}
 					title={

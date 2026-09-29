@@ -1,6 +1,8 @@
 import prisma from '@db/prisma';
+import type { GroupKindName } from '@utils/groupKinds';
 import { normalizeUserId } from '@utils/normalizeUserId';
-import type { GroupKind, NotificationKind, Prisma } from '../generated/prisma/client';
+import { anonymousNotificationPayload } from '@utils/groupPrivacy';
+import type { NotificationKind, Prisma } from '../generated/prisma/client';
 
 /**
  * The inbox behind design P2.
@@ -41,27 +43,68 @@ type RecordInput = {
 	groupId: string;
 	groupName: string;
 	payload: NotificationPayload;
+	/**
+	 * A Hizb plan's "has read" notice, prepared for "Okuma sorumluları" on (`toSeers`) or off. Filed
+	 * only if the switch is still that way, and when on, only for members ticked to see who read
+	 * *at the moment of filing*, with the name kept even when names are hidden. Checked under the
+	 * lock, so a switch or an untick made while the notice was on its way holds, either direction.
+	 */
+	hizbRead?: { toSeers: boolean };
 };
 
-export const recordNotification = async ({ groupId, groupName, payload, userIds }: RecordInput): Promise<void> => {
+/** Files the rows and answers with whom they were filed for — the only ones a push may then reach. */
+export const recordNotification = async ({
+	groupId,
+	groupName,
+	hizbRead,
+	payload,
+	userIds
+}: RecordInput): Promise<string[]> => {
 	if (userIds.length === 0) {
-		return;
+		return [];
 	}
 
 	try {
 		const { kind, ...rest } = payload;
-
-		await prisma.notification.createMany({
-			data: userIds.map(userId => ({
-				groupId,
-				groupName,
-				kind,
-				payload: rest as Prisma.InputJsonValue,
-				userId: normalizeUserId(userId)
-			}))
+		return await prisma.$transaction(async tx => {
+			// Privacy updates take this row lock too: a named event cannot land after their scrub.
+			await tx.$queryRaw`SELECT "id" FROM "Group" WHERE "id" = ${groupId} FOR UPDATE`;
+			const group = await tx.group.findUnique({
+				where: { id: groupId },
+				select: { hideMemberNames: true, readSeersEnabled: true }
+			});
+			if (!group || (hizbRead && hizbRead.toSeers !== group.readSeersEnabled)) {
+				return [];
+			}
+			let filedFor = userIds.map(normalizeUserId);
+			let storedPayload: Record<string, unknown> = group.hideMemberNames
+				? anonymousNotificationPayload(rest)
+				: rest;
+			if (hizbRead?.toSeers) {
+				const seers = await tx.groupMember.findMany({
+					where: { groupId, seesReaders: true, userId: { in: filedFor } },
+					select: { userId: true }
+				});
+				const ticked = new Set(seers.map(seer => seer.userId));
+				filedFor = filedFor.filter(userId => ticked.has(userId));
+				// Named for the ticked; marked while names are hidden, so a row whose group is later
+				// deleted still keeps its name to itself (see listing).
+				storedPayload = group.hideMemberNames ? { ...rest, seersOnly: true } : rest;
+			}
+			await tx.notification.createMany({
+				data: filedFor.map(userId => ({
+					groupId,
+					groupName,
+					kind,
+					payload: storedPayload as Prisma.InputJsonValue,
+					userId
+				}))
+			});
+			return filedFor;
 		});
 	} catch (error) {
 		console.error('Failed to record a notification', error);
+		return [];
 	}
 };
 
@@ -86,12 +129,15 @@ export type NotificationRow = {
 	groupId: string | null;
 	groupName: string;
 	/**
-	 * Cevşen or hatim — which decides whether the row speaks in babs or cüz (Q8). Read off the
-	 * group at list time rather than stored, so every row already filed gets it too. Null once
-	 * the group is gone, and the client reads that as Cevşen: the one case a hatim's old rows
-	 * would say "bab", accepted rather than denormalising a column for it.
+	 * What the group reads, so the row can say "bab", "cüz" or "bölüm" (Q8). Named `groupKind`
+	 * because `kind` is already what the *notification* is.
+	 *
+	 * Joined from the live group rather than stored on the row, unlike `groupName`, so every row
+	 * already filed gets it too. Once the group is deleted `groupId` goes null and there is
+	 * nothing left to join, so such a row reads as a Cevşen one — which is also how the 1.3.0
+	 * app drew a row with no kind, so every build reads it the same.
 	 */
-	groupKind: GroupKind | null;
+	groupKind: GroupKindName;
 	payload: Record<string, unknown>;
 	isRead: boolean;
 	createdAt: string;
@@ -102,19 +148,33 @@ const serializeNotification = (row: {
 	kind: NotificationKind;
 	groupId: string | null;
 	groupName: string;
-	group: { kind: GroupKind } | null;
+	/** `members` holds only the viewer's own row, if they are still in the group. */
+	group: {
+		kind: GroupKindName;
+		hideMemberNames: boolean;
+		readSeersEnabled: boolean;
+		members: { seesReaders: boolean }[];
+	} | null;
 	payload: Prisma.JsonValue;
 	readAt: Date | null;
 	createdAt: Date;
 }): NotificationRow => ({
 	createdAt: row.createdAt.toISOString(),
 	groupId: row.groupId,
-	groupKind: row.group?.kind ?? null,
+	groupKind: row.group?.kind ?? 'CEVSEN',
 	groupName: row.groupName,
 	id: row.id,
 	isRead: row.readAt !== null,
 	kind: row.kind,
-	payload: (row.payload ?? {}) as Record<string, unknown>
+	// Names stay only for a member ticked to see who read, and only while they still are — and a
+	// seers-only row whose group is gone keeps its name to itself for good.
+	payload: (() => {
+		const payload = (row.payload ?? {}) as Record<string, unknown>;
+		const isHidden = row.group
+			? row.group.hideMemberNames && !(row.group.readSeersEnabled && row.group.members[0]?.seesReaders === true)
+			: payload.seersOnly === true;
+		return isHidden ? anonymousNotificationPayload(payload) : payload;
+	})()
 });
 
 /**
@@ -127,11 +187,21 @@ const serializeNotification = (row: {
 const INBOX_LIMIT = 100;
 
 export const listNotificationsForUser = async (userId: string): Promise<NotificationRow[]> => {
+	const user = normalizeUserId(userId);
 	const rows = await prisma.notification.findMany({
-		include: { group: { select: { kind: true } } },
-		where: { userId: normalizeUserId(userId) },
+		where: { userId: user },
 		orderBy: { createdAt: 'desc' },
-		take: INBOX_LIMIT
+		take: INBOX_LIMIT,
+		include: {
+			group: {
+				select: {
+					kind: true,
+					hideMemberNames: true,
+					readSeersEnabled: true,
+					members: { where: { userId: user }, select: { seesReaders: true } }
+				}
+			}
+		}
 	});
 
 	return rows.map(serializeNotification);

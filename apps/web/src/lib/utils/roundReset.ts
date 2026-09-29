@@ -1,12 +1,13 @@
-import { isRepeatingCycle, type GroupCycle } from '@/lib/types/domain';
+import { isRepeatingCycle, type GroupCycle, type GroupKind } from '@/lib/types/domain';
 /**
  * When a round rolls over, said twice: once in the group's day and once in the reader's.
  *
  * The boundary is a local midnight in the group's zone, so the group-side time is always
- * 00:00 — what varies is the zone it is midnight *in*, and which weekday a WEEKLY group
- * lands on. The reader-side line is the same instant expressed where they are standing,
- * which is the whole point: a Turkish group resetting at midnight is 18:00 the previous
- * day in New York, and without saying so the countdown looks wrong to everyone abroad.
+ * 00:00 — what varies is the zone it is midnight *in*, which weekday a WEEKLY group lands on,
+ * and which day of the month a MONTHLY one does. The reader-side line is the same instant
+ * expressed where they are standing, which is the whole point: a Turkish group resetting at
+ * midnight is 18:00 the previous day in New York, and without saying so the countdown looks
+ * wrong to everyone abroad.
  *
  * Both come from `Intl`, so the weekday and the zone abbreviation are already localised —
  * no weekday table to keep in two languages.
@@ -18,7 +19,7 @@ export type RoundResetLabels = {
 	local: string;
 };
 
-const timeIn = (instant: Date, locale: string, timeZone?: string) =>
+export const timeIn = (instant: Date, locale: string, timeZone?: string) =>
 	new Intl.DateTimeFormat(locale, {
 		hour: '2-digit',
 		minute: '2-digit',
@@ -43,6 +44,18 @@ const weekdayIn = (instant: Date, locale: string, timeZone?: string) => {
 };
 
 /**
+ * The day of the month an instant falls on in a zone — the number a MONTHLY group's reset line
+ * names. Read in the group's zone, because that is where the month turns: a start at 01:00 on
+ * the 31st in Istanbul is still the 30th in UTC.
+ */
+const dayOfMonthIn = (instant: Date, timeZone: string) =>
+	new Intl.DateTimeFormat('en-CA', { day: 'numeric', timeZone }).format(instant);
+
+/** "30 September" / "30 Eylül" — which day, when a weekday cannot say which month. */
+const dayAndMonthIn = (instant: Date, locale: string) =>
+	new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'long' }).format(instant);
+
+/**
  * The zone's short name — "GMT+3" for Istanbul, "EDT" for New York. Read from the formatted
  * parts rather than hardcoded: the design's mock said "CEST" because its example group was
  * European, but the real abbreviation depends on the group and the season.
@@ -51,7 +64,7 @@ const weekdayIn = (instant: Date, locale: string, timeZone?: string) => {
  * it has no abbreviation for, which is worse than useless — it names the wrong zone. Older
  * engines reject the option outright, hence the fallback.
  */
-const zoneAbbreviation = (instant: Date, locale: string, timeZone: string): string => {
+export const zoneAbbreviation = (instant: Date, locale: string, timeZone: string): string => {
 	const read = (timeZoneName: 'shortOffset' | 'short') => {
 		try {
 			return (
@@ -120,6 +133,10 @@ const formatOffset = (minutes: number): string => {
  * values were DAILY and WEEKLY. Everything else fell into the *else*, so a fifteen-day
  * one-off announced itself as "Her çarşamba 00:00": a weekday it meets exactly once, and a
  * repetition that never comes.
+ *
+ * **A Hizb group's MONTHLY is a calendar month**, anchored on the start's day of the month, so
+ * its line names that day ("Her ayın 31. günü"). A Cevşen or hatim MONTHLY is thirty days and
+ * counts them like any other length — hence `kind`.
  */
 export const roundResetLabels = (
 	roundEndsAt: string | null,
@@ -131,13 +148,21 @@ export const roundResetLabels = (
 		key:
 			| 'resetDaily'
 			| 'resetWeekly'
+			| 'resetMonthly'
 			| 'resetEveryNDays'
 			| 'endsOn'
 			| 'yourTimeAt'
 			| 'yourTimeAtDay'
 			| 'yourTimeAtDate',
 		values: Record<string, string | number>
-	) => string
+	) => string,
+	kind: GroupKind,
+	/**
+	 * When the hatim began — a MONTHLY Hizb group rolls on this day of every month. Every group
+	 * payload carries it, the invite preview included, and every screen passes it; without one
+	 * the boundary's own day stands in (see the MONTHLY branch).
+	 */
+	startedAt: string | null = null
 ): RoundResetLabels | null => {
 	if (!roundEndsAt) {
 		return null;
@@ -172,6 +197,24 @@ export const roundResetLabels = (
 		};
 	}
 
+	if (kind === 'HIZB' && cycle === 'MONTHLY') {
+		/*
+		 * **The start's day, not the boundary's.** The server rolls a month on the anchor's
+		 * day-of-month, clamped — a group started on the 31st rolls on 28 February and then on
+		 * 31 March — so the boundary's own day is only the rule in a month long enough to hold
+		 * it. Without a start to read, it is the best answer there is, and right in most months.
+		 */
+		const start = startedAt ? new Date(startedAt) : null;
+		const anchor = start && !Number.isNaN(start.getTime()) ? start : instant;
+
+		return {
+			group: t('resetMonthly', { day: dayOfMonthIn(anchor, timezone), time: groupTime, zone }),
+			// Dated on the reader's side: crossing the zone can put the reset on the day before,
+			// and a weekday alone would not say which month's.
+			local: t('yourTimeAtDay', { day: dayAndMonthIn(instant, locale), time: localTime })
+		};
+	}
+
 	if (roundDays === 7) {
 		return {
 			group: t('resetWeekly', { day: weekdayIn(instant, locale, timezone), time: groupTime, zone }),
@@ -202,6 +245,43 @@ const shortDateIn = (instant: Date, locale: string) =>
 const dateIn = (instant: Date, locale: string, timeZone: string) =>
 	new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'long', timeZone, year: 'numeric' }).format(instant);
 
+const CADENCE_CYCLE_KEYS = { DAILY: 'daily', WEEKLY: 'weekly', MONTHLY: 'monthly', CUSTOM: 'qCustom' } as const;
+
+/**
+ * The Ritim row of a Hizb preview (HJ1/HJ2): the cycle, and the day it turns on —
+ * "Haftalık · Pazartesi", "Aylık · ayın 1. günü", plain "Günlük".
+ *
+ * **The day is the start's, so a group that hasn't started has none.** A round boundary is
+ * anchored on `startedAt`, which the owner stamps when they start the hatim — until then a
+ * WEEKLY group has no weekday to name and a MONTHLY one no day of the month, and the row says
+ * only the cycle rather than guess one. (`startsAt` is no stand-in: it is the creation time.)
+ *
+ * Both read in the group's zone, where its midnight falls. The weekday keeps `Intl`'s own
+ * casing — it stands after a separator here, not mid-sentence as in `resetWeekly`, so Turkish
+ * capitalises it and Dutch, correctly, does not.
+ */
+export const cadenceLabel = (
+	cycle: GroupCycle,
+	startedAt: string | null,
+	timezone: string,
+	locale: string,
+	t: (key: 'daily' | 'weekly' | 'monthly' | 'qCustom' | 'cadenceMonthDay', values: Record<string, string>) => string
+): string => {
+	const cycleLabel = t(CADENCE_CYCLE_KEYS[cycle], {});
+	const start = startedAt ? new Date(startedAt) : null;
+
+	if (cycle === 'DAILY' || cycle === 'CUSTOM' || !start || Number.isNaN(start.getTime())) {
+		return cycleLabel;
+	}
+
+	const day =
+		cycle === 'WEEKLY'
+			? new Intl.DateTimeFormat(locale, { timeZone: timezone, weekday: 'long' }).format(start)
+			: t('cadenceMonthDay', { day: dayOfMonthIn(start, timezone) });
+
+	return `${cycleLabel} · ${day}`;
+};
+
 /** Whole hours and minutes until the round rolls, for the DAILY screen's countdown. */
 export const timeUntilReset = (roundEndsAt: string | null, now = new Date()): { hours: number; minutes: number } => {
 	if (!roundEndsAt) {
@@ -218,6 +298,30 @@ export const timeUntilReset = (roundEndsAt: string | null, now = new Date()): { 
 		hours: Math.floor(remaining / 3_600_000),
 		minutes: Math.floor((remaining % 3_600_000) / 60_000)
 	};
+};
+
+/**
+ * How long the round has left, as one value — the group screen's summary card and the Hizb's
+ * Havuz both say it, and said separately they came to disagree.
+ *
+ * Hours and minutes for a DAILY round, and for **any** round on its last day: the server floors
+ * `daysLeft`, so a WEEKLY or MONTHLY round's final day arrives as 0, and "0 gün" reads as a round
+ * already over. A count of days otherwise, with its own word for one — "1 day", not "1 days".
+ * A null `daysLeft` is a legacy group whose `endsAt` was never backfilled, and gets an em dash.
+ */
+export const roundTimeLeftLabel = (
+	{ cycle, daysLeft, hours, minutes }: { cycle: GroupCycle; daysLeft: number | null; hours: number; minutes: number },
+	t: (key: 'dayCount' | 'dayCountOne' | 'hoursLeft', values?: Record<string, string | number>) => string
+): string => {
+	if (cycle === 'DAILY' || daysLeft === 0) {
+		return t('hoursLeft', { hours, minutes });
+	}
+
+	if (daysLeft === null) {
+		return '—';
+	}
+
+	return daysLeft === 1 ? t('dayCountOne') : t('dayCount', { count: daysLeft });
 };
 
 /**

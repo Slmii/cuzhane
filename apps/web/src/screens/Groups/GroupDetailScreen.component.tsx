@@ -1,7 +1,12 @@
+import { HizbPlanGroup } from './HizbPlanGroup.component';
 import { BabGrid } from '@/components/BabGrid/BabGrid.component';
+import { FlexibleReadingPanel } from '@/components/FlexibleReadingPanel/FlexibleReadingPanel.component';
 import { BabLegend } from '@/components/BabLegend/BabLegend.component';
 import { BabRow } from '@/components/BabRow/BabRow.component';
 import { GridSkeleton } from '@/components/GridSkeleton/GridSkeleton.component';
+import { HizbBoard } from '@/components/HizbBoard/HizbBoard.component';
+import { HizbBoardSkeleton } from '@/components/HizbBoard/HizbBoardSkeleton.component';
+import { HizbSharePanel } from '@/components/HizbSharePanel/HizbSharePanel.component';
 import { MyProgressCard } from '@/components/MyProgressCard/MyProgressCard.component';
 import { MyProgressCardSkeleton } from '@/components/MyProgressCard/MyProgressCardSkeleton.component';
 import { RoundResetRow } from '@/components/RoundResetRow/RoundResetRow.component';
@@ -15,6 +20,7 @@ import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Chip } from '@/components/ui/Chip/Chip.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
+import { KindMark } from '@/components/ui/KindMark/KindMark.component';
 import {
 	BodyText,
 	CaptionText,
@@ -26,7 +32,7 @@ import {
 import { useGetBabs, useSetBabRead } from '@/lib/hooks/useBab';
 import { useCachedGroup } from '@/lib/hooks/useCachedGroup';
 import { useCurrentUserId } from '@/lib/hooks/useCurrentUserId';
-import { useGetGroupById, useMarkPoolReleasesSeen } from '@/lib/hooks/useGroup';
+import { useGetGroupById, useGetPoolSlots, useMarkPoolReleasesSeen } from '@/lib/hooks/useGroup';
 import { useHatimRoundGate } from '@/lib/hooks/useHatimRoundGate';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useRoundReset, useTimeUntilReset } from '@/lib/hooks/useRoundReset';
@@ -34,10 +40,19 @@ import { useGetMyProgress, useGetRounds } from '@/lib/hooks/useRounds';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { GroupBab } from '@/lib/types/domain';
-import { formatBabRange } from '@/lib/utils/babs';
+import { formatBabRange, formatRun } from '@/lib/utils/babs';
 import { cuzSuraRange } from '@/lib/content/cuz';
+import { roundTimeLeftLabel } from '@/lib/utils/roundReset';
 import { unitCountFor, unitLabelKey } from '@/lib/utils/units';
-import { shareSlices, toBabCells } from '@/lib/utils/groups';
+import {
+	cycleLabelKey,
+	hizbBoardCells,
+	type HizbBoardCell,
+	kindLabelKey,
+	planLabelKey,
+	shareSlices,
+	toBabCells
+} from '@/lib/utils/groups';
 import { MUSHAF_DUA_PATHS } from '@/lib/content/mushaf';
 import type { TabStackParamList } from '@/navigation/types';
 import { LeaveGroupButton } from '@/screens/Groups/LeaveGroupButton.component';
@@ -52,12 +67,10 @@ import Animated, { useAnimatedStyle, useReducedMotion, withTiming } from 'react-
 import { GroupDetailSkeleton } from './GroupDetailSkeleton.component';
 import { HatimGroupSkeleton } from './HatimGroupSkeleton.component';
 import { HatimLobbySkeleton } from './HatimLobbySkeleton.component';
+import { HizbPlanGroupSkeleton } from './HizbPlanGroupSkeleton.component';
 import { LobbySkeleton } from './LobbySkeleton.component';
 
 type Sheet = 'share' | 'manage' | 'members' | null;
-
-/** Long enough for a sheet to finish dismissing before the next is presented. */
-const SHEET_SWAP_DELAY_MS = 320;
 
 const CHEVRON_DOWN_DEGREES = 90;
 const CHEVRON_UP_DEGREES = -90;
@@ -76,14 +89,50 @@ const MY_BABS_MAX_HEIGHT = 310;
  */
 const NO_BABS: GroupBab[] = [];
 const NO_NUMBERS: number[] = [];
+const NO_HIZB_CELLS: HizbBoardCell[] = [];
 /** Entries in `BabLegend` — the skeleton stubs the same number so the card keeps its height. */
 /** Five keys for a Cevşen board, four for a hatim — see `BabLegend` for why. */
 const BAB_LEGEND_COUNT = 5;
 const CUZ_LEGEND_COUNT = 4;
+/** HZ1 puts the book's mark at the heading's right, a touch larger than the lobby's 40. */
+const KIND_MARK_SIZE = 44;
 
 type Props = NativeStackScreenProps<TabStackParamList, 'GroupDetail'>;
 
-export const GroupDetailScreen = ({ navigation, route }: Props) => {
+/**
+ * A Hizb group read on personal plans is a screen of its own (`HizbPlanGroup`); every other
+ * group — Cevşen, hatim, or a Hizb group divided by seat — is the one below, which draws each
+ * kind's own sections.
+ */
+export const GroupDetailScreen = (props: Props) => {
+	const query = useGetGroupById(props.route.params.groupId);
+	// Until the group answers, the list it was opened from may already know its kind.
+	const cached = useCachedGroup(props.route.params.groupId);
+	const cachedKind = cached?.kind;
+	if (query.isError) {
+		return <ErrorState queries={[query]} />;
+	}
+	if (!query.data) {
+		return (
+			<ScreenContainer>
+				{/* A personal-plan group loads under its own screen's bones, which it keeps until its reading answers. */}
+				{cached?.plan ? (
+					<HizbPlanGroupSkeleton plan={cached.plan} />
+				) : cachedKind === 'HATIM' ? (
+					<HatimGroupSkeleton />
+				) : (
+					<GroupDetailSkeleton kind={cachedKind ?? 'CEVSEN'} />
+				)}
+			</ScreenContainer>
+		);
+	}
+	return query.data.hizbPlan != null ? (
+		<HizbPlanGroup {...props} group={query.data} />
+	) : (
+		<LegacyGroupDetailScreen {...props} />
+	);
+};
+const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 	const { groupId } = route.params;
 	const { theme } = useThemeContext();
 	const { language, t } = useTranslation();
@@ -178,21 +227,33 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 	const loadingKind = groupQuery.data?.kind ?? cached?.kind;
 
 	const babsQuery = useGetBabs(groupId);
+	const isFlexible = groupQuery.data?.splitMode === 'FLEXIBLE';
+	const flexiblePoolQuery = useGetPoolSlots(groupId, { isEnabled: isFlexible });
 	// Both read from the query data rather than the narrowed `detail` below, so they sit with
 	// the other hooks above the early returns and keep hook order stable.
 	const reset = useRoundReset({
 		cycle: groupQuery.data?.cycle ?? 'WEEKLY',
+		kind: groupQuery.data?.kind ?? 'CEVSEN',
 		roundDays: groupQuery.data?.roundDays ?? 7,
 		roundEndsAt: groupQuery.data?.roundEndsAt ?? null,
+		startedAt: groupQuery.data?.startedAt ?? null,
 		timezone: groupQuery.data?.timezone ?? 'UTC'
 	});
 	const untilReset = useTimeUntilReset(groupQuery.data?.roundEndsAt ?? null);
 	const roundsQuery = useGetRounds(groupId);
 	// Gated on the group having started: see the hook.
-	const myProgressQuery = useGetMyProgress(groupId, groupQuery.data?.status === 'RUNNING');
+	const myProgressQuery = useGetMyProgress(
+		groupId,
+		groupQuery.data?.status === 'RUNNING' && groupQuery.data.splitMode !== 'FLEXIBLE'
+	);
 	const setBabRead = useSetBabRead();
 	const markPoolReleasesSeen = useMarkPoolReleasesSeen();
-	const pullToRefresh = usePullToRefresh(groupQuery, babsQuery, roundsQuery, myProgressQuery);
+	const pullToRefresh = usePullToRefresh(
+		groupQuery,
+		babsQuery,
+		roundsQuery,
+		...(isFlexible ? [flexiblePoolQuery] : [myProgressQuery])
+	);
 	// A hatim may open on Q7 or QR1 instead — and a member holding no cüz never sees this screen.
 	const roundGate = useHatimRoundGate(groupId, navigation);
 
@@ -236,6 +297,21 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 		},
 		[babs, groupId, groupQuery.data?.kind, myBabNumberSet, navigation]
 	);
+	/*
+	 * The Hizb's board (HZ1), held the same way and for the same reason: `HizbBoard` draws
+	 * `CellGrid`'s own cells, memoised on what they are handed. A Cevşen group never draws it,
+	 * so there is nothing to build for one.
+	 */
+	const isHizbGroup = groupQuery.data?.kind === 'HIZB';
+	const hizbCells = useMemo(
+		() =>
+			isHizbGroup
+				? hizbBoardCells(babs, { myBabNumbers, poolBabNumbers: groupQuery.data?.poolBabNumbers ?? NO_NUMBERS })
+				: NO_HIZB_CELLS,
+		[babs, groupQuery.data?.poolBabNumbers, isHizbGroup, myBabNumbers]
+	);
+	// The board's "Fihrist ›". Held for the same reason as the cells: `HizbBoard` is memoised.
+	const handleOpenHizbIndex = useCallback(() => navigation.navigate('HizbIndex', { groupId }), [groupId, navigation]);
 
 	const status = groupQuery.data?.status;
 	const isOwnerOfGroup = groupQuery.data?.isOwner === true;
@@ -259,7 +335,12 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 	if (groupQuery.isPending || (groupQuery.data !== undefined && !roundGate.isOpen)) {
 		return (
 			<ScreenContainer>
-				{loadingKind === 'HATIM' ? <HatimGroupSkeleton /> : <GroupDetailSkeleton />}
+				{/* Each kind's own stand-in — a hatim's, the Hizb's, else the Cevşen's. */}
+				{loadingKind === 'HATIM' ? (
+					<HatimGroupSkeleton />
+				) : (
+					<GroupDetailSkeleton kind={loadingKind ?? 'CEVSEN'} />
+				)}
 			</ScreenContainer>
 		);
 	}
@@ -277,26 +358,36 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 	if (detail.status === 'GATHERING') {
 		return detail.isOwner ? (
 			<ScreenContainer isScrollable={false}>
-				{detail.kind === 'HATIM' ? <HatimLobbySkeleton /> : <LobbySkeleton />}
+				{detail.kind === 'HATIM' ? <HatimLobbySkeleton /> : <LobbySkeleton kind={detail.kind} />}
 			</ScreenContainer>
 		) : (
-			// The waiting screen is the same shape for both kinds; only its words differ.
+			// The waiting screen is the same shape for every kind; only its words differ.
 			<ScreenContainer isScrollable={false}>
 				<JoinedWelcomeSkeleton />
 			</ScreenContainer>
 		);
 	}
+	/*
+	 * HZ1 — a Hizb group. The screen is the Cevşen's with its sections swapped where the design
+	 * swaps them: the heading, the summary card, the assigned panel, the row cards' counts and
+	 * the board. Everything else — the progress banner, the release notice, the sheets, the way
+	 * out — is drawn once for both.
+	 */
+	const isHizb = detail.kind === 'HIZB';
 	// One card however many blocks were taken over — "27–39, 66–78" reads better than a
-	// stack of identical notices.
-	const poolReleaseRanges = detail.poolReleases.map(release => `${release.startBab}–${release.endBab}`).join(', ');
+	// stack of identical notices. A Hizb block can be a single portion, which reads "7", not "7–7".
+	const poolReleaseRanges = detail.poolReleases
+		.map(release =>
+			isHizb
+				? formatRun({ end: release.endBab, start: release.startBab })
+				: `${release.startBab}–${release.endBab}`
+		)
+		.join(', ');
 	const myBabs = babs.filter(bab => myBabNumberSet.has(bab.number)).sort((a, b) => a.number - b.number);
 	// The slice the reader is on, plus a count of the others — see `shareSlices`.
 	const mySlices = shareSlices(myBabNumbers, detail.myNextBabNumber);
 	const myReadCount = myBabs.filter(bab => bab.readAt !== null).length;
-	// The open-ended cycle is retired and can no longer be created, but a legacy group whose
-	// `endsAt` was never backfilled can still surface a null `daysLeft` here — fall back to
-	// an em dash rather than a removed string.
-	const daysLeftLabel = detail.daysLeft === null ? '—' : `${detail.daysLeft} ${t('days')}`;
+	// Only a DAILY round is labelled as a countdown to its reset; see the Cevşen card below.
 	const isDaily = detail.cycle === 'DAILY';
 	const isRoundComplete = detail.completedAt !== null;
 	const isHatim = detail.kind === 'HATIM';
@@ -307,33 +398,9 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 	// Undefined while the group is still gathering — the server has no rounds to report
 	// and answers 403 — so the card simply does not appear until the hatim starts.
 	const myProgress = myProgressQuery.data;
-	const leftValue = isDaily
-		? t('hoursLeft', { hours: untilReset.hours, minutes: untilReset.minutes })
-		: daysLeftLabel;
-
-	// One sheet swaps for the other rather than stacking: Yönet's members row is a way
-	// *into* the list, not a second surface on top of the settings it came from.
-	/*
-	 * **Dismiss Yönet first, then present Üyeler — never in the same commit.** A natively
-	 * presented sheet cannot be presented while another is still dismissing; iOS drops the second
-	 * one and the row read as dead. Swapping the value in one go did exactly that, because the
-	 * two sheets share this state and so close and open together.
-	 *
-	 * The delay is the dismissal's own, not a guess at when React settles.
-	 */
-	const handleOpenMembers = () => {
-		/*
-		 * **Both halves of "open", or Yönet never closes.** `openSheet` is `sheet ?? requestedSheet`
-		 * and the toolbar opens Yönet through the *param* — so clearing the state alone changed
-		 * nothing, the param kept it open, and the two sheets still swapped in one commit. iOS will
-		 * not present a sheet while another is dismissing, so the members list was dropped and the
-		 * row read as dead.
-		 */
-		setSheet(null);
-		navigation.setParams({ sheet: undefined });
-		// Presented only once Yönet's dismissal has run — see `SHEET_SWAP_DELAY_MS`.
-		setTimeout(() => setSheet('members'), SHEET_SWAP_DELAY_MS);
-	};
+	// Hours on a DAILY round and on any round's last day, where the floored day count reads 0;
+	// days otherwise, "1 day" for one. Both kinds' cards show it.
+	const leftValue = roundTimeLeftLabel({ cycle: detail.cycle, daysLeft: detail.daysLeft, ...untilReset }, t);
 
 	/*
 	 * **The heading is the screen's again, and the bar carries only controls.**
@@ -375,31 +442,151 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 			titleTrailing={
 				<View style={styles.titleChips}>
 					{isRepeatingCycle(detail.cycle) ? (
-						<Chip label={t(isDaily ? 'daily' : 'weekly')} tone='accent' />
+						<Chip label={t(cycleLabelKey(detail.cycle))} tone='accent' />
 					) : null}
 					{/*
 					 * Both kinds carry it: a screen that tags only the unusual one makes the
 					 * other the unmarked default, which it stops being as soon as somebody has
 					 * one of each.
 					 */}
-					<Chip label={t(isHatim ? 'qHatim' : 'qCevsen')} tone='neutral' />
+					<Chip label={t(kindLabelKey(detail.kind))} tone='neutral' />
 				</View>
 			}
 		/>
 	);
 
+	/*
+	 * HZ1 counts the pool by what is still free to take, where the Cevşen's card counts the
+	 * whole of it. Once every pool portion has somebody the card says so rather than offering
+	 * none — and stays, so the way to Havuz doesn't go with the last claim.
+	 */
+	if (detail.splitMode === 'FLEXIBLE') {
+		return (
+			<>
+				<ScreenContainer pullToRefresh={pullToRefresh}>
+					{header}
+					<CardSurface>
+						<TitleText>{t('planFlexible')}</TitleText>
+						<CaptionText>{t('flexibleMembers', { count: detail.memberCount })}</CaptionText>
+						<CaptionText>{`${t('groupProgress')}: ${detail.readCount} / ${detail.partCount}`}</CaptionText>
+						{reset ? <RoundResetRow groupLabel={reset.group} localLabel={reset.local} /> : null}
+					</CardSurface>
+					<FlexibleReadingPanel
+						group={detail}
+						onOpenReader={number =>
+							detail.kind === 'HIZB'
+								? navigation.navigate('HizbReader', { groupId, partNumber: number })
+								: navigation.navigate('BabReader', { groupId, babNumber: number })
+						}
+					/>
+					<AppButton title={t('membersTitle')} onPress={() => setSheet('members')} variant='surface' />
+					<AppButton
+						title={t('rounds')}
+						onPress={() => navigation.navigate('Rounds', { groupId })}
+						variant='surface'
+					/>
+					<LeaveGroupButton groupId={groupId} isFlexible isOwner={detail.isOwner} kind={detail.kind} />
+				</ScreenContainer>
+				<ShareSheet group={detail} isVisible={openSheet === 'share'} onClose={closeSheet} />
+				{detail.isOwner ? (
+					<ManageSheet group={detail} isVisible={openSheet === 'manage'} onClose={closeSheet} />
+				) : null}
+				<MembersSheet groupId={groupId} isVisible={openSheet === 'members'} onClose={closeSheet} />
+			</>
+		);
+	}
+	const freePoolCount = detail.poolBabNumbers.length;
+	const hizbPoolCount = freePoolCount > 0 ? freePoolCount : detail.poolAllBabNumbers.length;
+	const hizbPoolLine = () =>
+		freePoolCount > 0
+			? t(freePoolCount === 1 ? 'poolFreeHizbOne' : 'poolFreeHizb', { count: freePoolCount })
+			: t('allClaimedPortions', { count: detail.poolAllBabNumbers.length });
+	// "Geçen tur"'s line counts portions. It names no people, as HZ1's does: a round's summary
+	// carries only its missing count — who owed them is on the round's own screen.
+	const hizbMissedLine = (count: number) =>
+		t(count === 1 ? 'missedPortionsHizbOne' : 'missedPortionsHizb', { count });
+
 	return (
 		<>
 			<ScreenContainer pullToRefresh={pullToRefresh}>
-				{header}
+				{/*
+				 * HZ1's heading: the book's mark in the corner — the toolbar's actions are in the
+				 * navigator's bar either way — and under the name, the round and the plan. The design's
+				 * group has no dedication; a group that has one keeps it, on the line below.
+				 */}
+				{isHizb ? (
+					<ScreenHeader
+						action={<KindMark kind='HIZB' size={KIND_MARK_SIZE} />}
+						hasBackButton
+						subtitle={[
+							`${t('roundN')} ${(detail.roundIndex ?? 0) + 1} · ${t(planLabelKey(detail.splitMode))}`,
+							detail.dedication ? t('forName', { dedication: detail.dedication }) : null
+						]
+							.filter(Boolean)
+							.join('\n')}
+						title={detail.name}
+						titleLines={1}
+						titleTrailing={<Chip label={t(cycleLabelKey(detail.cycle))} tone='accent' />}
+					/>
+				) : (
+					header
+				)}
 				{/*
 				 * 07 / 07c. One card rather than two loose tiles: the reset line belongs to
 				 * the same fact as the countdown beside it — how long is left, and until when
 				 * exactly. Split apart, the countdown reads as the reader's own clock when it
 				 * never was.
 				 */}
-				{/* Stop 3 of the first-use tour: the group's whole rhythm in one card. */}
-				<TourTarget id='groupSummary'>
+				{/*
+				 * The Hizb's summary card counts what the group has read, where the Cevşen's counts its
+				 * members, and says how long the round has left under one label whatever the cycle. A
+				 * finished round turns the count sage rather than taking the countdown's place: the
+				 * count already reads "33 / 33", and when the next one starts is still worth knowing.
+				 */}
+				{isHizb ? (
+					<CardSurface isFlush>
+						<View style={styles.statsRow}>
+							<View
+								style={[
+									styles.statCell,
+									styles.statCellDivided,
+									{ borderRightColor: theme.colors.divider }
+								]}
+							>
+								<NumericText color={isRoundComplete ? theme.colors.accent : theme.colors.text}>
+									{`${detail.readCount} `}
+									<Typography
+										color={theme.colors.faintText}
+										style={styles.statTotal}
+										variant='numeric'
+									>
+										{`/ ${detail.partCount}`}
+									</Typography>
+								</NumericText>
+								<StatText
+									color={isRoundComplete ? theme.colors.accent : theme.colors.faintText}
+									style={styles.statLabel}
+								>
+									{t(isRoundComplete ? 'roundCompleted' : 'portionsReadStat')}
+								</StatText>
+							</View>
+							<View style={styles.statCell}>
+								<NumericText>{leftValue}</NumericText>
+								<StatText color={theme.colors.faintText} style={styles.statLabel}>
+									{t('untilRoundEnd')}
+								</StatText>
+							</View>
+						</View>
+						{reset ? (
+							<RoundResetRow
+								groupLabel={reset.group}
+								localLabel={reset.local}
+								style={[styles.statsReset, { borderTopColor: theme.colors.divider }]}
+								variant='panel'
+							/>
+						) : null}
+					</CardSurface>
+				) : (
 					<CardSurface isFlush>
 						<View style={styles.statsRow}>
 							<View
@@ -456,7 +643,7 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 							/>
 						) : null}
 					</CardSurface>
-				</TourTarget>
+				)}
 
 				{/*
 				 * Its own stand-in while it loads, like the board and the pool card below —
@@ -471,16 +658,11 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 				 */}
 				{myProgressQuery.isLoading ? <MyProgressCardSkeleton /> : null}
 				{myProgress ? (
-					// Stop 4 of the first-use tour. Inside the guard, as the closed-round and pool
-					// stops are, so a group with nothing to report registers no rect and that
-					// stop simply centres its card.
-					<TourTarget id='myProgress'>
-						<MyProgressCard
-							isHatim={isHatim}
-							onPress={() => navigation.navigate('MyProgress', { groupId })}
-							progress={myProgress}
-						/>
-					</TourTarget>
+					<MyProgressCard
+						isHatim={isHatim}
+						onPress={() => navigation.navigate('MyProgress', { groupId })}
+						progress={myProgress}
+					/>
 				) : null}
 
 				{/*
@@ -494,181 +676,204 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 				 */}
 				{/* No glass while it is closed: the sage fill *is* this panel, and the material
 				    tints itself `surface` and washes over whatever colour arrives in `style`. */}
-				<CardSurface
-					hasGlassSurface={isMyBabsOpen}
-					isFlush
-					style={isMyBabsOpen ? null : { backgroundColor: theme.colors.accentSoft }}
-				>
-					{/* Stop 5 of the first-use tour frames this row, closed or open. */}
-					<TourTarget id='assigned'>
-						<Pressable
-							// The eyebrow and the sentence are gone from the row, so the label they carried
-							// has to come from here or it announces nothing but its numbers.
-							accessibilityLabel={`${t('assigned')} ${mySlices.current}`}
-							accessibilityRole='button'
-							accessibilityState={{ expanded: isMyBabsOpen }}
-							onPress={toggleMyBabs}
-							style={[
-								styles.myBabsHeader,
-								{ backgroundColor: theme.colors.accentSoft },
-								isMyBabsOpen
-									? {
-											borderBottomColor: theme.colors.divider,
-											borderBottomWidth: StyleSheet.hairlineWidth
-									  }
-									: null
-							]}
-						>
-							{/* The badge carries one slice, not the whole share, with the count of the
-						    others pinned to it — spelled out, "1–13, 27–39" ran the badge to twice
-						    the width and wrapped the sentence beside it onto three lines. The chip
-						    belongs *here*, against the range it is counting, rather than up beside
-						    the eyebrow where it read as a tag on the words. */}
-							<View style={styles.myBabsBadgeRow}>
-								<View style={[styles.myBabsBadge, { backgroundColor: theme.colors.accent }]}>
+				{isHizb ? (
+					<HizbSharePanel
+						babs={babsQuery.data}
+						groupId={groupId}
+						onOpenPart={partNumber => navigation.navigate('HizbReader', { groupId, partNumber })}
+						onToggleRead={(partNumber, read) => setBabRead.mutate({ babNumber: partNumber, groupId, read })}
+						partNumbers={myBabNumbers}
+						roundIndex={detail.roundIndex ?? 0}
+						viewerUserId={userId ?? null}
+					/>
+				) : (
+					<CardSurface
+						hasGlassSurface={isMyBabsOpen}
+						isFlush
+						style={isMyBabsOpen ? null : { backgroundColor: theme.colors.accentSoft }}
+					>
+						{/* C1 of the first-use tour frames this row, closed or open. */}
+						<TourTarget id='assigned'>
+							<Pressable
+								// The eyebrow and the sentence are gone from the row, so the label they carried
+								// has to come from here or it announces nothing but its numbers.
+								accessibilityLabel={`${t('assigned')} ${mySlices.current}`}
+								accessibilityRole='button'
+								accessibilityState={{ expanded: isMyBabsOpen }}
+								onPress={toggleMyBabs}
+								style={[
+									styles.myBabsHeader,
+									{ backgroundColor: theme.colors.accentSoft },
+									isMyBabsOpen
+										? {
+												borderBottomColor: theme.colors.divider,
+												borderBottomWidth: StyleSheet.hairlineWidth
+										  }
+										: null
+								]}
+							>
+								{/* The badge carries one slice, not the whole share, with the count of the
+							    others pinned to it — spelled out, "1–13, 27–39" ran the badge to twice
+							    the width and wrapped the sentence beside it onto three lines. The chip
+							    belongs *here*, against the range it is counting, rather than up beside
+							    the eyebrow where it read as a tag on the words. */}
+								<View style={styles.myBabsBadgeRow}>
+									<View style={[styles.myBabsBadge, { backgroundColor: theme.colors.accent }]}>
+										<Typography
+											color={theme.colors.onAccent}
+											style={styles.myBabsBadgeLabel}
+											variant='title'
+										>
+											{isHatim
+												? formatBabRange(myBabNumbers).replaceAll(', ', ' · ')
+												: mySlices.current}
+										</Typography>
+									</View>
+									{/* A hatim's share is already whole in the badge — there is no slice left over. */}
+									{isHatim ? null : <SliceChip count={mySlices.moreCount} isCompact tone='surface' />}
+								</View>
+								{/* The eyebrow stays; the sentence under it went. It named the range a second
+							    time and, once the share came in pieces, needed three lines to do it —
+							    while the badge beside it had already said where you are. */}
+								<View style={styles.myBabsCopy}>
 									<Typography
-										color={theme.colors.onAccent}
-										style={styles.myBabsBadgeLabel}
-										variant='title'
+										color={theme.colors.accent}
+										style={styles.myBabsLabel}
+										variant='stat'
+										weight='medium'
 									>
-										{isHatim
-											? formatBabRange(myBabNumbers).replaceAll(', ', ' · ')
-											: mySlices.current}
+										{isHatim ? t('qMyCuz') : t('assigned')}
 									</Typography>
 								</View>
-								{/* A hatim's share is already whole in the badge — there is no slice left over. */}
-								{isHatim ? null : <SliceChip count={mySlices.moreCount} isCompact tone='surface' />}
-							</View>
-							{/* The eyebrow stays; the sentence under it went. It named the range a second
-						    time and, once the share came in pieces, needed three lines to do it —
-						    while the badge beside it had already said where you are. */}
-							<View style={styles.myBabsCopy}>
-								<Typography
-									color={theme.colors.accent}
-									style={styles.myBabsLabel}
-									variant='stat'
-									weight='medium'
-								>
-									{isHatim ? t('qMyCuz') : t('assigned')}
-								</Typography>
-							</View>
-							<View style={styles.myBabsMeta}>
-								<CaptionText color={theme.colors.accent} weight='semibold'>{`${myReadCount} / ${
-									myBabNumbers.length
-								} ${t('done')}`}</CaptionText>
-								<Animated.View style={chevronStyle}>
-									<Icon
-										color={theme.colors.faintText}
-										name='chevronRight'
-										size={15}
-										strokeWidth={1.8}
-									/>
-								</Animated.View>
-							</View>
-						</Pressable>
-					</TourTarget>
-					{/* Clipped, and inert while closed: the rows stay mounted so the panel has a
-					    height to animate to, which also means they would otherwise still be
-					    reachable by a tap or by VoiceOver in a card that reads as shut. */}
-					<Animated.View
-						accessibilityElementsHidden={!isMyBabsOpen}
-						importantForAccessibility={isMyBabsOpen ? 'auto' : 'no-hide-descendants'}
-						pointerEvents={isMyBabsOpen ? 'auto' : 'none'}
-						style={[styles.myBabsBody, myBabsBodyStyle]}
-					>
-						{/*
-						 * The rows live in a scroller that fills the wrapper absolutely — which is
-						 * also what lets them be measured. As an ordinary child they inherited the
-						 * wrapper's animated height (nothing, while closed) and reported zero, so
-						 * the panel had no size to open to; a scroll view measures its content
-						 * unconstrained however short its own frame is.
-						 *
-						 * Scrolling turns on only when there is more than the cap, so a share that
-						 * fits can't swallow the page's own scroll.
-						 *
-						 * Not a `FlatList`: nesting a VirtualizedList inside the screen's
-						 * ScrollView is the thing React Native warns about, and a share is at most
-						 * a couple of dozen rows — the cap already stops it from being long, and
-						 * virtualising two dozen cheap rows would cost more than it saves.
-						 */}
-						<ScrollView
-							nestedScrollEnabled
-							scrollEnabled={isMyBabsOpen && myBabsHeight > MY_BABS_MAX_HEIGHT}
-							style={styles.myBabsScroll}
+								<View style={styles.myBabsMeta}>
+									<CaptionText color={theme.colors.accent} weight='semibold'>{`${myReadCount} / ${
+										myBabNumbers.length
+									} ${t('done')}`}</CaptionText>
+									<Animated.View style={chevronStyle}>
+										<Icon
+											color={theme.colors.faintText}
+											name='chevronRight'
+											size={15}
+											strokeWidth={1.8}
+										/>
+									</Animated.View>
+								</View>
+							</Pressable>
+						</TourTarget>
+						{/* Clipped, and inert while closed: the rows stay mounted so the panel has a
+						    height to animate to, which also means they would otherwise still be
+						    reachable by a tap or by VoiceOver in a card that reads as shut. */}
+						<Animated.View
+							accessibilityElementsHidden={!isMyBabsOpen}
+							importantForAccessibility={isMyBabsOpen ? 'auto' : 'no-hide-descendants'}
+							pointerEvents={isMyBabsOpen ? 'auto' : 'none'}
+							style={[styles.myBabsBody, myBabsBodyStyle]}
 						>
-							<View onLayout={event => setMyBabsHeight(event.nativeEvent.layout.height)}>
-								{myBabNumbers.length === 0 ? (
-									<BodyText color={theme.colors.faintText} style={styles.noAssignedBabs}>
-										{t('noAssignedBabs')}
-									</BodyText>
-								) : (
-									myBabs.map(bab => {
-										const isRead = bab.readAt !== null;
-										/*
-										 * **Who read it, not merely that it was read.** A bab in your
-										 * share can already have been read by whoever held that block on
-										 * an earlier rotation day. This drew your own ticked box over
-										 * their work and then offered an undo the server refuses —
-										 * only the reader may clear a read — so the tick was a control
-										 * that could not do the thing it looked like it did.
-										 */
-										const isReadByOthers = isRead && bab.readByUserId !== userId;
+							{/*
+							 * The rows live in a scroller that fills the wrapper absolutely — which is
+							 * also what lets them be measured. As an ordinary child they inherited the
+							 * wrapper's animated height (nothing, while closed) and reported zero, so
+							 * the panel had no size to open to; a scroll view measures its content
+							 * unconstrained however short its own frame is.
+							 *
+							 * Scrolling turns on only when there is more than the cap, so a share that
+							 * fits can't swallow the page's own scroll.
+							 *
+							 * Not a `FlatList`: nesting a VirtualizedList inside the screen's
+							 * ScrollView is the thing React Native warns about, and a share is at most
+							 * a couple of dozen rows — the cap already stops it from being long, and
+							 * virtualising two dozen cheap rows would cost more than it saves.
+							 */}
+							<ScrollView
+								nestedScrollEnabled
+								scrollEnabled={isMyBabsOpen && myBabsHeight > MY_BABS_MAX_HEIGHT}
+								style={styles.myBabsScroll}
+							>
+								<View onLayout={event => setMyBabsHeight(event.nativeEvent.layout.height)}>
+									{myBabNumbers.length === 0 ? (
+										<BodyText color={theme.colors.faintText} style={styles.noAssignedBabs}>
+											{t('noAssignedBabs')}
+										</BodyText>
+									) : (
+										myBabs.map(bab => {
+											const isRead = bab.readAt !== null;
+											/*
+											 * **Who read it, not merely that it was read.** A bab in your
+											 * share can already have been read by whoever held that block on
+											 * an earlier rotation day. This drew your own ticked box over
+											 * their work and then offered an undo the server refuses —
+											 * only the reader may clear a read — so the tick was a control
+											 * that could not do the thing it looked like it did.
+											 */
+											const isReadByOthers = isRead && bab.readByUserId !== userId;
 
-										return (
-											<BabRow
-												isRead={isRead}
-												isReadByOthers={isReadByOthers}
-												key={bab.number}
-												// A cüz opens its own page (Q4), where it is marked; a bab opens the
-												// reader, where a bab is read and marked at once.
-												onOpen={() =>
-													isHatim
-														? navigation.navigate('CuzDetail', {
-																cuzNumber: bab.number,
-																groupId
-														  })
-														: navigation.navigate('BabReader', {
-																groupId,
-																babNumber: bab.number
-														  })
-												}
-												onToggle={() =>
-													setBabRead.mutate({ babNumber: bab.number, groupId, read: !isRead })
-												}
-												openLabel={t('read')}
-												subtitle={
-													isReadByOthers
-														? // Named where the server could resolve one, and falling
-														  // back where it couldn't rather than printing an id: a
-														  // member who has since left still has reads on this
-														  // board, and "cmt9x…" says less than nothing.
-														  bab.readByDisplayName
-															? t('readBeforeYoursBy', { name: bab.readByDisplayName })
-															: t('readBeforeYours')
-														: isRead
-														? t('readToday')
-														: // **The sura range, not "Henüz okunmadı".** A cüz is
-														// named by where it falls — "Ahzâb 31 – Yâsîn 27" —
-														// and that is what someone about to read one needs;
-														// a bab's number already is its name, so the Cevşen
-														// row keeps saying whether it is read.
+											return (
+												<BabRow
+													isRead={isRead}
+													isReadByOthers={isReadByOthers}
+													key={bab.number}
+													// A cüz opens its own page (Q4), where it is marked; a bab opens the
+													// reader, where a bab is read and marked at once.
+													onOpen={() =>
 														isHatim
-														? cuzSuraRange(bab.number, language)
-														: t('notRead')
-												}
-												title={
-													isHatim
-														? t('cuzOrdinal', { n: bab.number })
-														: t('babOrdinal', { n: bab.number })
-												}
-											/>
-										);
-									})
-								)}
-							</View>
-						</ScrollView>
-					</Animated.View>
-				</CardSurface>
+															? navigation.navigate('CuzDetail', {
+																	cuzNumber: bab.number,
+																	groupId
+															  })
+															: navigation.navigate('BabReader', {
+																	groupId,
+																	babNumber: bab.number
+															  })
+													}
+													onToggle={() =>
+														setBabRead.mutate({
+															babNumber: bab.number,
+															groupId,
+															read: !isRead
+														})
+													}
+													openLabel={t('read')}
+													subtitle={
+														isReadByOthers
+															? // Named where the server could resolve one, and falling
+															  // back where it couldn't rather than printing an id: a
+															  // member who has since left still has reads on this
+															  // board, and "cmt9x…" says less than nothing.
+															  bab.readByDisplayName
+																? t('readBeforeYoursBy', {
+																		name:
+																			(detail.hideMemberNames &&
+																				!detail.isOwner) ||
+																			bab.readByUserId?.startsWith('anonymous:')
+																				? t('anonymousMember')
+																				: bab.readByDisplayName
+																  })
+																: t('readBeforeYours')
+															: isRead
+															? t('readToday')
+															: // **The sura range, not "Henüz okunmadı".** A cüz is
+															// named by where it falls — "Ahzâb 31 – Yâsîn 27" —
+															// and that is what someone about to read one needs;
+															// a bab's number already is its name, so the Cevşen
+															// row keeps saying whether it is read.
+															isHatim
+															? cuzSuraRange(bab.number, language)
+															: t('notRead')
+													}
+													title={
+														isHatim
+															? t('cuzOrdinal', { n: bab.number })
+															: t('babOrdinal', { n: bab.number })
+													}
+												/>
+											);
+										})
+									)}
+								</View>
+							</ScrollView>
+						</Animated.View>
+					</CardSurface>
+				)}
 
 				{/*
 				 * "Senin ilerlemen" — the reader's own record, and the way in to F7.
@@ -684,42 +889,40 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 				 * worse than no row.
 				 */}
 				{lastClosedRound ? (
-					// Stop 6 of the first-use tour. Inside the guard, so a group with no closed
-					// round registers nothing and that stop centres its card.
-					<TourTarget id='lastRound'>
-						<CardSurface
-							onPress={() => navigation.navigate('Rounds', { groupId })}
-							style={styles.lastRoundCard}
+					<CardSurface
+						onPress={() => navigation.navigate('Rounds', { groupId })}
+						style={styles.lastRoundCard}
+					>
+						<View
+							style={[
+								styles.lastRoundBadge,
+								{
+									backgroundColor: lastClosedRound.missedCount
+										? theme.colors.missedSurface
+										: theme.colors.accentSoft
+								}
+							]}
 						>
-							<View
-								style={[
-									styles.lastRoundBadge,
-									{
-										backgroundColor: lastClosedRound.missedCount
-											? theme.colors.missedSurface
-											: theme.colors.accentSoft
-									}
-								]}
+							<Typography
+								color={lastClosedRound.missedCount ? theme.colors.missed : theme.colors.accent}
+								style={styles.lastRoundBadgeLabel}
+								variant='title'
 							>
-								<Typography
-									color={lastClosedRound.missedCount ? theme.colors.missed : theme.colors.accent}
-									style={styles.lastRoundBadgeLabel}
-									variant='title'
-								>
-									{lastClosedRound.missedCount}
-								</Typography>
-							</View>
-							<View style={styles.lastRoundCopy}>
-								<CaptionText weight='semibold'>
-									{`${t('lastRound')} · ${t('roundN')} ${lastClosedRound.roundIndex + 1}`}
-								</CaptionText>
-								<CaptionText color={theme.colors.subtext} style={styles.lastRoundSub}>
-									{`${lastClosedRound.missedCount} ${t(isHatim ? 'missedCuz' : 'missedBabs')}`}
-								</CaptionText>
-							</View>
-							<Icon color={theme.colors.faintText} name='chevronRight' size={15} strokeWidth={1.8} />
-						</CardSurface>
-					</TourTarget>
+								{lastClosedRound.missedCount}
+							</Typography>
+						</View>
+						<View style={styles.lastRoundCopy}>
+							<CaptionText weight='semibold'>
+								{`${t('lastRound')} · ${t('roundN')} ${lastClosedRound.roundIndex + 1}`}
+							</CaptionText>
+							<CaptionText color={theme.colors.subtext} style={styles.lastRoundSub}>
+								{isHizb
+									? hizbMissedLine(lastClosedRound.missedCount)
+									: `${lastClosedRound.missedCount} ${t(isHatim ? 'missedCuz' : 'missedBabs')}`}
+							</CaptionText>
+						</View>
+						<Icon color={theme.colors.faintText} name='chevronRight' size={15} strokeWidth={1.8} />
+					</CardSurface>
 				) : null}
 
 				{/*
@@ -739,10 +942,12 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 							<Icon color={theme.colors.sandText} name='info' size={19} strokeWidth={1.8} />
 							<View style={styles.releaseCopy}>
 								<CaptionText color={theme.colors.sandText} weight='semibold'>
-									{t('poolReleasedTitle')}
+									{t(isHizb ? 'poolReleasedTitleHizb' : 'poolReleasedTitle')}
 								</CaptionText>
 								<CaptionText color={theme.colors.sandText} style={styles.releaseBody}>
-									{t('poolReleasedBody', { range: poolReleaseRanges })}
+									{t(isHizb ? 'poolReleasedBodyHizb' : 'poolReleasedBody', {
+										range: poolReleaseRanges
+									})}
 								</CaptionText>
 							</View>
 						</View>
@@ -765,30 +970,29 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 				 * it. The count comes from the group, so nothing here waits on the board.
 				 */}
 				{detail.poolAllBabNumbers.length > 0 ? (
-					// Stop 7 of the first-use tour, guarded the same way as the row above.
-					<TourTarget id='pool'>
-						<CardSurface
-							onPress={() => navigation.navigate('Pool', { groupId })}
-							style={styles.lastRoundCard}
-						>
-							<View style={[styles.lastRoundBadge, { backgroundColor: theme.colors.sand }]}>
-								<Typography
-									color={theme.colors.sandText}
-									style={styles.lastRoundBadgeLabel}
-									variant='title'
-								>
-									{detail.poolAllBabNumbers.length}
-								</Typography>
-							</View>
-							<View style={styles.lastRoundCopy}>
-								<CaptionText weight='semibold'>{t('pool')}</CaptionText>
-								<CaptionText color={theme.colors.subtext} style={styles.lastRoundSub}>
-									{`${detail.poolAllBabNumbers.length} ${t(unitLabelKey(detail.kind))}`}
-								</CaptionText>
-							</View>
-							<Icon color={theme.colors.faintText} name='chevronRight' size={15} strokeWidth={1.8} />
-						</CardSurface>
-					</TourTarget>
+					<CardSurface
+						onPress={() => navigation.navigate('Pool', { groupId, kind: detail.kind })}
+						style={styles.lastRoundCard}
+					>
+						<View style={[styles.lastRoundBadge, { backgroundColor: theme.colors.sand }]}>
+							<Typography
+								color={theme.colors.sandText}
+								style={styles.lastRoundBadgeLabel}
+								variant='title'
+							>
+								{isHizb ? hizbPoolCount : detail.poolAllBabNumbers.length}
+							</Typography>
+						</View>
+						<View style={styles.lastRoundCopy}>
+							<CaptionText weight='semibold'>{t('pool')}</CaptionText>
+							<CaptionText color={theme.colors.subtext} style={styles.lastRoundSub}>
+								{isHizb
+									? hizbPoolLine()
+									: `${detail.poolAllBabNumbers.length} ${t(unitLabelKey(detail.kind))}`}
+							</CaptionText>
+						</View>
+						<Icon color={theme.colors.faintText} name='chevronRight' size={15} strokeWidth={1.8} />
+					</CardSurface>
 				) : null}
 
 				{/*
@@ -819,7 +1023,13 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 				 * under it, so two sections of the same screen — the same lattice, twice —
 				 * were built as two different kinds of thing.
 				 */}
-				{babsQuery.isPending ? (
+				{isHizb ? (
+					babsQuery.isPending ? (
+						<HizbBoardSkeleton />
+					) : (
+						<HizbBoard cells={hizbCells} onPressIndex={handleOpenHizbIndex} />
+					)
+				) : babsQuery.isPending ? (
 					/*
 					 * The skeleton, not a blank hundred. `emptyBabCells` renders every cell in
 					 * the "unread" tone, which doesn't read as loading — it reads as nobody
@@ -860,12 +1070,7 @@ export const GroupDetailScreen = ({ navigation, route }: Props) => {
 
 			<ShareSheet group={detail} isVisible={openSheet === 'share'} onClose={closeSheet} />
 			{detail.isOwner ? (
-				<ManageSheet
-					group={detail}
-					isVisible={openSheet === 'manage'}
-					onClose={closeSheet}
-					onOpenMembers={handleOpenMembers}
-				/>
+				<ManageSheet group={detail} isVisible={openSheet === 'manage'} onClose={closeSheet} />
 			) : null}
 			<MembersSheet groupId={groupId} isVisible={openSheet === 'members'} onClose={closeSheet} />
 		</>
@@ -1013,6 +1218,10 @@ const styles = StyleSheet.create({
 	},
 	statsReset: {
 		borderTopWidth: StyleSheet.hairlineWidth
+	},
+	// HZ1's "/ 33", set smaller beside the count it is out of.
+	statTotal: {
+		fontSize: 16
 	},
 	statsRow: {
 		flexDirection: 'row',

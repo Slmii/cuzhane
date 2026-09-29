@@ -2,6 +2,7 @@ import prisma from '@db/prisma';
 import type { Prisma } from '../generated/prisma/client';
 import { sendPushToUser } from '@services/push.service';
 import { recordNotification, type NotificationPayload } from '@services/notifications.service';
+import type { GroupKindName } from '@utils/groupKinds';
 import { toPushLanguage, type PushLanguage } from '@utils/pushCopy';
 import { FALLBACK_DISPLAY_NAME, getMemberProfiles } from '@utils/memberProfiles';
 
@@ -75,9 +76,16 @@ type GroupEventInput = {
 	subject?: string;
 	/**
 	 * Built from what the group looks like *now*, after the write — the member count in
-	 * particular, which is the whole news in two of the three.
+	 * particular, which is the whole news in two of the three. `kind` is there for the copy
+	 * that names what the group reads: a pool block is babs in one group and portions in another.
 	 */
-	build: (context: { actorName: string; groupName: string; memberCount: number; spots: number }) => {
+	build: (context: {
+		actorName: string;
+		groupName: string;
+		kind: GroupKindName;
+		memberCount: number;
+		spots: number;
+	}) => {
 		payload: NotificationPayload;
 		push: (language: PushLanguage) => { body: string; title: string };
 	};
@@ -97,9 +105,12 @@ export const notifyGroupMembers = async ({
 		const group = await prisma.group.findUnique({
 			where: { id: groupId },
 			select: {
+				kind: true,
 				name: true,
 				roundIndex: true,
 				spots: true,
+				splitMode: true,
+				hideMemberNames: true,
 				members: { select: { displayName: true, userId: true } }
 			}
 		});
@@ -131,12 +142,14 @@ export const notifyGroupMembers = async ({
 		const stored = group.members.find(member => member.userId === actorUserId)?.displayName;
 		const actorName = profiles.get(actorUserId)?.displayName ?? stored ?? actorStoredName ?? FALLBACK_DISPLAY_NAME;
 
-		const { payload, push } = build({
-			actorName,
+		const context = {
+			actorName: group.hideMemberNames ? '' : actorName,
 			groupName: group.name,
+			kind: group.kind,
 			memberCount: group.members.length,
-			spots: group.spots
-		});
+			spots: group.splitMode === 'FLEXIBLE' ? 0 : group.spots
+		};
+		const { payload } = build(context);
 
 		await recordNotification({
 			groupId,
@@ -154,6 +167,9 @@ export const notifyGroupMembers = async ({
 			where: { [setting]: true, userId: { in: others.map(member => member.userId) } },
 			select: { language: true, userId: true }
 		});
+
+		const latest = await prisma.group.findUnique({ where: { id: groupId }, select: { hideMemberNames: true } });
+		const { push } = build({ ...context, actorName: latest?.hideMemberNames !== false ? '' : actorName });
 
 		await Promise.all(
 			recipients.map(recipient =>

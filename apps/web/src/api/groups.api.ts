@@ -15,6 +15,10 @@ type CreateGroupCommon = {
 	name: string;
 	dedication?: string;
 	visibility: GroupVisibility;
+	/** Members see each other anonymously — the owner still sees names. */
+	hideMemberNames?: boolean;
+	/** Days without a read after which a member is released; null or absent for never. */
+	inactivityDays?: number | null;
 	reminderEnabled: boolean;
 	reminderTime: string;
 	autoStartWhenFull?: boolean;
@@ -27,7 +31,8 @@ type CreateGroupCommon = {
 
 /**
  * Mirrors the server's `CreateGroupBodySchema`, union and all. A Cevşen group divides a
- * hundred babs by seat and a hatim divides thirty cüz by choice, so neither kind's settings
+ * hundred babs by seat, a Hizb group 33 portions by seat (or by personal plan), and a hatim
+ * divides thirty cüz by choice, so no kind's settings
  * mean anything to the other — and since all of them are immutable after creation, sending
  * one from the wrong half would be wrong for the life of the group.
  *
@@ -36,6 +41,19 @@ type CreateGroupCommon = {
  */
 export type CreateGroupInput =
 	| (CreateGroupCommon & { kind: 'CEVSEN'; splitMode: GroupSplitMode; cycle: GroupCycle; spots: number })
+	| (CreateGroupCommon & {
+			kind: 'HIZB';
+			splitMode: GroupSplitMode;
+			cycle: GroupCycle;
+			spots: number;
+			/** Everyone reads the whole book on a personal plan rather than a seat's share. */
+			hizbIndividual?: boolean;
+			hizbStartPortion?: number;
+			/** The personal plan's length in days — 7, 15 or 33. */
+			hizbPlan?: number;
+			/** "Okuma sorumluları" — the "has read" notice to the ticked members only. */
+			readSeersEnabled?: boolean;
+	  })
 	| (CreateGroupCommon & {
 			kind: 'HATIM';
 			distribution: CuzDistribution;
@@ -47,13 +65,19 @@ export type CreateGroupInput =
 			cuzNumbers: number[];
 	  });
 
-// Mirrors the server's UpdateGroupBodySchema. `spots`, `splitMode` and `cycle` are
+// Mirrors the server's UpdateGroupBodySchema. `kind`, `spots`, `splitMode` and `cycle` are
 // immutable once the group exists and are deliberately absent — the server rejects them.
 export type UpdateGroupInput = {
+	inactivityDays?: number | null;
 	groupId: string;
 	name?: string;
 	dedication?: string | null;
 	visibility?: GroupVisibility;
+	hideMemberNames?: boolean;
+	/** A shared Hizb plan's members who see who read — the whole choice, at most three. */
+	readerSeerUserIds?: string[];
+	/** "Okuma sorumluları" on or off; the ticks are kept either way. */
+	readSeersEnabled?: boolean;
 	openToJoin?: boolean;
 	reminderEnabled?: boolean;
 	reminderTime?: string;
@@ -63,6 +87,12 @@ export type UpdateGroupInput = {
 export type TakePoolSlotInput = {
 	groupId: string;
 	slotIndex: number;
+};
+
+/** One portion of a Hizb pool block, by its part number rather than its seat. */
+export type TakePoolPartInput = {
+	groupId: string;
+	babNumber: number;
 };
 
 /** A hatim's havuz is addressed one cüz at a time — there are no slots to take whole. */
@@ -125,6 +155,18 @@ export const takePoolSlot = async ({ groupId, slotIndex }: TakePoolSlotInput) =>
 
 export const releasePoolSlot = async ({ groupId, slotIndex }: TakePoolSlotInput) =>
 	wrapperApi<{ success: boolean }>(`/groups/${groupId}/pool/${slotIndex}`, { method: 'DELETE' });
+
+/**
+ * One portion of a Hizb pool block, on top of the caller's share, for this round. Hizb groups
+ * only — a Cevşen slot is taken whole, and the server answers 400 for one. 409 when somebody
+ * already holds the portion.
+ */
+export const takePoolPart = async ({ groupId, babNumber }: TakePoolPartInput) =>
+	wrapperApi<{ success: boolean }>(`/groups/${groupId}/pool/parts/${babNumber}`, { method: 'POST' });
+
+/** Hands a portion the caller took back to the pool, with their read of it. */
+export const releasePoolPart = async ({ groupId, babNumber }: TakePoolPartInput) =>
+	wrapperApi<{ success: boolean }>(`/groups/${groupId}/pool/parts/${babNumber}`, { method: 'DELETE' });
 
 export const getPoolCuz = async (groupId: string) =>
 	wrapperApi<PoolCuz[]>(`/groups/${groupId}/pool-cuz`, { method: 'GET' });

@@ -1,6 +1,7 @@
 import { isRepeatingCycle, type GroupKind, type GroupSummary } from '@/lib/types/domain';
 import { formatBabRange } from '@/lib/utils/babs';
 import { shareSlices } from '@/lib/utils/groups';
+import { boardPortionsOf } from '@/lib/utils/hizbPlanBoard';
 
 const DAY_MS = 86_400_000;
 const HOUR_MS = 3_600_000;
@@ -17,11 +18,24 @@ export type HomeTask = {
 	 */
 	mustPick: boolean;
 	/**
+	 * A group with nothing handed out to choose from yet: a FLEXIBLE group where the reader holds
+	 * nothing, or a Hizb personal plan not yet begun. Its way in is the group screen, like a pick.
+	 * Null otherwise.
+	 */
+	mustChoose: 'flexible' | 'plan' | null;
+	/**
+	 * A Hizb personal plan. It has no board, so the portion reader's group mode can't open it —
+	 * today's own assignment opens in the plan reader instead.
+	 */
+	isPlan: boolean;
+	/** A plan's reading for today, still owed; null once read (or when there is none yet). */
+	planAssignmentId: string | null;
+	/**
 	 * What the heading names: the stretch being read for a Cevşen share ("21–23"), the cüz being
 	 * read for a Kur'an one ("7") — and, once the share is done, all of it ("61–65", "7, 22").
 	 */
 	range: string;
-	/** Stretches of a Cevşen share beyond the one named — a pool claim on top — as `SliceChip` counts. */
+	/** Stretches of a Cevşen or Hizb share beyond the one named — a pool claim on top — as `SliceChip` counts. */
 	moreCount: number;
 	/** Every unit in the share, and how many of them are read. */
 	unitNumbers: number[];
@@ -71,8 +85,48 @@ const deadlineOf = (task: HomeTask) =>
  */
 export const buildHomeTasks = (groups: readonly GroupSummary[], now: Date): HomeTasks => {
 	const tasks = groups
-		.filter(group => group.status === 'RUNNING' && (group.myBabNumbers.length > 0 || group.mustPickCuz))
+		.filter(
+			group =>
+				group.status === 'RUNNING' &&
+				(group.myBabNumbers.length > 0 ||
+					group.mustPickCuz ||
+					group.splitMode === 'FLEXIBLE' ||
+					group.hizbPlan != null)
+		)
 		.map((group): HomeTask => {
+			/*
+			 * **A Hizb personal plan is one portion a day**, read from `hizbToday` rather than a seat's
+			 * share — and until the plan has begun there is no portion, only the choosing of it.
+			 */
+			if (group.hizbPlan != null) {
+				const today = group.hizbToday ?? null;
+				const portions = today ? boardPortionsOf(today.planDays, today.portion) : [];
+
+				return {
+					doneAt: today?.completed ? group.myShareDoneAt : null,
+					done: today?.completed ? 1 : 0,
+					groupId: group.id,
+					groupName: group.name,
+					isDaily: true,
+					isPlan: true,
+					planAssignmentId: today && !today.completed ? today.assignmentId : null,
+					kind: group.kind,
+					moreCount: 0,
+					mustChoose: today ? null : 'plan',
+					mustPick: false,
+					nextNumber: today && !today.completed ? today.portion : null,
+					// Named by the board's 33, as on the group's card: a 15-day plan's fifth day is "11–13",
+					// not "5" — the plan's own count read as a second meaning of "bölüm".
+					range: today ? formatBabRange(portions) : '',
+					repeats: isRepeatingCycle(group.cycle),
+					roundEndsAt: group.roundEndsAt,
+					roundIndex: group.roundIndex,
+					total: today ? 1 : 0,
+					// The 33 the day covers, so a caption can count them ("3 bölüm", not the one reading).
+					unitNumbers: portions
+				};
+			}
+
 			const isDone = group.myBabNumbers.length > 0 && group.myReadCount >= group.myBabNumbers.length;
 			const next = isDone ? null : group.myNextBabNumber ?? group.myBabNumbers[0] ?? null;
 			const isHatim = group.kind === 'HATIM';
@@ -92,8 +146,11 @@ export const buildHomeTasks = (groups: readonly GroupSummary[], now: Date): Home
 				groupId: group.id,
 				groupName: group.name,
 				isDaily: group.cycle === 'DAILY',
+				isPlan: false,
+				planAssignmentId: null,
 				kind: group.kind,
 				moreCount: isHatim ? hatimMore : slices?.moreCount ?? 0,
+				mustChoose: group.splitMode === 'FLEXIBLE' && group.myBabNumbers.length === 0 ? 'flexible' : null,
 				mustPick: group.mustPickCuz && group.myBabNumbers.length === 0,
 				nextNumber: next,
 				range: isHatim
@@ -108,7 +165,7 @@ export const buildHomeTasks = (groups: readonly GroupSummary[], now: Date): Home
 				unitNumbers: group.myBabNumbers
 			};
 		});
-	const isFinished = (task: HomeTask) => !task.mustPick && task.done >= task.total;
+	const isFinished = (task: HomeTask) => !task.mustPick && task.mustChoose === null && task.done >= task.total;
 
 	return {
 		finishedCount: tasks.filter(isFinished).length,
@@ -285,6 +342,11 @@ export const turkishAblativeSuffix = (value: number): TurkishAblativeSuffix => {
 
 	if (tens !== 0) {
 		return TEN_SUFFIX[tens] ?? 'den';
+	}
+
+	// "sıfır" is back-vowelled: "0’dan".
+	if (value === 0) {
+		return 'dan';
 	}
 
 	// "yüz", "bin" — both front-vowelled, neither hard-ended.

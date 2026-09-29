@@ -7,17 +7,18 @@ import type { AvatarStackProps } from './AvatarStack.types';
 
 const TONE_CYCLE: AvatarTone[] = ['accent', 'sand', 'neutral'];
 
-export const AvatarStack = ({ max = 3, names, size = 22, style }: AvatarStackProps) => {
+export const AvatarStack = ({ max = 3, people, size = 22, style }: AvatarStackProps) => {
 	const { theme } = useThemeContext();
-	const visibleNames = names.slice(0, max);
-	const overflowCount = names.length - max;
+	const visiblePeople = people.slice(0, max);
+	const overflowCount = people.length - max;
 
 	return (
 		<View style={[styles.row, style]}>
-			{visibleNames.map((name, index) => (
+			{visiblePeople.map((person, index) => (
 				<Avatar
-					key={`${name}-${index}`}
-					name={name}
+					imageUrl={person.imageUrl}
+					key={`${person.name}-${index}`}
+					name={person.name}
 					size={size}
 					style={[
 						styles.ring,

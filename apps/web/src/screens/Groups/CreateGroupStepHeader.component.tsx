@@ -17,6 +17,9 @@ import { StyleSheet, View } from 'react-native';
  * has no Cevşen counterpart at all, because a Cevşen share is derived from a seat and a
  * hatim's has to be chosen.
  *
+ * A Hizb group is four: the book, its name, the reading plan (HZ's 7/15/33 days, or the seats),
+ * and then either where a personal plan starts or when an idle member is released.
+ *
  * The design numbers its frames from zero ("Adım 0 / 4" on Q1, up to QC4) because it drew
  * five; QC4 is out of scope. Steps are numbered from 1 here so the last one is always
  * "N / N" — a counter reading "3 / 4" on the final step says there is something after it.
@@ -24,7 +27,7 @@ import { StyleSheet, View } from 'react-native';
 export type CreateGroupStep = 1 | 2 | 3 | 4 | 5;
 
 /** Where each kind stops. Also the total the progress bar and the eyebrows count to. */
-export const LAST_STEP_BY_KIND: Record<GroupKind, CreateGroupStep> = { CEVSEN: 3, HATIM: 5 };
+export const LAST_STEP_BY_KIND: Record<GroupKind, CreateGroupStep> = { CEVSEN: 3, HATIM: 5, HIZB: 4 };
 
 interface CreateGroupStepHeaderProps {
 	/**
@@ -34,6 +37,8 @@ interface CreateGroupStepHeaderProps {
 	isNextDisabled?: boolean;
 	/** What the group reads, chosen at step 1 — steps 3 and 4 are different questions for each. */
 	kind: GroupKind;
+	/** Overrides the step's own title — a Hizb step whose question depends on an earlier answer. */
+	titleKey?: StringKey;
 	onBack: () => void;
 	/** Validates the step and moves on; on the last one it creates the group. */
 	onNext: () => void;
@@ -43,17 +48,22 @@ interface CreateGroupStepHeaderProps {
 const EYEBROW_KEY_BY_STEP: Record<GroupKind, Record<CreateGroupStep, StringKey>> = {
 	// Steps 4 and 5 are unreachable for a Cevşen group; the keys are here to keep the record total.
 	CEVSEN: { 1: 'step1of3', 2: 'step2of3', 3: 'step3of3', 4: 'step3of3', 5: 'step3of3' },
-	HATIM: { 1: 'step1of5', 2: 'step2of5', 3: 'step3of5', 4: 'step4of5', 5: 'step5of5' }
+	HATIM: { 1: 'step1of5', 2: 'step2of5', 3: 'step3of5', 4: 'step4of5', 5: 'step5of5' },
+	// Step 5 is unreachable for a Hizb group.
+	HIZB: { 1: 'step1of4', 2: 'step2of4', 3: 'step3of4', 4: 'step4of4', 5: 'step4of4' }
 };
 
 /**
- * Steps 1 and 2 ask both kinds the same thing. Steps 3 and 4 do not: a Cevşen group is asked
+ * Steps 1 and 2 ask every kind the same thing. Steps 3 and 4 do not: a Cevşen group is asked
  * for seats and a cadence, a hatim for how its thirty cüz are handed out and how long a round
- * runs — so the heading has to name the question actually on screen.
+ * runs, a Hizb group for its reading plan — so the heading has to name the question actually on
+ * screen.
  */
 const TITLE_KEY_BY_STEP: Record<GroupKind, Record<CreateGroupStep, StringKey>> = {
 	CEVSEN: { 1: 'qWhatRead', 2: 'stepDefine', 3: 'stepSpots', 4: 'stepCycle', 5: 'stepCycle' },
-	HATIM: { 1: 'qWhatRead', 2: 'stepDefine', 3: 'qDistTitle', 4: 'qDurTitle', 5: 'qLobbyTitle' }
+	HATIM: { 1: 'qWhatRead', 2: 'stepDefine', 3: 'qDistTitle', 4: 'qDurTitle', 5: 'qLobbyTitle' },
+	// Step 4 is the inactivity question by default; a personal plan asks its start instead (`titleKey`).
+	HIZB: { 1: 'qWhatRead', 2: 'stepDefine', 3: 'hpPlan', 4: 'hpInactivity', 5: 'hpInactivity' }
 };
 
 export const CreateGroupStepHeader = ({
@@ -61,7 +71,8 @@ export const CreateGroupStepHeader = ({
 	kind,
 	onBack,
 	onNext,
-	step
+	step,
+	titleKey
 }: CreateGroupStepHeaderProps) => {
 	const { t } = useTranslation();
 	const isLastStep = step === LAST_STEP_BY_KIND[kind];
@@ -99,7 +110,7 @@ export const CreateGroupStepHeader = ({
 			</View>
 			<StepProgress current={step} style={styles.progress} total={LAST_STEP_BY_KIND[kind]} />
 			<EyebrowText style={styles.eyebrow}>{t(EYEBROW_KEY_BY_STEP[kind][step])}</EyebrowText>
-			<Header1>{t(TITLE_KEY_BY_STEP[kind][step])}</Header1>
+			<Header1>{t(titleKey ?? TITLE_KEY_BY_STEP[kind][step])}</Header1>
 		</View>
 	);
 };

@@ -1,11 +1,15 @@
+import { enrollHizbInTransaction, closeHizbEnrollment, hizbSummary } from './hizbReading.service';
 import { BAD_REQUEST, CONFLICT, FORBIDDEN, NOT_FOUND } from '@config/httpCodes';
 import { HttpError } from '@config/httpError';
 import prisma from '@db/prisma';
+import { babRuns, formatRun, type BabRange } from '@utils/babs';
 import { normalizeInviteCode } from '@utils/inviteCode';
 import { normalizeUserId } from '@utils/normalizeUserId';
+import { readerSeerIdsOf } from '@utils/groupPrivacy';
 import { CUZ_COUNT } from '@utils/units';
 import type { Group, Prisma } from '../generated/prisma/client';
-import { lockGroup, syncCompletedAt } from './babs.service';
+import { syncCompletedAt } from './babs.service';
+import { lockGroup } from './rounds.service';
 import { autoStartIfFull } from './groups.service';
 import { requireMembership, requireOwner } from './groupAccess.service';
 import { getMemberProfiles } from '@utils/memberProfiles';
@@ -17,6 +21,7 @@ import { notifyGroupMembers } from './groupEvents.service';
 import { memberJoinedPush, memberLeftPush } from '@utils/pushCopy';
 import { sendPushToUser } from './push.service';
 import { poolClaimReleasedPush, pushLanguageFor } from '@utils/pushCopy';
+import type { GroupKindName } from '@utils/groupKinds';
 import type { GroupDetail, GroupInvitePreview, GroupMember } from './groupSerializers';
 import { ensureCurrentRoundFor } from './rounds.service';
 
@@ -38,7 +43,7 @@ const loadDetail = async (groupId: string, viewerUserId: string): Promise<GroupD
 
 	const holdings = await holdingsFor(prisma, group, group.roundIndex);
 
-	return toGroupDetail(
+	const detail = toGroupDetail(
 		group,
 		group.babs,
 		group.members,
@@ -49,6 +54,7 @@ const loadDetail = async (groupId: string, viewerUserId: string): Promise<GroupD
 		holdings,
 		group.roundSkips.map(skip => skip.roundIndex)
 	);
+	return group.hizbPlan !== null ? { ...detail, ...(await hizbSummary(group.id, viewerUserId)) } : detail;
 };
 
 export const previewGroupByCode = async (userId: string, rawCode: string): Promise<GroupInvitePreview> => {
@@ -60,14 +66,15 @@ export const previewGroupByCode = async (userId: string, rawCode: string): Promi
 		include: { members: true, babs: true }
 	});
 
-	if (!group) {
+	if (!group || (group.hizbIndividual && group.ownerUserId !== normalizedUserId)) {
 		throw new HttpError(NOT_FOUND, 'Group not found');
 	}
 
 	// Without the holdings a hatim preview reports every cüz free — see `toInvitePreview`.
 	const holdings = await holdingsFor(prisma, group, group.roundIndex);
+	const preview = toInvitePreview(group, group.babs, group.members, normalizedUserId, holdings);
 
-	return toInvitePreview(group, group.babs, group.members, normalizedUserId, holdings);
+	return group.hizbPlan !== null ? { ...preview, ...(await hizbSummary(group.id, normalizedUserId)) } : preview;
 };
 
 export const previewGroupById = async (userId: string, groupId: string): Promise<GroupInvitePreview> => {
@@ -78,7 +85,7 @@ export const previewGroupById = async (userId: string, groupId: string): Promise
 		include: { members: true, babs: true }
 	});
 
-	if (!group) {
+	if (!group || (group.hizbIndividual && group.ownerUserId !== normalizedUserId)) {
 		throw new HttpError(NOT_FOUND, 'Group not found');
 	}
 
@@ -90,11 +97,19 @@ export const previewGroupById = async (userId: string, groupId: string): Promise
 
 	// Without the holdings a hatim preview reports every cüz free — see `toInvitePreview`.
 	const holdings = await holdingsFor(prisma, group, group.roundIndex);
+	const preview = toInvitePreview(group, group.babs, group.members, normalizedUserId, holdings);
 
-	return toInvitePreview(group, group.babs, group.members, normalizedUserId, holdings);
+	return group.hizbPlan !== null ? { ...preview, ...(await hizbSummary(group.id, normalizedUserId)) } : preview;
 };
 
 const MAX_SLOT_ATTEMPTS = 5;
+
+/**
+ * One volunteer's claims a join took back, as the runs of *their own* numbers — in a Hizb
+ * block several members can each hold a portion, and a run spanning the whole block would
+ * tell one of them they had held a portion that was somebody else's.
+ */
+type ReleasedClaim = { userId: string; runs: BabRange[]; kind: GroupKindName };
 
 const isUniqueConstraintError = (error: unknown): boolean =>
 	typeof error === 'object' && error !== null && 'code' in error && (error as { code?: string }).code === 'P2002';
@@ -165,13 +180,24 @@ const attemptJoin = async (
 	cuzNumbers?: number[]
 ): Promise<void> => {
 	/*
-	 * Whose claim the join released, and over which babs — collected inside the transaction
+	 * Whose claims the join released, and over which babs — collected inside the transaction
 	 * but told to them outside it. A push is a courtesy; the join is the point, and Expo
 	 * being slow or unreachable must never roll one back or hold the response open.
 	 */
-	let released: { userId: string; range: string } | null = null;
+	const released: ReleasedClaim[] = [];
 
 	await prisma.$transaction(async tx => {
+		/*
+		 * The group row first, as on every path that touches the board. This join reads the
+		 * members and the round to work out which pool block the seat was offering, then clears
+		 * the claims on it — and without the lock its only wait was the foreign key's share lock
+		 * at the seat insert, *after* those reads. A portion taken in between was cleared with no
+		 * release recorded, or landed after the clear and was stranded on a block that was no
+		 * longer pool. Locked, a concurrent claim or rollover either finishes first or waits for
+		 * this one; nothing below takes a bab before the group, so the order matches everywhere.
+		 */
+		await lockGroup(tx, groupId);
+
 		const group = await tx.group.findUnique({
 			where: { id: groupId },
 			include: { members: true }
@@ -179,6 +205,10 @@ const attemptJoin = async (
 
 		if (!group) {
 			throw new HttpError(NOT_FOUND, 'Group not found');
+		}
+
+		if (group.hizbIndividual) {
+			throw new HttpError(FORBIDDEN, 'Individual reading cannot accept members');
 		}
 
 		const alreadyMember = group.members.some(member => member.userId === normalizedUserId);
@@ -202,26 +232,42 @@ const attemptJoin = async (
 		const taken = new Set(group.members.map(member => member.slotIndex));
 		let slotIndex: number | null = null;
 
-		for (let slot = 0; slot < group.spots; slot++) {
+		const slotLimit = group.splitMode === 'FLEXIBLE' ? group.members.length + 1 : group.spots;
+		for (let slot = 0; slot < slotLimit; slot++) {
 			if (!taken.has(slot)) {
 				slotIndex = slot;
 				break;
 			}
 		}
 
+		if (group.hizbPlan !== null) {
+			slotIndex = group.hizbNextSlot;
+			await tx.group.update({ where: { id: groupId }, data: { hizbNextSlot: { increment: 1 } } });
+		}
 		if (slotIndex === null) {
 			throw new HttpError(CONFLICT, 'This group is full');
 		}
 
+		const becomesOwner = group.splitMode === 'FLEXIBLE' && group.members.length === 0;
+		if (becomesOwner) {
+			await tx.group.update({ where: { id: groupId }, data: { ownerUserId: normalizedUserId } });
+		}
 		await tx.groupMember.create({
 			data: {
 				groupId,
 				userId: normalizedUserId,
 				displayName,
-				role: 'MEMBER',
+				role: becomesOwner ? 'OWNER' : 'MEMBER',
 				slotIndex
 			}
 		});
+
+		if (group.hizbPlan !== null) {
+			if (group.hizbPlan !== 0) {
+				await enrollHizbInTransaction(tx, group, normalizedUserId);
+			}
+			return;
+		}
 
 		/*
 		 * The cüz they came for, in the round the group is on.
@@ -246,8 +292,9 @@ const attemptJoin = async (
 		// the round, so writing their name onto a block here would only duplicate that — and
 		// the duplicate goes stale the moment the rotation moves them off it.
 		//
-		// It does, however, *release* one. Volunteering out of the pool means "I'll cover for
-		// an empty seat this round"; the seat now has someone in it, so the errand is over.
+		// It does, however, *release* whatever was volunteered for the seat. Volunteering out of
+		// the pool means "I'll cover for an empty seat this round"; the seat now has someone in
+		// it, so the errand is over.
 		// Left standing, the claim strands the volunteer: the block stops being pool (the seat
 		// is taken) and was never their own seat's, so `setBabRead` refuses it as "not yours to
 		// mark today" while their share still lists it. Meanwhile the joiner is handed the same
@@ -259,14 +306,19 @@ const attemptJoin = async (
 		// `group.members` is the list from before the seat was filled, which is what makes this
 		// seat a pool block at all. No `ensureCurrentRound` first: on a stale round this clears
 		// babs the rollover is about to clear wholesale anyway, so the worst case is a no-op.
-		const coveredBabNumbers = poolBlockFor(group, group.members, slotIndex);
+		// A flexible group has no seat blocks, and a hatim's spare cüz are holdings, never claims.
+		const coveredBabNumbers =
+			group.splitMode === 'FLEXIBLE' || group.kind === 'HATIM'
+				? null
+				: poolBlockFor(group, group.members, slotIndex);
 
 		if (coveredBabNumbers) {
-			// Read before the clear — afterwards there is nothing left to ask. A block is taken
-			// whole by one person, so one row identifies them.
-			const claim = await tx.groupBab.findFirst({
+			// Read before the clear — afterwards there is nothing left to ask. A Cevşen block is
+			// taken whole by one person, but a Hizb block can be split a portion at a time between
+			// several, so every claimed row is read and grouped by who holds it.
+			const claims = await tx.groupBab.findMany({
 				where: { groupId, number: { in: coveredBabNumbers }, assignedUserId: { not: null } },
-				select: { assignedUserId: true }
+				select: { number: true, assignedUserId: true }
 			});
 
 			await tx.groupBab.updateMany({
@@ -274,20 +326,38 @@ const attemptJoin = async (
 				data: { assignedUserId: null }
 			});
 
-			const startBab = coveredBabNumbers[0];
-			const endBab = coveredBabNumbers[coveredBabNumbers.length - 1];
+			const numbersByClaimant = new Map<string, number[]>();
 
-			if (claim?.assignedUserId && startBab !== undefined && endBab !== undefined) {
+			for (const claim of claims) {
+				if (claim.assignedUserId !== null) {
+					numbersByClaimant.set(claim.assignedUserId, [
+						...(numbersByClaimant.get(claim.assignedUserId) ?? []),
+						claim.number
+					]);
+				}
+			}
+
+			for (const [userId, numbers] of numbersByClaimant) {
+				const runs = babRuns(numbers);
+
 				/*
 				 * Written in the same transaction as the clear, so the record and the thing it
 				 * describes can never disagree. The push that follows is the fast path; this is
-				 * what the volunteer still finds if it never arrives.
+				 * what the volunteer still finds if it never arrives. One row per run, because
+				 * a row is a start and an end, and "16–18" for someone who held 16 and 18 would
+				 * claim they held 17 too.
 				 */
-				await tx.poolClaimRelease.create({
-					data: { groupId, userId: claim.assignedUserId, roundIndex: group.roundIndex, startBab, endBab }
+				await tx.poolClaimRelease.createMany({
+					data: runs.map(run => ({
+						groupId,
+						userId,
+						roundIndex: group.roundIndex,
+						startBab: run.start,
+						endBab: run.end
+					}))
 				});
 
-				released = { userId: claim.assignedUserId, range: `${startBab}–${endBab}` };
+				released.push({ userId, runs, kind: group.kind });
 			}
 		}
 
@@ -305,29 +375,37 @@ const attemptJoin = async (
 	 * escape the request and any rejection would surface as an unhandled one. `sendPushToUser`
 	 * never throws, so awaiting it costs the join nothing and cannot fail it.
 	 */
-	if (released !== null) {
-		const { userId: volunteerId, range } = released as { userId: string; range: string };
+	if (released.length === 0) {
+		return;
+	}
+
+	const group = await prisma.group.findUnique({ where: { id: groupId }, select: { name: true } });
+
+	for (const { userId: volunteerId, runs, kind } of released) {
 		const language = await pushLanguageFor(volunteerId);
-		const [startBab, endBab] = range.split('–').map(Number);
+		// `formatRun`, so a one-part run reads "27" — the push copy takes a bare number as singular.
+		const range = runs.map(formatRun).join(', ');
 
 		/*
 		 * The inbox row is the durable half of this notice. `PoolClaimRelease` already records
 		 * the same event for the group screen's banner; this is what puts it in the reader's
-		 * own list (design P2), and it is filed whether or not the push reaches them.
+		 * own list (design P2), and it is filed whether or not the push reaches them. One row
+		 * per run, like the release rows — a row's payload is a single start and end.
 		 */
-		const group = await prisma.group.findUnique({ where: { id: groupId }, select: { name: true } });
-
-		if (group !== null && startBab !== undefined && endBab !== undefined) {
-			await recordNotification({
-				groupId,
-				groupName: group.name,
-				payload: { endBab, kind: 'POOL_CLAIM_RELEASED', startBab },
-				userIds: [volunteerId]
-			});
+		if (group !== null) {
+			for (const run of runs) {
+				await recordNotification({
+					groupId,
+					groupName: group.name,
+					payload: { endBab: run.end, kind: 'POOL_CLAIM_RELEASED', startBab: run.start },
+					userIds: [volunteerId]
+				});
+			}
 		}
 
+		// One push per volunteer, naming every run they lost.
 		await sendPushToUser(volunteerId, {
-			...poolClaimReleasedPush(language, range),
+			...poolClaimReleasedPush(language, { kind, range }),
 			data: { groupId, kind: 'pool-claim-released' }
 		});
 	}
@@ -431,6 +509,19 @@ const removeMember = async (
 		 * Locked first, those paths either finish before this starts or find no member at all.
 		 */
 		await lockGroup(tx, groupId);
+		const group = await tx.group.findUniqueOrThrow({
+			where: { id: groupId },
+			include: { members: { orderBy: { joinedAt: 'asc' } } }
+		});
+		await closeHizbEnrollment(tx, group, userId);
+		if (group.splitMode === 'FLEXIBLE' && group.ownerUserId === userId) {
+			const successor = group.members.find(member => member.userId !== userId);
+			if (successor) {
+				await tx.groupMember.update({ where: { id: successor.id }, data: { role: 'OWNER' } });
+			}
+			// An empty flexible circle stays discoverable. Its next joiner takes ownership.
+			await tx.group.update({ where: { id: groupId }, data: { ownerUserId: successor?.userId ?? '' } });
+		}
 
 		// Delete the membership FIRST. Unassigning before deleting leaves a window in
 		// which the member — still a member as far as a concurrent request is concerned —
@@ -491,7 +582,8 @@ export const leaveGroupForUser = async (userId: string, groupId: string): Promis
 	const normalizedUserId = normalizeUserId(userId);
 	const membership = await requireMembership(normalizedUserId, groupId);
 
-	if (membership.role === 'OWNER') {
+	const group = await prisma.group.findUniqueOrThrow({ where: { id: groupId } });
+	if (group.hizbIndividual || (membership.role === 'OWNER' && group.splitMode !== 'FLEXIBLE')) {
 		throw new HttpError(BAD_REQUEST, 'The group owner cannot leave. Delete the group instead.');
 	}
 
@@ -549,5 +641,8 @@ export const listMembersForUser = async (userId: string, groupId: string): Promi
 		holdingsFor(prisma, group, roundIndexFor(group) ?? 0)
 	]);
 
-	return members.map(member => toGroupMember(group, member, babs, cheers, normalizedUserId, profiles, holdings));
+	// The members ticked to see who read see names here as the owner does.
+	const seen = { ...group, readerSeerIds: readerSeerIdsOf(group, members) };
+
+	return members.map(member => toGroupMember(seen, member, babs, cheers, normalizedUserId, profiles, holdings));
 };

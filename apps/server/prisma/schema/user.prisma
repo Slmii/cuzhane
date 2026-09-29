@@ -44,6 +44,11 @@ model UserSettings {
     hatimRoundCompleteEnabled Boolean @default(true)
     hatimPoolClaimEnabled     Boolean @default(false)
 
+    /// A Hizb group's "someone finished their reading", its own switch. Responsible members
+    /// (`GroupMember.seesReaders`) hear it whatever this says. Hizb's other notices still answer
+    /// to the Cevşen switches.
+    hizbGroupReadsEnabled Boolean @default(false)
+
     /// Who is in the group is the same event whatever the group reads, so these two are
     /// shared — the "Genel" section.
     memberJoinedEnabled  Boolean          @default(false)
@@ -51,6 +56,13 @@ model UserSettings {
     nudgeEnabled         Boolean          @default(true)
     hasSeenOnboarding    Boolean          @default(false)
     hasSeenTour          Boolean          @default(false)
+    /// "Grubun nasıl çalışır?" after joining, one switch per kind: "bir daha gösterme" on one kind
+    /// leaves the others showing. Shown after joining a Cevşen group.
+    cevsenIntroEnabled   Boolean          @default(true)
+    /// Shown after joining a Kur'an group.
+    hatimIntroEnabled    Boolean          @default(true)
+    /// Shown after joining a Hizb group.
+    hizbIntroEnabled     Boolean          @default(true)
     readerFontSize       Int              @default(23)
     readerNumerals       ReaderNumerals   @default(arabic)
     readerArabicFont     ReaderArabicFont @default(uthman)
@@ -116,6 +128,9 @@ model Feedback {
     appVersion String?
     platform   String?
     locale     String?
+    // The app's last steps before the report, oldest first, one per line: screens with their
+    // numbers and the app going to the background and back — never names or text.
+    trail      String?
     createdAt  DateTime      @default(now())
 
     @@index([userId, createdAt])

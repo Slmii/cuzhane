@@ -133,7 +133,7 @@ export const CuzDetailScreen = ({ navigation, route }: Props) => {
 				titleTrailing={isMine ? <Chip label={t('qMine')} tone='accent' /> : null}
 			/>
 
-			{/* The tour's cüz-page stop spotlights both ways through a cüz: mark it, or read it here.
+			{/* The tour's cüz-page stop (K2) spotlights both ways through a cüz: mark it, or read it here.
 			    The wrapper keeps the column's own gap, so the page lays out as it did without it. */}
 			<TourTarget id='cuzActions' style={styles.tourActions}>
 				{/* The state, and the one action that changes it. */}

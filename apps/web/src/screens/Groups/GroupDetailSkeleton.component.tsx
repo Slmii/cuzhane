@@ -1,4 +1,5 @@
 import { GridSkeleton } from '@/components/GridSkeleton/GridSkeleton.component';
+import { HizbBoardSkeleton } from '@/components/HizbBoard/HizbBoardSkeleton.component';
 import { MyProgressCardSkeleton } from '@/components/MyProgressCard/MyProgressCardSkeleton.component';
 import { SCREEN_TITLE_PADDING_UNDER_BAR } from '@/components/ScreenTitle/ScreenTitle.component';
 import { Bone, SkeletonPulse } from '@/components/Skeleton/Skeleton.component';
@@ -7,11 +8,22 @@ import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { toAlphaColor } from '@/lib/theme/tokens';
+import type { GroupKind } from '@/lib/types/domain';
 import { unitCountFor } from '@/lib/utils/units';
 import { StyleSheet, View } from 'react-native';
 
 /** `BabLegend`'s five keys for a Cevşen board — the same count the screen's own stand-in uses. */
 const BAB_LEGEND_COUNT = 5;
+/** HZ1's open panel shows a share of two; the bones do the same. */
+const HIZB_ROW_COUNT = 2;
+
+type Props = {
+	/**
+	 * Which book's screen this stands in for — seeded from the shelf, the Cevşen's without one.
+	 * A hatim has its own stand-in (`HatimGroupSkeleton`); this one draws the Cevşen and the Hizb.
+	 */
+	kind?: Exclude<GroupKind, 'HATIM'>;
+};
 
 /**
  * D15 · Grup yükleniyor — üye görünümü.
@@ -27,11 +39,16 @@ const BAB_LEGEND_COUNT = 5;
  * as the frame does. That band is the one piece of colour on the screen, and a grey
  * placeholder there would have the page appear to change colour when the data lands rather
  * than simply fill in.
+ *
+ * A Hizb group (HZ1) differs in three places: its heading carries the book's mark at the right,
+ * its share panel opens by default (a sage header over a share of rows), and its board is the
+ * 33 portions' own frame (`HizbBoardSkeleton`) rather than the hundred.
  */
-export const GroupDetailSkeleton = () => {
+export const GroupDetailSkeleton = ({ kind = 'CEVSEN' }: Props) => {
 	const { t } = useTranslation();
 	const { theme } = useThemeContext();
 	const divider = theme.colors.divider;
+	const isHizb = kind === 'HIZB';
 
 	return (
 		<View style={styles.root}>
@@ -43,12 +60,29 @@ export const GroupDetailSkeleton = () => {
 				 * bones a taller, wider block than the screen that replaced them.
 				 */}
 				<View style={styles.header}>
-					<View style={styles.headerRow}>
-						<Bone height={22} radius={9} width={150} />
-						<Bone height={20} radius={6} tone='soft' width={52} />
-						<Bone height={20} radius={6} tone='soft' width={58} />
-					</View>
-					<Bone height={9} radius={4.5} style={styles.headerCaption} tone='soft' width={132} />
+					{isHizb ? (
+						// HZ1's heading carries the book's mark at its right, beside the name and the
+						// round line together, where the Cevşen's has nothing.
+						<View style={styles.hizbHeaderRow}>
+							<View>
+								<View style={styles.headerRow}>
+									<Bone height={22} radius={9} width={150} />
+									<Bone height={20} radius={6} tone='soft' width={52} />
+								</View>
+								<Bone height={9} radius={4.5} style={styles.headerCaption} tone='soft' width={112} />
+							</View>
+							<Bone height={44} radius={22} width={44} />
+						</View>
+					) : (
+						<>
+							<View style={styles.headerRow}>
+								<Bone height={22} radius={9} width={150} />
+								<Bone height={20} radius={6} tone='soft' width={52} />
+								<Bone height={20} radius={6} tone='soft' width={58} />
+							</View>
+							<Bone height={9} radius={4.5} style={styles.headerCaption} tone='soft' width={132} />
+						</>
+					)}
 				</View>
 
 				{/* Members and the countdown, then the reset line under a hairline. */}
@@ -82,29 +116,85 @@ export const GroupDetailSkeleton = () => {
 				 * label — the sentence that once sat under it is gone on the screen too — and the done
 				 * count with its chevron.
 				 */}
-				<CardSurface
-					hasGlassSurface={false}
-					isFlush
-					style={[
-						styles.assignedPanel,
-						{ backgroundColor: theme.colors.accentSoft, borderColor: theme.colors.transparent }
-					]}
-				>
-					<View style={styles.assignedLeading}>
+				{isHizb ? (
+					// The Hizb's panel opens by default, so its bones are the open card: the sage header
+					// over a share of rows, each a checkbox, a title and its description, and "Oku".
+					<CardSurface isFlush>
 						<View
-							style={[styles.assignedBadge, { backgroundColor: toAlphaColor(theme.colors.accent, 0.22) }]}
-						/>
+							style={[
+								styles.hizbPanelHeader,
+								{ backgroundColor: theme.colors.accentSoft, borderBottomColor: divider }
+							]}
+						>
+							<View
+								style={[
+									styles.assignedBadge,
+									{ backgroundColor: toAlphaColor(theme.colors.accent, 0.22) }
+								]}
+							/>
+							<View style={styles.assignedCopy}>
+								<View
+									style={[
+										styles.assignedLabel,
+										{ backgroundColor: toAlphaColor(theme.colors.accent, 0.18) }
+									]}
+								/>
+							</View>
+							<View
+								style={[
+									styles.assignedMeta,
+									{ backgroundColor: toAlphaColor(theme.colors.accent, 0.18) }
+								]}
+							/>
+						</View>
+						{Array.from({ length: HIZB_ROW_COUNT }, (_, index) => (
+							<View key={index} style={[styles.hizbRow, { borderBottomColor: divider }]}>
+								<Bone height={26} radius={9} width={26} />
+								<View style={styles.hizbRowCopy}>
+									<Bone height={9} radius={4.5} width='60%' />
+									<Bone height={8} radius={4} tone='soft' width='92%' />
+									<Bone height={8} radius={4} tone='soft' width='56%' />
+								</View>
+								<Bone height={30} radius={8} tone='soft' width={46} />
+							</View>
+						))}
+					</CardSurface>
+				) : (
+					<CardSurface
+						hasGlassSurface={false}
+						isFlush
+						style={[
+							styles.assignedPanel,
+							{ backgroundColor: theme.colors.accentSoft, borderColor: theme.colors.transparent }
+						]}
+					>
+						<View style={styles.assignedLeading}>
+							<View
+								style={[
+									styles.assignedBadge,
+									{ backgroundColor: toAlphaColor(theme.colors.accent, 0.22) }
+								]}
+							/>
+							<View
+								style={[
+									styles.assignedChip,
+									{ backgroundColor: toAlphaColor(theme.colors.accent, 0.14) }
+								]}
+							/>
+						</View>
+						<View style={styles.assignedCopy}>
+							<View
+								style={[
+									styles.assignedLabel,
+									{ backgroundColor: toAlphaColor(theme.colors.accent, 0.18) }
+								]}
+							/>
+						</View>
 						<View
-							style={[styles.assignedChip, { backgroundColor: toAlphaColor(theme.colors.accent, 0.14) }]}
+							style={[styles.assignedMeta, { backgroundColor: toAlphaColor(theme.colors.accent, 0.18) }]}
 						/>
-					</View>
-					<View style={styles.assignedCopy}>
-						<View
-							style={[styles.assignedLabel, { backgroundColor: toAlphaColor(theme.colors.accent, 0.18) }]}
-						/>
-					</View>
-					<View style={[styles.assignedMeta, { backgroundColor: toAlphaColor(theme.colors.accent, 0.18) }]} />
-				</CardSurface>
+					</CardSurface>
+				)}
 
 				{/* The row shape "Geçen tur" and "Havuz" share: a tile, two lines, a chevron. */}
 				<CardSurface style={styles.rowCard}>
@@ -117,7 +207,12 @@ export const GroupDetailSkeleton = () => {
 				</CardSurface>
 			</SkeletonPulse>
 
-			<GridSkeleton cellCount={unitCountFor('CEVSEN')} legendCount={BAB_LEGEND_COUNT} />
+			{isHizb ? (
+				// The board, in its own frame — the Cevşen's stand-in is the hundred's lattice.
+				<HizbBoardSkeleton />
+			) : (
+				<GridSkeleton cellCount={unitCountFor('CEVSEN')} legendCount={BAB_LEGEND_COUNT} />
+			)}
 
 			<SkeletonStatusRow label={t('loadingGroup')} />
 		</View>
@@ -178,6 +273,33 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		flexDirection: 'row',
 		gap: 9
+	},
+	hizbHeaderRow: {
+		alignItems: 'flex-start',
+		flexDirection: 'row',
+		gap: 12,
+		justifyContent: 'space-between'
+	},
+	hizbPanelHeader: {
+		alignItems: 'center',
+		borderBottomWidth: StyleSheet.hairlineWidth,
+		flexDirection: 'row',
+		gap: 13,
+		paddingHorizontal: 16,
+		paddingVertical: 14
+	},
+	hizbRow: {
+		alignItems: 'center',
+		borderBottomWidth: StyleSheet.hairlineWidth,
+		flexDirection: 'row',
+		gap: 13,
+		paddingHorizontal: 16,
+		paddingVertical: 13
+	},
+	hizbRowCopy: {
+		flex: 1,
+		gap: 6,
+		minWidth: 0
 	},
 	resetRow: {
 		alignItems: 'center',

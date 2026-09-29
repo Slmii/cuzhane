@@ -21,6 +21,8 @@ export type ButtonVariant =
 	| 'accentOutline'
 	| 'outline'
 	| 'surface'
+	/** A soft grey fill with no edge — R1's "Kitaptan okudum", the quieter of two ways to read. */
+	| 'tonal'
 	| 'danger'
 	| 'dangerFilled'
 	| 'ghost';

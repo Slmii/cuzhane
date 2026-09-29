@@ -2,10 +2,20 @@ import type { BabCellState } from '@/components/BabGrid/BabGrid.types';
 import type { ChipTone } from '@/components/ui/Chip/Chip.types';
 import type { IconName } from '@/components/ui/Icon/Icon.types';
 import type { StringKey } from '@/lib/i18n/strings';
-import type { GroupBab, GroupCycle, GroupSplitMode, GroupVisibility } from '@/lib/types/domain';
-import { BAB_COUNT, babRuns, formatRun } from '@/lib/utils/babs';
+import type {
+	GroupBab,
+	GroupCycle,
+	GroupKind,
+	GroupSplitMode,
+	GroupSummary,
+	GroupVisibility
+} from '@/lib/types/domain';
+import { babRuns, formatRun, rangeForRound, rangeForSlot } from '@/lib/utils/babs';
+import { CYCLES_FOR_KIND } from '@/lib/utils/groupKinds';
+import { unitLabelKey } from '@/lib/utils/units';
 
-export const CYCLE_OPTIONS: GroupCycle[] = ['DAILY', 'WEEKLY'];
+/** The cycles the create sheet offers a kind — the Hizb's month is not the Cevşen's to choose. */
+export const cycleOptionsFor = (kind: GroupKind): readonly GroupCycle[] => CYCLES_FOR_KIND[kind];
 
 /**
  * The cadence's name.
@@ -18,11 +28,53 @@ export const CYCLE_OPTIONS: GroupCycle[] = ['DAILY', 'WEEKLY'];
 const CYCLE_LABEL_KEYS: Record<GroupCycle, StringKey> = {
 	CUSTOM: 'qCustom',
 	DAILY: 'daily',
-	MONTHLY: 'qMonthly',
+	MONTHLY: 'monthly',
 	WEEKLY: 'weekly'
 };
 
 export const cycleLabelKey = (cycle: GroupCycle): StringKey => CYCLE_LABEL_KEYS[cycle];
+
+/**
+ * The noun a count of parts takes — "20 bab", "30 cüz", "7 bölüm". Lowercase, for after a
+ * number: "/ 100 bab", "33 bölüm". A Hizb group divides portions and a hatim cüz, not babs, and
+ * saying "bab" there would name a unit the book is not cut into. Same as `unitLabelKey`.
+ */
+export const partUnitKey = (kind: GroupKind): StringKey => unitLabelKey(kind);
+
+// A record, so a kind added to `GroupKind` fails the build until it has a name.
+const PART_LABEL_KEYS: Record<GroupKind, StringKey> = { CEVSEN: 'bab', HATIM: 'cuzLabel', HIZB: 'portion' };
+
+/** The same noun titling one part — "Bab 12", "Cüz 12", "Bölüm 19". */
+export const partLabelKey = (kind: GroupKind): StringKey => PART_LABEL_KEYS[kind];
+
+// The kind's own name — "Cevşen", "Kuran", "Hizbü'l-Hakaik". A record, for the same reason.
+const KIND_LABEL_KEYS: Record<GroupKind, StringKey> = { CEVSEN: 'qCevsen', HATIM: 'qHatim', HIZB: 'kindHizb' };
+
+/** What a group reads, by name — a card's badge, a filter row, a notification's heading. */
+export const kindLabelKey = (kind: GroupKind): StringKey => KIND_LABEL_KEYS[kind];
+
+/**
+ * Whether a written range is a single part. `formatRun` and `formatBabRange` write one part as a
+ * bare number — "19" — and anything more with a dash or a comma, so the string says it. The
+ * server's push copy asks the same question the same way (`pushCopy.ts`), so a row in the inbox
+ * and the push it mirrors agree about "portion" against "portions".
+ */
+export const isSinglePart = (range: string) => !/[–,]/.test(range);
+
+/**
+ * A set of Hizb portions with its noun, where the language puts it — "15–16. bölüm", "Portions
+ * 15–16", "Portion 19". `parts` is already written (`formatBabRange`, `shareSlices`).
+ */
+export const hizbPartsLabel = (
+	parts: string,
+	t: (key: 'hizbParts' | 'hizbPartsOne', values: Record<string, string>) => string
+) => t(isSinglePart(parts) ? 'hizbPartsOne' : 'hizbParts', { parts });
+
+/** The plan screens' "Bölüm 11–13" / "Portions 11–13" / "Portion 19" — the noun first, counted. */
+export const hizbPortionLabel = (
+	portions: string,
+	t: (key: 'hpPortionLabel' | 'hpPortionLabelMany', values: Record<string, string>) => string
+) => t(isSinglePart(portions) ? 'hpPortionLabel' : 'hpPortionLabelMany', { portions });
 
 export const visibilityLabelKey = (visibility: GroupVisibility): StringKey =>
 	visibility === 'OPEN' ? 'open' : 'private';
@@ -39,11 +91,11 @@ export const visibilityIcon = (visibility: GroupVisibility): IconName => (visibi
 
 /** The long form, for a card subtitle: "Sabit paylaşım". */
 export const splitModeLabelKey = (splitMode: GroupSplitMode): StringKey =>
-	splitMode === 'FIXED' ? 'fixedSplit' : 'planRotation';
+	splitMode === 'FLEXIBLE' ? 'planFlexible' : splitMode === 'FIXED' ? 'fixedSplit' : 'planRotation';
 
 /** The short form used wherever the plan sits inline beside a range. */
 export const planLabelKey = (splitMode: GroupSplitMode): StringKey =>
-	splitMode === 'FIXED' ? 'planFixed' : 'planRotation';
+	splitMode === 'FLEXIBLE' ? 'planFlexible' : splitMode === 'FIXED' ? 'planFixed' : 'planRotation';
 
 export type BabCellContext = {
 	viewerUserId: string | null;
@@ -278,6 +330,140 @@ export const shareSlices = (babNumbers: number[], nextBabNumber: number | null):
 		: { current: formatRun(current), moreCount: runs.length - 1 };
 };
 
-/** Placeholder board for the loading state so the card doesn't jump when data lands. */
-export const emptyBabCells = () =>
-	Array.from({ length: BAB_COUNT }, (_, index) => ({ number: index + 1, state: 'open' as BabCellState }));
+/**
+ * A portion's state on the Hizb board (HZ1) — three, and a ring on top.
+ *
+ * The Cevşen board splits a read by *who* read it; this one asks only what the group has done
+ * with each portion this round: read, held by someone (a seat's block, or a pool portion
+ * somebody volunteered for), or still sitting in the pool with nobody on it. Whether it is the
+ * viewer's is a separate fact, because it is drawn as a separate mark — a ring over whichever of
+ * the three it is.
+ */
+/** `unread` is a personal-plan group's: no holders and no pool, only read or not yet. */
+export type HizbBoardCellState = 'read' | 'taken' | 'pool' | 'unread';
+
+export type HizbBoardCell = {
+	number: number;
+	state: HizbBoardCellState;
+	/** In the viewer's share this round, their own pool claims included — the ring. */
+	isMine: boolean;
+};
+
+/**
+ * The Hizb board's cells, in portion order.
+ *
+ * "Mine" is the server's `myBabNumbers`, which already carries the viewer's pool claims, so a
+ * claimed pool portion wears the ring as their own seat's do. The pool is `poolBabNumbers` —
+ * the unclaimed part, as on the Cevşen board — and a portion that arrives on the board with a
+ * name on it is taken whatever that list says: the two come from different queries, and a
+ * claim landing on the board before the group refetches must not keep wearing the hatch.
+ */
+export const hizbBoardCells = (
+	babs: GroupBab[],
+	group: Pick<GroupSummary, 'myBabNumbers' | 'poolBabNumbers'>
+): HizbBoardCell[] => {
+	const mine = new Set(group.myBabNumbers);
+	const pool = new Set(group.poolBabNumbers);
+
+	return [...babs]
+		.sort((a, b) => a.number - b.number)
+		.map(bab => ({
+			isMine: mine.has(bab.number),
+			number: bab.number,
+			state: bab.readAt !== null ? 'read' : pool.has(bab.number) && bab.assignedUserId === null ? 'pool' : 'taken'
+		}));
+};
+
+/**
+ * The accent tile on the Hizb's "Bu tur bölümün" panel, as HZ1 writes it: one or two portions
+ * by number — "7", "15 · 16" — and past two, how many. A Hizb share is short and often broken
+ * (a seat's block plus a pool portion or two), so "15 · 16 · 24" is spelled out nowhere; the
+ * rows under the tile name every one of them.
+ */
+export const hizbShareLabel = (partNumbers: number[], unit: string): string => {
+	if (partNumbers.length === 0) {
+		return '—';
+	}
+
+	return partNumbers.length <= 2 ? partNumbers.join(' · ') : `${partNumbers.length} ${unit}`;
+};
+
+/** Placeholder board for the loading state so the card doesn't jump when data lands — one cell per part. */
+export const emptyBabCells = (total: number) =>
+	Array.from({ length: total }, (_, index) => ({ number: index + 1, state: 'open' as BabCellState }));
+
+/** One round of the create sheet's plan preview: the range a seat reads, and where it sits in the text. */
+export type PlanPreviewRow = {
+	/** 0-based. Also the row's React key, so a bar keeps its identity while `spots` moves. */
+	roundIndex: number;
+	start: number;
+	end: number;
+	/** How much of the whole text comes before the range, 0–100 — where the bar starts. */
+	offset: number;
+	/** How much of the whole text the range covers, 0–100. */
+	width: number;
+	/** The range never moves — FIXED, or a lone seat — so the row is "every round", not round n. */
+	isEveryRound: boolean;
+};
+
+/**
+ * Whether a seat reads a different range from one round to the next: ROTATION with somebody to
+ * rotate past. A lone seat under ROTATION (the Hizb allows one) holds the whole book every round,
+ * which is FIXED in all but name — the preview's caption and its row both say so from here, so
+ * the two cannot disagree.
+ */
+export const movesEachRound = (splitMode: GroupSplitMode, spots: number) => splitMode === 'ROTATION' && spots > 1;
+
+/** The narrowest and widest a Hizb lobby's seat row gets. */
+const HIZB_SEAT_COLUMNS_MIN = 8;
+const HIZB_SEAT_COLUMNS_MAX = 11;
+
+/**
+ * How many columns the Hizb lobby's seat lattice (HC4) lays its seats out in: ten up to ten
+ * seats — the Cevşen lobby's row — and past that as few rows as eleven columns allow, evened
+ * out across them, but never narrower than eight. HC4 draws sixteen as two rows of eight and
+ * the full 33 comes out as three of eleven; the floor is what keeps a cell from ballooning
+ * where evening out alone would halve the width (twelve seats as two rows of six).
+ */
+export const hizbSeatColumns = (spots: number) =>
+	spots <= 10 ? 10 : Math.max(HIZB_SEAT_COLUMNS_MIN, Math.ceil(spots / Math.ceil(spots / HIZB_SEAT_COLUMNS_MAX)));
+
+/**
+ * What `PlanPreview` draws. Under ROTATION, the first `maxRounds` rounds of one seat — never more
+ * rounds than there are seats, because after `spots` of them the seat is back where it began.
+ * Under FIXED, the one range it holds every round. Percentages of `partCount`, so a bar reads as
+ * a position on the whole book, the hundred babs or the Hizb's 33 portions alike.
+ */
+export const planPreviewRows = ({
+	maxRounds,
+	partCount,
+	slotIndex,
+	splitMode,
+	spots
+}: {
+	maxRounds: number;
+	partCount: number;
+	slotIndex: number;
+	splitMode: GroupSplitMode;
+	spots: number;
+}): PlanPreviewRow[] => {
+	const moves = movesEachRound(splitMode, spots);
+	const roundCount = moves ? Math.min(maxRounds, spots) : 1;
+
+	return Array.from({ length: roundCount }, (_, roundIndex) =>
+		moves ? rangeForRound(slotIndex, spots, roundIndex, partCount) : rangeForSlot(slotIndex, spots, partCount)
+	).flatMap((range, roundIndex) =>
+		range
+			? [
+					{
+						end: range.end,
+						isEveryRound: !moves,
+						offset: ((range.start - 1) / partCount) * 100,
+						roundIndex,
+						start: range.start,
+						width: ((range.end - range.start + 1) / partCount) * 100
+					}
+			  ]
+			: []
+	);
+};

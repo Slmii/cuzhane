@@ -17,6 +17,7 @@ import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { FeedbackSheetProps } from './FeedbackSheet.types';
+import { readBreadcrumbs } from '@/lib/utils/breadcrumbs';
 
 const MESSAGE_MIN_HEIGHT = 108;
 const CHECK_SIZE = 26;
@@ -98,7 +99,9 @@ export const FeedbackSheet = ({ appVersion, isVisible, locale, onClose, platform
 							message: values.message.trim(),
 							...(appVersion ? { appVersion } : {}),
 							...(platform ? { platform } : {}),
-							...(locale ? { locale } : {})
+							...(locale ? { locale } : {}),
+							// The app's last steps, so a bug can be traced — screens and numbers only.
+							trail: readBreadcrumbs()
 						});
 
 						setReference(receipt.reference);

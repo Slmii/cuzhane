@@ -13,8 +13,9 @@ import { useRequireRoundCuz } from '@/lib/hooks/useHatimRoundGate';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useGetMyProgress } from '@/lib/hooks/useRounds';
 import { useTranslation } from '@/lib/i18n/I18n.context';
+import type { StringKey } from '@/lib/i18n/strings';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import type { MyProgressPeriod } from '@/lib/types/domain';
+import type { GroupCycle, MyProgressPeriod } from '@/lib/types/domain';
 import type { TabStackParamList } from '@/navigation/types';
 import { HatimProgress } from '@/screens/Groups/HatimProgress.component';
 import { HatimProgressSkeleton } from '@/screens/Groups/HatimProgressSkeleton.component';
@@ -26,6 +27,19 @@ type Props = NativeStackScreenProps<TabStackParamList, 'MyProgress'>;
 
 /** The four swatches under the strip, in the design's order. */
 const LEGEND = ['mpLegendFull', 'mpLegendPart', 'mpLegendNone', 'mpLegendOpen'] as const;
+
+/**
+ * The strip's heading, how far back a closed round sits, and what the open swatch is — each in
+ * the group's own period, since a round *is* the period. "Son 7 gün" / "3 gün önce" / "bugün";
+ * the strip draws six months for a MONTHLY group (see `PeriodStrip`), hence "Son 6 ay".
+ */
+const PERIOD_COPY: Record<GroupCycle, { heading: StringKey; ago: StringKey; open: StringKey }> = {
+	DAILY: { heading: 'mpLast7', ago: 'mpDaysAgo', open: 'mpToday' },
+	WEEKLY: { heading: 'mpLast8', ago: 'mpWeeksAgo', open: 'mpThisWeek' },
+	MONTHLY: { heading: 'mpLast6', ago: 'mpMonthsAgo', open: 'mpThisMonth' },
+	// Only a hatim is ever a one-off, and a hatim's record is `HatimProgress` — never this strip.
+	CUSTOM: { heading: 'mpLast8', ago: 'mpWeeksAgo', open: 'mpThisWeek' }
+};
 
 /**
  * F7 — "Senin ilerlemen": one member's own record, and the babs they can still go back for.
@@ -96,8 +110,17 @@ export const MyProgressScreen = ({ navigation, route }: Props) => {
 			</ScreenContainer>
 		);
 	}
-	const isWeekly = progress.cycle === 'WEEKLY';
+	const isHizb = group.kind === 'HIZB';
+	const periodCopy = PERIOD_COPY[progress.cycle];
 	const openPeriod = progress.periods.at(-1);
+
+	// A Hizb share is counted in portions; the Cevşen's lines keep their bab wording as they were.
+	const missedCountLabel = (count: number) =>
+		isHizb
+			? count === 1
+				? t('missedPortionsHizbOne')
+				: t('missedPortionsHizb', { count })
+			: t('mpBabCount', { n: count });
 
 	/**
 	 * The day itself, beside the relative label.
@@ -119,7 +142,7 @@ export const MyProgressScreen = ({ navigation, route }: Props) => {
 	const agoLabel = (period: MyProgressPeriod) => {
 		const distance = (openPeriod?.roundIndex ?? period.roundIndex) - period.roundIndex;
 
-		return t(isWeekly ? 'mpWeeksAgo' : 'mpDaysAgo', { n: distance });
+		return t(periodCopy.ago, { n: distance });
 	};
 
 	const legendTone = {
@@ -145,10 +168,10 @@ export const MyProgressScreen = ({ navigation, route }: Props) => {
 			</View>
 
 			<View style={styles.sectionHead}>
-				<TitleText>{isWeekly ? t('mpLast8') : t('mpLast7')}</TitleText>
+				<TitleText>{t(periodCopy.heading)}</TitleText>
 				{openPeriod ? (
 					<CaptionText color={theme.colors.subtext}>
-						{`${t('myBabs')} ${openPeriod.readCount}/${openPeriod.owedCount}`}
+						{`${t(isHizb ? 'yourPortions' : 'myBabs')} ${openPeriod.readCount}/${openPeriod.owedCount}`}
 					</CaptionText>
 				) : null}
 			</View>
@@ -172,9 +195,7 @@ export const MyProgressScreen = ({ navigation, route }: Props) => {
 							]}
 						/>
 						<CaptionText color={theme.colors.subtext}>
-							{key === 'mpLegendOpen'
-								? `${t(key)} (${isWeekly ? t('mpThisWeek') : t('mpToday')})`
-								: t(key)}
+							{key === 'mpLegendOpen' ? `${t(key)} (${t(periodCopy.open)})` : t(key)}
 						</CaptionText>
 					</View>
 				))}
@@ -201,9 +222,9 @@ export const MyProgressScreen = ({ navigation, route }: Props) => {
 									<View style={styles.missedHead}>
 										<CaptionText weight='semibold'>{dateLabel(period)}</CaptionText>
 										<CaptionText color={theme.colors.subtext}>
-											{`· ${agoLabel(period)} · ${t('mpBabCount', {
-												n: period.missedBabs.length
-											})}${isWholeShare ? ` · ${t('mpAllMissed')}` : ''}`}
+											{`· ${agoLabel(period)} · ${missedCountLabel(period.missedBabs.length)}${
+												isWholeShare ? ` · ${t('mpAllMissed')}` : ''
+											}`}
 										</CaptionText>
 									</View>
 									{/*
@@ -248,14 +269,21 @@ export const MyProgressScreen = ({ navigation, route }: Props) => {
 										 */
 										fullWidth={false}
 										onPress={() =>
-											navigation.navigate('BabReader', {
-												babNumber: firstMissed.babNumber,
-												groupId,
-												// The round this gap belongs to — a weekly cell spans
-												// seven, so the period's own index could aim the
-												// cover at the wrong one.
-												roundIndex: firstMissed.roundIndex
-											})
+											// The round this gap belongs to — a weekly cell spans
+											// seven, so the period's own index could aim the cover
+											// at the wrong one. A Hizb group's gap is a portion, and
+											// the Cevşen reader would show bab N and cover portion N.
+											group.kind === 'HIZB'
+												? navigation.navigate('HizbReader', {
+														groupId,
+														partNumber: firstMissed.babNumber,
+														roundIndex: firstMissed.roundIndex
+												  })
+												: navigation.navigate('BabReader', {
+														babNumber: firstMissed.babNumber,
+														groupId,
+														roundIndex: firstMissed.roundIndex
+												  })
 										}
 										size='sm'
 										style={styles.readButton}

@@ -2,9 +2,11 @@ import type { GroupCycle, GroupKind, GroupStatus } from '@/lib/types/domain';
 import { describe, expect, it } from 'vitest';
 import {
 	applyGroupBrowse,
+	CYCLE_FILTER_OPTIONS,
 	emptyGroupBrowseState,
 	isGroupBrowseMenuActive,
 	isGroupBrowseNarrowed,
+	KIND_FILTER_OPTIONS,
 	type GroupBrowseState
 } from './groupBrowse';
 
@@ -41,6 +43,18 @@ const group = (over: Partial<TestGroup> = {}): TestGroup => {
 };
 
 const state = (over: Partial<GroupBrowseState> = {}): GroupBrowseState => ({ ...emptyGroupBrowseState, ...over });
+
+describe('CYCLE_FILTER_OPTIONS', () => {
+	it('offers every cadence a group can have, after "all"', () => {
+		expect(CYCLE_FILTER_OPTIONS).toEqual([undefined, 'DAILY', 'WEEKLY', 'MONTHLY']);
+	});
+});
+
+describe('KIND_FILTER_OPTIONS', () => {
+	it('offers every kind a group can read, after "all"', () => {
+		expect(KIND_FILTER_OPTIONS).toEqual([undefined, 'CEVSEN', 'HATIM', 'HIZB']);
+	});
+});
 
 describe('applyGroupBrowse — room to join', () => {
 	it('hides a full hatim from "has room", though its seats are free', () => {
@@ -98,6 +112,11 @@ describe('applyGroupBrowse — filtering', () => {
 		const groups = [group({ cycle: 'DAILY', name: 'D' }), group({ cycle: 'WEEKLY', name: 'W' })];
 
 		expect(applyGroupBrowse(groups, state({ cycle: 'DAILY' })).map(g => g.name)).toEqual(['D']);
+		expect(
+			applyGroupBrowse([...groups, group({ cycle: 'MONTHLY', name: 'M' })], state({ cycle: 'MONTHLY' })).map(
+				g => g.name
+			)
+		).toEqual(['M']);
 	});
 
 	it('"henüz başlamadı" keeps only gathering groups', () => {
@@ -110,6 +129,11 @@ describe('applyGroupBrowse — filtering', () => {
 		const groups = [group({ name: 'full', spotsLeft: 0 }), group({ name: 'room', spotsLeft: 3 })];
 
 		expect(applyGroupBrowse(groups, state({ hasSeatsOnly: true })).map(g => g.name)).toEqual(['room']);
+	});
+
+	it('keeps unlimited flexible groups when filtering for space to join', () => {
+		const flexible = { ...group({ name: 'flexible', spotsLeft: 0 }), splitMode: 'FLEXIBLE' as const };
+		expect(applyGroupBrowse([flexible], state({ hasSeatsOnly: true }))).toEqual([flexible]);
 	});
 
 	it('applies every condition together, not just the last one', () => {

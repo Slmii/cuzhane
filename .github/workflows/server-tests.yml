@@ -1,0 +1,75 @@
+name: Server tests
+
+# The API's unit and integration tests on every pull request into `development`, so a PR shows a
+# red check before it can be merged. **No path filter, on purpose**: `server-tests` is a required
+# check in the branch rules, and a required check that never starts leaves a web-only PR waiting
+# on it forever. The Expo app is not tested here yet.
+on:
+    pull_request:
+        types: [opened, synchronize, ready_for_review, reopened]
+        branches: [development]
+    workflow_dispatch:
+
+# A new push to the same PR makes the older run pointless.
+concurrency:
+    group: server-tests-${{ github.event.pull_request.number || github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    server-tests:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+        # The suite is integration tests against a real Postgres: `test/support/globalSetup.ts`
+        # creates `<name>_test` from `DATABASE_URL` and runs `migrate deploy` into it. The same
+        # major as production's database (`deploy/compose.yml`).
+        services:
+            postgres:
+                image: postgres:17-alpine
+                env:
+                    POSTGRES_USER: cuzhane
+                    POSTGRES_PASSWORD: cuzhane
+                    POSTGRES_DB: cuzhane
+                ports:
+                    - 5432:5432
+                options: >-
+                    --health-cmd "pg_isready -U cuzhane"
+                    --health-interval 5s
+                    --health-timeout 5s
+                    --health-retries 10
+        env:
+            # Only the database is reached; Clerk and the rest are mocked or never called. The
+            # suite derives `cuzhane_test` from this and refuses anything not ending in `_test`.
+            DATABASE_URL: postgresql://cuzhane:cuzhane@localhost:5432/cuzhane
+            # `config/env.ts` requires both at import, and the auth tests run Clerk's real middleware,
+            # which rejects a malformed publishable key with a 500. This one is well-formed —
+            # `pk_test_` + base64("example.clerk.accounts.dev$") — and belongs to no real instance.
+            CLERK_PUBLISHABLE_KEY: pk_test_ZXhhbXBsZS5jbGVyay5hY2NvdW50cy5kZXYk
+            CLERK_SECRET_KEY: sk_test_placeholder
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+            # The pnpm version comes from `packageManager` in the root package.json.
+            - uses: pnpm/action-setup@v4
+
+            - uses: actions/setup-node@v4
+              with:
+                  # The runtime image's Node (`apps/server/Dockerfile`).
+                  node-version: 22
+                  cache: pnpm
+
+            - name: Install
+              run: pnpm install --frozen-lockfile --filter @cuzhane/server...
+
+            # The Prisma client is generated into `src/generated/prisma`, which is gitignored.
+            - name: Generate the Prisma client
+              run: pnpm --filter @cuzhane/server db:generate
+
+            - name: Type check
+              run: pnpm --filter @cuzhane/server check-types
+
+            - name: Lint
+              run: pnpm --filter @cuzhane/server lint
+
+            - name: Test
+              run: pnpm --filter @cuzhane/server test

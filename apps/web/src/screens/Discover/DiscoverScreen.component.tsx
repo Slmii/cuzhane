@@ -1,5 +1,7 @@
 import { useGroupBrowse } from '@/components/GroupBrowseBar/GroupBrowse.context';
 import { GroupCard } from '@/components/GroupCard/GroupCard.component';
+import { HizbDiscoverCard } from '@/components/HizbDiscoverCard/HizbDiscoverCard.component';
+import { GroupResetTime } from '@/components/ResetTimeLabel/GroupResetTime.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { PullToRefresh } from '@/components/ui/PullToRefresh/PullToRefresh.component';
 import { ScreenTitle } from '@/components/ScreenTitle/ScreenTitle.component';
@@ -34,15 +36,15 @@ type DiscoverNavigationProp = NativeStackNavigationProp<TabStackParamList>;
  */
 const CARD_LAYOUT = LinearTransition.springify().damping(20).stiffness(180).mass(0.7);
 
-const badgeToneForCycle = (cycle: GroupCycle): ChipTone => {
-	switch (cycle) {
-		case 'WEEKLY':
-			return 'accent';
-		case 'DAILY':
-			return 'sand';
-		default:
-			return 'neutral';
-	}
+/**
+ * The cadence badge's tone. A record, so a new cycle has to be given one; the month takes the
+ * `neutral` the old switch's fallthrough already handed anything that was neither.
+ */
+const BADGE_TONE_FOR_CYCLE: Record<GroupCycle, ChipTone> = {
+	CUSTOM: 'neutral',
+	DAILY: 'sand',
+	MONTHLY: 'neutral',
+	WEEKLY: 'accent'
 };
 
 export const DiscoverScreen = () => {
@@ -85,7 +87,12 @@ export const DiscoverScreen = () => {
 			 * with `padding: 8px 0 16px` and no eyebrow, the way G1 and G3 do. Gruplarım (D2)
 			 * is the one tab root with that row, because it has a greeting to put in it.
 			 */}
-			<ScreenTitle hasReservedSecondaryLabel={false} isUnderNavigationBar label={t('discover')} />
+			<ScreenTitle
+				description={t('discoverSub')}
+				hasReservedSecondaryLabel={false}
+				isUnderNavigationBar
+				label={t('discover')}
+			/>
 		</View>
 	);
 
@@ -102,25 +109,36 @@ export const DiscoverScreen = () => {
 			 * it animates a row that *moves*, which is still exactly the filter/sort case.
 			 */
 			<Animated.View layout={cardLayout}>
-				<GroupCard
-					kind={item.kind}
-					badgeLabel={t(cycleLabelKey(item.cycle))}
-					badgeTone={badgeToneForCycle(item.cycle)}
-					// Cycle, then whether it has started. The design also has a "Kurucu" chip
-					// here, but a group you created is one you're in, and those no longer reach
-					// this list.
-					extraBadges={[{ label: t(item.status === 'RUNNING' ? 'running' : 'notStarted') }]}
-					footerCaption={
-						item.isFull
-							? `${t('full')} · ${item.spots}/${item.spots}`
-							: `${item.spotsLeft} ${t('spotsLeft')} · ${item.memberCount}/${item.spots}`
-					}
-					footerLeading={<SeatStack />}
-					name={item.name}
-					// Always the read-only preview: joining happens there, not from the row.
-					onPress={() => navigation.navigate('InvitePreview', { groupId: item.id })}
-					subtitle={`${t(cycleLabelKey(item.cycle))} · ${t(splitModeLabelKey(item.splitMode))}`}
-				/>
+				{/* A Hizb plan group has its own card (section 5): no seats, today's 33 instead. */}
+				{item.kind === 'HIZB' && item.hizbPlan != null ? (
+					<HizbDiscoverCard
+						group={item}
+						onPress={() => navigation.navigate('InvitePreview', { groupId: item.id })}
+					/>
+				) : (
+					<GroupCard
+						kind={item.kind}
+						badgeLabel={t(cycleLabelKey(item.cycle))}
+						badgeTone={BADGE_TONE_FOR_CYCLE[item.cycle]}
+						// Cycle, then whether it has started. The design also has a "Kurucu" chip
+						// here, but a group you created is one you're in, and those no longer reach
+						// this list.
+						extraBadges={[{ label: t(item.status === 'RUNNING' ? 'running' : 'notStarted') }]}
+						footerCaption={
+							item.splitMode === 'FLEXIBLE'
+								? t('flexibleMembers', { count: item.memberCount })
+								: item.isFull
+								? `${t('full')} · ${item.spots}/${item.spots}`
+								: `${item.spotsLeft} ${t('spotsLeft')} · ${item.memberCount}/${item.spots}`
+						}
+						footerLeading={<SeatStack />}
+						footerTrailing={<GroupResetTime group={item} />}
+						name={item.name}
+						// Always the read-only preview: joining happens there, not from the row.
+						onPress={() => navigation.navigate('InvitePreview', { groupId: item.id })}
+						subtitle={`${t(cycleLabelKey(item.cycle))} · ${t(splitModeLabelKey(item.splitMode))}`}
+					/>
+				)}
 			</Animated.View>
 		),
 		[cardLayout, navigation, t]

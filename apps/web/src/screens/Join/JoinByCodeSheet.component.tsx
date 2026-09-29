@@ -17,13 +17,18 @@ import {
 	Typography
 } from '@/components/ui/Typography/Typography.component';
 import { useJoinGroupByCode, useLookupGroupByCode } from '@/lib/hooks/useMembership';
+import { useGetUserSettings } from '@/lib/hooks/useUserSettings';
+import { INTRO_SETTING } from '@/lib/utils/groupIntro';
+import { groupQueryKeys } from '@/lib/hooks/queryKeys';
 import { useTranslation } from '@/lib/i18n/I18n.context';
-import { unitCountFor, unitLabelKey } from '@/lib/utils/units';
+import { unitCountFor } from '@/lib/utils/units';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import { cycleLabelKey } from '@/lib/utils/groups';
+import { formatRun } from '@/lib/utils/babs';
+import { cycleLabelKey, partUnitKey } from '@/lib/utils/groups';
 import { formatInviteCode } from '@/lib/utils/inviteCode';
 import type { TabStackParamList } from '@/navigation/types';
 import { useNavigation } from '@react-navigation/native';
+import { useQueryClient } from '@tanstack/react-query';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Clipboard from 'expo-clipboard';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -58,6 +63,9 @@ export const JoinByCodeSheet = ({ initialCode, isVisible, onClose }: JoinByCodeS
 	const { theme } = useThemeContext();
 	const { t } = useTranslation();
 	const navigation = useNavigation<NativeStackNavigationProp<TabStackParamList>>();
+	const queryClient = useQueryClient();
+	// Whether a join shows "how the group works" — the account's "bir daha gösterme".
+	const userSettings = useGetUserSettings();
 	// React Native's own, which is now the only kind: the sheet is presented by the platform and
 	// moves itself for the keyboard, so no sheet-aware input is involved.
 	const inputRef = useRef<TextInput>(null);
@@ -92,6 +100,21 @@ export const JoinByCodeSheet = ({ initialCode, isVisible, onClose }: JoinByCodeS
 					return;
 				}
 
+				/*
+				 * **A Hizb plan group previews on its own screen** (section 5, P4): the plan, the
+				 * 33 and the rules don't fit this sheet. The answer seeds that screen's query, so it
+				 * draws at once, and the code travels with it: a private group joins by it alone.
+				 */
+				if (found.kind === 'HIZB' && found.hizbPlan != null) {
+					queryClient.setQueryData(groupQueryKeys.previewByGroup(found.id), found);
+					lookedUpInitialCodeRef.current = null;
+					lookupIdRef.current += 1;
+					onClose();
+					navigation.navigate('InvitePreview', { groupId: found.id, inviteCode: candidate });
+
+					return;
+				}
+
 				// A full group gets the dead-end state rather than a join button it can't honour —
 				// the same branch the standalone 01c screen used to be.
 				setStep(found.isFull ? 'full' : 'preview');
@@ -108,7 +131,7 @@ export const JoinByCodeSheet = ({ initialCode, isVisible, onClose }: JoinByCodeS
 				setStep('notfound');
 			}
 		},
-		[lookUpGroup]
+		[lookUpGroup, navigation, onClose, queryClient]
 	);
 
 	/*
@@ -230,7 +253,16 @@ export const JoinByCodeSheet = ({ initialCode, isVisible, onClose }: JoinByCodeS
 		const joined = await joinByCode.mutateAsync(code);
 
 		handleClose();
-		navigation.navigate('JoinedWelcome', { groupId: joined.id });
+		// A Cevşen seat: how the group works (O3) unless hidden, else the welcome. A flexible board is
+		// running with nothing to explain, so it opens as it is; an old seat-based Hizb gets the welcome.
+		navigation.navigate(
+			data?.splitMode === 'FLEXIBLE'
+				? 'GroupDetail'
+				: userSettings.data?.[INTRO_SETTING.CEVSEN] !== false && data?.kind === 'CEVSEN'
+				? 'GroupHowItWorks'
+				: 'JoinedWelcome',
+			{ groupId: joined.id }
+		);
 	};
 
 	const handleDiscover = () => {
@@ -320,8 +352,9 @@ export const JoinByCodeSheet = ({ initialCode, isVisible, onClose }: JoinByCodeS
 								<Typography color={theme.colors.accent} style={styles.count} variant='numeric'>
 									{isHatimPreview ? takenCuz : data.readCount}
 								</Typography>
+								{/* A hatim counts cüz taken; a Cevşen or Hizb group its read babs or portions. */}
 								<CaptionText color={theme.colors.faintText}>{`/ ${unitCount} ${t(
-									isHatimPreview ? 'qCuzTaken' : unitLabelKey(data.kind)
+									isHatimPreview ? 'qCuzTaken' : partUnitKey(data.kind)
 								)}`}</CaptionText>
 							</View>
 							<ProgressBar
@@ -335,7 +368,9 @@ export const JoinByCodeSheet = ({ initialCode, isVisible, onClose }: JoinByCodeS
 							<View style={[styles.statGrid, { borderTopColor: theme.colors.borderStrong }]}>
 								<View style={styles.stat}>
 									<Typography style={styles.statValue} variant='title'>
-										{`${data.memberCount} / ${data.spots}`}
+										{data.splitMode === 'FLEXIBLE'
+											? String(data.memberCount)
+											: `${data.memberCount} / ${data.spots}`}
 									</Typography>
 									<StatText color={theme.colors.faintText}>{t('members')}</StatText>
 								</View>
@@ -349,12 +384,16 @@ export const JoinByCodeSheet = ({ initialCode, isVisible, onClose }: JoinByCodeS
 						</View>
 
 						{/* The promise the code is making. Only when there is a seat to promise —
-						    a group can fill between the code being shared and typed. */}
+						    a group can fill between the code being shared and typed. `formatRun`,
+						    since a Hizb seat can hold a single portion: "7", not "7–7". */}
+						{data.splitMode === 'FLEXIBLE' ? (
+							<CaptionText color={theme.colors.subtext}>{t('planFlexibleHint')}</CaptionText>
+						) : null}
 						{data.nextRange ? (
 							<AssignmentBanner
 								description={t('autoAssign')}
 								label={t('youllGet')}
-								range={`${data.nextRange.start}–${data.nextRange.end}`}
+								range={formatRun(data.nextRange)}
 								style={styles.assignment}
 							/>
 						) : null}

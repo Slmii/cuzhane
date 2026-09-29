@@ -1,3 +1,4 @@
+import hizbReadingRouter from './hizbReading.route';
 import { CREATED, OK } from '@config/httpCodes';
 import { ResponseLocals, ResponseLocalsWithBody, ResponseLocalsWithQuery } from '@interfaces/response.types';
 import { createGroupRateLimit, poolRateLimit } from '@middleware/rateLimit.middleware';
@@ -13,10 +14,12 @@ import {
 	PickRoundCuzBody,
 	PickRoundCuzBodySchema,
 	PoolCuzParamsSchema,
+	PoolPartParamsSchema,
 	PoolSlotParamsSchema,
 	UpdateGroupBody,
 	UpdateGroupBodySchema
 } from '@schemas/group.schema';
+import { filterGroupsForClient } from '@services/clientCompatibility.service';
 import {
 	createGroupForUser,
 	deleteGroupForUser,
@@ -30,7 +33,9 @@ import {
 import {
 	listPoolSlotsForUser,
 	markPoolReleasesSeenForUser,
+	releasePoolPartForUser,
 	releasePoolSlotForUser,
+	takePoolPartForUser,
 	takePoolSlotForUser
 } from '@services/pool.service';
 import { listPoolCuzForUser, releasePoolCuzForUser, takePoolCuzForUser } from '@services/cuzPool.service';
@@ -45,6 +50,7 @@ import { resolveDisplayName } from '@utils/displayName';
 import { NextFunction, Request, Response, Router } from 'express';
 
 const groupsRouter = Router();
+groupsRouter.use('/:groupId/reading', hizbReadingRouter);
 
 groupsRouter.get('/', async (_req: Request, res: Response<object, ResponseLocals>, next: NextFunction) => {
 	try {
@@ -53,7 +59,7 @@ groupsRouter.get('/', async (_req: Request, res: Response<object, ResponseLocals
 		} = res.locals;
 
 		const groups = await listGroupsForUser(userId);
-		res.status(OK).json(groups);
+		res.status(OK).json(filterGroupsForClient(res, groups));
 	} catch (error) {
 		next(error);
 	}
@@ -70,7 +76,9 @@ groupsRouter.get(
 			} = res.locals;
 
 			const groups = await discoverGroups(userId, validatedQuery);
-			res.status(OK).json(groups);
+			// Search asks this same endpoint, so one filter keeps a Hizb group out of both
+			// for a build that can't draw it — see `clientCompatibility.service.ts`.
+			res.status(OK).json(filterGroupsForClient(res, groups));
 		} catch (error) {
 			next(error);
 		}
@@ -221,6 +229,46 @@ groupsRouter.delete(
 			} = res.locals;
 
 			const result = await releasePoolSlotForUser(userId, groupId, slotIndex);
+			res.status(OK).json(result);
+		} catch (error) {
+			next(error);
+		}
+	}
+);
+
+/*
+ * One portion of a Hizb pool block, rather than the whole slot. Its own path segment, so a
+ * portion number is never read as a seat index — the two routes above take a seat.
+ */
+groupsRouter.post(
+	'/:groupId/pool/parts/:babNumber',
+	poolRateLimit,
+	async (req: Request, res: Response<object, ResponseLocals>, next: NextFunction) => {
+		try {
+			const { groupId, babNumber } = PoolPartParamsSchema.parse(req.params);
+			const {
+				auth: { userId }
+			} = res.locals;
+
+			const result = await takePoolPartForUser(userId, groupId, babNumber);
+			res.status(OK).json(result);
+		} catch (error) {
+			next(error);
+		}
+	}
+);
+
+groupsRouter.delete(
+	'/:groupId/pool/parts/:babNumber',
+	poolRateLimit,
+	async (req: Request, res: Response<object, ResponseLocals>, next: NextFunction) => {
+		try {
+			const { groupId, babNumber } = PoolPartParamsSchema.parse(req.params);
+			const {
+				auth: { userId }
+			} = res.locals;
+
+			const result = await releasePoolPartForUser(userId, groupId, babNumber);
 			res.status(OK).json(result);
 		} catch (error) {
 			next(error);

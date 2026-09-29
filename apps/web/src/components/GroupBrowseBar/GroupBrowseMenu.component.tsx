@@ -10,7 +10,7 @@ import {
 	isGroupBrowseMenuActive,
 	type GroupSortKey
 } from '@/lib/utils/groupBrowse';
-import { cycleLabelKey } from '@/lib/utils/groups';
+import { cycleLabelKey, kindLabelKey } from '@/lib/utils/groups';
 import { useGroupBrowse } from './GroupBrowse.context';
 
 /** The "all cadences" option has no cycle of its own, and a menu needs a value to tick. */
@@ -101,7 +101,7 @@ export const GroupBrowseMenu = () => {
 					options: KIND_FILTER_OPTIONS.map(option => ({
 						// Not `allGroups` — that is the cadence level's "Tüm açık gruplar", and
 						// borrowing it put the same row at the head of two different questions.
-						label: option ? t(option === 'HATIM' ? 'qHatim' : 'qCevsen') : t('filterAnyKind'),
+						label: option ? t(kindLabelKey(option)) : t('filterAnyKind'),
 						value: option ?? ANY_KIND
 					})),
 					value: browse.kind ?? ANY_KIND

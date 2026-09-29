@@ -11,10 +11,12 @@ import { Typography } from '@/components/ui/Typography/Typography.component';
 import { useGetGroups } from '@/lib/hooks/useGroup';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useTranslation } from '@/lib/i18n/I18n.context';
+import { pluralKey } from '@/lib/i18n/plural';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { applyGroupBrowse, emptyGroupBrowseState, isGroupBrowseNarrowed } from '@/lib/utils/groupBrowse';
 import {
 	cycleLabelKey,
+	partUnitKey,
 	planLabelKey,
 	shareSlices,
 	visibilityChipTone,
@@ -187,8 +189,29 @@ export const GroupsScreen = () => {
 							name={item.name}
 							onAction={() => goToGathering(item.id, item.isOwner)}
 							onPress={() => goToGathering(item.id, item.isOwner)}
-							percent={Math.round((gathered / unitCount) * 100)}
-							readCount={gathered}
+							/*
+							 * A seat group (Cevşen, Hizb) counts members out of seats, as its lobby does —
+							 * "4 / 12 katıldı"; it read "4 / 100 bab" once, a seat count set against the
+							 * hundred. A hatim counts cüz taken out of thirty: a member may hold several,
+							 * and its `spots` is only a ceiling on membership.
+							 */
+							progress={
+								item.kind === 'HATIM'
+									? {
+											kind: item.kind,
+											percent: Math.round((gathered / unitCount) * 100),
+											readCount: gathered,
+											total: unitCount,
+											unit: t(partUnitKey(item.kind))
+									  }
+									: {
+											kind: item.kind,
+											percent: Math.round((item.memberCount / item.spots) * 100),
+											readCount: item.memberCount,
+											total: item.spots,
+											unit: t('joinedCount')
+									  }
+							}
 							subtitle={t('notCounting')}
 						/>
 					</Animated.View>
@@ -199,7 +222,17 @@ export const GroupsScreen = () => {
 			const isCompleted = item.completedAt !== null;
 			// Called straight rather than through the hook: this renders per row, and a hook
 			// per card would change hook order as the list grows or shrinks.
-			const reset = roundResetLabels(item.roundEndsAt, item.cycle, item.roundDays, item.timezone, language, t);
+			const reset = roundResetLabels(
+				item.roundEndsAt,
+				item.cycle,
+				item.roundDays,
+				item.timezone,
+				language,
+				t,
+				item.kind,
+				item.startedAt
+			);
+			const isFlexible = item.splitMode === 'FLEXIBLE';
 
 			return (
 				<Animated.View layout={cardLayout}>
@@ -207,26 +240,39 @@ export const GroupsScreen = () => {
 						kind={item.kind}
 						actionLabel={isCompleted ? t('view') : t('continue')}
 						badgeIcon={visibilityIcon(item.visibility)}
-						badgeLabel={t(visibilityLabelKey(item.visibility))}
+						badgeLabel={item.hizbIndividual ? t('hpIndividual') : t(visibilityLabelKey(item.visibility))}
 						badgeTone={visibilityChipTone(item.visibility)}
-						// The round's cadence, not "Bugün": a weekly share's 3/3 is this week's.
-						footerCaption={`${t(cycleLabelKey(item.cycle))} · ${item.myReadCount}/${
-							item.myBabNumbers.length
-						}`}
+						// The round's cadence, not "Bugün": a weekly share's 3/3 is this week's. A Hizb plan
+						// says whether today's portion is done; a FLEXIBLE group has no share, so it counts people.
+						footerCaption={
+							item.hizbIndividual
+								? t(item.hizbToday?.completed ? 'hpComplete' : 'hpPending')
+								: isFlexible
+								? t('flexibleMembers', { count: item.memberCount })
+								: `${t(cycleLabelKey(item.cycle))} · ${item.myReadCount}/${item.myBabNumbers.length}`
+						}
 						/*
 						 * **A hatim has no reading plan to name.** `splitMode` decides which block a
 						 * seat rotates onto, and a hatim has neither — it stores `FIXED` because the
 						 * column cannot be empty, so the Cevşen label would read "Sabit · 7, 22" and
 						 * describe nothing. The design's own footer names the holding instead:
-						 * "Cüzlerin · 7, 22".
+						 * "Cüzlerin · 7, 22". A FLEXIBLE group (Cevşen or Hizb) names its plan.
 						 *
 						 * **One slice plus a count**, never the list: "Cüzlerin · 7" with a +1 chip, and
 						 * a Cevşen share with pool blocks on top as its current block plus a chip.
 						 */
-						footerLabel={`${item.kind === 'HATIM' ? t('qMyCuz') : t(planLabelKey(item.splitMode))} · ${
-							share.current
-						}`}
-						footerMoreCount={share.moreCount}
+						footerLabel={
+							isFlexible
+								? item.hizbPlan != null
+									? item.hizbPlan
+										? t('hpDays', { days: item.hizbPlan })
+										: t('hpMixed')
+									: t('planFlexible')
+								: `${item.kind === 'HATIM' ? t('qMyCuz') : t(planLabelKey(item.splitMode))} · ${
+										share.current
+								  }`
+						}
+						footerMoreCount={isFlexible ? 0 : share.moreCount}
 						// Filled even when the round is finished: the hatim itself is ongoing, so a
 						// de-emphasised button would read as "this group is done". Only the label
 						// softens — there is nothing left to continue today.
@@ -234,8 +280,14 @@ export const GroupsScreen = () => {
 						name={item.name}
 						onAction={() => goToGroup(item.id)}
 						onPress={() => goToGroup(item.id)}
-						percent={item.percent}
-						readCount={item.readCount}
+						progress={{
+							kind: item.kind,
+							percent: item.percent,
+							readCount: item.readCount,
+							total: item.partCount,
+							// A private plan counts today's one reading: "1 / 1 bölüm", never "1 / 1 portions".
+							unit: t(item.partCount === 1 ? 'portionsOne' : partUnitKey(item.kind))
+						}}
 						{...(reset
 							? { resetRow: <RoundResetRow groupLabel={reset.group} localLabel={reset.local} /> }
 							: {})}
@@ -244,7 +296,7 @@ export const GroupsScreen = () => {
 						subtitle={
 							item.dedication
 								? t('forName', { dedication: item.dedication })
-								: t('groupCycleLine', {
+								: t(pluralKey(language, item.memberCount, 'groupCycleLineOne', 'groupCycleLine'), {
 										cycle: t(cycleLabelKey(item.cycle)),
 										count: item.memberCount
 								  })

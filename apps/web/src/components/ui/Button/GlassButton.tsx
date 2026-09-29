@@ -82,10 +82,21 @@ const GLYPH_BY_ICON: Partial<Record<IconName, GlyphSource>> = {
 	// heavier than the tick.
 	delete: { assetName: 'sil-delete' },
 	leave: { assetName: 'ayril-leave' },
+	/*
+	 * Ours, already converted for Gruplarım's "+" menu, rather than Apple's `plus`: the Sekine
+	 * counter sets it beside `undo`, and a stock glyph drawn to the full box would come out heavier
+	 * than the converted one next to it — the `trash`-beside-`check` lesson above.
+	 */
+	plus: { assetName: 'yeni-new' },
+	// The repetition box's other two beside "+ Bir tekrar", so the row crosses to glass together.
+	minus: { systemName: 'minus' },
+	reset: { systemName: 'arrow.counterclockwise' },
 	// Q4's "Uygulamada oku" — converted so the button takes the same capsule as Okudum.
 	readInApp: { assetName: 'uygulamada-oku-read-in-app' },
 	// Beside it on Q4 — the frame's hand-over card, converted the same way.
 	handOver: { assetName: 'devret-hand-over' },
+	// The Hizb day card's "Kitaptan okudum", beside "Uygulamada oku" — converted from `ui/Icon`'s own paths.
+	bookPages: { assetName: 'kitaptan-oku-read-from-book' },
 	search: { assetName: 'ara-search' },
 	/*
 	 * **Converted because its own other half already was.** The pool's one button says
@@ -319,6 +330,7 @@ export const GlassButton = ({
 		outline: { style: 'glass', tintColor: undefined },
 		danger: { style: 'glass', tintColor: theme.colors.danger },
 		surface: { style: 'glass', tintColor: undefined },
+		tonal: { style: 'glass', tintColor: undefined },
 		ghost: { style: 'glass', tintColor: undefined }
 	}[variant] as { style: 'glass' | 'glassProminent'; tintColor: string | undefined };
 

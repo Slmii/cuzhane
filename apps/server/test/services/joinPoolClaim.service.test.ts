@@ -1,13 +1,24 @@
 import prisma from '@db/prisma';
 import { joinGroupForUser } from '@services/groupMembership.service';
 import { markPoolReleasesSeenForUser } from '@services/pool.service';
-import { babNumbersForRound } from '@utils/babs';
-import { DEFAULT_TIME_ZONE, ROUND_DAYS, roundEndsAt, roundStartedAtFor } from '@utils/rounds';
+import { sendPushToUser } from '@services/push.service';
+import { BAB_COUNT, babNumbersForRound } from '@utils/babs';
+import { DEFAULT_TIME_ZONE, roundEndsAt, roundStartedAtFor } from '@utils/rounds';
 import { civilDayNumber, startOfCivilDay } from '@utils/rounds';
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { assertIsTestDatabase, testDatabaseUrl } from '../support/testDatabase';
 
 assertIsTestDatabase(testDatabaseUrl());
+
+/*
+ * The push is asserted on rather than delivered: nobody here has a token, so the real sender
+ * would return before composing anything worth checking. The copy it is handed is the point.
+ */
+vi.mock('@services/push.service', async () => {
+	const actual = await vi.importActual<typeof import('@services/push.service')>('@services/push.service');
+
+	return { ...actual, sendPushToUser: vi.fn(async () => 0) };
+});
 
 const OWNER = 'test_owner';
 /** The member who volunteered for an empty seat's block out of the pool. */
@@ -31,12 +42,12 @@ const daysAgo = (days: number): Date => {
 	return new Date(startOfCivilDay(today - days, DEFAULT_TIME_ZONE).getTime() + 12 * 60 * 60 * 1000);
 };
 
-const blockFor = (slotIndex: number) => babNumbersForRound(slotIndex, SPOTS, ROUND_INDEX);
+const blockFor = (slotIndex: number) => babNumbersForRound(slotIndex, SPOTS, ROUND_INDEX, BAB_COUNT);
 
 /** A running group with three members, three empty seats, and two claimed pool blocks. */
 const createGroup = async ({ readBabs = [] }: { readBabs?: number[] } = {}) => {
 	const startedAt = daysAgo(ROUND_INDEX);
-	const roundStartedAt = roundStartedAtFor(startedAt, ROUND_DAYS.DAILY, ROUND_INDEX, DEFAULT_TIME_ZONE);
+	const roundStartedAt = roundStartedAtFor(startedAt, 1, ROUND_INDEX, DEFAULT_TIME_ZONE);
 	const claimed = new Set([...blockFor(JOINED_SLOT), ...blockFor(UNTOUCHED_SLOT)]);
 
 	const group = await prisma.group.create({
@@ -56,7 +67,7 @@ const createGroup = async ({ readBabs = [] }: { readBabs?: number[] } = {}) => {
 			startedAt,
 			roundIndex: ROUND_INDEX,
 			roundStartedAt,
-			endsAt: roundEndsAt(roundStartedAt, 1, DEFAULT_TIME_ZONE),
+			endsAt: roundEndsAt(startedAt, 1, ROUND_INDEX, DEFAULT_TIME_ZONE),
 			members: {
 				create: [
 					{ userId: OWNER, displayName: 'Owner', role: 'OWNER', slotIndex: 0 },
@@ -204,5 +215,104 @@ describe('joining a seat somebody had covered from the pool', () => {
 
 		expect(stillRead.every(bab => bab.readByUserId === VOLUNTEER)).toBe(true);
 		expect(await prisma.babRead.count({ where: { groupId: group.id, userId: VOLUNTEER } })).toBe(covered.length);
+	});
+});
+
+describe('joining a Hizb seat whose pool block is a single portion', () => {
+	/**
+	 * Twenty seats over 33 portions: the first thirteen blocks hold two, the last seven one.
+	 * Seats 0-2 are taken, so the joiner lands in seat 3 — and at round 10 the rotation has
+	 * seat 3 reading block 13, portion 27 alone.
+	 */
+	const HIZB_SPOTS = 20;
+	const HIZB_ROUND = 10;
+	const HIZB_PARTS = 33;
+	const hizbBlockFor = (slotIndex: number) => babNumbersForRound(slotIndex, HIZB_SPOTS, HIZB_ROUND, HIZB_PARTS);
+
+	const createHizbGroup = async () => {
+		const startedAt = daysAgo(HIZB_ROUND);
+		const claimed = new Set(hizbBlockFor(JOINED_SLOT));
+
+		const group = await prisma.group.create({
+			data: {
+				ownerUserId: OWNER,
+				name: 'Hizb Halkası',
+				inviteCode: `Z${Math.floor(performance.now() * 1000)
+					.toString(36)
+					.toUpperCase()
+					.slice(-7)}`,
+				kind: 'HIZB',
+				spots: HIZB_SPOTS,
+				cycle: 'DAILY',
+				timezone: DEFAULT_TIME_ZONE,
+				splitMode: 'ROTATION',
+				status: 'RUNNING',
+				startedAt,
+				roundIndex: HIZB_ROUND,
+				roundStartedAt: roundStartedAtFor(startedAt, 1, HIZB_ROUND, DEFAULT_TIME_ZONE),
+				endsAt: roundEndsAt(startedAt, 1, HIZB_ROUND, DEFAULT_TIME_ZONE),
+				members: {
+					create: [
+						{ userId: OWNER, displayName: 'Owner', role: 'OWNER', slotIndex: 0 },
+						{ userId: VOLUNTEER, displayName: 'Volunteer', role: 'MEMBER', slotIndex: 1 },
+						{ userId: 'test_third', displayName: 'Third', role: 'MEMBER', slotIndex: 2 }
+					]
+				}
+			}
+		});
+
+		await prisma.groupBab.createMany({
+			data: Array.from({ length: HIZB_PARTS }, (_, index) => ({
+				groupId: group.id,
+				number: index + 1,
+				assignedUserId: claimed.has(index + 1) ? VOLUNTEER : null
+			}))
+		});
+
+		return group;
+	};
+
+	it('is the case under test: seat 3’s block this round is one portion', () => {
+		expect(hizbBlockFor(JOINED_SLOT)).toEqual([27]);
+	});
+
+	it('records the release as that one portion', async () => {
+		const group = await createHizbGroup();
+
+		await joinGroupForUser(JOINER, 'Joiner', group.id);
+
+		const release = await prisma.poolClaimRelease.findFirstOrThrow({ where: { groupId: group.id } });
+
+		expect(release.userId).toBe(VOLUNTEER);
+		expect(release.startBab).toBe(27);
+		expect(release.endBab).toBe(27);
+	});
+
+	it('files the inbox row for the volunteer', async () => {
+		const group = await createHizbGroup();
+
+		await joinGroupForUser(JOINER, 'Joiner', group.id);
+
+		const rows = await prisma.notification.findMany({
+			where: { groupId: group.id, userId: VOLUNTEER, kind: 'POOL_CLAIM_RELEASED' }
+		});
+
+		expect(rows).toHaveLength(1);
+		expect(rows[0]?.payload).toEqual({ startBab: 27, endBab: 27 });
+	});
+
+	it('names the portion in the singular, as a bare number', async () => {
+		const group = await createHizbGroup();
+
+		await joinGroupForUser(JOINER, 'Joiner', group.id);
+
+		// No settings row, so the copy is the default English. "Portions 27–27" is the bug.
+		expect(sendPushToUser).toHaveBeenCalledWith(
+			VOLUNTEER,
+			expect.objectContaining({
+				title: 'The portion you took was passed on',
+				body: "Portion 27 became a new member's share. Anything you already read still counts for you."
+			})
+		);
 	});
 });

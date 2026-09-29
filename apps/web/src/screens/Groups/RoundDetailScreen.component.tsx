@@ -1,3 +1,4 @@
+import { LateReadingNotice } from '@/components/LateReadingNotice/LateReadingNotice.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
 import { Avatar } from '@/components/ui/Avatar/Avatar.component';
@@ -18,6 +19,7 @@ import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { AppTheme } from '@/lib/theme/tokens';
 import { formatBabRange } from '@/lib/utils/babs';
+import { visibleMemberIdentity } from '@/lib/utils/groupPrivacy';
 import { staggerWithinRuns } from '@/lib/utils/groups';
 import { unitCountFor } from '@/lib/utils/units';
 import { roundCellStates, roundRows, type RoundCellState, type RoundRow } from '@/lib/utils/rounds';
@@ -25,6 +27,7 @@ import type { TabStackParamList } from '@/navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { HIZB_ROUND_COLUMNS, HizbRoundDetail } from './HizbRoundDetail.component';
 import { RoundDetailSkeleton } from './RoundDetailSkeleton.component';
 
 type Props = NativeStackScreenProps<TabStackParamList, 'RoundDetail'>;
@@ -95,8 +98,8 @@ const appearanceFor = (state: RoundCellState, theme: AppTheme) => {
  * pick up. That's why the clay is softer than the app's danger red and why every
  * outstanding row carries an action rather than just a count.
  */
-// No `navigation`: going back is the navigator's own header button now.
-export const RoundDetailScreen = ({ route }: Props) => {
+// `navigation` only for the Hizb's Sekine, which opens the reader; going back is the navigator's own header button.
+export const RoundDetailScreen = ({ navigation, route }: Props) => {
 	const { groupId, roundIndex } = route.params;
 	const { theme } = useThemeContext();
 	const { t } = useTranslation();
@@ -116,10 +119,13 @@ export const RoundDetailScreen = ({ route }: Props) => {
 	 * rebuilt all hundred inline whenever anything on it rendered — covering a single bab
 	 * re-evaluated every animated style on the board.
 	 */
+	const isHizb = groupQuery.data?.kind === 'HIZB';
+	const skeletonKind = groupQuery.data?.kind ?? cachedKind ?? 'CEVSEN';
 	const cells = useMemo<CellGridItem[]>(() => {
 		const round = roundQuery.data;
 
-		if (!round) {
+		// A Hizb round draws its own lattice (`HizbRoundDetail`).
+		if (!round || isHizb) {
 			return NO_ITEMS;
 		}
 
@@ -138,7 +144,7 @@ export const RoundDetailScreen = ({ route }: Props) => {
 				isHatched: state === 'pool'
 			};
 		});
-	}, [roundQuery.data, theme, viewerUserId]);
+	}, [isHizb, roundQuery.data, theme, viewerUserId]);
 
 	if (groupQuery.isPending || roundQuery.isPending) {
 		return (
@@ -150,7 +156,12 @@ export const RoundDetailScreen = ({ route }: Props) => {
 				 * cells feel like the screen arriving twice.
 				 */}
 				<ScreenHeader eyebrow={`${t('roundN')} ${roundIndex + 1}`} hasBackButton title={t('missedTitle')} />
-				<RoundDetailSkeleton cellCount={unitCountFor(groupQuery.data?.kind ?? cachedKind ?? 'CEVSEN')} />
+				{/* The group's own count once it is cached — it usually is, this screen being
+				    reached from the group's — and the Cevşen's hundred until then. */}
+				<RoundDetailSkeleton
+					cellCount={unitCountFor(skeletonKind)}
+					{...(skeletonKind === 'HIZB' ? { columns: HIZB_ROUND_COLUMNS } : {})}
+				/>
 			</ScreenContainer>
 		);
 	}
@@ -160,9 +171,32 @@ export const RoundDetailScreen = ({ route }: Props) => {
 	}
 
 	const round = roundQuery.data;
-	const members = membersQuery.data ?? [];
-	const rows = roundRows(round, members, viewerUserId);
-	// "5. bab" or "5. cüz" — a hatim's missed units are cüz.
+	const privateNames = groupQuery.data.hideMemberNames && !groupQuery.data.isOwner;
+	const members = (membersQuery.data ?? []).map(member =>
+		visibleMemberIdentity(member, groupQuery.data, viewerUserId, t('anonymousMember'))
+	);
+
+	if (isHizb) {
+		return (
+			<HizbRoundDetail
+				group={groupQuery.data}
+				members={members}
+				onOpenReader={partNumber =>
+					navigation.navigate('HizbReader', { groupId, partNumber, roundIndex: round.roundIndex })
+				}
+				pullToRefresh={pullToRefresh}
+				round={round}
+				viewerUserId={viewerUserId}
+			/>
+		);
+	}
+
+	const rows = roundRows(round, members, viewerUserId).map(row =>
+		!row.isPool && !row.isViewer && (privateNames || row.key.startsWith('anonymous:'))
+			? { ...row, name: t('anonymousMember'), imageUrl: null }
+			: row
+	);
+	// "5. bab" or "5. cüz" — a hatim's missed units are cüz. A Hizb round returned above.
 	const isHatim = groupQuery.data.kind === 'HATIM';
 	const unitWord = t(isHatim ? 'cuz' : 'bab');
 
@@ -176,7 +210,7 @@ export const RoundDetailScreen = ({ route }: Props) => {
 			? t('fromMember')
 			: row.covered?.isViewer
 			? t('transferred')
-			: `${row.covered?.byName} ${t('tookOver')}`;
+			: `${privateNames ? t('anonymousMember') : row.covered?.byName} ${t('tookOver')}`;
 
 	/** The row's second line. Which shape it takes is decided in `roundRows` and tested there. */
 	const detailLine = (row: RoundRow) => {
@@ -282,6 +316,8 @@ export const RoundDetailScreen = ({ route }: Props) => {
 					))}
 				</View>
 			</CardSurface>
+
+			{round.missedCount > 0 ? <LateReadingNotice daysLate={round.daysLate} /> : null}
 
 			<StatText color={theme.colors.faintText} style={styles.rowsHeading}>
 				{t('missedTitle')}

@@ -1,6 +1,6 @@
 import { useGetUserSettings, useUpdateUserSettings } from '@/lib/hooks/useUserSettings';
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
-import { TOUR_STEPS, type TourTargetId } from './tourSteps';
+import { nextLegStart, stepsFor, TOUR_STEPS, type TourChoice, type TourStep, type TourTargetId } from './tourSteps';
 
 /**
  * A measured element, in window coordinates — what the spotlight cuts out of the scrim.
@@ -13,12 +13,8 @@ import { TOUR_STEPS, type TourTargetId } from './tourSteps';
 export type TourRect = { x: number; y: number; width: number; height: number; radius?: number };
 
 /**
- * The group the tour walks through, and the bab it opens in the reader.
- *
- * Six of the ten stops are on a group's own screens, so the tour needs one to point at. Ana
- * sayfa nominates it — the topmost row, the same group whose Read button is stop 3 — and a
- * reader who belongs to no group leaves this null, which is what keeps stops 4 to 10 on their
- * centred cards instead of navigating into a group that does not exist.
+ * The group the Cevşen part walks through, and the bab it opens in the reader. Ana sayfa nominates
+ * it — the topmost row — and while the tour runs that row is a demo group.
  */
 export type TourSubject = { groupId: string; babNumber: number };
 
@@ -26,92 +22,104 @@ type TourContextValue = {
 	isActive: boolean;
 	/** True while something else owns the screen — today, the animated splash. */
 	isBlocked: boolean;
-	/** `-1` is the welcome card, `TOUR_STEPS.length` is the closing card. */
+	/**
+	 * Whether the tour's screens answer with `tourDemoData`: the whole run but its closing card,
+	 * which sits over the reader's own Ana sayfa ("Örnek gruplar kalktı").
+	 */
+	isDemo: boolean;
+	/**
+	 * Ends the demo. `useTourNavigation` calls it once it has taken the reader back to Ana sayfa
+	 * — at the closing card, or when the tour ends — never before.
+	 */
+	releaseDemo: () => void;
+	/** The stops this run walks — the whole tour, or one kind's part (TP). */
+	run: readonly TourStep[];
+	/** Index into `run`. */
 	stepIndex: number;
+	/** "Turu bitirelim mi?" (TX) is open over the current stop. */
+	isConfirmingEnd: boolean;
 	rects: Partial<Record<TourTargetId, TourRect>>;
 	subject: TourSubject | null;
 	setSubject: (subject: TourSubject | null) => void;
-	/**
-	 * Opens the tour. `isReplay` drops **both bookend cards** — for the row on Profil, where
-	 * neither is doing anything for the reader who tapped it.
-	 *
-	 * The welcome card asks whether they want the tour, which is the decision they just made,
-	 * and would present over Profil — a screen it does not describe. The closing card offers
-	 * "Grup kur" and then says the tour lives in Profil › Uygulama turu, which is the row they
-	 * came from. A replay runs stop 1 to stop 15 and ends.
-	 */
-	start: (options?: { isReplay?: boolean }) => void;
+	/** Opens the tour on the whole run, or — from Profil — on one kind's part alone. */
+	start: (choice?: TourChoice) => void;
 	next: () => void;
-	/**
-	 * One stop back. **Never past stop 1** — the welcome card is a decision already made, and
-	 * returning to it would ask again; on a replay it is not in the run at all.
-	 */
+	/** One stop back, never before the run's first. */
 	back: () => void;
-	/** Ends the tour and records that it has been seen — used by both Skip and Finish. */
+	/** "Bu bölümü geç": the next part's first stop, or the end of a run that has no more. */
+	skipPart: () => void;
+	/** "Turu geç" and T1's "Şimdi değil": asks first (TX). */
+	askToEnd: () => void;
+	/** TX's "Tura devam et": back to the stop it was asked from. */
+	keepGoing: () => void;
+	/** Ends the tour and records that it has been seen. */
 	finish: () => void;
 	registerTarget: (id: TourTargetId, rect: TourRect | null) => void;
 };
 
 const TourContext = createContext<TourContextValue | null>(null);
 
-export const WELCOME_STEP = -1;
-
 /**
  * Holds the tour's position and the rectangles it can point at.
  *
  * **The measurements live here rather than in the overlay** because the things being pointed at
  * are inside the navigator and the overlay is outside it. A registry in the middle lets a screen
- * say "this is the streak card" without knowing a tour exists, lets the overlay draw a hole
- * without reaching into a screen, and is what makes ten stops across four screens possible at
- * all: each screen registers whatever it owns as it is focused.
+ * say "this is today's reading" without knowing a tour exists, lets the overlay draw a hole
+ * without reaching into a screen, and is what makes stops across seven screens possible at all:
+ * each screen registers whatever it owns as it is focused.
  *
  * **Nothing may open while the splash is up.** `AnimatedSplash` is a React view inside the
- * navigator, and the welcome card is an OS bottom sheet presented above everything — asking
- * UIKit to present one against a screen that is itself mid-transition raced, and lost: the
- * sheet never appeared, while the tour sat `isActive` with nothing on screen and no way out.
- * `isBlocked` is `AppContainer` saying "not yet".
+ * navigator, and TX is an OS bottom sheet presented above everything — asking UIKit to present
+ * one against a screen that is itself mid-transition raced, and lost. `isBlocked` is
+ * `AppContainer` saying "not yet".
  *
- * A rect the tour never receives is not an error: `registerTarget(id, null)` on unmount is how
- * Ana sayfa says the streak card is gone, which is exactly what a reader with no groups sees.
- * The overlay centres that step instead of cutting out a stale rectangle.
+ * A rect the tour never receives is not an error: `registerTarget(id, null)` on unmount is how a
+ * screen says the element is gone. The overlay waits for it rather than cutting out a stale one.
  */
 export const TourProvider = ({ children, isBlocked = false }: { children: ReactNode; isBlocked?: boolean }) => {
 	const [isActive, setIsActive] = useState(false);
-	const [stepIndex, setStepIndex] = useState(WELCOME_STEP);
+	const [run, setRun] = useState<readonly TourStep[]>(TOUR_STEPS);
+	const [stepIndex, setStepIndex] = useState(0);
+	const [isConfirmingEnd, setIsConfirmingEnd] = useState(false);
+	/*
+	 * **Its own flag, not `isActive` and the step read together.** Derived, it flipped on the very
+	 * render that showed the closing card or ended the tour — while the Hizb reader or a group screen
+	 * was still mounted on a stand-in id, so their queries went to the server as
+	 * `tour-demo-hizb/…` for the frame before the navigation effect popped them. Released by the
+	 * navigation, in the same effect that pops them, the flip and the unmount are one render.
+	 */
+	const [isDemo, setIsDemo] = useState(false);
 	const [rects, setRects] = useState<Partial<Record<TourTargetId, TourRect>>>({});
 	const [subject, setSubjectState] = useState<TourSubject | null>(null);
 	/*
 	 * `mutate` rather than the mutation object: `useMutation` returns a new object on every
 	 * render, so depending on it made `finish` — and therefore the memoised context value —
-	 * change on every render of this provider. Every `TourTarget` and every consumer of the five
+	 * change on every render of this provider. Every `TourTarget` and every consumer of the
 	 * demo-aware query hooks re-rendered with it, for a value that had not moved.
 	 */
 	const { mutate: updateUserSettings } = useUpdateUserSettings();
 
 	/*
-	 * Writing `hasSeenTour` is guarded per session, not by the query: `finish` is reachable
-	 * from Skip, Finish and the backdrop, and the settings mutation is optimistic — firing it
-	 * three times would queue three round trips for one fact.
+	 * Writing `hasSeenTour` is guarded per session, not by the query: `finish` is reachable from
+	 * TX, the closing card and the last stop of a part, and the settings mutation is optimistic —
+	 * firing it more than once would queue round trips for one fact.
 	 */
 	const hasRecorded = useRef(false);
 
-	/** Whether this run is a replay from Profil — see `start`. Held for `next`'s last step. */
-	const isReplay = useRef(false);
-
-	const start = useCallback<TourContextValue['start']>(options => {
+	const start = useCallback<TourContextValue['start']>((choice = 'all') => {
 		hasRecorded.current = false;
-		isReplay.current = options?.isReplay === true;
-		/*
-		 * Stop 1 is on Ana sayfa either way, so `useTourNavigation` unwinds there on this same
-		 * commit — skipping the card changes which screen the reader is looking at when it does,
-		 * not whether it happens.
-		 */
-		setStepIndex(options?.isReplay ? 0 : WELCOME_STEP);
+		setRun(stepsFor(choice));
+		setStepIndex(0);
+		setIsConfirmingEnd(false);
+		setIsDemo(true);
 		setIsActive(true);
 	}, []);
 
+	const releaseDemo = useCallback(() => setIsDemo(false), []);
+
 	const finish = useCallback(() => {
 		setIsActive(false);
+		setIsConfirmingEnd(false);
 
 		if (hasRecorded.current) {
 			return;
@@ -121,29 +129,25 @@ export const TourProvider = ({ children, isBlocked = false }: { children: ReactN
 		updateUserSettings({ hasSeenTour: true });
 	}, [updateUserSettings]);
 
-	/*
-	 * Devam on the last stop ends a replay outright rather than landing on the closing card.
-	 * `finish` also unwinds to Ana sayfa through `useTourNavigation`'s inactive branch, so a
-	 * replay that ended on Profil's own stops leaves the reader where the tour began.
-	 */
-	const next = useCallback(() => {
-		if (isReplay.current && stepIndex + 1 >= TOUR_STEPS.length) {
-			finish();
+	// Past the run's last stop is its end: the closing card's "Tamam", or the last stop of a part.
+	const goTo = useCallback(
+		(index: number) => {
+			if (index >= run.length) {
+				finish();
 
-			return;
-		}
+				return;
+			}
 
-		setStepIndex(current => current + 1);
-	}, [finish, stepIndex]);
+			setStepIndex(index);
+		},
+		[finish, run.length]
+	);
 
-	/*
-	 * The floor is stop 0, not `WELCOME_STEP`: the card behind that one asks whether they want
-	 * the tour, and they have answered. `TourStepCard` hides the control there rather than
-	 * drawing a dead one.
-	 */
-	const back = useCallback(() => {
-		setStepIndex(current => Math.max(0, current - 1));
-	}, []);
+	const next = useCallback(() => goTo(stepIndex + 1), [goTo, stepIndex]);
+	const skipPart = useCallback(() => goTo(nextLegStart(run, stepIndex)), [goTo, run, stepIndex]);
+	const back = useCallback(() => setStepIndex(current => Math.max(0, current - 1)), []);
+	const askToEnd = useCallback(() => setIsConfirmingEnd(true), []);
+	const keepGoing = useCallback(() => setIsConfirmingEnd(false), []);
 
 	/*
 	 * Ana sayfa re-nominates on every render it has groups on, so this short-circuits on an
@@ -194,19 +198,45 @@ export const TourProvider = ({ children, isBlocked = false }: { children: ReactN
 
 	const value = useMemo<TourContextValue>(
 		() => ({
+			askToEnd,
 			back,
 			finish,
 			isActive,
 			isBlocked,
+			isConfirmingEnd,
+			isDemo,
+			keepGoing,
 			next,
 			rects,
 			registerTarget,
+			releaseDemo,
+			run,
 			setSubject,
+			skipPart,
 			start,
 			stepIndex,
 			subject
 		}),
-		[back, finish, isActive, isBlocked, next, rects, registerTarget, setSubject, start, stepIndex, subject]
+		[
+			askToEnd,
+			back,
+			finish,
+			isActive,
+			isBlocked,
+			isConfirmingEnd,
+			isDemo,
+			keepGoing,
+			next,
+			rects,
+			registerTarget,
+			releaseDemo,
+			run,
+			setSubject,
+			skipPart,
+			start,
+			stepIndex,
+			subject
+		]
 	);
 
 	return <TourContext.Provider value={value}>{children}</TourContext.Provider>;
@@ -242,7 +272,7 @@ export const useShouldAutoStartTour = () => {
 
 /**
  * Whether the queries behind the tour's screens should answer with `tourDemoData` rather than
- * the network — which is **whenever the tour is running, for everybody**.
+ * the network — **whenever the tour is running, for everybody**, up to its closing card.
  *
  * It was conditional at first, on the account having no group of its own, so that a reader with
  * real groups would walk their own. That made the walkthrough two different things: the copy has
@@ -253,4 +283,4 @@ export const useShouldAutoStartTour = () => {
  * It depends on nothing the demo data itself provides, which is what keeps it honest: a flag
  * derived from the shelf would see the stand-in shelf it had just installed and flip back.
  */
-export const useIsTourDemo = () => useTour().isActive;
+export const useIsTourDemo = () => useTour().isDemo;

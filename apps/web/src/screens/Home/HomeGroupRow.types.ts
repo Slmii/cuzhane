@@ -14,6 +14,8 @@ export interface HomeGroupRowProps {
 	fraction?: number;
 	/** "Devam" once begun, "Oku" before. */
 	actionLabel: string;
-	/** The row and its button both open the reading — the design links the whole row. */
+	/** The button: straight into the reading (or the pick, for a row with nothing to read yet). */
 	onPress: () => void;
+	/** The row itself: the group's own screen. */
+	onOpenGroup: () => void;
 }

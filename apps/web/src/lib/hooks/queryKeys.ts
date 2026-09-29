@@ -14,6 +14,16 @@ export const groupQueryKeys = {
 	rounds: (groupId: string) => [...groupQueryKeys.root(), 'rounds', groupId] as const,
 	round: (groupId: string, roundIndex: number) => [...groupQueryKeys.root(), 'rounds', groupId, roundIndex] as const,
 	myProgress: (groupId: string) => [...groupQueryKeys.root(), 'my-progress', groupId] as const,
+	/** Every repetition count cached for a group — the prefix `partRepetitions` extends. */
+	repetitions: (groupId: string) => [...groupQueryKeys.root(), 'repetitions', groupId] as const,
+	/**
+	 * The viewer's count on one repeated part in one round. **Keyed by the round's number, always**
+	 * — never by "the current one": a count is the round's own, so a key meaning "whatever round
+	 * is open" would carry last round's nineteen into a round that has none, and would give the
+	 * open round a second identity beside its number.
+	 */
+	partRepetitions: (groupId: string, babNumber: number, roundIndex: number) =>
+		[...groupQueryKeys.repetitions(groupId), babNumber, roundIndex] as const,
 	// No `previewByCode`: looking a code up is a mutation, not a cached query — nothing
 	// should re-run it on its own, and there is nothing to invalidate.
 	previewByGroup: (groupId: string) => [...groupQueryKeys.root(), 'preview-group', groupId] as const
@@ -29,15 +39,17 @@ export const groupQueryKeys = {
  * re-asking before it will admit the 404.
  *
  * `rounds` covers `round(groupId, n)` too — it is a prefix of it, and React Query matches
- * keys by prefix.
+ * keys by prefix — and `repetitions` covers every `partRepetitions` the same way.
  */
 export const groupOwnedQueryKeys = (groupId: string) => [
+	['groups', 'hizb-reading', groupId] as const,
 	groupQueryKeys.groupById(groupId),
 	groupQueryKeys.babs(groupId),
 	groupQueryKeys.pool(groupId),
 	groupQueryKeys.members(groupId),
 	groupQueryKeys.rounds(groupId),
 	groupQueryKeys.myProgress(groupId),
+	groupQueryKeys.repetitions(groupId),
 	groupQueryKeys.previewByGroup(groupId)
 ];
 
@@ -78,9 +90,13 @@ export const tourDemoQueryKeys = {
 	groups: () => [...tourDemoQueryKeys.root(), 'list'] as const,
 	groupById: (groupId: string) => [...tourDemoQueryKeys.root(), 'detail', groupId] as const,
 	babs: (groupId: string) => [...tourDemoQueryKeys.root(), 'babs', groupId] as const,
+	pool: (groupId: string) => [...tourDemoQueryKeys.root(), 'pool', groupId] as const,
 	rounds: (groupId: string) => [...tourDemoQueryKeys.root(), 'rounds', groupId] as const,
 	myProgress: (groupId: string) => [...tourDemoQueryKeys.root(), 'my-progress', groupId] as const,
 	stats: () => [...tourDemoQueryKeys.root(), 'stats'] as const,
 	notifications: () => [...tourDemoQueryKeys.root(), 'notifications'] as const,
-	unreadCount: () => [...tourDemoQueryKeys.root(), 'unreadCount'] as const
+	unreadCount: () => [...tourDemoQueryKeys.root(), 'unreadCount'] as const,
+	preview: (groupId: string) => [...tourDemoQueryKeys.root(), 'preview', groupId] as const,
+	hizbReading: (groupId: string) => [...tourDemoQueryKeys.root(), 'hizb-reading', groupId] as const,
+	hizbAssignment: (id: string) => [...tourDemoQueryKeys.root(), 'hizb-assignment', id] as const
 };

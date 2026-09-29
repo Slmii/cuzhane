@@ -42,7 +42,7 @@ const createHatim = async ({
 			boundaryPolicy,
 			cycle,
 			distribution: 'FREE_PICK',
-			endsAt: roundEndsAt(startedAt, roundDays, DEFAULT_TIME_ZONE),
+			endsAt: roundEndsAt(startedAt, roundDays, 0, DEFAULT_TIME_ZONE),
 			inviteCode: `Q${Math.floor(performance.now() * 1000)
 				.toString(36)
 				.toUpperCase()
@@ -108,7 +108,12 @@ describe('a hatim rolls on its own length', () => {
 
 		expect(rolled.roundIndex).toBe(expected);
 		// The boundary is recomputed from the round it actually landed on, not from the start.
-		expect(rolled.endsAt).toEqual(roundEndsAt(rolled.roundStartedAt ?? new Date(), roundDays, DEFAULT_TIME_ZONE));
+		expect(rolled.endsAt).toEqual(
+			startOfCivilDay(
+				civilDayNumber(rolled.roundStartedAt ?? new Date(), DEFAULT_TIME_ZONE) + roundDays,
+				DEFAULT_TIME_ZONE
+			)
+		);
 	});
 
 	it('never rolls a one-off, however long it has been running', async () => {

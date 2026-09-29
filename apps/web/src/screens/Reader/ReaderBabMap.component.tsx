@@ -1,7 +1,7 @@
 import { Typography } from '@/components/ui/Typography/Typography.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import { BAB_COUNT, slotIndexForBab } from '@/lib/utils/babs';
+import { slotIndexForBab } from '@/lib/utils/babs';
 import { memo, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion } from 'react-native-reanimated';
@@ -77,12 +77,14 @@ Tick.displayName = 'Tick';
 const Ticks = memo(
 	({
 		colors,
+		count,
 		isReducedMotion,
 		myBabNumbers,
 		poolBabNumbers,
 		readBabNumbers
 	}: {
 		colors: { accent: string; accentMid: string; other: string; pool: string };
+		count: number;
 		isReducedMotion: boolean;
 		myBabNumbers: number[];
 		poolBabNumbers: number[];
@@ -93,7 +95,7 @@ const Ticks = memo(
 			const mine = new Set(myBabNumbers);
 			const pool = new Set(poolBabNumbers);
 
-			return Array.from({ length: BAB_COUNT }, (_, index) => {
+			return Array.from({ length: count }, (_, index) => {
 				const n = index + 1;
 
 				if (read.has(n)) {
@@ -106,7 +108,7 @@ const Ticks = memo(
 					n
 				};
 			});
-		}, [colors, myBabNumbers, poolBabNumbers, readBabNumbers]);
+		}, [colors, count, myBabNumbers, poolBabNumbers, readBabNumbers]);
 
 		return (
 			<>
@@ -144,6 +146,7 @@ Ticks.displayName = 'Ticks';
  * version that kept position in the list left 44% of frames identical to the one before.
  */
 export const ReaderBabMap = ({
+	count,
 	currentBab,
 	hasLegend = true,
 	myBabNumbers,
@@ -171,12 +174,12 @@ export const ReaderBabMap = ({
 		[theme]
 	);
 
-	const tickWidth = stripWidth > 0 ? (stripWidth - (BAB_COUNT - 1) * TICK_GAP) / BAB_COUNT : 0;
+	const tickWidth = stripWidth > 0 ? (stripWidth - (count - 1) * TICK_GAP) / count : 0;
 	const restingIndex = currentBab - 1;
 	const pitch = tickWidth + TICK_GAP;
 
 	const indicatorStyle = useAnimatedStyle(() => {
-		const index = scrubRatio.value < 0 ? restingIndex : Math.round(scrubRatio.value * (BAB_COUNT - 1));
+		const index = scrubRatio.value < 0 ? restingIndex : Math.round(scrubRatio.value * (count - 1));
 
 		return { left: index * pitch };
 	});
@@ -198,7 +201,8 @@ export const ReaderBabMap = ({
 		const bySlot = new Map<number, number[]>();
 
 		for (const n of poolBabNumbers) {
-			const slot = slotIndexForBab(n, spots);
+			// `count` is the group's part count whenever `spots` is given — see the prop.
+			const slot = slotIndexForBab(n, spots, count);
 
 			if (slot === null) {
 				continue;
@@ -219,7 +223,7 @@ export const ReaderBabMap = ({
 				return [sorted[0] ?? 0, sorted[sorted.length - 1] ?? 0] as const;
 			})
 			.sort((a, b) => a[0] - b[0]);
-	}, [poolBabNumbers, spots]);
+	}, [count, poolBabNumbers, spots]);
 
 	const legend = useMemo(
 		() => [
@@ -236,6 +240,7 @@ export const ReaderBabMap = ({
 			<View onLayout={event => setStripWidth(event.nativeEvent.layout.width)} style={styles.strip}>
 				<Ticks
 					colors={colors}
+					count={count}
 					isReducedMotion={isReducedMotion}
 					myBabNumbers={myBabNumbers}
 					poolBabNumbers={poolBabNumbers}

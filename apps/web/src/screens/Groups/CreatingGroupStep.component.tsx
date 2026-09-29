@@ -18,12 +18,12 @@ const FILL_MS = 2400;
 const STEP_DOT = 22;
 
 /**
- * C1 · Grup kuruluyor — the create flow's fourth step.
+ * C1 · Grup kuruluyor — what the create flow shows after its last step.
  *
  * It **replaces** the form inside the same sheet rather than covering it. As an overlay it
  * drew its own backdrop and grabber inside a sheet that already had both, so it read as a
  * second sheet stacked on the first — two grabbers, and a dim that stopped at the sheet's
- * edge instead of covering the page. The flow is already stepped (1/3, 2/3, 3/3); this is
+ * edge instead of covering the page. The flow is already stepped (1/4 … 4/4); this is
  * simply what the sheet shows once there is nothing left to fill in.
  *
  * Creating a group writes the group, its hundred babs and the owner's seat in one
@@ -35,7 +35,7 @@ const STEP_DOT = 22;
  * should be read as progress. If the API ever does report stages, drive them from that
  * rather than adding timers.
  */
-export const CreatingGroupStep = () => {
+export const CreatingGroupStep = ({ isFlexible = false }: { isFlexible?: boolean }) => {
 	const { t } = useTranslation();
 	const { theme } = useThemeContext();
 	const isReducedMotion = useReducedMotion();
@@ -56,7 +56,7 @@ export const CreatingGroupStep = () => {
 			<View>
 				<Typography variant='title'>{t('creatingTitle')}</Typography>
 				<CaptionText color={theme.colors.subtext} style={styles.subtitle}>
-					{t('creatingSub')}
+					{t(isFlexible ? 'creatingFlexibleSub' : 'creatingSub')}
 				</CaptionText>
 
 				<View style={[styles.track, { backgroundColor: theme.colors.secondary }]}>
@@ -77,7 +77,9 @@ export const CreatingGroupStep = () => {
 						<View style={styles.stepDot}>
 							<SkeletonSpinner size={STEP_DOT} thickness={2} />
 						</View>
-						<BodyText weight='medium'>{t('creatingStepBabs')}</BodyText>
+						<BodyText weight='medium'>
+							{t(isFlexible ? 'creatingFlexibleParts' : 'creatingStepBabs')}
+						</BodyText>
 					</View>
 
 					{/* Not started: a dashed ring, so the row reads as pending rather than stalled. */}

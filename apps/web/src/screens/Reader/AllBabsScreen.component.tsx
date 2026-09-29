@@ -230,6 +230,7 @@ export const AllBabsScreen = ({ navigation, route }: Props) => {
 						style={styles.babMapRow}
 					>
 						<ReaderBabMap
+							count={BAB_COUNT}
 							currentBab={displayBab}
 							hasLegend={false}
 							myBabNumbers={NOTHING}

@@ -18,6 +18,7 @@ import { useTranslation } from '@/lib/i18n/I18n.context';
 import { pluralKey } from '@/lib/i18n/plural';
 import type { StringKey } from '@/lib/i18n/strings';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
+import { hizbPartsLabel, partLabelKey } from '@/lib/utils/groups';
 import {
 	buildHomeTasks,
 	homeStateFor,
@@ -179,9 +180,8 @@ export const HomeScreen = () => {
 	const pagesRead = useCuzPagesRead(userId, cuzKeys, isHusrev ? 'husrev' : 'text');
 
 	/*
-	 * The group the first-use tour walks through, and the unit it opens: "Sıradaki", whose card and
-	 * button the tour points at. Null while there is nothing owed, which keeps the later stops on
-	 * their centred cards.
+	 * The group the first-use tour walks through, and the unit it opens: "Sıradaki", whose card the
+	 * tour points at. Null while there is nothing owed; the tour then walks its own stand-in.
 	 */
 	const tourSubject = useMemo(() => {
 		const first = pending[0];
@@ -212,6 +212,9 @@ export const HomeScreen = () => {
 	const next = pending[0];
 	const later = pending.slice(1);
 
+	/** A later row itself: the group's screen. Its button is `openTask`, straight into the reading. */
+	const openGroup = (task: HomeTask) => navigation.navigate('GroupDetail', { groupId: task.groupId });
+
 	const openTask = (task: HomeTask) => {
 		/*
 		 * Holding no cüz yet: **through the group's front door**, not straight to the pick. The
@@ -219,6 +222,23 @@ export const HomeScreen = () => {
 		 * celebration when the last round finished, which opened straight on the pick came after it.
 		 */
 		if (task.mustPick) {
+			navigation.navigate('GroupDetail', { groupId: task.groupId });
+
+			return;
+		}
+
+		// A plan's owed day opens its own reading, as a Cevşen share opens its bab.
+		if (task.planAssignmentId !== null) {
+			navigation.navigate('HizbPlanReader', { assignmentId: task.planAssignmentId, groupId: task.groupId });
+
+			return;
+		}
+
+		/*
+		 * Nothing handed out yet — a FLEXIBLE group's portions to choose, or a Hizb plan to begin —
+		 * so the group screen is the way in, as it is for a pick. A plan read today opens there too.
+		 */
+		if (task.mustChoose !== null || task.isPlan) {
 			navigation.navigate('GroupDetail', { groupId: task.groupId });
 
 			return;
@@ -234,6 +254,13 @@ export const HomeScreen = () => {
 			return;
 		}
 
+		// A Hizb group's part is a portion, which is the Hizb reader's; the number means the same thing.
+		if (task.kind === 'HIZB') {
+			navigation.navigate('HizbReader', { groupId: task.groupId, partNumber: unit });
+
+			return;
+		}
+
 		navigation.navigate('BabReader', { babNumber: unit, groupId: task.groupId });
 	};
 
@@ -242,8 +269,17 @@ export const HomeScreen = () => {
 			? t(pluralKey(language, left.days, 'countDaysOne', 'countDaysOther'), { count: left.days })
 			: t('hoursLeft', { hours: left.hours, minutes: left.minutes });
 
+	/*
+	 * "Bab 21–23", "Cüz 7" — and a Hizb share's portions with their noun where the language puts
+	 * it, "19. bölüm", since a bare "19" beside a Cevşen row's range would read as a bab.
+	 */
 	const headingOf = (task: HomeTask) =>
-		t(task.kind === 'HATIM' ? 'homeCuzRange' : 'homeBabRange', { range: task.range });
+		task.kind === 'HIZB'
+			? hizbPartsLabel(task.range, t)
+			: t(task.kind === 'HATIM' ? 'homeCuzRange' : 'homeBabRange', { range: task.range });
+
+	/** What a task's "choose" card says: begin a Hizb plan, or pick portions in a flexible group. */
+	const chooseKey = (task: HomeTask): StringKey => (task.mustChoose === 'plan' ? 'hpChoose' : 'flexibleChoose');
 
 	/** The cüz's pages in the saved face's pagination, and how many of them have been read. */
 	const pagesOf = (task: HomeTask) => {
@@ -264,6 +300,23 @@ export const HomeScreen = () => {
 				const left = timeLeftUntil(next.roundEndsAt, now);
 				const deadline = left ? t('homeTimeLeft', { time: timeLeftLabel(left) }) : null;
 				const isUrgent = isDueToday(next.roundEndsAt, now);
+
+				// Nothing handed out yet: the way in is the group screen, where the choosing happens.
+				if (next.mustChoose !== null) {
+					return (
+						<HomeNextCard
+							actionLabel={t('homePick')}
+							caption={next.groupName}
+							deadline={deadline}
+							fraction={0}
+							heading={t(chooseKey(next))}
+							isDueToday={isUrgent}
+							kind={next.kind}
+							moreCount={0}
+							onPress={() => openTask(next)}
+						/>
+					);
+				}
 
 				// A hatim waiting for its cüz: nothing read or to count yet, and the way in is the pick.
 				if (next.mustPick) {
@@ -286,6 +339,8 @@ export const HomeScreen = () => {
 				const place =
 					next.kind === 'HATIM'
 						? t('homeCuzRange', { range: next.nextNumber ?? '' })
+						: next.kind === 'HIZB'
+						? `${t(partLabelKey('HIZB'))} ${next.nextNumber ?? ''}`
 						: t('homeBabRange', { range: next.nextNumber ?? '' });
 
 				return (
@@ -301,6 +356,17 @@ export const HomeScreen = () => {
 								? t('homePagesOf', pages)
 								: next.done > 0
 								? t('homeReadOf', { done: next.done, total: next.total })
+								: next.kind === 'HIZB'
+								? // A plan's day is one reading of one or more of the 33; count those, as its heading names them.
+								  t(
+										pluralKey(
+											language,
+											next.isPlan ? next.unitNumbers.length : next.total,
+											'countPortionsOne',
+											'countPortionsOther'
+										),
+										{ count: next.isPlan ? next.unitNumbers.length : next.total }
+								  )
 								: t(pluralKey(language, next.total, 'countBabsOne', 'countBabsOther'), {
 										count: next.total
 								  })
@@ -405,6 +471,23 @@ export const HomeScreen = () => {
 						{later.map(task => {
 							const deadline = timeLeftUntil(task.roundEndsAt, now);
 
+							if (task.mustChoose !== null) {
+								return (
+									<HomeGroupRow
+										actionLabel={t('homePick')}
+										fraction={0}
+										heading={t(chooseKey(task))}
+										key={task.groupId}
+										kind={task.kind}
+										meta={deadline ? timeLeftLabel(deadline) : ''}
+										moreCount={0}
+										name={task.groupName}
+										onOpenGroup={() => openGroup(task)}
+										onPress={() => openTask(task)}
+									/>
+								);
+							}
+
 							if (task.mustPick) {
 								return (
 									<HomeGroupRow
@@ -416,6 +499,7 @@ export const HomeScreen = () => {
 										meta={deadline ? timeLeftLabel(deadline) : ''}
 										moreCount={0}
 										name={task.groupName}
+										onOpenGroup={() => openGroup(task)}
 										onPress={() => openTask(task)}
 									/>
 								);
@@ -426,7 +510,7 @@ export const HomeScreen = () => {
 							return (
 								<HomeGroupRow
 									actionLabel={isBegun(task) ? t('homeContinue') : t('read')}
-									heading={task.kind === 'HATIM' ? headingOf(task) : task.range}
+									heading={task.kind === 'CEVSEN' ? task.range : headingOf(task)}
 									key={task.groupId}
 									kind={task.kind}
 									meta={
@@ -438,6 +522,7 @@ export const HomeScreen = () => {
 									}
 									moreCount={task.moreCount}
 									name={task.groupName}
+									onOpenGroup={() => openGroup(task)}
 									onPress={() => openTask(task)}
 									{...(pages
 										? { fraction: pages.total === 0 ? 0 : pages.page / pages.total }

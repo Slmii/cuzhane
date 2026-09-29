@@ -1,4 +1,5 @@
 import prisma from '@db/prisma';
+import { closeHizbEnrollment } from '@services/hizbReading.service';
 import { normalizeUserId } from '@utils/normalizeUserId';
 
 export const deleteAccountForUser = async (userId: string): Promise<{ success: true }> => {
@@ -48,6 +49,20 @@ export const deleteAccountForUser = async (userId: string): Promise<{ success: t
 			 */
 		}
 
+		/*
+		 * A Hizb plan's enrollment is **closed, not deleted** — leaving, the same as `removeMember`.
+		 * Its assignments cascade from it, and they are the member's reads: deleting it took their
+		 * completed portions out of the group's coverage. Enrollments in groups they owned went
+		 * with the group; ones already closed stay as they are.
+		 */
+		const planGroups = await tx.group.findMany({
+			where: { hizbPlan: { not: null }, hizbEnrollments: { some: { userId: normalizedUserId, endDay: null } } }
+		});
+
+		for (const group of planGroups) {
+			await closeHizbEnrollment(tx, group, normalizedUserId);
+		}
+
 		await tx.groupMember.deleteMany({ where: { userId: normalizedUserId } });
 		// "Bu turu atla" choices — a record about the member, so it leaves with them.
 		await tx.cuzRoundSkip.deleteMany({ where: { userId: normalizedUserId } });
@@ -56,6 +71,8 @@ export const deleteAccountForUser = async (userId: string): Promise<{ success: t
 			where: { OR: [{ fromUserId: normalizedUserId }, { toUserId: normalizedUserId }] }
 		});
 		await tx.groupWaitlistEntry.deleteMany({ where: { userId: normalizedUserId } });
+		// Sekine counts in groups they merely joined; those they owned went with the group.
+		await tx.groupPartRepetition.deleteMany({ where: { userId: normalizedUserId } });
 		await tx.pushToken.deleteMany({ where: { userId: normalizedUserId } });
 		/*
 		 * The inbox goes too. `Notification` has no foreign key on `userId` — there is no user

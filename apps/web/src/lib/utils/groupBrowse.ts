@@ -1,10 +1,13 @@
 import type { StringKey } from '@/lib/i18n/strings';
-import type { GroupCycle, GroupKind, GroupStatus } from '@/lib/types/domain';
+import type { GroupCycle, GroupKind, GroupSplitMode, GroupStatus } from '@/lib/types/domain';
 
 export type GroupSortKey = 'newest' | 'seats' | 'soon';
 
-/** The design's filter sheet: "all" first, then the cadences. */
-export const CYCLE_FILTER_OPTIONS: (GroupCycle | undefined)[] = [undefined, 'DAILY', 'WEEKLY'];
+/**
+ * The design's filter sheet: "all" first, then the cadences — every one a group can have, the
+ * Hizb's month included, since both screens browse both kinds.
+ */
+export const CYCLE_FILTER_OPTIONS: (GroupCycle | undefined)[] = [undefined, 'DAILY', 'WEEKLY', 'MONTHLY'];
 
 /**
  * What a group reads, as a filter — "all" first, then each kind.
@@ -13,7 +16,7 @@ export const CYCLE_FILTER_OPTIONS: (GroupCycle | undefined)[] = [undefined, 'DAI
  * reads and this narrows *what*; a list that mixed them would let someone pick "Günlük" and
  * "Kuran" as if they were alternatives, when they are a pair of independent answers.
  */
-export const KIND_FILTER_OPTIONS: (GroupKind | undefined)[] = [undefined, 'CEVSEN', 'HATIM'];
+export const KIND_FILTER_OPTIONS: (GroupKind | undefined)[] = [undefined, 'CEVSEN', 'HATIM', 'HIZB'];
 
 /** Order matches the sort sheet: newest, most seats free, starting soon. */
 export const GROUP_SORT_OPTIONS: { key: GroupSortKey; labelKey: StringKey }[] = [
@@ -64,6 +67,7 @@ export const isGroupBrowseMenuActive = (state: GroupBrowseState) =>
 
 /** The minimum a group must carry to be browsed. Both screens' rows satisfy it. */
 type BrowsableGroup = {
+	splitMode?: GroupSplitMode;
 	name: string;
 	cycle: GroupCycle;
 	kind: GroupKind;
@@ -104,9 +108,10 @@ export const applyGroupBrowse = <T extends BrowsableGroup>(groups: T[] | undefin
 		 * groups whose own card said "Dolu · 30/30" two lines below the filter.
 		 *
 		 * `isFull` is the question both kinds can answer, and the server already decides it
-		 * per kind: seats for a Cevşen group, unclaimed cüz for a hatim.
+		 * per kind: seats for a Cevşen or Hizb group, unclaimed cüz for a hatim. A FLEXIBLE
+		 * group has no seats to run out of, so it always has room.
 		 */
-		if (state.hasSeatsOnly && group.isFull) {
+		if (state.hasSeatsOnly && group.splitMode !== 'FLEXIBLE' && group.isFull) {
 			return false;
 		}
 
@@ -115,6 +120,9 @@ export const applyGroupBrowse = <T extends BrowsableGroup>(groups: T[] | undefin
 
 	return [...filtered].sort((a, b) => {
 		if (state.sortKey === 'seats') {
+			if ((a.splitMode === 'FLEXIBLE') !== (b.splitMode === 'FLEXIBLE')) {
+				return a.splitMode === 'FLEXIBLE' ? -1 : 1;
+			}
 			return b.spotsLeft - a.spotsLeft;
 		}
 

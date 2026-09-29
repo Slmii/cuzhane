@@ -11,7 +11,7 @@ import type { SegmentedControlProps, SegmentProps } from './SegmentedControl.typ
 /** Matches the design's `transition: background .25s ease`. */
 const SELECTION_DURATION_MS = 250;
 
-const Segment = ({ icon, isSelected, label, onPress }: SegmentProps) => {
+const Segment = ({ icon, isSelected, isWide = false, label, onPress }: SegmentProps) => {
 	const { theme } = useThemeContext();
 
 	// Fades the pill's alpha rather than swapping to `transparent`, so the colour
@@ -27,7 +27,14 @@ const Segment = ({ icon, isSelected, label, onPress }: SegmentProps) => {
 	);
 
 	return (
-		<Pressable accessibilityRole='tab' accessibilityState={{ selected: isSelected }} onPress={onPress}>
+		<Pressable
+			accessibilityRole='tab'
+			accessibilityState={{ selected: isSelected }}
+			onPress={onPress}
+			// Equal shares of the track, as the native control draws them on iOS — except a wide one,
+			// which starts from its label's width.
+			style={isWide ? styles.wideSlot : styles.slot}
+		>
 			<Animated.View style={[styles.segment, { borderRadius: theme.radius.sm }, animatedStyle]}>
 				{/* Sized to the 11.5pt label beside it rather than the icon's own default. */}
 				{icon ? (
@@ -40,6 +47,7 @@ const Segment = ({ icon, isSelected, label, onPress }: SegmentProps) => {
 				) : null}
 				<Typography
 					color={isSelected ? theme.colors.text : theme.colors.subtext}
+					{...(isWide ? { numberOfLines: 1 } : {})}
 					style={styles.label}
 					variant='bodyStrong'
 				>
@@ -67,6 +75,7 @@ const DrawnSegmentedControl = ({ onChange, options, style, value }: SegmentedCon
 			{options.map(option => (
 				<Segment
 					{...(option.icon ? { icon: option.icon } : {})}
+					{...(option.isWide ? { isWide: true } : {})}
 					isSelected={option.value === value}
 					key={option.value}
 					label={option.label}
@@ -89,8 +98,17 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		flexDirection: 'row',
 		gap: 5,
+		justifyContent: 'center',
 		paddingHorizontal: 12,
 		paddingVertical: 6
+	},
+	slot: {
+		flexBasis: 0,
+		flexGrow: 1
+	},
+	wideSlot: {
+		flexGrow: 1,
+		flexShrink: 0
 	}
 });
 

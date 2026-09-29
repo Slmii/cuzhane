@@ -63,7 +63,10 @@ export const BabGrid = ({ cells, columns = 10, kind, onPressBab, style }: BabGri
 			const tone = toneFor(cell.state);
 
 			return {
-				accessibilityLabel: t(kind === 'HATIM' ? 'qCuzTitle' : 'babOrdinal', { n: cell.number }),
+				accessibilityLabel:
+					kind === 'HIZB'
+						? t('hizbPartsOne', { parts: cell.number })
+						: t(kind === 'HATIM' ? 'qCuzTitle' : 'babOrdinal', { n: cell.number }),
 				backgroundColor: tone.backgroundColor,
 				borderColor: tone.borderColor,
 				isHatched: 'isHatched' in tone && tone.isHatched === true,

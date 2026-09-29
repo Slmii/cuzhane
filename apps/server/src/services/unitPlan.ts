@@ -1,4 +1,5 @@
 import { babNumbersForRound, babNumbersForSlot, rangeForRound, rangeForSlot } from '@utils/babs';
+import { partCountFor } from '@utils/groupKinds';
 import { unitCountFor } from '@utils/units';
 import type {
 	CuzHolding,
@@ -17,15 +18,20 @@ import type { BabRange, GroupSplitMode } from './groupSerializers';
  * live here because the plan *is* their generalisation: a Cevşen group's answer to "whose
  * unit is this" is this arithmetic, and a hatim's is a stored row.
  */
-/** Only the two fields the split actually depends on, so callers with a partial row can use it. */
-type PlanShape = Pick<Group, 'spots' | 'splitMode'>;
+/**
+ * Only the fields the split actually depends on, so callers with a partial row can use it.
+ * `kind` is one of them: it decides how many parts there are to split. Nothing on the board
+ * records which block a seat reads — it is derived from the seat and the round, so a ROTATION
+ * group's share moves without rewriting a row.
+ */
+type PlanShape = Pick<Group, 'spots' | 'splitMode' | 'kind'>;
 
 /**
  * `FREE` is retired. The DB enum still carries it so existing rows stay readable, but
  * nothing can create one and it behaves as `FIXED` — a seat that never moves.
  */
 export const toSplitMode = (splitMode: Group['splitMode']): GroupSplitMode =>
-	splitMode === 'ROTATION' ? 'ROTATION' : 'FIXED';
+	splitMode === 'FLEXIBLE' ? 'FLEXIBLE' : splitMode === 'ROTATION' ? 'ROTATION' : 'FIXED';
 
 /**
  * The round a group is actually on, or null while it is still gathering.
@@ -47,20 +53,32 @@ export const roundIndexFor = (group: Pick<Group, 'status' | 'startedAt' | 'round
  * would be a second thing to remember to change when the split rules move.
  */
 export const babNumbersInRound = (group: PlanShape, slotIndex: number, roundIndex: number | null): number[] => {
+	// A flexible group has no blocks: every part is taken one at a time out of the pool.
+	if (group.splitMode === 'FLEXIBLE') {
+		return [];
+	}
+	const partCount = partCountFor(group.kind);
+
 	if (roundIndex === null) {
 		// Still gathering: the seat's own block is what has been reserved for them.
-		return babNumbersForSlot(slotIndex, group.spots);
+		return babNumbersForSlot(slotIndex, group.spots, partCount);
 	}
 
 	return toSplitMode(group.splitMode) === 'ROTATION'
-		? babNumbersForRound(slotIndex, group.spots, roundIndex)
-		: babNumbersForSlot(slotIndex, group.spots);
+		? babNumbersForRound(slotIndex, group.spots, roundIndex, partCount)
+		: babNumbersForSlot(slotIndex, group.spots, partCount);
 };
 
-export const rangeInRound = (group: PlanShape, slotIndex: number, roundIndex: number): BabRange | null =>
-	toSplitMode(group.splitMode) === 'ROTATION'
-		? rangeForRound(slotIndex, group.spots, roundIndex)
-		: rangeForSlot(slotIndex, group.spots);
+export const rangeInRound = (group: PlanShape, slotIndex: number, roundIndex: number): BabRange | null => {
+	if (group.splitMode === 'FLEXIBLE') {
+		return null;
+	}
+	const partCount = partCountFor(group.kind);
+
+	return toSplitMode(group.splitMode) === 'ROTATION'
+		? rangeForRound(slotIndex, group.spots, roundIndex, partCount)
+		: rangeForSlot(slotIndex, group.spots, partCount);
+};
 
 /**
  * The block a member reads today. Exported because the write paths need the same answer
@@ -88,22 +106,30 @@ export const poolSlotIndexes = (members: Pick<GroupMemberModel, 'slotIndex'>[], 
  * which is `(e + r) % spots`. Taking the standing block instead gets it wrong twice over:
  * that block is being read by whichever member rotated onto it (so two people are
  * authorised for the same bab), while the genuinely uncovered block appears nowhere and
- * cannot be reached at all — making 100/100 unattainable through the intended shares.
+ * cannot be reached at all — making a full board unattainable through the intended shares.
+ *
+ * A flexible group is all pool: every part is its own one-part block.
  */
 export const poolBlocks = (
 	group: PlanShape,
 	members: Pick<GroupMemberModel, 'slotIndex'>[],
 	roundIndex: number
 ): { slotIndex: number; babNumbers: number[] }[] =>
-	poolSlotIndexes(members, group.spots).map(slotIndex => ({
-		slotIndex,
-		babNumbers: babNumbersInRound(group, slotIndex, roundIndex)
-	}));
+	group.splitMode === 'FLEXIBLE'
+		? Array.from({ length: partCountFor(group.kind) }, (_, slotIndex) => ({
+				slotIndex,
+				babNumbers: [slotIndex + 1]
+		  }))
+		: poolSlotIndexes(members, group.spots).map(slotIndex => ({
+				slotIndex,
+				babNumbers: babNumbersInRound(group, slotIndex, roundIndex)
+		  }));
 
 /**
- * Flattened `poolBlocks`. Write paths use this to tell a *pool* claim apart from a
- * member's standing seat: both are recorded as `assignedUserId`, but only the pool one
- * grants the right to read outside this round's rotated share.
+ * Flattened `poolBlocks`. Write paths check a claim against it: `assignedUserId` is only ever
+ * "volunteered for this bab out of the pool, this round", and requiring the bab to sit in this
+ * round's pool as well means a claim that somehow outlived its seat being empty can never
+ * grant a read outside the rotated share.
  */
 export const poolBabNumbers = (
 	group: PlanShape,
@@ -112,7 +138,7 @@ export const poolBabNumbers = (
 ): number[] => poolBlocks(group, members, roundIndex).flatMap(block => block.babNumbers);
 
 export interface UnitPlan {
-	/** 100 for a Cevşen group, 30 for a hatim. */
+	/** 100 for a Cevşen group, 30 for a hatim, 33 for a Hizb group. */
 	unitCount: number;
 	/** The units this member reads in the round the plan was built for. */
 	unitsFor: (userId: string) => number[];
@@ -158,6 +184,10 @@ export type PlanHolding = Pick<CuzHolding, 'cuzNumber' | 'isLoan' | 'userId'>;
 /**
  * `roundIndex` is nullable for the same reason `babNumbersInRound` takes it that way: a
  * group still GATHERING has no round, and a seat's share there is its own standing block.
+ *
+ * **Only a hatim reads holdings.** A Hizb group is seat-based like the Cevşen (33 portions
+ * split by `unitCountFor`), so it takes the seat branch; its pool of single portions and its
+ * personal plans live in `pool.service` and `hizbReading.service`.
  * A gathering hatim has no holdings for a round that hasn't started either, so whatever
  * has been picked already is what it reports — which is exactly what QJ2's picker needs.
  */

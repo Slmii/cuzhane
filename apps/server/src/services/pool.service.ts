@@ -2,19 +2,23 @@ import { BAD_REQUEST, CONFLICT } from '@config/httpCodes';
 import { HttpError } from '@config/httpError';
 import prisma from '@db/prisma';
 import { normalizeUserId } from '@utils/normalizeUserId';
-import { lockGroup, syncCompletedAt } from './babs.service';
+import { isAnonymousTo, visibleUserId } from '@utils/groupPrivacy';
+import { syncCompletedAt } from './babs.service';
 import { getMemberProfiles } from '@utils/memberProfiles';
 import { notifyGroupMembers } from './groupEvents.service';
 import { settingFor } from '@utils/notificationSettings';
 import { poolClaimPush } from '@utils/pushCopy';
 import { babRuns, formatRun } from '@utils/babs';
+import { partCountFor } from '@utils/groupKinds';
 import { requireMembership } from './groupAccess.service';
-import { poolBlocks } from './groupSerializers';
-import { ensureCurrentRound, ensureCurrentRoundFor } from './rounds.service';
+import { poolBabNumbers, poolBlocks } from './groupSerializers';
+import { ensureCurrentRound, ensureCurrentRoundFor, lockGroup } from './rounds.service';
+import type { Group } from '../generated/prisma/client';
 
 /**
  * The shared pool is the share of the seats nobody took. A slot is offered whole rather
- * than bab by bab, so taking one mirrors what joining that seat would have handed you.
+ * than bab by bab, so taking one mirrors what joining that seat would have handed you — and
+ * in a Hizb group a portion at a time as well, via `takePoolPartForUser`.
  *
  * `slotIndex` is the empty *seat*; the babs are that seat's block **for the current
  * round**, which under ROTATION is not the seat's standing block — see `poolBlocks`.
@@ -40,6 +44,22 @@ export type PoolSlot = {
 	 * finished looked exactly like one they had taken and not started.
 	 */
 	readBabNumbers: number[];
+	/**
+	 * Who holds each of the slot's parts, in order.
+	 *
+	 * A Cevşen slot is taken whole, so every part names the same taker. A Hizb slot can be
+	 * taken a portion at a time, by several members, and this is the only place the Havuz
+	 * screen can learn which portion is whose — the slot-level `takenBy*` fields above name
+	 * only the first claimant.
+	 */
+	parts: {
+		number: number;
+		takenByUserId: string | null;
+		takenByDisplayName: string | null;
+		takenByImageUrl: string | null;
+		takenByMe: boolean;
+		isRead: boolean;
+	}[];
 };
 
 export const listPoolSlotsForUser = async (userId: string, groupId: string): Promise<PoolSlot[]> => {
@@ -58,6 +78,20 @@ export const listPoolSlotsForUser = async (userId: string, groupId: string): Pro
 	const nameByUserId = new Map(group.members.map(member => [member.userId, member.displayName]));
 	const profiles = await getMemberProfiles(group.members.map(member => member.userId));
 
+	// Clerk's name first, the stored one second — a member who set their name after joining is
+	// still stored under whatever their claims held on the day.
+	const takerOf = (userId: string | null) => ({
+		takenByUserId: visibleUserId(group, normalizedUserId, userId),
+		takenByDisplayName: userId
+			? isAnonymousTo(group, normalizedUserId, userId)
+				? 'Member'
+				: profiles.get(userId)?.displayName ?? nameByUserId.get(userId) ?? null
+			: null,
+		takenByImageUrl:
+			userId && !isAnonymousTo(group, normalizedUserId, userId) ? profiles.get(userId)?.imageUrl ?? null : null,
+		takenByMe: userId === normalizedUserId
+	});
+
 	return poolBlocks(group, group.members, group.roundIndex).flatMap(block => {
 		const babs = block.babNumbers.map(number => babByNumber.get(number)).filter(bab => bab !== undefined);
 
@@ -74,16 +108,14 @@ export const listPoolSlotsForUser = async (userId: string, groupId: string): Pro
 				start: block.babNumbers[0] as number,
 				end: block.babNumbers[block.babNumbers.length - 1] as number,
 				babNumbers: block.babNumbers,
-				takenByUserId,
-				// Clerk's name first, the stored one second — a member who set their name after
-				// joining is still stored under whatever their claims held on the day.
-				takenByDisplayName: takenByUserId
-					? profiles.get(takenByUserId)?.displayName ?? nameByUserId.get(takenByUserId) ?? null
-					: null,
-				takenByImageUrl: takenByUserId ? profiles.get(takenByUserId)?.imageUrl ?? null : null,
-				takenByMe: takenByUserId === normalizedUserId,
+				...takerOf(takenByUserId),
 				readCount: babs.filter(bab => bab.readAt !== null).length,
-				readBabNumbers: babs.filter(bab => bab.readAt !== null).map(bab => bab.number)
+				readBabNumbers: babs.filter(bab => bab.readAt !== null).map(bab => bab.number),
+				parts: babs.map(bab => ({
+					number: bab.number,
+					...takerOf(bab.assignedUserId),
+					isRead: bab.readAt !== null
+				}))
 			}
 		];
 	});
@@ -98,11 +130,49 @@ export const listPoolSlotsForUser = async (userId: string, groupId: string): Pro
  * babs — leaving the claim it meant to release and voiding one it didn't.
  */
 export const poolBlockFor = (
-	group: { spots: number; splitMode: 'ROTATION' | 'FIXED' | 'FREE'; roundIndex: number },
+	// `kind` because the block is a share of the group's own part count, not of a hundred.
+	group: Pick<Group, 'spots' | 'splitMode' | 'kind' | 'roundIndex'>,
 	members: { slotIndex: number }[],
 	slotIndex: number
 ): number[] | null =>
 	poolBlocks(group, members, group.roundIndex).find(b => b.slotIndex === slotIndex)?.babNumbers ?? null;
+
+/**
+ * Tells the rest of the group what the caller just took out of the pool.
+ *
+ * Called after the commit, and awaited — an unawaited rejection would escape the request as an
+ * unhandled one. The claim is already recorded by the time this runs, so `notifyGroupMembers`
+ * swallowing its own failures is what keeps a courtesy from failing the write.
+ */
+const notifyPoolClaim = async (
+	takerUserId: string,
+	groupId: string,
+	kind: Group['kind'],
+	babNumbers: number[],
+	subject: string
+): Promise<void> => {
+	const range = babRuns(babNumbers).map(formatRun).join(', ');
+
+	await notifyGroupMembers({
+		actorUserId: takerUserId,
+		// The lookup used to be here; it lives in the helper now, so all three events resolve
+		// a name the same way rather than one of them doing it properly and two not.
+		build: ({ actorName, groupName, kind: groupKind }) => ({
+			payload: { kind: 'POOL_BAB_CLAIMED', range, takerName: actorName },
+			push: language => poolClaimPush(language, { groupName, kind: groupKind, range, takerName: actorName })
+		}),
+		excludeUserIds: [takerUserId],
+		groupId,
+		pushKind: 'pool-claim',
+		/*
+		 * By the group's kind, though this path is seat machinery that a hatim never reaches (its
+		 * spare cüz are `cuzPool.service`'s): a Cevşen or Hizb pool answers to the Cevşen's switch.
+		 */
+		setting: settingFor('poolClaim', kind === 'HATIM' ? 'CEVSEN' : kind),
+		// Once per actor, per round, per slot or portion — see `notifyGroupMembers`.
+		subject
+	});
+};
 
 /**
  * Takes a whole pool slot on top of the caller's own share, for this round only.
@@ -110,6 +180,10 @@ export const poolBlockFor = (
  * The write is a conditional `updateMany` guarded on `assignedUserId: null`, the same
  * shape the claim paths use: two members tapping "Üstlen" at once cannot both win,
  * because the loser's update matches zero rows.
+ *
+ * In a Hizb group somebody may already hold a portion of the slot (`takePoolPartForUser`),
+ * so "whole" means whatever of it is still free — and the notice names exactly that, not the
+ * block, which would announce a portion somebody else took as the caller's.
  */
 export const takePoolSlotForUser = async (
 	userId: string,
@@ -121,6 +195,7 @@ export const takePoolSlotForUser = async (
 
 	// Carried out of the transaction for the notification below, which must not run inside it.
 	let takenBabNumbers: number[] = [];
+	let takenKind: Group['kind'] = 'CEVSEN';
 	let groupName: string | null = null;
 
 	await prisma.$transaction(async tx => {
@@ -145,14 +220,26 @@ export const takePoolSlotForUser = async (
 			throw new HttpError(BAD_REQUEST, 'A hatim takes cüz from its cüz havuz, not seats from this pool');
 		}
 
+		if (group.splitMode === 'FLEXIBLE') {
+			throw new HttpError(BAD_REQUEST, 'Choose an individual portion in a flexible group');
+		}
+
 		const babNumbers = poolBlockFor(group, group.members, slotIndex);
 
 		if (!babNumbers) {
 			throw new HttpError(BAD_REQUEST, 'That seat is not in the pool');
 		}
 
-		const claimed = await tx.groupBab.updateMany({
+		// Read under the group lock every claim path takes first, so nothing can claim one of
+		// these between the read and the write below.
+		const free = await tx.groupBab.findMany({
 			where: { groupId, number: { in: babNumbers }, assignedUserId: null },
+			select: { number: true }
+		});
+		const freeNumbers = free.map(bab => bab.number);
+
+		const claimed = await tx.groupBab.updateMany({
+			where: { groupId, number: { in: freeNumbers }, assignedUserId: null },
 			data: { assignedUserId: normalizedUserId }
 		});
 
@@ -160,39 +247,14 @@ export const takePoolSlotForUser = async (
 			throw new HttpError(CONFLICT, 'Someone already took that slot');
 		}
 
-		takenBabNumbers = babNumbers;
+		takenBabNumbers = freeNumbers;
+		takenKind = group.kind;
 		groupName = group.name;
 	});
 
-	/*
-	 * After the commit, and awaited — an unawaited rejection would escape the request as an
-	 * unhandled one. The claim is already recorded by the time this runs, so `notifyGroupMembers`
-	 * swallowing its own failures is what keeps a courtesy from failing the write.
-	 */
+	// After the commit — see `notifyPoolClaim`.
 	if (takenBabNumbers.length > 0 && groupName !== null) {
-		const range = babRuns(takenBabNumbers).map(formatRun).join(', ');
-
-		await notifyGroupMembers({
-			actorUserId: normalizedUserId,
-			// The lookup used to be here; it lives in the helper now, so all three events resolve
-			// a name the same way rather than one of them doing it properly and two not.
-			build: ({ actorName, groupName: name }) => ({
-				payload: { kind: 'POOL_BAB_CLAIMED', range, takerName: actorName },
-				push: language =>
-					poolClaimPush(language, { groupName: name, kind: 'CEVSEN', range, takerName: actorName })
-			}),
-			excludeUserIds: [normalizedUserId],
-			groupId,
-			pushKind: 'pool-claim',
-			/*
-			 * **Hard-coded to the Cevşen switch, because this path is seat machinery.** The whole
-			 * of `pool.service` works in `slotIndex` and blocks, which a hatim does not have — its
-			 * spare cüz are taken a different way (Q3, unbuilt). When that lands it calls
-			 * `settingFor('poolClaim', kind)` rather than adding a branch here.
-			 */
-			setting: settingFor('poolClaim', 'CEVSEN'),
-			subject: String(slotIndex)
-		});
+		await notifyPoolClaim(normalizedUserId, groupId, takenKind, takenBabNumbers, String(slotIndex));
 	}
 
 	return { success: true };
@@ -212,6 +274,9 @@ export const releasePoolSlotForUser = async (
 		await ensureCurrentRound(tx, groupId);
 
 		const group = await tx.group.findUniqueOrThrow({ where: { id: groupId }, include: { members: true } });
+		if (group.splitMode === 'FLEXIBLE') {
+			throw new HttpError(BAD_REQUEST, 'Choose an individual portion in a flexible group');
+		}
 		const babNumbers = poolBlockFor(group, group.members, slotIndex);
 
 		if (!babNumbers) {
@@ -263,6 +328,138 @@ export const releasePoolSlotForUser = async (
 
 		// Releasing can un-complete the group, so the sync runs in the same transaction as
 		// the write that changed the read state — never after it.
+		await syncCompletedAt(tx, groupId);
+	});
+
+	return { success: true };
+};
+
+/**
+ * A Hizb pool is offered a portion at a time; a Cevşen one is not.
+ *
+ * A Cevşen block is five babs at the least and is taken whole — that rule stands. A Hizb
+ * block can be a single portion already, and the portions are long enough that covering one
+ * of a block's three is a real contribution, so several members may split an empty seat's
+ * block between them.
+ */
+const requirePartsPool = (group: Pick<Group, 'kind' | 'splitMode'>): void => {
+	if (group.kind !== 'HIZB' && group.splitMode !== 'FLEXIBLE') {
+		throw new HttpError(BAD_REQUEST, 'Cevşen pool slots are taken whole');
+	}
+};
+
+/** The number is one of the group's parts and sits in this round's pool — or the request is refused. */
+const requireInPool = (
+	group: Pick<Group, 'spots' | 'splitMode' | 'kind' | 'roundIndex'>,
+	members: { slotIndex: number }[],
+	babNumber: number
+): void => {
+	const isPart = Number.isInteger(babNumber) && babNumber >= 1 && babNumber <= partCountFor(group.kind);
+
+	if (!isPart || !poolBabNumbers(group, members, group.roundIndex).includes(babNumber)) {
+		throw new HttpError(BAD_REQUEST, 'That portion is not in the pool');
+	}
+};
+
+/**
+ * Takes one portion of a Hizb pool block on top of the caller's share, for this round only.
+ *
+ * The same conditional `updateMany` the slot path uses, narrowed to one row: two members
+ * tapping the same portion at once cannot both win, because the loser's update matches zero
+ * rows. Two members taking *different* portions of one block both succeed — which is the
+ * point — and a join into that seat later releases each of them (see `attemptJoin`).
+ */
+export const takePoolPartForUser = async (
+	userId: string,
+	groupId: string,
+	babNumber: number
+): Promise<{ success: true }> => {
+	const normalizedUserId = normalizeUserId(userId);
+	await requireMembership(normalizedUserId, groupId);
+
+	const claimedKind = await prisma.$transaction(async tx => {
+		// Group lock first, then babs — see `takePoolSlotForUser`.
+		await lockGroup(tx, groupId);
+		await ensureCurrentRound(tx, groupId);
+
+		const group = await tx.group.findUniqueOrThrow({ where: { id: groupId }, include: { members: true } });
+		requirePartsPool(group);
+
+		if (group.status !== 'RUNNING') {
+			throw new HttpError(BAD_REQUEST, 'The pool opens when the hatim starts');
+		}
+
+		requireInPool(group, group.members, babNumber);
+		if (!group.members.some(member => member.userId === normalizedUserId)) {
+			throw new HttpError(BAD_REQUEST, 'You are no longer a member of this group');
+		}
+
+		const claimed = await tx.groupBab.updateMany({
+			where: {
+				groupId,
+				number: babNumber,
+				assignedUserId: null,
+				...(group.splitMode === 'FLEXIBLE' ? { readAt: null } : {})
+			},
+			data: { assignedUserId: normalizedUserId }
+		});
+
+		if (claimed.count === 0) {
+			throw new HttpError(CONFLICT, 'Someone already took that portion');
+		}
+
+		return group.kind;
+	});
+
+	await notifyPoolClaim(normalizedUserId, groupId, claimedKind, [babNumber], `part:${babNumber}`);
+
+	return { success: true };
+};
+
+/**
+ * Puts one portion the caller took back in the pool, along with their read of it.
+ *
+ * `releasePoolSlotForUser` narrowed to a single number, and for the same reasons: only the
+ * caller's own claim and own read come off, and the sync runs in the same transaction. A
+ * portion the caller does not hold is left as it is and answered as success, exactly as the
+ * slot release answers for a slot that is not theirs.
+ */
+export const releasePoolPartForUser = async (
+	userId: string,
+	groupId: string,
+	babNumber: number
+): Promise<{ success: true }> => {
+	const normalizedUserId = normalizeUserId(userId);
+	await requireMembership(normalizedUserId, groupId);
+
+	await prisma.$transaction(async tx => {
+		await lockGroup(tx, groupId);
+		await ensureCurrentRound(tx, groupId);
+
+		const group = await tx.group.findUniqueOrThrow({ where: { id: groupId }, include: { members: true } });
+		requirePartsPool(group);
+		requireInPool(group, group.members, babNumber);
+
+		const mine = { groupId, number: babNumber, assignedUserId: normalizedUserId };
+		if (group.splitMode === 'FLEXIBLE') {
+			await tx.groupBab.updateMany({ where: { ...mine, readAt: null }, data: { assignedUserId: null } });
+			return;
+		}
+		const unread = await tx.groupBab.updateMany({
+			where: { ...mine, readByUserId: normalizedUserId },
+			data: { readByUserId: null, readAt: null }
+		});
+
+		// The history entry goes with the read it describes — see `releasePoolSlotForUser`.
+		if (unread.count > 0) {
+			await tx.babRead.deleteMany({
+				where: { groupId, roundIndex: group.roundIndex, babNumber, userId: normalizedUserId }
+			});
+		}
+
+		await tx.groupBab.updateMany({ where: mine, data: { assignedUserId: null } });
+
+		// Releasing a read portion can un-complete the round.
 		await syncCompletedAt(tx, groupId);
 	});
 

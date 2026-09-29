@@ -24,6 +24,7 @@ import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { toAlphaColor } from '@/lib/theme/tokens';
 import type { GroupSummary } from '@/lib/types/domain';
 import type { CuzPagination } from '@/lib/utils/cuzPagesRead';
+import { kindLabelKey } from '@/lib/utils/groups';
 import { addRecentSearch, useRecentSearches } from '@/lib/utils/recentSearches';
 import { highlightMatch, searchCevsen, searchGroups } from '@/lib/utils/search';
 import { forceTabBarHidden } from '@/navigation/tabBarVisibility';
@@ -239,14 +240,17 @@ export const SearchScreen = () => {
 		const openHits = searchGroups(openGroups, query).filter(group => !mineHits.some(mine => mine.id === group.id));
 		const cevsen = searchCevsen(query);
 
+		// What the group reads leads the line — names repeat ("Ramazan Hatmi" in Cevşen and Kur'an).
+		const kindOf = (group: GroupSummary) => t(kindLabelKey(group.kind));
 		const groupSub = (group: GroupSummary) =>
-			group.status === 'GATHERING'
+			`${kindOf(group)} · ` +
+			(group.status === 'GATHERING'
 				? t('searchMineGathering', { people: group.memberCount })
 				: t('searchMineSub', {
 						day: (group.roundIndex ?? 0) + 1,
 						people: group.memberCount,
 						pct: group.percent
-				  });
+				  }));
 
 		// Every destination pushes inside this tab — see the note on the screen.
 		const goToGroup = (group: GroupSummary) => () =>
@@ -320,7 +324,7 @@ export const SearchScreen = () => {
 					badge: group.name.slice(0, 1),
 					key: `open-${group.id}`,
 					onPress: () => open(() => navigation.navigate('InvitePreview', { groupId: group.id })),
-					sub: t('searchOpenSub', { people: group.memberCount }),
+					sub: `${kindOf(group)} · ${t('searchOpenSub', { people: group.memberCount })}`,
 					tag: t('join'),
 					title: group.name
 				})),

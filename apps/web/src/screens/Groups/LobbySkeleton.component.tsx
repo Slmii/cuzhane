@@ -1,6 +1,7 @@
 import { Bone, SkeletonPulse } from '@/components/Skeleton/Skeleton.component';
 import { SCREEN_TITLE_PADDING_UNDER_BAR } from '@/components/ScreenTitle/ScreenTitle.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
+import type { GroupKind } from '@/lib/types/domain';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { StyleSheet, View } from 'react-native';
 
@@ -8,6 +9,18 @@ import { StyleSheet, View } from 'react-native';
 const SPOT_COLUMNS = 10;
 const SPOT_GAP = 3;
 const SPOT_COUNT = 20;
+/** The Hizb heading's mark — `KIND_MARK_SIZE` on the lobby. */
+const KIND_MARK_SIZE = 40;
+
+type Props = {
+	/**
+	 * Which lobby is loading, when the caller already knows — HC4 puts the KURUCU row above the
+	 * name and the mark beside it, where the Cevşen's comes under the name. A caller that
+	 * doesn't know passes CEVSEN.
+	 */
+	kind: GroupKind;
+};
+
 /** `InviteQr`'s plate: the 200pt code and its 5pt of padding on each side. */
 const QR_PLATE_SIZE = 210;
 /** The joined row's stack — five 30pt faces, each overlapping the last by a third. */
@@ -73,24 +86,45 @@ export const LobbyInviteSkeleton = () => {
  *
  * Spaced by the column's own 12, as `LobbyScreen` is — its cards carry no margins of their own.
  */
-export const LobbySkeleton = () => {
+export const LobbySkeleton = ({ kind }: Props) => {
 	const { theme } = useThemeContext();
+
+	/* KURUCU · TOPLANIYOR */
+	const stateRow = (
+		<View style={[styles.stateRow, kind === 'HIZB' ? styles.stateRowUnderBar : null]}>
+			<Bone height={9} radius={4.5} tone='soft' width={64} />
+			<Bone height={22} radius={7} width={96} />
+		</View>
+	);
 
 	return (
 		<View>
 			<SkeletonPulse style={styles.stack}>
-				{/* No bone for a back link — that control is the navigator's, and the header
-				    below already reserves the band it sits in. */}
-				<View style={styles.header}>
-					<Bone height={22} radius={9} width={128} />
-					<Bone height={9} radius={4.5} style={styles.subtitle} tone='soft' width={168} />
-				</View>
-
-				{/* KURUCU · TOPLANIYOR */}
-				<View style={styles.stateRow}>
-					<Bone height={9} radius={4.5} tone='soft' width={64} />
-					<Bone height={22} radius={7} width={96} />
-				</View>
+				{kind === 'HIZB' ? (
+					<>
+						{/* The state row leads and takes the band under the back button, as on
+						    the screen; the name, its line and the mark follow. */}
+						{stateRow}
+						<View style={[styles.header, styles.hizbHeader]}>
+							<View style={styles.hizbHeaderCopy}>
+								<Bone height={22} radius={9} width={128} />
+								<Bone height={9} radius={4.5} style={styles.subtitle} tone='soft' width={168} />
+							</View>
+							<Bone height={KIND_MARK_SIZE} radius={KIND_MARK_SIZE / 2} width={KIND_MARK_SIZE} />
+						</View>
+					</>
+				) : (
+					<>
+						{/* Back row, name and the "sayım başlamadı" line. */}
+						{/* No bone for a back link — that control is the navigator's, and the header
+						    below already reserves the band it sits in. */}
+						<View style={styles.header}>
+							<Bone height={22} radius={9} width={128} />
+							<Bone height={9} radius={4.5} style={styles.subtitle} tone='soft' width={168} />
+						</View>
+						{stateRow}
+					</>
+				)}
 
 				<CardSurface>
 					<View style={styles.fillRow}>
@@ -153,6 +187,16 @@ const styles = StyleSheet.create({
 	header: {
 		paddingBottom: 18,
 		paddingTop: SCREEN_TITLE_PADDING_UNDER_BAR
+	},
+	// The heading's own 8 above the name, and the mark centred beside it as `ScreenTitle` does.
+	hizbHeader: {
+		alignItems: 'center',
+		flexDirection: 'row',
+		gap: 14,
+		paddingTop: 8
+	},
+	hizbHeaderCopy: {
+		flex: 1
 	},
 	inviteBlock: {
 		borderBottomWidth: StyleSheet.hairlineWidth,
@@ -221,6 +265,12 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		flexDirection: 'row',
 		justifyContent: 'space-between'
+	},
+	// The screen's `stateRowUnderBar`: clear of the bar, and 2 + the heading's 8 above the name —
+	// the stack's 12 pulled back to 2.
+	stateRowUnderBar: {
+		marginBottom: -10,
+		paddingTop: SCREEN_TITLE_PADDING_UNDER_BAR
 	},
 	subtitle: {
 		marginTop: 9

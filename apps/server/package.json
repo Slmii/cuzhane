@@ -18,6 +18,7 @@
 		"db:deploy": "prisma migrate deploy",
 		"db:studio": "prisma studio",
 		"db:seed": "prisma db seed",
+		"db:fresh": "tsx prisma/clear-groups.ts && prisma db seed",
 		"test": "vitest run",
 		"lint": "eslint .",
 		"check-types": "tsc --noEmit --project tsconfig.json",

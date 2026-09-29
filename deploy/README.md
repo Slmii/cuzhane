@@ -57,6 +57,12 @@ deploy, so a plain `docker compose` there sees both files.
 The API applies its own database migrations when it starts. A red job means the environment did
 not change, or changed and failed — look before pushing again.
 
+**Roll forward only, once Hizb groups exist.** The release that added `HIZB` groups cannot be
+backed out after anyone has used them: an older image's Prisma client cannot read the `HIZB` kind or
+the `FLEXIBLE` split mode, and it sizes a group by the kinds it knows. Fix forward instead. Deploy
+that release's server first, then `eas update` on the channel with `--environment`; the other order
+lets the new app create a Hizb group against the old server.
+
 `deploy-marketing.yml` builds the Astro site in `apps/marketing` on a push to `main` and copies it
 onto the same server.
 

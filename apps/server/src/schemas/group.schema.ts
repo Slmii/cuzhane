@@ -1,8 +1,12 @@
+import { partCountFor } from '@utils/groupKinds';
 import { DEFAULT_TIME_ZONE, isValidTimeZone } from '@utils/rounds';
 import { CUZ_COUNT } from '@utils/units';
 import { z } from 'zod';
 
-/** The only group sizes a client may create. Mirrored by `SPOTS_VALUES` on the web app. */
+/**
+ * The only sizes a Cevşen group may be created with. Mirrored by `SPOTS_VALUES` on the web
+ * app. A Hizb group is not held to these — see `CreateGroupBodySchema`.
+ */
 const SPOTS_VALUES = [5, 10, 20];
 
 /**
@@ -30,7 +34,7 @@ const TimeStringSchema = z
 	}, 'Invalid time value');
 
 const GroupVisibilitySchema = z.enum(['OPEN', 'PRIVATE']);
-const GroupCycleSchema = z.enum(['DAILY', 'WEEKLY']);
+const GroupCycleSchema = z.enum(['DAILY', 'WEEKLY', 'MONTHLY']);
 
 export const GroupIdParamsSchema = z.object({
 	groupId: z.string().trim().min(1).max(64)
@@ -42,7 +46,12 @@ export const RoundParamsSchema = z.object({
 	roundIndex: z.coerce.number().int().min(0)
 });
 
-/** Covering a whole block at once — the row's outstanding babs, not one per request. */
+/**
+ * Covering a whole block at once — the row's outstanding babs, not one per request.
+ *
+ * 100 is the outer bound, the Cevşen's count. A Hizb group has 33 parts, and the service
+ * checks against the group's own count once it has loaded the group.
+ */
 export const CoverRoundBabsBodySchema = z.object({
 	babNumbers: z.array(z.number().int().min(1).max(100)).min(1).max(100)
 });
@@ -51,6 +60,15 @@ export const PoolSlotParamsSchema = z.object({
 	groupId: z.string().trim().min(1).max(64),
 	// Path params arrive as strings; the service checks the seat is actually in the pool.
 	slotIndex: z.coerce.number().int().min(0).max(49)
+});
+
+/**
+ * One portion of a Hizb pool block. 100 is the outer bound, the Cevşen's count; the service
+ * refuses any other kind outright and checks the number against the group's own pool.
+ */
+export const PoolPartParamsSchema = z.object({
+	groupId: z.string().trim().min(1).max(64),
+	babNumber: z.coerce.number().int().min(1).max(100)
 });
 
 /** The hatim's havuz is addressed by cüz, not by seat — see `cuzPool.service`. */
@@ -69,41 +87,63 @@ const CreateGroupBaseSchema = z.object({
 	name: z.string().trim().min(1).max(60),
 	dedication: z.string().trim().max(120).nullable().optional(),
 	visibility: GroupVisibilitySchema.default('OPEN'),
+	hideMemberNames: z.boolean().default(false),
 	reminderEnabled: z.boolean().default(true),
 	reminderTime: TimeStringSchema,
 	timezone: TimeZoneSchema
 });
 
 /**
- * The two kinds are a discriminated union, not one object with optional halves.
+ * A personal plan or an individual reading is the Hizb's alone. Declared on the other kinds
+ * only so a body asking for one is **refused rather than stripped** — stripped, it would
+ * quietly create a shared group the creator never asked for.
+ */
+const NotHizbSchema = {
+	hizbIndividual: z.literal(false, { message: 'Individual reading requires Hizb' }).optional(),
+	hizbPlan: z.undefined({ message: 'Personal plans require Hizb' }).optional()
+};
+
+/**
+ * The three kinds are a discriminated union, not one object with optional halves.
  *
- * **Each kind's settings are meaningless to the other.** One object carrying both halves
+ * **Each kind's settings are meaningless to the others.** One object carrying every half
  * would hand the service a `maxPerMember` on a Cevşen group and a `splitMode` on a hatim,
  * and every one of these is immutable after creation — so a field read from the wrong half
  * is wrong for the life of the group. The union makes that *unrepresentable in the type*:
  * `input.spots` does not exist on the hatim branch, so no service can reach for it.
  *
  * A foreign field arriving over the wire is **stripped, not rejected** — Zod's default, and
- * deliberately left alone. `.strict()` would be the stronger guarantee and it cannot be used
- * here: the shipped client posts `autoStartWhenFull`, which this schema has never declared,
- * so strict parsing would stop every installed app from creating a group at all.
+ * deliberately left alone (the Hizb's plan fields aside, see `NotHizbSchema`). `.strict()`
+ * would be the stronger guarantee and it cannot be used here: the shipped client posts
+ * `autoStartWhenFull`, which this schema has never declared, so strict parsing would stop
+ * every installed app from creating a group at all.
+ *
+ * `spots` and `cycle` are immutable after creation, so a value accepted here is one the
+ * group keeps forever — which is why each kind's rules are enforced here rather than trusted
+ * to the client. Issues land on the field, so the create sheet can put the message under the
+ * control that caused it.
  */
 const CreateCevsenBodySchema = CreateGroupBaseSchema.extend({
 	kind: z.literal('CEVSEN'),
 	// `FREE` is retired — the DB enum still carries it for legacy rows, but no new
 	// group can choose it. Rotation is the design's default and comes first.
-	splitMode: z.enum(['ROTATION', 'FIXED']).default('ROTATION'),
-	cycle: GroupCycleSchema.default('WEEKLY'),
-	/**
-	 * Three sizes only. Each divides the hundred evenly — 20, 10 and 5 babs a head — so no
-	 * seat carries a leftover bab. Mirrors `SPOTS_VALUES` on the client; `spots` is immutable
-	 * after creation, so a value accepted here is one the group keeps forever.
-	 */
-	spots: z
-		.number()
-		.int()
-		.default(20)
-		.refine(value => SPOTS_VALUES.includes(value), { message: 'Spots must be 5, 10 or 20' })
+	splitMode: z.enum(['ROTATION', 'FIXED', 'FLEXIBLE']).default('ROTATION'),
+	cycle: z.enum(['DAILY', 'WEEKLY']).default('WEEKLY'),
+	spots: z.number().int().default(20),
+	...NotHizbSchema
+}).superRefine((body, context) => {
+	if (body.splitMode === 'FLEXIBLE') {
+		if (body.visibility !== 'OPEN') {
+			context.addIssue({ code: 'custom', message: 'Flexible groups must be open', path: ['visibility'] });
+		}
+	} else if (!SPOTS_VALUES.includes(body.spots)) {
+		/*
+		 * Three sizes only. Each divides the hundred evenly — 20, 10 and 5 babs a head — so no
+		 * seat carries a leftover bab. Mirrors `SPOTS_VALUES` on the client. A flexible group
+		 * has no seats to size.
+		 */
+		context.addIssue({ code: 'custom', message: 'Spots must be 5, 10 or 20', path: ['spots'] });
+	}
 });
 
 /**
@@ -114,8 +154,8 @@ const CreateCevsenBodySchema = CreateGroupBaseSchema.extend({
  * `spots` is therefore not asked for and not offered: **a hatim is full when all thirty cüz
  * are taken, not when thirty people have joined**, so the seat cap is pinned at `CUZ_COUNT`
  * purely as the ceiling on membership that `slotIndex` still needs. `roundDays` is the real
- * round length (QC3 offers 7, 30 or a number), and `cycle` is derived from it below so the
- * existing filters and labels keep working.
+ * round length (QC3 offers 7, 30 or a number), and `cycle` is derived from it in the service
+ * so the existing filters and labels keep working.
  */
 const CreateHatimBodySchema = CreateGroupBaseSchema.extend({
 	kind: z.literal('HATIM'),
@@ -147,7 +187,62 @@ const CreateHatimBodySchema = CreateGroupBaseSchema.extend({
 	 * you cannot be in a hatim and hold no cüz — so it is enforced at the edge rather than
 	 * left to the client's disabled button.
 	 */
-	cuzNumbers: z.array(z.number().int().min(1).max(30)).min(1).max(30)
+	cuzNumbers: z.array(z.number().int().min(1).max(30)).min(1).max(30),
+	...NotHizbSchema
+});
+
+/**
+ * A Hizb group divides 33 portions by seat, like the Cevşen, and adds a calendar month, a
+ * flexible pool, personal plans (`hizbPlan`: 0 lets each member choose, otherwise 7/15/33
+ * days) and individual reading (a private plan from a chosen portion).
+ */
+const CreateHizbBodySchema = CreateGroupBaseSchema.extend({
+	kind: z.literal('HIZB'),
+	hizbIndividual: z.boolean().default(false),
+	hizbStartPortion: z.number().int().min(1).max(33).default(1),
+	hizbPlan: z.union([z.literal(0), z.literal(7), z.literal(15), z.literal(33)]).optional(),
+	inactivityDays: z.number().int().min(1).max(365).nullable().optional(),
+	// "Okuma sorumluları" — a shared plan's "has read" notice to the ticked members only.
+	readSeersEnabled: z.boolean().default(false),
+	splitMode: z.enum(['ROTATION', 'FIXED', 'FLEXIBLE']).default('ROTATION'),
+	cycle: z.enum(['DAILY', 'WEEKLY', 'MONTHLY']).default('WEEKLY'),
+	// 20 stays the default because it is valid for both seat-based kinds: the Cevşen's
+	// largest size, and 20 of the Hizb's 33.
+	spots: z.number().int().default(20)
+}).superRefine((body, context) => {
+	if (body.hizbIndividual && (!body.hizbPlan || body.hizbStartPortion > body.hizbPlan)) {
+		context.addIssue({
+			code: 'custom',
+			message: 'Individual reading needs a fixed Hizb plan and a valid starting portion',
+			path: ['hizbStartPortion']
+		});
+	}
+	if (!body.hizbIndividual && body.hizbStartPortion !== 1) {
+		context.addIssue({
+			code: 'custom',
+			message: 'Only individual reading can choose a starting portion',
+			path: ['hizbStartPortion']
+		});
+	}
+	// A personal plan has no seats and no shared round to size.
+	if (body.hizbPlan !== undefined) {
+		return;
+	}
+	if (body.splitMode === 'FLEXIBLE') {
+		if (body.visibility !== 'OPEN') {
+			context.addIssue({ code: 'custom', message: 'Flexible groups must be open', path: ['visibility'] });
+		}
+		return;
+	}
+	/*
+	 * Any size from one to the part count. An uneven split is already handled — the first
+	 * `33 % spots` seats take one more — and past 33 a seat would hold nothing.
+	 */
+	const partCount = partCountFor('HIZB');
+
+	if (body.spots < 1 || body.spots > partCount) {
+		context.addIssue({ code: 'custom', message: `Spots must be between 1 and ${partCount}`, path: ['spots'] });
+	}
 });
 
 /**
@@ -158,14 +253,18 @@ const CreateHatimBodySchema = CreateGroupBaseSchema.extend({
  */
 export const CreateGroupBodySchema = z.preprocess(
 	body => (typeof body === 'object' && body !== null && !('kind' in body) ? { ...body, kind: 'CEVSEN' } : body),
-	z.discriminatedUnion('kind', [CreateCevsenBodySchema, CreateHatimBodySchema])
+	z.discriminatedUnion('kind', [CreateCevsenBodySchema, CreateHatimBodySchema, CreateHizbBodySchema])
 );
 
 export const UpdateGroupBodySchema = z
 	.object({
+		inactivityDays: z.number().int().min(1).max(365).nullable().optional(),
 		name: z.string().trim().min(1).max(60).optional(),
 		dedication: z.string().trim().max(120).nullable().optional(),
 		visibility: GroupVisibilitySchema.optional(),
+		hideMemberNames: z.boolean().optional(),
+		readerSeerUserIds: z.array(z.string().trim().min(1).max(64)).max(3).optional(),
+		readSeersEnabled: z.boolean().optional(),
 		openToJoin: z.boolean().optional(),
 		reminderEnabled: z.boolean().optional(),
 		reminderTime: TimeStringSchema.optional(),

@@ -5,7 +5,7 @@ import { ReadingTypeMark } from '@/components/ui/ReadingTypeMark/ReadingTypeMark
 import { Typography } from '@/components/ui/Typography/Typography.component';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { toAlphaColor } from '@/lib/theme/tokens';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import type { HomeGroupRowProps } from './HomeGroupRow.types';
 import { PortionBar } from './PortionBar.component';
 
@@ -17,8 +17,8 @@ const MARK_SIZE = 22;
  * babs ("2/5", a segment each); a cüz counts pages and says how long its round has left
  * ("0/20 s · 6 gün"), since a hatim's round runs for days.
  *
- * The whole row opens the reading, as the button does: nothing here marks anything read, and
- * the group itself is a tab away.
+ * The row opens the group; its button goes straight into the reading. Nothing here marks
+ * anything read.
  */
 export const HomeGroupRow = ({
 	actionLabel,
@@ -28,29 +28,42 @@ export const HomeGroupRow = ({
 	meta,
 	moreCount,
 	name,
+	onOpenGroup,
 	onPress,
 	segments
 }: HomeGroupRowProps) => {
 	const { theme } = useThemeContext();
 
 	return (
-		<CardSurface onPress={onPress} style={styles.card}>
-			<ReadingTypeMark color={toAlphaColor(theme.colors.accent, 0.75)} kind={kind} size={MARK_SIZE} />
-			<View style={styles.body}>
-				<View style={styles.titleRow}>
-					<Typography color={theme.colors.accent} style={styles.heading} variant='title' weight='regular'>
-						{heading}
-					</Typography>
-					<SliceChip count={moreCount} isCompact tone='wash' />
-					<Typography numberOfLines={1} style={styles.name} weight='semibold'>
-						{name}
-					</Typography>
-					<Typography color={theme.colors.faintText} style={styles.meta}>
-						{meta}
-					</Typography>
+		<CardSurface style={styles.card}>
+			{/*
+			 * The row's own press is a sibling of the button, never its parent: on iOS the button is
+			 * a native SwiftUI control, which does not take the touch from an enclosing `Pressable`,
+			 * so one tap on it opened the group *and* the reading.
+			 */}
+			<Pressable
+				accessibilityLabel={`${heading}, ${name}, ${meta}`}
+				accessibilityRole='button'
+				onPress={onOpenGroup}
+				style={({ pressed }) => [styles.open, { opacity: pressed ? 0.7 : 1 }]}
+			>
+				<ReadingTypeMark color={toAlphaColor(theme.colors.accent, 0.75)} kind={kind} size={MARK_SIZE} />
+				<View style={styles.body}>
+					<View style={styles.titleRow}>
+						<Typography color={theme.colors.accent} style={styles.heading} variant='title' weight='regular'>
+							{heading}
+						</Typography>
+						<SliceChip count={moreCount} isCompact tone='wash' />
+						<Typography numberOfLines={1} style={styles.name} weight='semibold'>
+							{name}
+						</Typography>
+						<Typography color={theme.colors.faintText} style={styles.meta}>
+							{meta}
+						</Typography>
+					</View>
+					<PortionBar {...(segments ? { segments } : { fraction: fraction ?? 0 })} />
 				</View>
-				<PortionBar {...(segments ? { segments } : { fraction: fraction ?? 0 })} />
-			</View>
+			</Pressable>
 			<AppButton
 				accessibilityLabel={`${name} · ${actionLabel}`}
 				fullWidth={false}
@@ -88,6 +101,13 @@ const styles = StyleSheet.create({
 		flex: 1,
 		fontSize: 12.5,
 		lineHeight: 16
+	},
+	open: {
+		alignItems: 'center',
+		flex: 1,
+		flexDirection: 'row',
+		gap: 12,
+		minWidth: 0
 	},
 	titleRow: {
 		alignItems: 'baseline',

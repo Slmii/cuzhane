@@ -8,6 +8,11 @@ import type { GroupKind, Prisma } from '../generated/prisma/client';
  * is a hundred babs or thirty cüz, and the pool holds different things. A reader in both kinds
  * gets to choose separately, which is what P4's Kuran and Cevşen sections are.
  *
+ * **A Hizb group has its own group-reads switch**, and answers to the Cevşen's for the rest: a
+ * shared board runs on the Cevşen's model (seats, blocks, a pool of portions), and those are the
+ * columns its pool and round notices were written against. Responsible members of a Hizb plan
+ * hear its reads whatever their switch says — see `notifyHizbRead`.
+ *
  * Member joined/left are deliberately **not** here: who is in a group is the same event
  * whatever it reads, and they stay on one switch in "Genel".
  *
@@ -23,6 +28,7 @@ type PerKindSetting = Extract<
 	| 'hatimGroupReadsEnabled'
 	| 'hatimPoolClaimEnabled'
 	| 'hatimRoundCompleteEnabled'
+	| 'hizbGroupReadsEnabled'
 >;
 
 /**
@@ -31,9 +37,13 @@ type PerKindSetting = Extract<
  * would be handed "one of six" and refuse it.
  */
 const BY_EVENT = {
-	groupReads: { CEVSEN: 'cevsenGroupReadsEnabled', HATIM: 'hatimGroupReadsEnabled' },
-	poolClaim: { CEVSEN: 'cevsenPoolClaimEnabled', HATIM: 'hatimPoolClaimEnabled' },
-	roundComplete: { CEVSEN: 'cevsenRoundCompleteEnabled', HATIM: 'hatimRoundCompleteEnabled' }
+	groupReads: { CEVSEN: 'cevsenGroupReadsEnabled', HATIM: 'hatimGroupReadsEnabled', HIZB: 'hizbGroupReadsEnabled' },
+	poolClaim: { CEVSEN: 'cevsenPoolClaimEnabled', HATIM: 'hatimPoolClaimEnabled', HIZB: 'cevsenPoolClaimEnabled' },
+	roundComplete: {
+		CEVSEN: 'cevsenRoundCompleteEnabled',
+		HATIM: 'hatimRoundCompleteEnabled',
+		HIZB: 'cevsenRoundCompleteEnabled'
+	}
 } as const satisfies Record<string, Record<GroupKind, PerKindSetting>>;
 
 /** `settingFor('groupReads', group.kind)` — the only place a kind picks a column. */

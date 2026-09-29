@@ -1,3 +1,10 @@
+import { HizbPlanReader } from '@/screens/Hizb/HizbPlanReader.component';
+import { HizbGroupProgressScreen } from '@/screens/Groups/HizbGroupProgressScreen.component';
+import { HizbMissedScreen } from '@/screens/Groups/HizbMissedScreen.component';
+import { HizbGroupHistoryScreen } from '@/screens/Groups/HizbGroupHistoryScreen.component';
+import { HizbPlanHistoryScreen } from '@/screens/Groups/HizbPlanHistoryScreen.component';
+import { HizbReadersScreen } from '@/screens/Groups/HizbReadersScreen.component';
+import { GroupHowItWorksScreen } from '@/screens/Groups/GroupHowItWorksScreen.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { SplashScreen as AnimatedSplash } from '@/screens/Splash/SplashScreen.component';
 import { userSettingsQueryKeys } from '@/lib/hooks/queryKeys';
@@ -24,6 +31,7 @@ import { GroupDetailToolbar } from '@/screens/Groups/GroupDetailToolbar.componen
 import { GroupsScreen } from '@/screens/Groups/GroupsScreen.component';
 import { GroupBrowseProvider } from '@/components/GroupBrowseBar/GroupBrowse.context';
 import { GroupsToolbar } from '@/screens/Groups/GroupsToolbar.component';
+import { HizbIndexScreen } from '@/screens/Groups/HizbIndexScreen.component';
 import { LobbyScreen } from '@/screens/Groups/LobbyScreen.component';
 import { PoolScreen } from '@/screens/Groups/PoolScreen.component';
 import { RoundDetailScreen } from '@/screens/Groups/RoundDetailScreen.component';
@@ -46,6 +54,8 @@ import { NotificationsScreen } from '@/screens/Notifications/NotificationsScreen
 import { NotificationSettingsToolbar } from '@/navigation/NotificationSettingsToolbar';
 import { useUnreadNotificationCount } from '@/lib/hooks/useNotifications';
 import { ReleaseNotesScreen } from '@/screens/WhatsNew/ReleaseNotesScreen.component';
+import { HizbReaderScreen } from '@/screens/Hizb/HizbReaderScreen.component';
+import { HizbSectionsScreen } from '@/screens/Hizb/HizbSectionsScreen.component';
 import { AllBabsScreen } from '@/screens/Reader/AllBabsScreen.component';
 import { BabReaderScreen } from '@/screens/Reader/BabReaderScreen.component';
 import { ReaderToolbar } from '@/screens/Reader/ReaderToolbar.component';
@@ -79,7 +89,7 @@ import { useBottomTabBarHeight, type AppleIcon } from 'react-native-bottom-tabs'
  * `HatimComplete` (Q7) is the other: a full-bleed green page whose one action is the line at
  * its foot, and the bar laid over it read as the app carrying on regardless of the moment.
  */
-const TAB_BAR_HIDDEN_ROUTES = new Set<string>(['Search', 'HatimComplete']);
+const TAB_BAR_HIDDEN_ROUTES = new Set<string>(['Search', 'HatimComplete', 'GroupHowItWorks']);
 
 type AnyNavigationState = NavigationState | PartialState<NavigationState>;
 
@@ -421,6 +431,7 @@ const sharedTabScreens = ({ isProfileRoot = false }: { isProfileRoot?: boolean }
 		/>
 		<TabStack.Screen name='Lobby' component={LobbyScreen} options={pushedScreenOptions} />
 		<TabStack.Screen name='Pool' component={PoolScreen} options={pushedScreenOptions} />
+		<TabStack.Screen name='HizbIndex' component={HizbIndexScreen} options={pushedScreenOptions} />
 		<TabStack.Screen name='Rounds' component={RoundsScreen} options={pushedScreenOptions} />
 		<TabStack.Screen name='MyProgress' component={MyProgressScreen} options={pushedScreenOptions} />
 		<TabStack.Screen name='HatimDua' component={HatimDuaScreen} options={pushedScreenOptions} />
@@ -487,6 +498,28 @@ const sharedTabScreens = ({ isProfileRoot = false }: { isProfileRoot?: boolean }
 		 */}
 		<TabStack.Screen name='Reminders' component={RemindersScreen} options={pushedScreenOptions} />
 		<TabStack.Screen name='ReleaseNotes' component={ReleaseNotesScreen} options={nativeBackScreenOptions} />
+		<TabStack.Screen
+			name='HizbPlanReader'
+			component={HizbPlanReader}
+			options={{ ...nativeBackScreenOptions, headerRight: () => <ReaderToolbar /> }}
+		/>
+		<TabStack.Screen name='HizbMissed' component={HizbMissedScreen} options={nativeBackScreenOptions} />
+		<TabStack.Screen name='HizbPlanHistory' component={HizbPlanHistoryScreen} options={nativeBackScreenOptions} />
+		<TabStack.Screen
+			name='HizbGroupProgress'
+			component={HizbGroupProgressScreen}
+			options={nativeBackScreenOptions}
+		/>
+		<TabStack.Screen name='HizbReaders' component={HizbReadersScreen} options={nativeBackScreenOptions} />
+		<TabStack.Screen name='HizbGroupHistory' component={HizbGroupHistoryScreen} options={nativeBackScreenOptions} />
+		{/* O1–O5, after joining any group: its own "Atla" and buttons are the way on, so no bar. */}
+		<TabStack.Screen name='GroupHowItWorks' component={GroupHowItWorksScreen} options={{ headerShown: false }} />
+		<TabStack.Screen name='HizbSections' component={HizbSectionsScreen} options={nativeBackScreenOptions} />
+		<TabStack.Screen
+			name='HizbReader'
+			component={HizbReaderScreen}
+			options={{ ...nativeBackScreenOptions, headerRight: () => <ReaderToolbar /> }}
+		/>
 		{Platform.OS === 'android' ? <TabStack.Screen name='Search' component={SearchScreen} /> : null}
 	</>
 );

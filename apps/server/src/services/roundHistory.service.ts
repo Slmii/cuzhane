@@ -2,9 +2,18 @@ import { CONFLICT, FORBIDDEN, NOT_FOUND } from '@config/httpCodes';
 import { HttpError } from '@config/httpError';
 import prisma from '@db/prisma';
 import { slotIndexForBab } from '@utils/babs';
+import { visibleUserId } from '@utils/groupPrivacy';
+import {
+	civilDayNumber,
+	roundEndsAt,
+	roundIndexSince,
+	roundLengthFor,
+	roundStartedAtFor,
+	type CycleName
+} from '@utils/rounds';
 import { unitCountFor } from '@utils/units';
-import { roundEndsAt, roundIndexSince, roundStartedAtFor, type CycleName } from '@utils/rounds';
 import { normalizeUserId } from '@utils/normalizeUserId';
+import { assertRepetitionsMet } from './repetitions.service';
 import { ensureCurrentRoundFor } from './rounds.service';
 import { requireMembership } from './groupAccess.service';
 import { babNumbersInRound, toSplitMode } from './groupSerializers';
@@ -14,8 +23,16 @@ export type RoundSummary = {
 	roundIndex: number;
 	startedAt: string;
 	endsAt: string;
+	/** How many parts the round had to cover — what `readCount` and `missedCount` are out of. */
+	partCount: number;
 	readCount: number;
 	missedCount: number;
+	/**
+	 * Which parts nobody read, ascending — the complement of the round's reads over the part
+	 * count, so it has exactly `missedCount` entries. Always empty for the open round, whose day
+	 * is not over. Turlar names them on a Hizb round's card when there are three or fewer.
+	 */
+	missedPartNumbers: number[];
 	/** Babs this member was owed and read, of the babs they were owed. */
 	myReadCount: number;
 	myOwedCount: number;
@@ -39,6 +56,10 @@ export type RoundDetail = {
 	startedAt: string;
 	endsAt: string;
 	isOpen: boolean;
+	/** Calendar days late in the group's zone; the exclusive deadline starts day one. */
+	daysLate: number;
+	/** See `RoundSummary.partCount`; `babs` has exactly this many entries. */
+	partCount: number;
 	readCount: number;
 	missedCount: number;
 	/** How many members still owe at least one bab from this round. */
@@ -54,8 +75,11 @@ export type RoundDetail = {
  * block index is the seat. This is what lets a closed round be attributed at all: nothing
  * stores who owed what, exactly as nothing stores who reads what.
  */
-const owedSlotForBab = (group: Pick<Group, 'spots' | 'splitMode'>, babNumber: number, roundIndex: number) => {
-	const blockIndex = slotIndexForBab(babNumber, group.spots);
+const owedSlotForBab = (group: Pick<Group, 'spots' | 'splitMode' | 'kind'>, babNumber: number, roundIndex: number) => {
+	if (group.splitMode === 'FLEXIBLE') {
+		return null;
+	}
+	const blockIndex = slotIndexForBab(babNumber, group.spots, unitCountFor(group));
 
 	if (blockIndex === null) {
 		return null;
@@ -99,9 +123,10 @@ const boundsFor = (group: Group, roundIndex: number) => {
 	// A group cannot have history before it started, so `startedAt` is non-null on every
 	// path that reaches here — the callers all guard on RUNNING first.
 	const startedAt = group.startedAt as Date;
-	const start = roundStartedAtFor(startedAt, group.roundDays, roundIndex, group.timezone);
+	const length = roundLengthFor(group);
+	const start = roundStartedAtFor(startedAt, length, roundIndex, group.timezone);
 
-	return { startedAt: start, endsAt: roundEndsAt(start, group.roundDays, group.timezone) };
+	return { startedAt: start, endsAt: roundEndsAt(startedAt, length, roundIndex, group.timezone) };
 };
 
 const loadRunningGroup = async (userId: string, groupId: string) => {
@@ -135,7 +160,6 @@ const loadRunningGroup = async (userId: string, groupId: string) => {
  */
 export const listRoundsForUser = async (userId: string, groupId: string): Promise<RoundSummary[]> => {
 	const { group, normalizedUserId } = await loadRunningGroup(userId, groupId);
-	const unitCount = unitCountFor(group);
 
 	const [members, reads, holders] = await Promise.all([
 		prisma.groupMember.findMany({ where: { groupId }, orderBy: { slotIndex: 'asc' } }),
@@ -147,12 +171,14 @@ export const listRoundsForUser = async (userId: string, groupId: string): Promis
 	]);
 
 	const viewer = members.find(member => member.userId === normalizedUserId);
-	const readsByRound = new Map<number, { total: number; mine: number }>();
+	const partCount = unitCountFor(group);
+	const readsByRound = new Map<number, { total: number; mine: number; numbers: Set<number> }>();
 
 	for (const read of reads) {
-		const bucket = readsByRound.get(read.roundIndex) ?? { total: 0, mine: 0 };
+		const bucket = readsByRound.get(read.roundIndex) ?? { total: 0, mine: 0, numbers: new Set<number>() };
 
 		bucket.total += 1;
+		bucket.numbers.add(read.babNumber);
 
 		if (read.userId === normalizedUserId) {
 			bucket.mine += 1;
@@ -164,14 +190,15 @@ export const listRoundsForUser = async (userId: string, groupId: string): Promis
 	const summaries: RoundSummary[] = [];
 
 	for (let roundIndex = group.roundIndex; roundIndex >= 0; roundIndex--) {
-		const bucket = readsByRound.get(roundIndex) ?? { total: 0, mine: 0 };
+		const bucket = readsByRound.get(roundIndex) ?? { total: 0, mine: 0, numbers: new Set<number>() };
 		const { startedAt, endsAt } = boundsFor(group, roundIndex);
+		const isOpen = roundIndex === group.roundIndex;
 		const owedCount =
 			viewer === undefined
 				? 0
 				: holders
 				? [...(holders.get(roundIndex)?.values() ?? [])].filter(holder => holder === normalizedUserId).length
-				: Array.from({ length: unitCount }, (_, index) => index + 1).filter(
+				: Array.from({ length: partCount }, (_, index) => index + 1).filter(
 						babNumber => owedSlotForBab(group, babNumber, roundIndex) === viewer.slotIndex
 				  ).length;
 
@@ -179,12 +206,18 @@ export const listRoundsForUser = async (userId: string, groupId: string): Promis
 			roundIndex,
 			startedAt: startedAt.toISOString(),
 			endsAt: endsAt.toISOString(),
+			partCount,
 			readCount: bucket.total,
 			// An open round has nothing "missing" yet — the day is not over.
-			missedCount: roundIndex === group.roundIndex ? 0 : unitCount - bucket.total,
+			missedCount: isOpen ? 0 : partCount - bucket.total,
+			missedPartNumbers: isOpen
+				? []
+				: Array.from({ length: partCount }, (_, index) => index + 1).filter(
+						number => !bucket.numbers.has(number)
+				  ),
 			myReadCount: bucket.mine,
 			myOwedCount: owedCount,
-			isOpen: roundIndex === group.roundIndex
+			isOpen
 		});
 	}
 
@@ -197,7 +230,7 @@ export const getRoundDetailForUser = async (
 	groupId: string,
 	roundIndex: number
 ): Promise<RoundDetail> => {
-	const { group } = await loadRunningGroup(userId, groupId);
+	const { group, normalizedUserId } = await loadRunningGroup(userId, groupId);
 
 	if (roundIndex < 0 || roundIndex > group.roundIndex) {
 		throw new HttpError(NOT_FOUND, 'Round not found');
@@ -217,8 +250,9 @@ export const getRoundDetailForUser = async (
 	const memberBySlot = new Map<number, GroupMember>(members.map(member => [member.slotIndex, member]));
 	const memberByUserId = new Map<string, GroupMember>(members.map(member => [member.userId, member]));
 	const readByNumber = new Map(reads.map(read => [read.babNumber, read]));
+	const partCount = unitCountFor(group);
 
-	const babs: RoundBab[] = Array.from({ length: unitCountFor(group) }, (_, index) => {
+	const babs: RoundBab[] = Array.from({ length: partCount }, (_, index) => {
 		const number = index + 1;
 		const read = readByNumber.get(number);
 
@@ -255,16 +289,25 @@ export const getRoundDetailForUser = async (
 
 	const missed = babs.filter(bab => bab.readByUserId === null);
 	const { startedAt, endsAt } = boundsFor(group, roundIndex);
+	const isOpen = roundIndex === group.roundIndex;
 
 	return {
 		roundIndex,
 		startedAt: startedAt.toISOString(),
 		endsAt: endsAt.toISOString(),
-		isOpen: roundIndex === group.roundIndex,
-		readCount: unitCountFor(group) - missed.length,
+		isOpen,
+		daysLate: isOpen
+			? 0
+			: Math.max(1, civilDayNumber(new Date(), group.timezone) - civilDayNumber(endsAt, group.timezone) + 1),
+		partCount,
+		readCount: partCount - missed.length,
 		missedCount: missed.length,
 		missedPeopleCount: new Set(missed.map(bab => bab.owedByUserId).filter(Boolean)).size,
-		babs
+		babs: babs.map(bab => ({
+			...bab,
+			readByUserId: visibleUserId(group, normalizedUserId, bab.readByUserId),
+			owedByUserId: visibleUserId(group, normalizedUserId, bab.owedByUserId)
+		}))
 	};
 };
 
@@ -291,7 +334,12 @@ export const coverMissedBabsForUser = async (
 	 * theirs to fill, and covering it would write their name over the group's history and into
 	 * their own totals and streak — the same floor `getMyProgressForUser` puts on their record.
 	 */
-	const joinedRoundIndex = roundIndexSince(group.startedAt as Date, group.roundDays, member.joinedAt, group.timezone);
+	const joinedRoundIndex = roundIndexSince(
+		group.startedAt as Date,
+		roundLengthFor(group),
+		member.joinedAt,
+		group.timezone
+	);
 
 	if (roundIndex < joinedRoundIndex) {
 		throw new HttpError(FORBIDDEN, 'That round closed before you joined');
@@ -304,10 +352,34 @@ export const coverMissedBabsForUser = async (
 	}
 
 	const wanted = [...new Set(babNumbers)];
+	// The route bounds the numbers by the Cevşen's hundred; a Hizb group stops at 33.
+	const partCount = unitCountFor(group);
 
-	if (wanted.some(babNumber => !Number.isInteger(babNumber) || babNumber < 1 || babNumber > unitCountFor(group))) {
+	if (wanted.some(babNumber => !Number.isInteger(babNumber) || babNumber < 1 || babNumber > partCount)) {
 		throw new HttpError(NOT_FOUND, 'Bab not found');
 	}
+
+	/*
+	 * Held to the count only for what this request will actually write. A Sekine somebody else
+	 * already covered is theirs, and `skipDuplicates` below leaves it alone — refusing the rest
+	 * of the block over it would turn a generous act away for a part it never touches. A race
+	 * that covers one in between only means the insert skips it; a request with nothing left
+	 * still gets the "already read" 409 below.
+	 *
+	 * Against the round being covered, not the one open now: nineteen recited today are today's.
+	 */
+	const covered = await prisma.babRead.findMany({
+		where: { groupId, roundIndex, babNumber: { in: wanted } },
+		select: { babNumber: true }
+	});
+	const coveredNumbers = new Set(covered.map(read => read.babNumber));
+
+	await assertRepetitionsMet(prisma, {
+		group,
+		userId: normalizedUserId,
+		roundIndex,
+		babNumbers: wanted.filter(babNumber => !coveredNumbers.has(babNumber))
+	});
 
 	// `skipDuplicates` rather than a transaction that fails on the first clash: taking on
 	// someone's whole block is a generous act, and having it rejected outright because one
@@ -358,9 +430,9 @@ export type MyProgressPeriod = {
 	 * differently — that design was built and dropped, and the field went back with it rather
 	 * than staying as a payload nobody reads.
 	 *
-	 * **Never a constant** — `100 / spots`, with the first `100 % spots` seats getting one
-	 * extra, and under ROTATION the seat moves each round, so the same member can owe 9 one
-	 * round and 8 the next.
+	 * **Never a constant** — `partCount / spots`, with the first `partCount % spots` seats
+	 * getting one extra, and under ROTATION the seat moves each round, so the same member can
+	 * owe 9 one round and 8 the next.
 	 */
 	owedCount: number;
 	/**
@@ -442,7 +514,12 @@ export const getMyProgressForUser = async (userId: string, groupId: string): Pro
 	 * misses; this screen puts a number against one person, so being wrong reads as an
 	 * accusation.
 	 */
-	const joinedRoundIndex = roundIndexSince(group.startedAt as Date, group.roundDays, member.joinedAt, group.timezone);
+	const joinedRoundIndex = roundIndexSince(
+		group.startedAt as Date,
+		roundLengthFor(group),
+		member.joinedAt,
+		group.timezone
+	);
 	/*
 	 * Capped at the round the group is on. For a repeating group that changes nothing — nobody
 	 * joins after the present — but a one-off ("Tek seferlik") never leaves round 0 however long

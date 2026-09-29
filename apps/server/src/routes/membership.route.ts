@@ -10,6 +10,7 @@ import {
 	InviteCodeParamsSchema,
 	MemberUserIdParamsSchema
 } from '@schemas/membership.schema';
+import { assertClientCanUseGroup } from '@services/clientCompatibility.service';
 import {
 	joinGroupByCodeForUser,
 	joinGroupForUser,
@@ -24,6 +25,12 @@ import { NextFunction, Request, Response, Router } from 'express';
 
 const membershipRouter = Router();
 
+/*
+ * The previews and the joins are how anyone enters a group, so each asks
+ * `assertClientCanUseGroup` first: a build that can't draw the group's kind is refused (426)
+ * before it can see it as a hundred babs or take a seat in it.
+ */
+
 membershipRouter.get(
 	'/preview/code/:code',
 	// Shares the join limit: looking a code up is the first half of guessing one.
@@ -35,6 +42,7 @@ membershipRouter.get(
 				auth: { userId }
 			} = res.locals;
 
+			await assertClientCanUseGroup(res, { inviteCode: code });
 			const preview = await previewGroupByCode(userId, code);
 			res.status(OK).json(preview);
 		} catch (error) {
@@ -52,6 +60,7 @@ membershipRouter.get(
 				auth: { userId }
 			} = res.locals;
 
+			await assertClientCanUseGroup(res, { id: groupId });
 			const preview = await previewGroupById(userId, groupId);
 			res.status(OK).json(preview);
 		} catch (error) {
@@ -71,6 +80,7 @@ membershipRouter.post(
 				validatedBody
 			} = res.locals;
 
+			await assertClientCanUseGroup(res, { inviteCode: validatedBody.code });
 			const displayName = resolveDisplayName(req);
 			const membership = await joinGroupByCodeForUser(
 				userId,
@@ -98,6 +108,7 @@ membershipRouter.post(
 				auth: { userId }
 			} = res.locals;
 
+			await assertClientCanUseGroup(res, { id: groupId });
 			const displayName = resolveDisplayName(req);
 			const membership = await joinGroupForUser(userId, displayName, groupId, cuzNumbers);
 			res.status(CREATED).json(membership);

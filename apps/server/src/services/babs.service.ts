@@ -1,7 +1,8 @@
 import { BAD_REQUEST, CONFLICT } from '@config/httpCodes';
 import { HttpError } from '@config/httpError';
 import prisma from '@db/prisma';
-import { BAB_COUNT, babRuns, formatRun } from '@utils/babs';
+import { babRuns, formatRun } from '@utils/babs';
+import { partCountFor } from '@utils/groupKinds';
 import { FALLBACK_DISPLAY_NAME, getMemberProfiles } from '@utils/memberProfiles';
 import { normalizeUserId } from '@utils/normalizeUserId';
 import { settingFor } from '@utils/notificationSettings';
@@ -9,9 +10,10 @@ import { groupReadPush, roundCompletePush, toPushLanguage } from '@utils/pushCop
 import type { GroupKind, Prisma } from '../generated/prisma/client';
 import { requireMembership } from './groupAccess.service';
 import { recordNotification } from './notifications.service';
+import { assertRepetitionsMet } from './repetitions.service';
 import { sendPushToUser } from './push.service';
 import { serializeBab } from './groupSerializers';
-import { ensureCurrentRound, ensureCurrentRoundFor } from './rounds.service';
+import { ensureCurrentRound, ensureCurrentRoundFor, lockGroup } from './rounds.service';
 import { holdingsFor, resolveUnitPlan } from './unitPlan';
 import type { GroupBab, GroupStatus } from './groupSerializers';
 import type { Group, GroupMember as GroupMemberModel } from '../generated/prisma/client';
@@ -44,8 +46,12 @@ const ownershipFor = async (
 	};
 };
 
-const validateBabNumber = (babNumber: number): void => {
-	if (!Number.isInteger(babNumber) || babNumber < 1 || babNumber > BAB_COUNT) {
+/**
+ * Checked against the group's own part count, so it needs the group loaded first: the route
+ * only bounds the number by the Cevşen's hundred, and a Hizb group has 33.
+ */
+const validateBabNumber = (babNumber: number, partCount: number): void => {
+	if (!Number.isInteger(babNumber) || babNumber < 1 || babNumber > partCount) {
 		throw new HttpError(BAD_REQUEST, 'Invalid bab number');
 	}
 };
@@ -111,19 +117,7 @@ const recordRead = async (
 };
 
 /**
- * Takes the group row's write lock for the rest of the caller's transaction.
- *
- * Every path that mutates a group's board takes this FIRST, before touching any bab. The
- * rollover locks the group and then the babs, so a path that grabbed babs first would
- * deadlock against it — this keeps one lock order everywhere. Re-taking it inside the same
- * transaction is free, which is why `syncCompletedAt` can call it unconditionally.
- */
-export const lockGroup = async (tx: Prisma.TransactionClient, groupId: string): Promise<void> => {
-	await tx.$queryRaw`SELECT id FROM "Group" WHERE id = ${groupId} FOR UPDATE`;
-};
-
-/**
- * Returns **whether this call is the one that closed the hundred** — `true` only on the
+ * Returns **whether this call is the one that closed the whole round** — `true` only on the
  * `null → set` transition, never on a board that was already complete.
  *
  * That answer costs nothing extra: the stamp is a conditional `updateMany` guarded on
@@ -200,7 +194,8 @@ export const listBabsForUser = async (userId: string, groupId: string): Promise<
 		}
 	}
 
-	return babs.map(bab => serializeBab(bab, nameByUserId));
+	const privacyGroup = await prisma.group.findUniqueOrThrow({ where: { id: groupId } });
+	return babs.map(bab => serializeBab(bab, nameByUserId, { group: privacyGroup, viewerUserId: normalizedUserId }));
 };
 
 /**
@@ -234,7 +229,7 @@ const claimShareNotice = async (
  * Records that this group's completed round has been announced, and says whether this call is the
  * one that recorded it.
  *
- * **Closing the hundred is not a one-way door**, which is why the stamp alone is not enough to
+ * **Closing the round is not a one-way door**, which is why the stamp alone is not enough to
  * decide: Geri al on the last bab and Okudum again re-closes it, and so does a member leaving or
  * releasing a pool slot — both clear reads — followed by someone re-reading those babs. Each of
  * those is a real `null → set` transition, and without this row each one buzzes the whole group
@@ -284,7 +279,12 @@ const notifyGroupOfShareRead = async (input: { groupId: string; range: string; r
 	try {
 		const group = await prisma.group.findUnique({
 			where: { id: groupId },
-			select: { kind: true, name: true, members: { select: { displayName: true, userId: true } } }
+			select: {
+				kind: true,
+				name: true,
+				hideMemberNames: true,
+				members: { select: { displayName: true, userId: true } }
+			}
 		});
 
 		if (group === null) {
@@ -311,7 +311,9 @@ const notifyGroupOfShareRead = async (input: { groupId: string; range: string; r
 		// join and is the fallback when the lookup comes back empty — see `getMemberProfiles`.
 		const profiles = await getMemberProfiles([readerId]);
 		const stored = group.members.find(member => member.userId === readerId)?.displayName;
-		const readerName = profiles.get(readerId)?.displayName ?? stored ?? FALLBACK_DISPLAY_NAME;
+		const readerName = group.hideMemberNames
+			? ''
+			: profiles.get(readerId)?.displayName ?? stored ?? FALLBACK_DISPLAY_NAME;
 
 		/*
 		 * **Filed for everyone, pushed only to those who asked.** The inbox is the record — the
@@ -330,6 +332,7 @@ const notifyGroupOfShareRead = async (input: { groupId: string; range: string; r
 			return;
 		}
 
+		const latest = await prisma.group.findUnique({ where: { id: groupId }, select: { hideMemberNames: true } });
 		await Promise.all(
 			recipients.map(recipient =>
 				sendPushToUser(recipient.userId, {
@@ -337,7 +340,7 @@ const notifyGroupOfShareRead = async (input: { groupId: string; range: string; r
 						groupName: group.name,
 						kind: group.kind,
 						range,
-						readerName
+						readerName: latest?.hideMemberNames !== false ? '' : readerName
 					}),
 					data: { groupId, kind: 'group-read' }
 				})
@@ -356,7 +359,7 @@ const notifyGroupOfShareRead = async (input: { groupId: string; range: string; r
 const shareRange = (babNumbers: number[]): string => babRuns(babNumbers).map(formatRun).join(', ');
 
 /**
- * Tells the group the hundred is closed.
+ * Tells the group every part of the round is read.
  *
  * **Everyone in the group except whoever finished it**, and no "did you take part" test: the
  * round belongs to the group, and a member who read nothing this time is exactly the person for
@@ -442,8 +445,6 @@ export const setBabReadForUser = async (
 	babNumber: number,
 	read: boolean
 ): Promise<GroupBab> => {
-	validateBabNumber(babNumber);
-
 	const normalizedUserId = normalizeUserId(userId);
 	await requireMembership(normalizedUserId, groupId);
 
@@ -461,10 +462,11 @@ export const setBabReadForUser = async (
 		await ensureCurrentRound(tx, groupId);
 
 		const group = await tx.group.findUniqueOrThrow({ where: { id: groupId }, include: { members: true } });
+		validateBabNumber(babNumber, partCountFor(group.kind));
 		requireRunning(group);
 
 		// Under ROTATION the babs a member may mark this round are their seat's *rotated*
-		// block, not the ones carrying their `assignedUserId` — those coincide only in round 0.
+		// block — derived from the seat and the round, never read off a column.
 		//
 		// The one thing they may also mark is a pool slot they took, which sits outside the
 		// rotation. That has to be checked against the pool specifically, not against
@@ -493,9 +495,8 @@ export const setBabReadForUser = async (
 		// A repeated mark is then a no-op rather than a conflict.
 		const result = await tx.groupBab.updateMany({
 			where: read ? { ...where, readAt: null } : undoWhere,
-			// Reading never rewrites `assignedUserId`: that field records which seat owns the
-			// bab, and under ROTATION the reader is holding a different seat today. Taking
-			// ownership is what the pool's "Üstlen" is for.
+			// Reading never writes `assignedUserId`: it means only "volunteered for this bab out
+			// of the pool, this round", and the pool's "Üstlen" is the one thing that sets it.
 			data: read ? { readByUserId: normalizedUserId, readAt: new Date() } : { readByUserId: null, readAt: null }
 		});
 
@@ -522,6 +523,21 @@ export const setBabReadForUser = async (
 				roundIndex: group.roundIndex,
 				share
 			};
+		}
+
+		/*
+		 * Sekine counts only after the reader's own nineteen this round. Asked here, after the
+		 * no-op branch, so a re-mark of a read already saved stays the no-op it is whatever the
+		 * count says now — a client retrying it must not be told no and roll its update back.
+		 * Throwing rolls the write above back with the transaction. Undoing never asks.
+		 */
+		if (read) {
+			await assertRepetitionsMet(tx, {
+				group,
+				userId: normalizedUserId,
+				roundIndex: group.roundIndex,
+				babNumbers: [babNumber]
+			});
 		}
 
 		await recordRead(tx, {
@@ -563,7 +579,7 @@ export const setBabReadForUser = async (
 	});
 
 	/*
-	 * **Only the bigger news.** A tap that closes the hundred usually closes a share too, and
+	 * **Only the bigger news.** A tap that closes the whole round usually closes a share too, and
 	 * sending both would tell the group twice about one moment — "Ahmet finished babs 1–13" and
 	 * "Round 13 is complete" a second apart. The round is the thing that happened; the share is
 	 * how it happened. It also halves the work hanging off the slowest write in the app.
@@ -587,7 +603,8 @@ export const setBabReadForUser = async (
 		});
 	}
 
-	return serializeBab(outcome.bab);
+	const privacyGroup = await prisma.group.findUniqueOrThrow({ where: { id: groupId } });
+	return serializeBab(outcome.bab, undefined, { group: privacyGroup, viewerUserId: normalizedUserId });
 };
 
 /**
@@ -658,6 +675,21 @@ export const setAssignedBabsReadForUser = async (
 			select: { number: true }
 		});
 
+		/*
+		 * A share holding Sekine is refused whole while its nineteen are outstanding, rather than
+		 * marked around it: one tap that quietly left a part unread would read as a finished share
+		 * to the person who tapped it. Asked of `affected` only, so a Sekine already read — or a
+		 * re-tap after everything is — is not held to the count again.
+		 */
+		if (read) {
+			await assertRepetitionsMet(tx, {
+				group,
+				userId: normalizedUserId,
+				roundIndex: group.roundIndex,
+				babNumbers: affected.map(bab => bab.number)
+			});
+		}
+
 		await tx.groupBab.updateMany({
 			// Clearing is scoped to the caller's own reads — see the single-bab path.
 			where: read ? { ...mine, readAt: null } : { ...mine, readByUserId: normalizedUserId },
@@ -699,7 +731,7 @@ export const setAssignedBabsReadForUser = async (
 	});
 
 	/*
-	 * **Only the bigger news.** A tap that closes the hundred usually closes a share too, and
+	 * **Only the bigger news.** A tap that closes the whole round usually closes a share too, and
 	 * sending both would tell the group twice about one moment — "Ahmet finished babs 1–13" and
 	 * "Round 13 is complete" a second apart. The round is the thing that happened; the share is
 	 * how it happened. It also halves the work hanging off the slowest write in the app.
@@ -723,5 +755,8 @@ export const setAssignedBabsReadForUser = async (
 		});
 	}
 
-	return result.babs.map(bab => serializeBab(bab));
+	const privacyGroup = await prisma.group.findUniqueOrThrow({ where: { id: groupId } });
+	return result.babs.map(bab =>
+		serializeBab(bab, undefined, { group: privacyGroup, viewerUserId: normalizedUserId })
+	);
 };

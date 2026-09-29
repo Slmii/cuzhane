@@ -18,8 +18,8 @@ const MARK_SIZE = 30;
  * How long it has left, where it is, how far along, and one button that starts it or picks it
  * up where it was left (B8c's "Bab 22’den devam").
  *
- * The first-use tour's first two stops are this card and its button: the tour's "your
- * groups" and "pick up where you left off" are now this one share.
+ * T2 of the first-use tour frames this card: what to read today, and that its button opens the
+ * right place.
  */
 export const HomeNextCard = ({
 	actionLabel,
@@ -37,7 +37,7 @@ export const HomeNextCard = ({
 	const { t } = useTranslation();
 
 	return (
-		<TourTarget id='groups'>
+		<TourTarget id='nextCard'>
 			<HomeTopCard onPress={onPress}>
 				<View style={styles.topRow}>
 					<Typography color={theme.colors.accent} style={styles.eyebrow} variant='eyebrow' weight='semibold'>
@@ -85,9 +85,7 @@ export const HomeNextCard = ({
 
 				<PortionBar {...(segments ? { segments } : { fraction: fraction ?? 0 })} />
 
-				<TourTarget id='read'>
-					<AppButton onPress={onPress} size='lg' title={actionLabel} variant='primary' />
-				</TourTarget>
+				<AppButton onPress={onPress} size='lg' title={actionLabel} variant='primary' />
 			</HomeTopCard>
 		</TourTarget>
 	);

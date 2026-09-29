@@ -19,6 +19,17 @@ export class WrapperApiError extends Error {
 	}
 }
 
+/**
+ * The group kinds this build can draw, sent on every request as a **capability declaration**.
+ * The server's compatibility guard (`clientCapabilities.middleware.ts` +
+ * `clientCompatibility.service.ts`) reads it to decide which groups this client may find,
+ * preview or join. Builds that don't send it are treated as knowing the Cevşen and the Kur'an
+ * hatim — so a Hizb group never reaches a build that would read it as a hundred babs.
+ * List a new kind here only once this build can actually draw it.
+ */
+export const CLIENT_KINDS_HEADER = 'X-Cuzhane-Kinds';
+export const CLIENT_KINDS = 'CEVSEN,HATIM,HIZB';
+
 /** Holds a reference to the Clerk `getToken` function, set at app startup. */
 let _getToken: (() => Promise<string | null>) | null = null;
 /**
@@ -118,6 +129,8 @@ export const wrapperApi = async <T>(endpoint: string, init?: RequestInit): Promi
 				// Don't set Content-Type for FormData - browser sets it with boundary
 				...(isFormData ? {} : { 'Content-Type': 'application/json' }),
 				...(token ? { Authorization: `Bearer ${token}` } : {}),
+				[CLIENT_KINDS_HEADER]: CLIENT_KINDS,
+				'X-Cuzhane-Hizb-Plans': '1',
 				...(init?.headers || {})
 			}
 		});

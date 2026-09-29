@@ -1,5 +1,5 @@
 export type GroupVisibility = 'OPEN' | 'PRIVATE';
-export type GroupSplitMode = 'ROTATION' | 'FIXED';
+export type GroupSplitMode = 'ROTATION' | 'FIXED' | 'FLEXIBLE';
 export type GroupStatus = 'GATHERING' | 'RUNNING';
 export type BabRange = { start: number; end: number };
 /**
@@ -12,6 +12,9 @@ export type BabRange = { start: number; end: number };
  *
  * MONTHLY and CUSTOM were missing here while only Cevşen groups existed, so a hatim sending
  * either was a value the client's own type said could not arrive.
+ *
+ * A Hizb group reads MONTHLY differently: its round is a calendar month anchored on the start's
+ * day of the month, not thirty days. Cevşen and hatim groups keep the thirty-day round.
  */
 export type GroupCycle = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'CUSTOM';
 
@@ -21,10 +24,10 @@ export type GroupMemberRole = 'OWNER' | 'MEMBER';
 
 /**
  * What a group reads. A Cevşen group divides a hundred babs by seat; a hatim divides thirty
- * cüz by choice. Chosen at step 1 and immutable after — every other setting on the group
- * hangs off it.
+ * cüz by choice; a Hizb group divides the Hizbü'l-Hakaik's 33 portions by seat, on the Cevşen's
+ * model. Chosen at step 1 and immutable after — every other setting on the group hangs off it.
  */
-export type GroupKind = 'CEVSEN' | 'HATIM';
+export type GroupKind = 'CEVSEN' | 'HATIM' | 'HIZB';
 /** How a hatim hands out its cüz (QC2). Meaningless on a Cevşen group, which is why it is null there. */
 export type CuzDistribution = 'FREE_PICK' | 'EQUAL' | 'JOIN_ORDER';
 /** What happens to a member's cüz when the round rolls (QC3). */
@@ -47,6 +50,8 @@ export type GroupMember = {
 	/** Percentage of this member's own babs that are read, 0–100. */
 	percent: number;
 	cheeredByMe: boolean;
+	/** Ticked to see who read in a shared Hizb plan. Told to the owner only — false for everyone else. */
+	seesReaders: boolean;
 };
 
 export type GroupBab = {
@@ -60,6 +65,24 @@ export type GroupBab = {
 
 /** Shape returned by list endpoints — enough to render a group card without the bab grid. */
 export type GroupSummary = {
+	hizbToday?: { planDays: number; portion: number; completed: boolean; assignmentId: string | null } | null;
+	/** A personal-plan Hizb's board today: the canonical spans its completed readings cover. */
+	hizbCoveredSpans?: number[];
+	/** A personal-plan Hizb's next reading day: the next local midnight in the group's zone. */
+	nextDayAt?: string;
+	/** The viewer was taken out of a personal-plan Hizb's order by the inactivity rule. */
+	hizbRemoved?: boolean;
+	/** The rule's length when it removed the viewer; null unless `hizbRemoved`. */
+	hizbRemovalDays?: number | null;
+	/** Which day of the group today is, 1-based, in the group's zone. */
+	hizbDay?: number;
+	hizbPlan?: number | null;
+	hizbIndividual?: boolean;
+	hizbStartPortion?: number;
+	inactivityDays?: number | null;
+	hideMemberNames: boolean;
+	/** "Okuma sorumluları": a shared Hizb plan's "has read" notice goes to the ticked members only. */
+	readSeersEnabled: boolean;
 	id: string;
 	name: string;
 	dedication: string | null;
@@ -76,6 +99,8 @@ export type GroupSummary = {
 	kind: GroupKind;
 	splitMode: GroupSplitMode;
 	cycle: GroupCycle;
+	/** How many parts the group divides — 100 babs for the Cevşen, 30 cüz for a hatim, 33 portions for the Hizb. */
+	partCount: number;
 	/**
 	 * How many days a round runs. **The cadence name cannot stand in for it**: a hatim may be
 	 * given any length, and anything that is not 1 or 7 has no weekday to be named after.
@@ -175,10 +200,23 @@ export type GroupDetail = GroupSummary & {
 	/** How many cüz one person may hold, and what the boundary does with them. Null for Cevşen. */
 	maxPerMember: number | null;
 	boundaryPolicy: CuzBoundaryPolicy | null;
+	/** The viewer is ticked to see who read (a shared Hizb plan): names show to them as to the owner. */
+	seesReaders: boolean;
 };
 
 /** Unauthenticated-ish preview shown when opening an invite link or entering a code. */
 export type GroupInvitePreview = {
+	hizbPlan?: number | null;
+	/** See `GroupSummary` — the same four fields, from `hizbSummary`. */
+	hizbCoveredSpans?: number[];
+	nextDayAt?: string;
+	hizbRemoved?: boolean;
+	hizbRemovalDays?: number | null;
+	hizbDay?: number;
+	hizbIndividual?: boolean;
+	hizbStartPortion?: number;
+	inactivityDays?: number | null;
+	hideMemberNames: boolean;
 	id: string;
 	name: string;
 	dedication: string | null;
@@ -187,11 +225,13 @@ export type GroupInvitePreview = {
 	kind: GroupKind;
 	splitMode: GroupSplitMode;
 	cycle: GroupCycle;
+	/** See `GroupSummary.partCount`. */
+	partCount: number;
 	/** How many days a round runs, for the reset line. */
 	roundDays: number;
 	/**
 	 * The two hatim rules QJ1 states before anyone commits: how many cüz one person may hold,
-	 * and what becomes of them at the boundary. Null on a Cevşen group, which has neither.
+	 * and what becomes of them at the boundary. Null on a Cevşen or Hizb group, which has neither.
 	 */
 	maxPerMember: number | null;
 	boundaryPolicy: CuzBoundaryPolicy | null;
@@ -205,6 +245,8 @@ export type GroupInvitePreview = {
 	daysLeft: number | null;
 	isMember: boolean;
 	status: GroupStatus;
+	/** Whether filling the last seat starts the group — see the server's `GroupInvitePreview`. */
+	autoStartWhenFull: boolean;
 	nextRange: BabRange | null;
 	/**
 	 * Every bab belonging to an empty seat, volunteered-for ones included — the app's
@@ -222,6 +264,11 @@ export type GroupInvitePreview = {
 	 * picking needs — see the same note on the server's mirror of this type.
 	 */
 	roundEndsAt: string | null;
+	/**
+	 * When the hatim began, null while gathering — names a MONTHLY group's day of the month,
+	 * which `roundEndsAt` cannot once a short month has clamped it. See `roundResetLabels`.
+	 */
+	startedAt: string | null;
 	/** 1-based day within the current round — "Tur 3. gününde". Null while gathering. */
 	roundDayIndex: number | null;
 	timezone: string;
@@ -269,7 +316,30 @@ export type PoolSlot = {
 	readCount: number;
 	/** Which of this slot's babs are read — the board needs *which*, not just how many. */
 	readBabNumbers: number[];
+	/**
+	 * Who holds each of the slot's parts, in order. A Cevşen slot is taken whole, so every part
+	 * names one taker; a Hizb slot can be taken a portion at a time by several members, and the
+	 * slot-level `takenBy*` fields above name only the first of them.
+	 */
+	parts: PoolSlotPart[];
 };
+
+/** One part of a pool slot and who holds it this round. Mirrors the server's `PoolSlot['parts']`. */
+export type PoolSlotPart = {
+	number: number;
+	takenByUserId: string | null;
+	takenByDisplayName: string | null;
+	takenByImageUrl: string | null;
+	takenByMe: boolean;
+	isRead: boolean;
+};
+
+/**
+ * How far one reader has got with a part that must be repeated before it counts — Sekine's
+ * nineteen. The reader's own and the round's own — `roundIndex` says which round, the one named
+ * or the current one when none was. Mirrors the server's `PartRepetitions`.
+ */
+export type PartRepetitions = { count: number; required: number; roundIndex: number };
 
 /** What an inbox row is about. Mirrors the server's `NotificationKind` enum. */
 export type NotificationKind =
@@ -294,7 +364,10 @@ export type AppNotification = {
 	/** Null once the group is gone; the row survives so the history has no gap. */
 	groupId: string | null;
 	groupName: string;
-	/** Whether the row speaks in babs or cüz (Q8). Null once the group is gone — read as Cevşen. */
+	/**
+	 * What the group reads, so the row can say "bab", "cüz" or "bölüm" (Q8) — `groupKind`
+	 * because `kind` is what the notification is. Null once the group is gone — read as Cevşen.
+	 */
 	groupKind: GroupKind | null;
 	payload: Record<string, unknown>;
 	isRead: boolean;
@@ -334,12 +407,24 @@ export type UserSettings = {
 	hatimRoundCompleteEnabled: boolean;
 	/** Nothing raises this yet — taking a cüz out of the havuz is Q3. */
 	hatimPoolClaimEnabled: boolean;
+	/**
+	 * A Hizb group's "someone finished their reading". Responsible members hear it whatever this
+	 * says; a Hizb group's other notices follow the Cevşen switches.
+	 */
+	hizbGroupReadsEnabled: boolean;
 	/** Somebody joined a group of mine. */
 	memberJoinedEnabled: boolean;
 	/** Somebody left a group of mine, or was removed from it. */
 	memberLeftEnabled: boolean;
 	hasSeenOnboarding: boolean;
 	hasSeenTour: boolean;
+	/**
+	 * "Grubun nasıl çalışır?" after joining, one per kind: "bir daha gösterme" on one kind leaves
+	 * the others showing.
+	 */
+	cevsenIntroEnabled: boolean;
+	hatimIntroEnabled: boolean;
+	hizbIntroEnabled: boolean;
 	// The reader's typography, set from E2a and applied to every bab.
 	/** The Arabic's point size in the reader, 16–40. */
 	readerFontSize: number;
@@ -393,9 +478,13 @@ export type RoundSummary = {
 	roundIndex: number;
 	startedAt: string;
 	endsAt: string;
+	/** How many parts the round had to cover — what `readCount` and `missedCount` are out of. */
+	partCount: number;
 	readCount: number;
 	/** Always 0 for the open round — the day isn't over, so nothing is missing yet. */
 	missedCount: number;
+	/** Which parts those were, ascending — `missedCount` of them, and empty for the open round. */
+	missedPartNumbers: number[];
 	myReadCount: number;
 	myOwedCount: number;
 	isOpen: boolean;
@@ -417,6 +506,10 @@ export type RoundDetail = {
 	startedAt: string;
 	endsAt: string;
 	isOpen: boolean;
+	/** Server-calculated calendar days late in the group's zone; zero while open. */
+	daysLate: number;
+	/** See `RoundSummary.partCount`; `babs` has exactly this many entries. */
+	partCount: number;
 	readCount: number;
 	missedCount: number;
 	missedPeopleCount: number;
