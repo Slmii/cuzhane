@@ -1021,6 +1021,18 @@ const tr = {
 	 * Sürüm 1.1'in kendi notları. Tasarımdaki örnek metinler değil — gerçekten değişenler.
 	 * Yeni bir sürüm çıkarken bu üç anahtarın yerine o sürümünkiler yazılır.
 	 */
+	rn140HizbTitle: 'Hizbü’l-Hakaik',
+	rn140HizbBody:
+		'Artık Hizbü’l-Hakaik de okunuyor: bir grup kur ve 7, 15 ya da 33 günlük bir plan seç. Her üyeye her gün bir okuma düşer; grubun o gün 33 bölümün ne kadarını okuduğu tek bakışta görünür. İstersen tek başına da okuyabilirsin.',
+	rn140CountTitle: 'Tekrarları ekranda say',
+	rn140CountBody:
+		'Sekine’nin 19 tekrarını, açılıştaki istiğfarı ve Delâil’in salavatını okurken ekranda say. Sayı tamamlanınca okumanı işaretlersin.',
+	rn140HistoryTitle: 'Kim okudu, görebilirsin',
+	rn140HistoryBody:
+		'Bugün kimin okuduğunu gör. Tüm geçmiş’te bir güne dokun, o gün kimin okuduğunu gör. Kaçırdığın günleri istediğin zaman okuyabilirsin.',
+	rn140PrivacyTitle: 'İsimleri gizle, sorumlu seç',
+	rn140PrivacyBody:
+		'Grup sahibi üye isimlerini gizleyebilir ve en fazla üç okuma sorumlusu seçebilir. Sorumlular kimin okuduğunu görür ve her okumada haber alır.',
 	rn130HatimTitle: 'Kur’an hatimleri',
 	rn130HatimBody:
 		'Artık Kur’an da okunuyor: bir hatim grubu kur, üyeler 30 cüzden kendi cüzlerini seçsin. Kimsenin almadığı cüzler havuzda bekler; tur tamamlanınca hatim duası açılır.',
@@ -2577,6 +2589,18 @@ const en: Strings = {
 	hizbPart33Desc: 'Closing prayer: “Yâ Allâh, yâ Rahmân…”',
 	releaseNotesNew: 'new',
 	releaseNotesEmpty: 'This is the app’s first release. Later ones collect here.',
+	rn140HizbTitle: 'Hizbü’l-Hakaik',
+	rn140HizbBody:
+		'You can now read the Hizbü’l-Hakaik too: start a group and choose a 7, 15 or 33-day plan. Every member has a reading each day, and you see at a glance how much of the 33 portions the group read that day. You can also read on your own.',
+	rn140CountTitle: 'Count the repetitions on screen',
+	rn140CountBody:
+		'Count the Sekine’s 19 repetitions, the opening istighfar and the Delail’s salawat on screen as you read. When the count is complete, you mark your reading.',
+	rn140HistoryTitle: 'See who read',
+	rn140HistoryBody:
+		'See who read today. In All history, tap a day to see who read that day. You can read the days you missed at any time.',
+	rn140PrivacyTitle: 'Hide names, choose who follows',
+	rn140PrivacyBody:
+		'The group’s owner can hide members’ names and choose up to three responsible members. They see who read and are told about every reading.',
 	rn130HatimTitle: 'Qur’an hatims',
 	rn130HatimBody:
 		'You can now read the Qur’an too: start a hatim group and members pick their own juz from the thirty. Juz nobody took wait in the pool, and the hatim du’a opens when the round is complete.',
@@ -4004,6 +4028,18 @@ const nl: Strings = {
 	hizbPart33Desc: 'Slotgebed: “Yâ Allâh, yâ Rahmân…”',
 	releaseNotesNew: 'nieuw',
 	releaseNotesEmpty: 'Dit is de eerste versie van de app. Latere versies verzamelen zich hier.',
+	rn140HizbTitle: 'Hizbü’l-Hakaik',
+	rn140HizbBody:
+		'Je kunt nu ook de Hizbü’l-Hakaik lezen: start een groep en kies een plan van 7, 15 of 33 dagen. Elk lid heeft elke dag een lezing, en je ziet in één oogopslag hoeveel van de 33 delen de groep die dag las. Je kunt ook alleen lezen.',
+	rn140CountTitle: 'Tel de herhalingen op het scherm',
+	rn140CountBody:
+		'Tel tijdens het lezen de 19 herhalingen van de Sekine, de istighfar aan het begin en de salawat van de Delail op het scherm. Is de telling rond, dan vink je je lezing af.',
+	rn140HistoryTitle: 'Zie wie las',
+	rn140HistoryBody:
+		'Zie wie vandaag las. Tik in Alle geschiedenis op een dag om te zien wie die dag las. De dagen die je miste, lees je wanneer je wilt.',
+	rn140PrivacyTitle: 'Namen verbergen, verantwoordelijken kiezen',
+	rn140PrivacyBody:
+		'De eigenaar van de groep kan de namen van leden verbergen en tot drie verantwoordelijken kiezen. Zij zien wie las en horen het bij elke lezing.',
 	rn130HatimTitle: 'Koran-hatims',
 	rn130HatimBody:
 		'Je kunt nu ook de Koran lezen: start een hatimgroep en leden kiezen hun eigen cüz uit de dertig. Cüz die niemand nam wachten in de pool, en de hatim-du’a opent zodra de ronde rond is.',

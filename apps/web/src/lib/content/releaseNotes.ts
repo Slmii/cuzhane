@@ -74,6 +74,17 @@ export type Release = {
  */
 export const RELEASES: Release[] = [
 	{
+		id: '2026-09-hizb',
+		entries: [
+			{ bodyKey: 'rn140HizbBody', icon: 'book', isNew: true, titleKey: 'rn140HizbTitle' },
+			{ bodyKey: 'rn140CountBody', icon: 'countdown', isNew: true, titleKey: 'rn140CountTitle' },
+			{ bodyKey: 'rn140HistoryBody', icon: 'members', isNew: true, titleKey: 'rn140HistoryTitle' },
+			{ bodyKey: 'rn140PrivacyBody', icon: 'eyeOff', isNew: true, titleKey: 'rn140PrivacyTitle' }
+		],
+		releasedOn: '2026-09-29',
+		version: APP_VERSION
+	},
+	{
 		id: '2026-09-quran',
 		entries: [
 			{ bodyKey: 'rn130HatimBody', icon: 'book', isNew: true, titleKey: 'rn130HatimTitle' },
@@ -81,7 +92,7 @@ export const RELEASES: Release[] = [
 			{ bodyKey: 'rn130GoBody', icon: 'goTo', isNew: true, titleKey: 'rn130GoTitle' }
 		],
 		releasedOn: '2026-09-26',
-		version: APP_VERSION
+		version: '1.3.0'
 	},
 	{
 		id: '2026-09-my-progress',

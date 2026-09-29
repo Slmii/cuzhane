@@ -201,7 +201,6 @@ const GoBody = ({ cuzNumber, currentVerse, onGo, pageIndex, pagination }: GoBody
  * are mounted, where drawing all 114 took most of a second on Android. The heights follow the
  * system text size, since the text in them does.
  */
-const ROW_GAP = 6;
 const ROW_PADDING_Y = 11;
 const BADGE_SIZE = 28;
 const TITLE_LINE = 19;
@@ -234,18 +233,20 @@ const panelHeight = (metrics: RowMetrics, count: number) => {
 	return AYAH_TOP + metrics.ayahHead + AYAH_HEAD_GAP + rows * metrics.cell + (rows - 1) * AYAH_GAP + AYAH_BOTTOM;
 };
 
-/** A row's whole length in the list: card, its border, and the gap under it. */
+/**
+ * The hairline under every row of the one card the list sits in. The last row keeps its line too,
+ * drawn clear, so every row is the same sum and `getItemLayout` stays exact.
+ */
+const DIVIDER = StyleSheet.hairlineWidth;
+
+/** A row's whole length in the list: its head, its ayahs when open, and the line under it. */
 const rowLength = (metrics: RowMetrics, entry: SuraEntry, isOpen: boolean) =>
-	(isOpen
-		? metrics.head + panelHeight(metrics, entry.ayahCount) + OPEN_BORDER * 2
-		: metrics.head + CLOSED_BORDER * 2) + ROW_GAP;
+	metrics.head + (isOpen ? panelHeight(metrics, entry.ayahCount) : 0) + DIVIDER;
 
 /** How long a sura's ayahs take to open or close. */
 const PANEL_TRANSITION_MS = 220;
 /** An ayah cell's one screen-reader action: going there. */
 const ACTIVATE = [{ name: 'activate' as const }];
-const OPEN_BORDER = 1.5;
-const CLOSED_BORDER = StyleSheet.hairlineWidth;
 
 type SuraTabProps = {
 	currentChapter: number | undefined;
@@ -330,11 +331,13 @@ const SuraTab = ({ currentAyah, currentChapter, onGo, pagination }: SuraTabProps
 		}
 	};
 
+	const lastIndex = entries.length - 1;
 	const renderItem = useCallback(
-		({ item }: ListRenderItemInfo<SuraEntry>) => (
+		({ index, item }: ListRenderItemInfo<SuraEntry>) => (
 			<SuraRow
 				currentAyah={item.chapter === currentChapter ? currentAyah : undefined}
 				entry={item}
+				isLast={index === lastIndex}
 				isOpen={item.chapter === openChapter}
 				metrics={metrics}
 				onGo={onGo}
@@ -342,7 +345,7 @@ const SuraTab = ({ currentAyah, currentChapter, onGo, pagination }: SuraTabProps
 				pagination={pagination}
 			/>
 		),
-		[currentAyah, currentChapter, metrics, onGo, openChapter, pagination, toggle]
+		[currentAyah, currentChapter, lastIndex, metrics, onGo, openChapter, pagination, toggle]
 	);
 
 	const verseResult = parsed.kind === 'verse' ? placeOfVerse(parsed.verse, pagination) : undefined;
@@ -401,59 +404,64 @@ const SuraTab = ({ currentAyah, currentChapter, onGo, pagination }: SuraTabProps
 					/>
 				</View>
 			)}
-			<FlatList
-				contentContainerStyle={styles.suraList}
-				data={entries}
-				getItemLayout={getItemLayout}
-				initialNumToRender={10}
-				initialScrollIndex={parsed.kind === 'none' ? initialIndex : undefined}
-				keyboardDismissMode='on-drag'
-				keyboardShouldPersistTaps='handled'
-				keyExtractor={entry => String(entry.chapter)}
-				ListEmptyComponent={results}
-				maxToRenderPerBatch={8}
-				onLayout={event => placeCurrent(event.nativeEvent.layout.height)}
-				ref={listRef}
-				renderItem={renderItem}
-				showsVerticalScrollIndicator={false}
-				style={styles.suraListFrame}
-				windowSize={7}
-			/>
+			{/* One card round the whole list; the rows scroll inside it. */}
+			<CardSurface isFlush style={styles.suraCard}>
+				<FlatList
+					data={entries}
+					getItemLayout={getItemLayout}
+					initialNumToRender={10}
+					initialScrollIndex={parsed.kind === 'none' ? initialIndex : undefined}
+					keyboardDismissMode='on-drag'
+					keyboardShouldPersistTaps='handled'
+					keyExtractor={entry => String(entry.chapter)}
+					ListEmptyComponent={results}
+					maxToRenderPerBatch={8}
+					onLayout={event => placeCurrent(event.nativeEvent.layout.height)}
+					ref={listRef}
+					renderItem={renderItem}
+					showsVerticalScrollIndicator={false}
+					style={styles.fill}
+					windowSize={7}
+				/>
+			</CardSurface>
 		</>
 	);
 };
 
 type ResultRowProps = { badge?: number; title: string; detail: string; onPress: () => void };
 
-/** What the search box found when it was given an ayah or a page: one row, straight there. */
+/**
+ * What the search box found when it was given an ayah or a page: one row, straight there. A row of
+ * the list's own card, in the accent, rather than a card inside it.
+ */
 const ResultRow = ({ badge, detail, onPress, title }: ResultRowProps) => {
 	const { theme } = useThemeContext();
 
 	return (
-		<CardSurface hasGlassSurface={false} isFlush style={{ borderColor: theme.colors.accent }}>
-			<Pressable accessibilityRole='button' onPress={onPress} style={styles.rowHead}>
-				{badge === undefined ? null : (
-					<View style={[styles.badge, { backgroundColor: theme.colors.accent }]}>
-						<Typography color={theme.colors.onAccent} style={styles.badgeLabel} weight='semibold'>
-							{badge}
-						</Typography>
-					</View>
-				)}
-				<Typography style={[styles.rowTitle, styles.rowText]} variant='title'>
-					{title}
-				</Typography>
-				<CaptionText color={theme.colors.accent} style={styles.rowDetail}>
-					{detail}
-				</CaptionText>
-				<Icon color={theme.colors.accent} name='chevronRight' size={14} strokeWidth={2} />
-			</Pressable>
-		</CardSurface>
+		<Pressable accessibilityRole='button' onPress={onPress} style={styles.rowHead}>
+			{badge === undefined ? null : (
+				<View style={[styles.badge, { backgroundColor: theme.colors.accent }]}>
+					<Typography color={theme.colors.onAccent} style={styles.badgeLabel} weight='semibold'>
+						{badge}
+					</Typography>
+				</View>
+			)}
+			<Typography style={[styles.rowTitle, styles.rowText]} variant='title'>
+				{title}
+			</Typography>
+			<CaptionText color={theme.colors.accent} style={styles.rowDetail}>
+				{detail}
+			</CaptionText>
+			<Icon color={theme.colors.accent} name='chevronRight' size={14} strokeWidth={2} />
+		</Pressable>
 	);
 };
 
 type SuraRowProps = {
 	entry: SuraEntry;
 	isOpen: boolean;
+	/** Its line drawn clear: the card's own edge closes the list. */
+	isLast: boolean;
 	currentAyah: number | undefined;
 	metrics: RowMetrics;
 	pagination: CuzPagination;
@@ -465,6 +473,7 @@ type SuraRowProps = {
 const SuraRow = memo(function SuraRow({
 	currentAyah,
 	entry,
+	isLast,
 	isOpen,
 	metrics,
 	onGo,
@@ -486,77 +495,70 @@ const SuraRow = memo(function SuraRow({
 			: t('goCuzSpan', { a: entry.cuzFirst, b: entry.cuzLast });
 
 	return (
-		<View style={styles.rowSlot}>
-			<View
-				style={[
-					styles.suraCard,
-					{
-						backgroundColor: theme.colors.surface,
-						borderColor: isOpen ? theme.colors.accent : theme.colors.border,
-						borderRadius: theme.radius.lg,
-						borderWidth: isOpen ? OPEN_BORDER : CLOSED_BORDER
-					}
-				]}
+		<View
+			style={[
+				styles.suraRow,
+				{ borderBottomColor: isLast ? 'transparent' : theme.colors.divider, borderBottomWidth: DIVIDER }
+			]}
+		>
+			<Pressable
+				accessibilityRole='button'
+				accessibilityState={{ expanded: isOpen }}
+				onPress={() => onToggle(entry.chapter)}
+				style={[styles.rowHead, { height: metrics.head }]}
 			>
-				<Pressable
-					accessibilityRole='button'
-					accessibilityState={{ expanded: isOpen }}
-					onPress={() => onToggle(entry.chapter)}
-					style={[styles.rowHead, { height: metrics.head }]}
+				<View
+					style={[
+						styles.badge,
+						{ backgroundColor: isOpen ? theme.colors.accent : theme.colors.segmentTrack }
+					]}
 				>
-					<View
-						style={[
-							styles.badge,
-							{ backgroundColor: isOpen ? theme.colors.accent : theme.colors.segmentTrack }
-						]}
+					<Typography
+						color={isOpen ? theme.colors.onAccent : theme.colors.subtext}
+						style={styles.badgeLabel}
+						weight='semibold'
 					>
-						<Typography
-							color={isOpen ? theme.colors.onAccent : theme.colors.subtext}
-							style={styles.badgeLabel}
-							weight='semibold'
-						>
-							{entry.chapter}
-						</Typography>
-					</View>
-					<View style={styles.rowText}>
-						<Typography numberOfLines={1} style={styles.rowTitle} variant='title'>
-							{entry.name}
-						</Typography>
-						<CaptionText color={theme.colors.faintText} numberOfLines={1} style={styles.rowSub}>
-							{`${t('goAyahCount', { n: entry.ayahCount })} · ${cuzLabel}`}
-						</CaptionText>
-					</View>
-					<CaptionText color={theme.colors.faintText} style={styles.rowDetail}>
-						{t('goPageShort', { n: entry.startPage })}
+						{entry.chapter}
+					</Typography>
+				</View>
+				<View style={styles.rowText}>
+					<Typography numberOfLines={1} style={styles.rowTitle} variant='title'>
+						{entry.name}
+					</Typography>
+					<CaptionText color={theme.colors.faintText} numberOfLines={1} style={styles.rowSub}>
+						{`${t('goAyahCount', { n: entry.ayahCount })} · ${cuzLabel}`}
 					</CaptionText>
-				</Pressable>
-				{/*
-				 * The ayahs open and close by height — known exactly (`panelHeight`), so nothing is
-				 * measured and the list's own sums stay true. Mounted from the first opening on, so a
-				 * close has something to fold away.
-				 */}
-				{hasOpened ? (
-					<Animated.View
-						style={{
-							height: isOpen ? panelHeight(metrics, entry.ayahCount) : 0,
-							opacity: isOpen ? 1 : 0,
-							overflow: 'hidden',
-							transitionDuration: isReducedMotion ? 0 : PANEL_TRANSITION_MS,
-							transitionProperty: ['height', 'opacity'],
-							transitionTimingFunction: 'ease-in-out'
-						}}
-					>
-						<AyahGrid
-							chapter={entry.chapter}
-							count={entry.ayahCount}
-							currentAyah={currentAyah}
-							metrics={metrics}
-							onGo={onGo}
-							pagination={pagination}
-						/>
-					</Animated.View>
-				) : null}
-			</View>
+				</View>
+				<CaptionText color={theme.colors.faintText} style={styles.rowDetail}>
+					{t('goPageShort', { n: entry.startPage })}
+				</CaptionText>
+			</Pressable>
+			{/*
+			 * The ayahs open and close by height — known exactly (`panelHeight`), so nothing is
+			 * measured and the list's own sums stay true. Mounted from the first opening on, so a
+			 * close has something to fold away.
+			 */}
+			{hasOpened ? (
+				<Animated.View
+					style={{
+						height: isOpen ? panelHeight(metrics, entry.ayahCount) : 0,
+						opacity: isOpen ? 1 : 0,
+						overflow: 'hidden',
+						transitionDuration: isReducedMotion ? 0 : PANEL_TRANSITION_MS,
+						transitionProperty: ['height', 'opacity'],
+						transitionTimingFunction: 'ease-in-out'
+					}}
+				>
+					<AyahGrid
+						chapter={entry.chapter}
+						count={entry.ayahCount}
+						currentAyah={currentAyah}
+						metrics={metrics}
+						onGo={onGo}
+						pagination={pagination}
+					/>
+				</Animated.View>
+			) : null}
 		</View>
 	);
 });
@@ -642,15 +644,13 @@ const AyahGrid = memo(function AyahGrid({ chapter, count, currentAyah, metrics, 
 											styles.ayahCell,
 											styles.ayahCellFace,
 											{
-												backgroundColor: isCurrent
-													? theme.colors.primary
-													: theme.colors.surface,
+												backgroundColor: isCurrent ? theme.colors.accent : theme.colors.surface,
 												borderColor: isCurrent ? 'transparent' : theme.colors.border
 											}
 										]}
 									>
 										<Typography
-											color={isCurrent ? theme.colors.onPrimary : theme.colors.subtext}
+											color={isCurrent ? theme.colors.onAccent : theme.colors.subtext}
 											style={styles.ayahLabel}
 											weight={isCurrent ? 'bold' : 'medium'}
 										>
@@ -679,7 +679,7 @@ const CuzTab = ({ currentCuz, onGo, pagination }: CuzTabProps) => {
 	return (
 		<ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false} style={styles.fill}>
 			{/* Rows of five squares that size themselves — nothing is measured, so nothing is late. */}
-			<View style={styles.cuzGrid}>
+			<CardSurface style={styles.cuzGrid}>
 				{Array.from({ length: CUZ_COUNT / CUZ_COLUMNS }, (_, row) => (
 					<View key={row} style={styles.cuzRow}>
 						{Array.from({ length: CUZ_COLUMNS }, (_, column) => {
@@ -696,20 +696,20 @@ const CuzTab = ({ currentCuz, onGo, pagination }: CuzTabProps) => {
 									style={[
 										styles.cuzCell,
 										{
-											backgroundColor: isChosen ? theme.colors.primary : theme.colors.surface,
+											backgroundColor: isChosen ? theme.colors.accent : theme.colors.surface,
 											borderColor: isChosen ? 'transparent' : theme.colors.border
 										}
 									]}
 								>
 									<Typography
-										color={isChosen ? theme.colors.onPrimary : theme.colors.text}
+										color={isChosen ? theme.colors.onAccent : theme.colors.text}
 										style={styles.cuzNumber}
 										variant='title'
 									>
 										{number}
 									</Typography>
 									<Typography
-										color={isChosen ? theme.colors.onPrimary : theme.colors.faintText}
+										color={isChosen ? theme.colors.onAccent : theme.colors.faintText}
 										style={styles.cuzPage}
 									>
 										{t('goPageShort', { n: pageNumberAt(number, 0, pagination) ?? '' })}
@@ -719,16 +719,23 @@ const CuzTab = ({ currentCuz, onGo, pagination }: CuzTabProps) => {
 						})}
 					</View>
 				))}
-			</View>
+			</CardSurface>
 			<FieldLabelText color={theme.colors.subtext} style={styles.sectionsLabel}>
 				{t('goCuzSections', { n: chosen })}
 			</FieldLabelText>
-			{sections.map(section => (
-				<CardSurface hasGlassSurface={false} isFlush key={`${section.verse.chapter}:${section.verse.ayah}`}>
+			{/* The chosen cüz's sections: one card, a line between rows. */}
+			<CardSurface isFlush>
+				{sections.map((section, index) => (
 					<Pressable
 						accessibilityRole='button'
+						key={`${section.verse.chapter}:${section.verse.ayah}`}
 						onPress={() => onGo(section.place, section.verse)}
-						style={styles.rowHead}
+						style={[
+							styles.rowHead,
+							index > 0
+								? { borderTopColor: theme.colors.divider, borderTopWidth: StyleSheet.hairlineWidth }
+								: null
+						]}
 					>
 						<Typography style={[styles.rowTitle, styles.rowText]} variant='title'>
 							{`${suraNameFor(section.verse.chapter, language)} ${section.verse.ayah}`}
@@ -740,8 +747,8 @@ const CuzTab = ({ currentCuz, onGo, pagination }: CuzTabProps) => {
 							{t('goPageShort', { n: section.place.pageNumber })}
 						</Typography>
 					</Pressable>
-				</CardSurface>
-			))}
+				))}
+			</CardSurface>
 		</ScrollView>
 	);
 };
@@ -955,19 +962,15 @@ const styles = StyleSheet.create({
 		paddingBottom: 22,
 		paddingTop: 12
 	},
-	// The sura list's own: its rows carry their gap, which `getItemLayout` counts.
-	// The gap above sits outside the scroll, so a list opened on your sura still stands clear of the box.
-	suraList: {
-		paddingBottom: 22
-	},
-	suraListFrame: {
+	// The card the sura list scrolls inside. The gap above sits outside it, so a list opened on your
+	// sura still stands clear of the box; the one below keeps the card off the sheet's edge.
+	suraCard: {
 		flex: 1,
+		marginBottom: 22,
 		marginTop: 12
 	},
-	rowSlot: {
-		paddingBottom: ROW_GAP
-	},
-	suraCard: {
+	// One sura in the card: its line under it is counted in `rowLength`.
+	suraRow: {
 		overflow: 'hidden'
 	},
 	pageNumber: {
