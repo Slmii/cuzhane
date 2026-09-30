@@ -1,6 +1,6 @@
 ---
 import { Image } from 'astro:assets';
-import homeShot from '../assets/11-home-mixed.png';
+import homeShot from '../assets/20-home.png';
 import { copyFor, type Locale } from '../i18n/copy';
 
 interface Props {
@@ -13,7 +13,12 @@ const t = copyFor(locale);
 
 <section class="hero">
 	<div class="copy">
-		<p class="eyebrow light">{t.heroEyebrow}</p>
+		{/* The three readings the app carries, as the design's chips rather than one eyebrow line. */}
+		<ul class="kinds">
+			<li>{t.kCevsen}</li>
+			<li>{t.kQuran}</li>
+			<li>{t.kHizb}</li>
+		</ul>
 		<h1>{t.heroTitle}</h1>
 		<p class="body">{t.heroBody}</p>
 		<div class="ctas">
@@ -48,7 +53,7 @@ const t = copyFor(locale);
 		padding: clamp(34px, 4vw, 56px) clamp(22px, 3.4vw, 44px) 0;
 		overflow: hidden;
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+		grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
 		gap: clamp(26px, 3vw, 40px);
 		align-items: end;
 	}
@@ -71,7 +76,7 @@ const t = copyFor(locale);
 
 		/*
 		 * Rises once, then breathes. The float is the design's, and it is deliberately slow
-		 * and tiny — 9s for 6px — so it reads as the page being alive rather than as
+		 * and tiny — 9s for 9px — so it reads as the page being alive rather than as
 		 * something asking to be looked at. Both are inside this query, so Reduce Motion
 		 * gets a still phone rather than a slower one.
 		 */
@@ -88,12 +93,28 @@ const t = copyFor(locale);
 			transform: none;
 		}
 		50% {
-			transform: translateY(-6px);
+			transform: translateY(-9px);
 		}
 	}
 
-	.eyebrow.light {
-		color: rgba(255, 255, 255, 0.62);
+	.kinds {
+		display: flex;
+		gap: 8px;
+		flex-wrap: wrap;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.kinds li {
+		font: 500 10.5px var(--sans);
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		color: #fff;
+		background: rgba(255, 255, 255, 0.14);
+		border: 1px solid rgba(255, 255, 255, 0.22);
+		border-radius: 99px;
+		padding: 6px 11px;
 	}
 
 	h1 {
@@ -101,14 +122,14 @@ const t = copyFor(locale);
 		line-height: 1.06;
 		letter-spacing: -0.02em;
 		color: #fff;
-		margin: 16px 0 0;
+		margin: 20px 0 0;
 	}
 
 	.body {
 		font: 400 16px/1.65 var(--sans);
-		color: rgba(255, 255, 255, 0.76);
+		color: rgba(255, 255, 255, 0.8);
 		margin: 18px 0 0;
-		max-width: 460px;
+		max-width: 470px;
 		text-wrap: pretty;
 	}
 

@@ -19,12 +19,12 @@ const home = pathFor(locale);
 	</a>
 
 	{/* Anchors are absolute, not bare fragments: the same header sits on the privacy and
-	    support pages, where `#havuz` would point at a section that isn't there. */}
+	    support pages, where `#cevsen` would point at a section that isn't there. */}
 	<nav aria-label="Cüzhane">
-		<a href={`${home}#havuz`}>{t.navPool}</a>
+		<a href={`${home}#cevsen`}>{t.navCevsen}</a>
 		<a href={`${home}#hatim`}>{t.navQuran}</a>
+		<a href={`${home}#hizb`}>{t.navHizb}</a>
 		<a href={`${home}#nasil`}>{t.navHow}</a>
-		<a href={`${home}#ozellikler`}>{t.navFeat}</a>
 		<a href={`${home}#sorular`}>{t.navFaq}</a>
 
 		{/*
