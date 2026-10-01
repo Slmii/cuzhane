@@ -34,3 +34,6 @@ overrides:
 patchedDependencies:
     expo-constants@57.0.16: patches/expo-constants@57.0.16.patch
     expo-updates@57.0.19: patches/expo-updates@57.0.19.patch
+    # The iOS 26 tab-bar accessory switched on and off without rebuilding the tab view (crash):
+    # `tabViewBottomAccessory(isEnabled:)` on 26.1+. Used by Birlikte oku's return strip.
+    react-native-bottom-tabs@1.4.0: patches/react-native-bottom-tabs@1.4.0.patch

@@ -1,5 +1,6 @@
 import prisma from '@db/prisma';
 import { closeHizbEnrollment } from '@services/hizbReading.service';
+import { endLiveSessionsOf } from '@services/liveSession.service';
 import { normalizeUserId } from '@utils/normalizeUserId';
 
 export const deleteAccountForUser = async (userId: string): Promise<{ success: true }> => {
@@ -93,6 +94,10 @@ export const deleteAccountForUser = async (userId: string): Promise<{ success: t
 		// outliving the account that wrote it.
 		await tx.feedback.deleteMany({ where: { userId: normalizedUserId } });
 	});
+
+	// After the commit, as the rest of the account is gone: a live reading they lead ends too, and
+	// its followers are told so.
+	await endLiveSessionsOf(normalizedUserId);
 
 	return { success: true };
 };

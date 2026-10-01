@@ -568,3 +568,62 @@ export type MyProgress = {
 	missedCount: number;
 	ratePercent: number;
 };
+
+/**
+ * Live reading ("Birlikte oku") — mirrors the server's `liveSession.service.ts` (the REST
+ * preview) and `schemas/live.schema.ts` (the socket's frames), field for field.
+ */
+export type LiveReadingKind = 'CEVSEN' | 'QURAN';
+
+export type LiveSessionPreview = {
+	id: string;
+	code: string;
+	kind: LiveReadingKind;
+	startedAt: string;
+	/** Null for "Member" — the server does not pick the language. */
+	leaderName: string | null;
+	isLeader: boolean;
+	followerCount: number;
+	/** Where the reader is now; null before they have opened a page. */
+	position: LivePosition | null;
+};
+
+/** A place in the text, never pixels: `f` is how far through the bab or page the screen's top is. */
+export type LivePosition =
+	| { k: 'CEVSEN'; bab: number; f: number }
+	| { k: 'QURAN'; edition: 'text' | 'husrev'; cuz: number; page: number; verse?: string; f: number };
+
+/**
+ * The line the reader is reading ("Göster") — a place in the text like a position: an invocation
+ * of a bab, a verse of a typeset page, or one of a Hüsrev page's fifteen lines.
+ */
+export type LiveMark =
+	| { k: 'CEVSEN'; bab: number; n: number }
+	| { k: 'QURAN'; edition: 'text'; cuz: number; page: number; verse: string }
+	| { k: 'QURAN'; edition: 'husrev'; cuz: number; page: number; line: number };
+
+export type LivePerson = { name: string | null; isLeader: boolean; isYou: boolean };
+
+export type LiveStatus = 'live' | 'away';
+
+export type LiveEndReason = 'ended' | 'leader-left' | 'replaced' | 'expired' | 'idle';
+
+export type LiveServerFrame =
+	| { t: 'ready' }
+	| {
+			t: 'snapshot';
+			session: { id: string; code: string; kind: LiveReadingKind; startedAt: string };
+			role: 'leader' | 'follower';
+			status: LiveStatus;
+			seq: number;
+			pos: LivePosition | null;
+			mark: LiveMark | null;
+			markShown: boolean;
+			people: LivePerson[];
+	  }
+	| { t: 'pos'; seq: number; pos: LivePosition }
+	| { t: 'mark'; seq: number; mark: LiveMark | null; shown: boolean }
+	| { t: 'status'; status: LiveStatus }
+	| { t: 'people'; people: LivePerson[] }
+	| { t: 'ended'; reason: LiveEndReason }
+	| { t: 'error'; code: 'bad-frame' | 'not-found' | 'not-joined' | 'not-leader' | 'wrong-kind' };

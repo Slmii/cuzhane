@@ -29,7 +29,7 @@ export interface LegalPage {
 	sections: LegalSection[];
 }
 
-const UPDATED = '2026-09-24';
+const UPDATED = '2026-10-01';
 
 const privacyTr: LegalPage = {
 	title: 'Gizlilik',
@@ -55,7 +55,7 @@ const privacyTr: LegalPage = {
 		{
 			heading: 'Saklamadığımız veriler',
 			paragraphs: [
-				'Analitik aracı kullanmıyoruz. Reklam ağı yok, izleme pikseli yok, üçüncü taraf çerezi yok. Konumunu, rehberini, takvimini veya cihazındaki başka hiçbir şeyi okumuyoruz. Okuduğun metnin kendisi uygulamayla birlikte gelir; hangi kelimeyi ne zaman okuduğun sunucuya gitmez.'
+				'Analitik aracı kullanmıyoruz. Reklam ağı yok, izleme pikseli yok, üçüncü taraf çerezi yok. Konumunu, rehberini, takvimini veya cihazındaki başka hiçbir şeyi okumuyoruz. Okuduğun metnin kendisi uygulamayla birlikte gelir; hangi kelimeyi ne zaman okuduğun sunucuya gitmez — birlikte okuma dışında; aşağıya bak.'
 			]
 		},
 		{
@@ -73,6 +73,14 @@ const privacyTr: LegalPage = {
 				'Clerk — hesap ve oturum yönetimi.',
 				'DigitalOcean — sunucunun ve veritabanının barındırıldığı yer (Avrupa).',
 				'Expo — yalnızca bildirim gönderimi için; bildirimin metni ve cihaz anahtarı iletilir.'
+			]
+		},
+		{
+			heading: 'Birlikte okuma',
+			paragraphs: [
+				'Serbest Cevşen’de ya da Mushaf’ta birlikte okurken okuyucunun yeri — hangi bab ya da sayfada olduğu, sayfanın neresinde olduğu ve dokunduğu satır — sunucumuz üzerinden takip edenlere canlı olarak gider. Bu yer kaydedilmez: sunucu onu yalnızca oturum sürerken bellekte tutar.',
+				'Oturum sürerken sunucuda küçük bir kayıt durur: katılma kodu, oturumu başlatan kişi ve okunan şey (Cevşen ya da Kuran). Oturum bittiğinde bu kayıt silinir — okuyucu bitirdiğinde, okuyucu bir dakika içinde dönmediğinde, on dakika okunmadığında ya da en geç dört saat sonra.',
+				'Bir oturumdaki herkes okuyucunun ve diğer takip edenlerin adını görür; burada grup olmadığı için isimler gizlenemez. Kodu kiminle paylaşacağına sen karar verirsin. Birlikte okuma hiçbir şeyi okundu olarak işaretlemez ve kimsenin ilerlemesini değiştirmez.'
 			]
 		},
 		{
@@ -127,7 +135,7 @@ const privacyEn: LegalPage = {
 		{
 			heading: 'What we do not store',
 			paragraphs: [
-				'There is no analytics tool. No advertising network, no tracking pixel, no third-party cookie. We do not read your location, contacts, calendar, or anything else on your device. The text you read ships inside the app; which words you read, and when, never reaches the server.'
+				'There is no analytics tool. No advertising network, no tracking pixel, no third-party cookie. We do not read your location, contacts, calendar, or anything else on your device. The text you read ships inside the app; which words you read, and when, never reaches the server — except when reading together; see below.'
 			]
 		},
 		{
@@ -145,6 +153,14 @@ const privacyEn: LegalPage = {
 				'Clerk — accounts and sessions.',
 				'DigitalOcean — where the server and database are hosted (Europe).',
 				'Expo — for delivering notifications only; the notification text and the device key are passed to it.'
+			]
+		},
+		{
+			heading: 'Reading together',
+			paragraphs: [
+				'When you read together in the free Cevşen or Mushaf, the reader’s place — which bab or page they are on, how far down it, and the line they tap — goes through our server to the people following, live. That place is not saved: the server holds it in memory only while the session runs.',
+				'While a session runs, the server keeps a small record of it: the join code, who started it and what is being read (Cevşen or Quran). The record is deleted when the session ends — when the reader ends it, when the reader does not come back within a minute, after ten minutes without reading, or after four hours at most.',
+				'Everyone in a session sees the names of the reader and of the others following; there is no group here, so names cannot be hidden. You decide who you share the code with. Reading together marks nothing as read and changes nobody’s progress.'
 			]
 		},
 		{
@@ -199,7 +215,7 @@ const privacyNl: LegalPage = {
 		{
 			heading: 'Wat we niet bewaren',
 			paragraphs: [
-				'Er is geen analysetool. Geen advertentienetwerk, geen trackingpixel, geen cookie van derden. We lezen je locatie, contacten, agenda of wat dan ook op je toestel niet. De tekst die je leest zit in de app zelf; welke woorden je wanneer leest, bereikt de server nooit.'
+				'Er is geen analysetool. Geen advertentienetwerk, geen trackingpixel, geen cookie van derden. We lezen je locatie, contacten, agenda of wat dan ook op je toestel niet. De tekst die je leest zit in de app zelf; welke woorden je wanneer leest, bereikt de server nooit — behalve bij samen lezen; zie hieronder.'
 			]
 		},
 		{
@@ -217,6 +233,14 @@ const privacyNl: LegalPage = {
 				'Clerk — accounts en sessies.',
 				'DigitalOcean — waar de server en de database draaien (Europa).',
 				'Expo — uitsluitend voor het bezorgen van meldingen; de tekst van de melding en de apparaatsleutel gaan daarheen.'
+			]
+		},
+		{
+			heading: 'Samen lezen',
+			paragraphs: [
+				'Lees je samen in de vrije Cevşen of Mushaf, dan gaat de plek van de lezer — op welke bab of pagina, hoe ver naar beneden en de regel waarop die tikt — via onze server live naar wie meeleest. Die plek wordt niet opgeslagen: de server houdt hem alleen in het geheugen zolang het samen lezen duurt.',
+				'Zolang het duurt, bewaart de server een klein gegeven: de deelnamecode, wie begon en wat er gelezen wordt (Cevşen of Koran). Dat wordt gewist als het samen lezen stopt — als de lezer stopt, als de lezer niet binnen een minuut terugkomt, na tien minuten zonder lezen of uiterlijk na vier uur.',
+				'Iedereen die meedoet, ziet de naam van de lezer en van de andere meelezers; er is hier geen groep, dus namen kunnen niet verborgen worden. Jij bepaalt met wie je de code deelt. Samen lezen markeert niets als gelezen en verandert niemands voortgang.'
 			]
 		},
 		{

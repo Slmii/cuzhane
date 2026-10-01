@@ -121,6 +121,11 @@ Three kinds: the **Cevşen** (`CEVSEN`, 100 babs), the **Kur'an** (`HATIM`, 30 c
     → `clerkMiddleware()` → routers.
 -   **Public: `/health` only.** Everything else is under `/api` behind `requireAuthApi` +
     `populateAuthLocals`, including the mushaf page images.
+-   **Live reading's socket (`/api/live-socket`, `liveSocket.service.ts`) bypasses Express** — an
+    upgrade never reaches the middleware. It does its own auth (a Clerk token in the first frame,
+    never the URL), Zod parsing, frame cap and rate limits; keep every check there. Session state is
+    in memory (one API process per environment); only `LiveSession` rows persist. A `ws` socket
+    must always have an `error` listener, or one bad frame throws and takes the process down.
 -   **Every server change ships with tests** in `test/` (Vitest, against `cuzhane_test`): a new route or
     service path gets tests for its happy path, its refusals and its privacy rules; a bug fix starts with
     a test that reproduces it. Run `pnpm --filter @cuzhane/server test` before calling it done.

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { StyleProp, TextStyle } from 'react-native';
+import type { GestureResponderEvent, LayoutChangeEvent, StyleProp, TextLayoutEvent, TextStyle } from 'react-native';
 
 export type TypographyVariant =
 	| 'display'
@@ -30,6 +30,11 @@ export interface TypographyProps {
 	 * nests in `Text` and carries its own handlers, so the press lives on the type itself.
 	 */
 	onLongPress?: () => void;
+	/** A short press, for the same text-inside-text reason as `onLongPress`. */
+	onPress?: (event: GestureResponderEvent) => void;
+	/** Where the paragraph's lines fell — what a reader measures to place something behind them. */
+	onTextLayout?: (event: TextLayoutEvent) => void;
+	onLayout?: (event: LayoutChangeEvent) => void;
 	/** Suppresses the press highlight, which otherwise flashes a box through a paragraph. */
 	suppressHighlighting?: boolean;
 	/**

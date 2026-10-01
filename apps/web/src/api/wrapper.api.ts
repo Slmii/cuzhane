@@ -54,7 +54,8 @@ export const setMissingTokenHandler = (handler: () => void) => {
 
 const wait = async (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-const resolveAuthToken = async () => {
+/** The session token, retried as `wrapperApi` retries it — also what live reading's socket signs in with. */
+export const resolveAuthToken = async () => {
 	if (!_getToken) {
 		return null;
 	}

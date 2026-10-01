@@ -59,14 +59,20 @@ export const GroupsScreen = () => {
 	const shouldOpenJoinSheet = route.params?.shouldOpenJoinSheet === true;
 	// A scanned QR lands here too (`groups/join/:inviteCode`), with the code to open the sheet on.
 	const scannedInviteCode = route.params?.inviteCode;
-	const isJoinSheetVisible = isJoinSheetOpen || shouldOpenJoinSheet || scannedInviteCode !== undefined;
+	// The "+" menu's "Birlikte okumaya katıl": the same sheet, asking only for a live reading's code.
+	const isLiveJoin = route.params?.shouldOpenLiveJoinSheet === true;
+	const isJoinSheetVisible = isJoinSheetOpen || shouldOpenJoinSheet || scannedInviteCode !== undefined || isLiveJoin;
 
 	const closeJoinSheet = () => {
 		setIsJoinSheetOpen(false);
 
 		// Cleared on dismissal, or the params would reopen the sheet on the next render.
-		if (shouldOpenJoinSheet || scannedInviteCode !== undefined) {
-			navigation.setParams({ inviteCode: undefined, shouldOpenJoinSheet: undefined });
+		if (shouldOpenJoinSheet || scannedInviteCode !== undefined || isLiveJoin) {
+			navigation.setParams({
+				inviteCode: undefined,
+				shouldOpenJoinSheet: undefined,
+				shouldOpenLiveJoinSheet: undefined
+			});
 		}
 	};
 
@@ -380,6 +386,7 @@ export const GroupsScreen = () => {
 
 			<JoinByCodeSheet
 				{...(scannedInviteCode === undefined ? {} : { initialCode: scannedInviteCode })}
+				isLiveOnly={isLiveJoin}
 				isVisible={isJoinSheetVisible}
 				onClose={closeJoinSheet}
 			/>

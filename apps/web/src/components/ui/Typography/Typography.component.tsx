@@ -139,7 +139,10 @@ export const Typography = ({
 	color,
 	isAnimated,
 	numberOfLines,
+	onLayout,
 	onLongPress,
+	onPress,
+	onTextLayout,
 	style,
 	suppressHighlighting,
 	textAlign,
@@ -172,7 +175,10 @@ export const Typography = ({
 		return (
 			<Animated.Text
 				numberOfLines={numberOfLines}
+				onLayout={onLayout}
 				onLongPress={onLongPress}
+				onPress={onPress}
+				onTextLayout={onTextLayout}
 				style={StyleSheet.flatten(composed)}
 				suppressHighlighting={suppressHighlighting}
 			>
@@ -184,7 +190,10 @@ export const Typography = ({
 	return (
 		<Text
 			numberOfLines={numberOfLines}
+			onLayout={onLayout}
 			onLongPress={onLongPress}
+			onPress={onPress}
+			onTextLayout={onTextLayout}
 			style={composed}
 			suppressHighlighting={suppressHighlighting}
 		>

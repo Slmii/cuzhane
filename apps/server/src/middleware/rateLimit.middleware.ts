@@ -36,6 +36,26 @@ export const createGroupRateLimit = rateLimit({
 	handler: tooManyRequestsHandler
 });
 
+/** Starting a live reading — a person needs a handful an hour; a loop needs more. */
+export const liveStartRateLimit = rateLimit({
+	windowMs: 60 * 60 * 1000,
+	limit: 20,
+	standardHeaders: 'draft-7',
+	legacyHeaders: false,
+	keyGenerator: userKey,
+	handler: tooManyRequestsHandler
+});
+
+/** Looking a live reading up by its code: a wall against guessing codes, not against people. */
+export const liveLookupRateLimit = rateLimit({
+	windowMs: 60 * 1000,
+	limit: 20,
+	standardHeaders: 'draft-7',
+	legacyHeaders: false,
+	keyGenerator: userKey,
+	handler: tooManyRequestsHandler
+});
+
 /** Taking and releasing pool slots and cüz — generous for real use, a wall against a loop. */
 export const poolRateLimit = rateLimit({
 	windowMs: 60 * 1000,

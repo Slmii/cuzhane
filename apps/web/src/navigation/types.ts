@@ -107,12 +107,29 @@ export type TabDetailParamList = {
 	 * the one exception to "no params": search lands here on a bab it found, and that is a
 	 * place you are sent to. It only seeds the cursor; the screen owns it from there.
 	 */
-	AllBabs: { shouldOpenTextSize?: boolean; babNumber?: number } | undefined;
+	/*
+	 * A live reading is the app's (`lib/live/liveSession`), not the route's: the reader attaches to
+	 * it while focused. `shouldOpenLive` opens its sheet from the bar, as `shouldOpenTextSize` does;
+	 * `liveNotFoundCode` is the join screen's one-shot "that code found nothing" (E5).
+	 */
+	AllBabs:
+		| { shouldOpenTextSize?: boolean; babNumber?: number; shouldOpenLive?: boolean; liveNotFoundCode?: string }
+		| undefined;
 	/**
 	 * The free Mushaf — the Kur'an read outside any group, as `AllBabs` is the Cevşen. The same
 	 * "no params" rule: the cüz and page are screen state, and `cuzNumber` only seeds the cursor.
 	 */
-	Mushaf: { shouldOpenTextSize?: boolean; cuzNumber?: number; page?: number; verseKey?: string } | undefined;
+	Mushaf:
+		| {
+				shouldOpenTextSize?: boolean;
+				cuzNumber?: number;
+				page?: number;
+				verseKey?: string;
+				shouldOpenLive?: boolean;
+		  }
+		| undefined;
+	/** A live reading's code, from a link or from "Davet kodum var": looked up, then its reader opened. */
+	LiveJoin: { code: string };
 	/**
 	 * The account screen lost its tab to search (K2) and is pushed from the avatar at the right
 	 * end of every tab root's bar — inside that tab, so back returns to where it was opened.
@@ -154,7 +171,9 @@ export type TabDetailParamList = {
 };
 
 /** `inviteCode` arrives from the QR's link (`groups/join/:inviteCode`) and opens the join sheet on that code. */
-export type GroupsScreenParams = { shouldOpenJoinSheet?: boolean; inviteCode?: string } | undefined;
+export type GroupsScreenParams =
+	| { shouldOpenJoinSheet?: boolean; inviteCode?: string; shouldOpenLiveJoinSheet?: boolean }
+	| undefined;
 
 /** The sheets the group screen's bar can ask for. Not a route — each is `ui/BottomSheet`. */
 export type GroupDetailSheet = 'manage' | 'members' | 'share';

@@ -20,7 +20,8 @@ type GroupsToolbarNavigationProp = NativeStackNavigationProp<
 >;
 
 /**
- * Gruplarım's bar: one + that pulls down the two ways onto the shelf.
+ * Gruplarım's bar: one + that pulls down the ways in — a new group, a group's code, and a live
+ * reading's code.
  *
  * **A component the navigator registers, not a `setOptions` call from the screen.** Setting the
  * header from an effect means the screen's first frame has no bar and a later commit puts one
@@ -71,6 +72,13 @@ export const GroupsToolbar = () => {
 							// The route param Onboarding already uses to ask for this sheet, rather than a
 							// second channel: the screen clears it on dismissal, so one flag can serve both.
 							onPress: () => navigation.setParams({ shouldOpenJoinSheet: true })
+						},
+						{
+							// A live reading's code, asked for on its own — the same sheet, in its live mode.
+							assetName: 'birlikte-oku-live-session',
+							icon: 'liveSession',
+							label: t('liveJoinMenu'),
+							onPress: () => navigation.setParams({ shouldOpenLiveJoinSheet: true })
 						}
 					]}
 					// `text`, not the accent: this sits beside the platform's own back chevron and

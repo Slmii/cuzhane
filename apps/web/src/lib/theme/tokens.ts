@@ -211,6 +211,42 @@ export type AppTheme = {
 		 */
 		verseSelection: string;
 		/**
+		 * Birlikte oku's band behind the reader's line ("Göster"): a follower's in full, with a 1pt
+		 * ring of its own; the reader's own at half tone, so they know where they are without it
+		 * pulling at them.
+		 */
+		liveBand: string;
+		liveBandRing: string;
+		liveBandOwn: string;
+		liveBandOwnRing: string;
+		/**
+		 * The return-to-reading strip (Birlikte oku · Okumaya dönüş) — its own tones, which say the
+		 * state by colour: live (sage), the reader dropped (sand), connecting and ended (a quiet grey).
+		 * Only what no other token equals in **both** modes is here: the titles reuse `text`, the
+		 * button `primary`/`onPrimary`, the quiet border `text` at 12%, the ended mark `text` at 45%.
+		 * `*Lead` is the 40pt disc behind the glyph or initials.
+		 */
+		liveStrip: string;
+		liveStripBorder: string;
+		liveStripSub: string;
+		liveStripLead: string;
+		liveStripAccent: string;
+		liveStripWarn: string;
+		liveStripWarnBorder: string;
+		liveStripWarnTitle: string;
+		liveStripWarnSub: string;
+		liveStripWarnLead: string;
+		/** The countdown ring's stroke; its track is this at 22%. */
+		liveStripWarnAccent: string;
+		liveStripQuiet: string;
+		liveStripQuietSub: string;
+		liveStripQuietLead: string;
+		/** The connecting spinner. */
+		liveStripQuietAccent: string;
+		/** The strip's lift off the page: a wide soft shadow and, in light mode, a tight one under it. */
+		liveStripShadow: string;
+		liveStripShadowNear: string;
+		/**
 		 * The verse ornament's crimson — its own colour, not `danger`.
 		 *
 		 * They coincide in dark mode and diverge in light, where `danger` is the deeper
@@ -334,6 +370,27 @@ export const lightTheme: AppTheme = {
 		suraCartouche: '#F1F5F2',
 		giltSoft: 'rgba(184,134,47,0.1)',
 		verseSelection: 'rgba(62,107,92,0.14)',
+		liveBand: 'rgba(62,107,92,0.15)',
+		liveBandRing: 'rgba(62,107,92,0.2)',
+		liveBandOwn: 'rgba(62,107,92,0.075)',
+		liveBandOwnRing: 'rgba(62,107,92,0.1)',
+		liveStrip: '#E8EFEA',
+		liveStripBorder: 'rgba(62,107,92,0.24)',
+		liveStripSub: 'rgba(28,29,26,0.66)',
+		liveStripLead: '#FFFFFF',
+		liveStripAccent: '#3E6B5C',
+		liveStripWarn: '#F3ECDF',
+		liveStripWarnBorder: 'rgba(140,106,60,0.28)',
+		liveStripWarnTitle: '#5E4B2E',
+		liveStripWarnSub: '#6E5B3E',
+		liveStripWarnLead: '#FFFFFF',
+		liveStripWarnAccent: '#B08A52',
+		liveStripQuiet: '#EFEDE7',
+		liveStripQuietSub: 'rgba(28,29,26,0.62)',
+		liveStripQuietLead: '#FFFFFF',
+		liveStripQuietAccent: 'rgba(28,29,26,0.5)',
+		liveStripShadow: 'rgba(28,29,26,0.14)',
+		liveStripShadowNear: 'rgba(28,29,26,0.08)',
 		ornament: '#A65D5D',
 		scrim: '#141513'
 	},
@@ -438,6 +495,28 @@ export const darkTheme: AppTheme = {
 		suraCartouche: '#1F2724',
 		giltSoft: 'rgba(217,179,106,0.12)',
 		verseSelection: 'rgba(143,184,166,0.2)',
+		liveBand: 'rgba(143,190,168,0.2)',
+		liveBandRing: 'rgba(143,190,168,0.26)',
+		liveBandOwn: 'rgba(143,190,168,0.1)',
+		liveBandOwnRing: 'rgba(143,190,168,0.14)',
+		liveStrip: '#22302A',
+		liveStripBorder: 'rgba(143,190,168,0.28)',
+		liveStripSub: 'rgba(242,240,234,0.72)',
+		liveStripLead: '#2D3E36',
+		liveStripAccent: '#8FBEA8',
+		liveStripWarn: '#33291C',
+		liveStripWarnBorder: 'rgba(214,170,110,0.3)',
+		liveStripWarnTitle: '#F0DDBE',
+		liveStripWarnSub: 'rgba(240,221,190,0.82)',
+		liveStripWarnLead: '#43361F',
+		liveStripWarnAccent: '#D6AA6E',
+		liveStripQuiet: '#262824',
+		liveStripQuietSub: 'rgba(242,240,234,0.64)',
+		liveStripQuietLead: '#30322D',
+		liveStripQuietAccent: 'rgba(242,240,234,0.55)',
+		liveStripShadow: 'rgba(0,0,0,0.45)',
+		// The design draws dark mode's lift as the one wide shadow.
+		liveStripShadowNear: 'rgba(0,0,0,0)',
 		ornament: '#C97B7B',
 		scrim: '#141513'
 	},

@@ -11,6 +11,7 @@ import cheersRouter from '@routes/cheers.route';
 import feedbackRouter from '@routes/feedback.route';
 import groupsRouter from '@routes/groups.route';
 import healthRouter from '@routes/health.route';
+import liveRouter from '@routes/live.route';
 import membershipRouter from '@routes/membership.route';
 import notificationsRouter from '@routes/notifications.route';
 import profileRouter from '@routes/profile.route';
@@ -73,6 +74,7 @@ export const createApp = () => {
 	app.use('/api/account', accountRouter);
 	app.use('/api/feedback', feedbackRouter);
 	app.use('/api/quran', quranRouter);
+	app.use('/api/live', liveRouter);
 
 	// Error handling middleware should be registered after all routes
 	app.use(notFoundHandler);

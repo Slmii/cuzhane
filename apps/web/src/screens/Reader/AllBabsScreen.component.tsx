@@ -8,18 +8,33 @@ import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { BAB_COUNT } from '@/lib/utils/babs';
 import { TabBarOffsetContext } from '@/navigation/TabBarOffsetContext';
+import type { LivePosition } from '@/lib/types/domain';
 import type { TabStackParamList } from '@/navigation/types';
+import { LiveBar } from '@/screens/Live/LiveBar.component';
+import { LiveBandLayer, useLiveBandFollow, useLiveBandLead, type ScrollMetrics } from '@/screens/Live/useLiveBand';
+import { LiveSheet } from '@/screens/Live/LiveSheet.component';
+import { useFreeReaderLive } from '@/screens/Live/useFreeReaderLive';
+import { liveSession } from '@/lib/live/liveSession';
 import { MealSheet } from '@/screens/Reader/MealSheet.component';
 import { ReaderBabMap } from '@/screens/Reader/ReaderBabMap.component';
 import { ReaderBody, readerFaces } from '@/screens/Reader/ReaderBody.component';
+import { READ_TOGETHER_BAR_OVERHANG } from '@/screens/Reader/ReaderToolbar.component';
 import { TextSizeSheet } from '@/screens/Reader/TextSizeSheet.component';
+import { useCevsenBandGeometry } from '@/screens/Reader/useCevsenBandGeometry';
 import { textSizeSheet } from '@/screens/Reader/textSizeSheet';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useKeepAwake } from 'expo-keep-awake';
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import {
+	ScrollView,
+	StyleSheet,
+	View,
+	type GestureResponderEvent,
+	type NativeScrollEvent,
+	type NativeSyntheticEvent
+} from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { runOnJS, useSharedValue } from 'react-native-reanimated';
+import { runOnJS, useReducedMotion, useSharedValue } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type Props = NativeStackScreenProps<TabStackParamList, 'AllBabs'>;
@@ -68,7 +83,18 @@ export const AllBabsScreen = ({ navigation, route }: Props) => {
 	 * and there is nothing to deep-link to.
 	 */
 	// Search may hand over a starting bab; from there the cursor is this screen's own.
-	const [babNumber, setBabNumber] = useState(route.params?.babNumber ?? 1);
+	/*
+	 * **A live reading picks up where it is.** Opened while a Cevşen reading is on, the screen starts
+	 * at the reading's place — the reader's own, or the reader's for a follower — rather than at bab
+	 * 1, which a reader's screen would otherwise send to everyone as it mounts. Search's bab wins.
+	 */
+	const isExplicitPlace = route.params?.babNumber !== undefined;
+	const [livePlace] = useState(() => {
+		const place = isExplicitPlace ? null : liveSession.placeFor('CEVSEN');
+
+		return place?.k === 'CEVSEN' ? place : null;
+	});
+	const [babNumber, setBabNumber] = useState(route.params?.babNumber ?? livePlace?.bab ?? 1);
 	// Opened from the navigator's bar, which is outside this screen — see `textSizeSheet`.
 	const textSize = textSizeSheet(navigation, route.params);
 	const [mealInvocation, setMealInvocation] = useState<CevsenInvocation | null>(null);
@@ -92,6 +118,7 @@ export const AllBabsScreen = ({ navigation, route }: Props) => {
 	 * bab rather than showing the old one leaving.
 	 */
 	const scrollRef = useRef<ScrollView | null>(null);
+	const isReducedMotion = useReducedMotion();
 	// Twice, for the reason `BabReaderScreen` records: the effect fires before the new bab has
 	// a height, so the scroll view re-applies its own offset a frame later on a device.
 	const isAwaitingTop = useRef(true);
@@ -100,23 +127,232 @@ export const AllBabsScreen = ({ navigation, route }: Props) => {
 		scrollRef.current?.scrollTo({ animated: false, y: 0 });
 	}, []);
 
-	useEffect(() => {
-		isAwaitingTop.current = true;
-		scrollToTop();
-	}, [babNumber, scrollToTop]);
+	/*
+	 * **Live reading.** What the page's own scroll needs to turn a place in the bab into a scroll
+	 * offset and back: how tall the bab is and how much of it the screen shows. Refs, not state —
+	 * a follower's screen is moved several times a second and must not re-render the Arabic.
+	 */
+	const metricsRef = useRef<ScrollMetrics>({ content: 0, scrollY: 0, viewport: 0 });
+	const babNumberRef = useRef(babNumber);
+	// The reader's place to land on once a bab it moved to has laid out, instead of its top.
+	const pendingFractionRef = useRef<number | null>(livePlace?.f ?? null);
+	// How far down the bab the reader is, for a (re)joining socket to send — not always the top.
+	const fractionRef = useRef(livePlace?.f ?? 0);
 
-	const handleContentSizeChange = useCallback(() => {
-		if (!isAwaitingTop.current) {
+	/*
+	 * A place is where the top of the screen is, as a share of the whole bab — not of the scroll
+	 * range, which depends on how tall each phone's screen is. Clamped here, on the follower's
+	 * side, where a short screen can scroll further than a tall one.
+	 */
+	const scrollToFraction = useCallback((fraction: number, isAnimated = false) => {
+		const { content, viewport } = metricsRef.current;
+
+		scrollRef.current?.scrollTo({
+			animated: isAnimated,
+			y: Math.min(fraction * content, Math.max(0, content - viewport))
+		});
+	}, []);
+
+	/*
+	 * "Göster": the follower's side of the band, reached from `handleLivePosition` before the hook
+	 * that provides it exists (the hook needs the live reading, which needs the handler).
+	 */
+	const bandFollowRef = useRef<{ bringIntoView: () => boolean } | null>(null);
+
+	// A follower's screen goes where the reader is: another bab first, then how far down it.
+	const handleLivePosition = useCallback(
+		(pos: LivePosition) => {
+			if (pos.k !== 'CEVSEN') {
+				return;
+			}
+
+			if (pos.bab !== babNumberRef.current) {
+				pendingFractionRef.current = pos.f;
+				setBabNumber(pos.bab);
+
+				return;
+			}
+
+			// While the reader's line is on their screen, the band decides where this one is.
+			if (bandFollowRef.current?.bringIntoView()) {
+				return;
+			}
+
+			/*
+			 * Glided, not jumped: places arrive a few times a second, and landing on each one
+			 * moved the page in visible steps. Each glide takes about as long as the gap to the
+			 * next place, and a new one picks up from wherever the last has got to.
+			 */
+			scrollToFraction(pos.f, !isReducedMotion);
+		},
+		[isReducedMotion, scrollToFraction]
+	);
+
+	const getLivePosition = useCallback(
+		(): LivePosition => ({ bab: babNumberRef.current, f: fractionRef.current, k: 'CEVSEN' }),
+		[]
+	);
+
+	const live = useFreeReaderLive({
+		getPosition: getLivePosition,
+		isExplicitPlace,
+		kind: 'CEVSEN',
+		navigation,
+		onPosition: handleLivePosition,
+		params: route.params
+	});
+	const { detach, isLeader, publish } = live;
+	const isJoined = live.state.role !== null && live.state.gone === null;
+
+	const readerSettings = {
+		// Hüsrev is the Kuran's page images; the Cevşen sets text, so it falls back to a font.
+		readerArabicFont: textFontFor(settingsQuery.data?.readerArabicFont ?? 'uthman'),
+		readerFontSize: settingsQuery.data?.readerFontSize ?? READER_FONT_SIZE_DEFAULT,
+		readerNumerals: settingsQuery.data?.readerNumerals ?? 'arabic'
+	} as const;
+	const faces = readerFaces(readerSettings.readerArabicFont, readerSettings.readerFontSize);
+
+	/*
+	 * **"Göster"** — the band behind the invocation the reader is on. Its geometry lives in refs
+	 * (`useCevsenBandGeometry`); a tap or a follower's update reaches the band layer alone.
+	 */
+	const band = useCevsenBandGeometry({ babNumber, faces, numerals: readerSettings.readerNumerals });
+	const { rectsFor } = band;
+	const scrollBandTo = useCallback((y: number) => scrollRef.current?.scrollTo({ animated: false, y }), []);
+	const bandFollow = useLiveBandFollow({ isReducedMotion, live, metricsRef, rectsFor, scrollTo: scrollBandTo });
+	const bandLead = useLiveBandLead({ live, metricsRef, rectsFor });
+	const { bringIntoView } = bandFollow;
+	const { isFollower } = live;
+	const isDetached = live.state.isDetached;
+	const { onReadyRef } = band;
+
+	useEffect(() => {
+		bandFollowRef.current = { bringIntoView };
+		// A bab laid out and measured after the reader's line arrived: bring the band into view now.
+		onReadyRef.current = () => {
+			if (isFollower && !isDetached) {
+				bringIntoView();
+			}
+		};
+	}, [bringIntoView, isDetached, isFollower, onReadyRef]);
+
+	/*
+	 * The reader's tap: the invocation is found by where it landed on the paragraph, from the same
+	 * geometry the band is drawn with — a span per invocation would need the words nested, and on
+	 * Android that took the verse mark's long press for the meal away.
+	 */
+	const { point } = bandLead;
+	const { invocationInParagraph } = band;
+	const handlePressMark = useCallback((n: number) => point({ bab: babNumberRef.current, k: 'CEVSEN', n }), [point]);
+	const handlePressParagraph = useCallback(
+		(event: GestureResponderEvent) => {
+			const n = invocationInParagraph(event.nativeEvent.locationX, event.nativeEvent.locationY);
+
+			if (n !== null) {
+				handlePressMark(n);
+			}
+		},
+		[handlePressMark, invocationInParagraph]
+	);
+
+	useEffect(() => {
+		babNumberRef.current = babNumber;
+		// A bab landing on a place it was sent to starts there, not at its top — or it would send the top.
+		fractionRef.current = pendingFractionRef.current ?? 0;
+		isAwaitingTop.current = true;
+
+		if (pendingFractionRef.current === null) {
+			scrollToTop();
+
 			return;
 		}
 
-		isAwaitingTop.current = false;
-		scrollToTop();
-	}, [scrollToTop]);
+		// A bab the same height as the last reports no size change; the next frame lands the place anyway.
+		const frame = requestAnimationFrame(() => {
+			if (pendingFractionRef.current !== null) {
+				scrollToFraction(pendingFractionRef.current);
+				pendingFractionRef.current = null;
+				isAwaitingTop.current = false;
+				bandFollowRef.current?.bringIntoView();
+			}
+		});
+
+		return () => cancelAnimationFrame(frame);
+	}, [babNumber, scrollToFraction, scrollToTop]);
+
+	const handleContentSizeChange = useCallback(
+		(_width: number, height: number) => {
+			metricsRef.current.content = height;
+
+			if (!isAwaitingTop.current) {
+				return;
+			}
+
+			isAwaitingTop.current = false;
+
+			if (pendingFractionRef.current !== null) {
+				scrollToFraction(pendingFractionRef.current);
+				pendingFractionRef.current = null;
+				bandFollowRef.current?.bringIntoView();
+
+				return;
+			}
+
+			scrollToTop();
+		},
+		[scrollToFraction, scrollToTop]
+	);
+
+	/*
+	 * The reader's side: a new bab is sent at once. A (re)joining socket needs nothing from here —
+	 * the session sends the reader's place itself, and only when the server's differs.
+	 */
+	useEffect(() => {
+		if (isLeader) {
+			publish({ bab: babNumber, f: fractionRef.current, k: 'CEVSEN' }, { isImmediate: true });
+		}
+	}, [babNumber, isLeader, publish]);
+
+	const { onScroll: onBandLeadScroll } = bandLead;
+	const { onDragStart: onBandDragStart, onScroll: onBandFollowScroll } = bandFollow;
+
+	// A scroll through the bab, at the hook's pace.
+	const handleScroll = useCallback(
+		(event: NativeSyntheticEvent<NativeScrollEvent>) => {
+			const { content } = metricsRef.current;
+			const { y } = event.nativeEvent.contentOffset;
+			const fraction = content > 0 ? Math.min(1, Math.max(0, y / content)) : 0;
+
+			metricsRef.current.scrollY = y;
+			fractionRef.current = Math.round(fraction * 1000) / 1000;
+
+			if (isLeader) {
+				publish({ bab: babNumberRef.current, f: fractionRef.current, k: 'CEVSEN' });
+			}
+
+			// The reader's line going off (or back onto) their screen; a detached follower's arrow.
+			onBandLeadScroll();
+			onBandFollowScroll();
+		},
+		[isLeader, onBandFollowScroll, onBandLeadScroll, publish]
+	);
+
+	const handleScrollBeginDrag = useCallback(() => {
+		detach();
+		onBandDragStart();
+	}, [detach, onBandDragStart]);
+
+	// Anything a follower does to the page themselves lets go of the reader's place.
+	// The reader turning the bab puts their band out ("Bab ya da sayfa değişince vurgu söner").
+	const goToBab = (next: number) => {
+		detach();
+		bandLead.clear();
+		setBabNumber(next);
+	};
 
 	const commitScrub = (next: number) => {
 		setScrubBab(null);
-		setBabNumber(next);
+		goToBab(next);
 	};
 
 	const trackScrub = (x: number) => {
@@ -166,14 +402,6 @@ export const AllBabsScreen = ({ navigation, route }: Props) => {
 	 * JSON, so the page is complete on the first frame and only the *face* it is set in
 	 * arrives late. A skeleton would be hiding a finished page to wait for a preference.
 	 */
-	const readerSettings = {
-		// Hüsrev is the Kuran's page images; the Cevşen sets text, so it falls back to a font.
-		readerArabicFont: textFontFor(settingsQuery.data?.readerArabicFont ?? 'uthman'),
-		readerFontSize: settingsQuery.data?.readerFontSize ?? READER_FONT_SIZE_DEFAULT,
-		readerNumerals: settingsQuery.data?.readerNumerals ?? 'arabic'
-	} as const;
-	const faces = readerFaces(readerSettings.readerArabicFont, readerSettings.readerFontSize);
-
 	const previousBabNumber = babNumber > 1 ? babNumber - 1 : undefined;
 	const nextBabNumber = babNumber < BAB_COUNT ? babNumber + 1 : undefined;
 
@@ -215,7 +443,8 @@ export const AllBabsScreen = ({ navigation, route }: Props) => {
 					 * the navigator's now.** It was an "Aa" chip here and it had stopped
 					 * responding: this row occupies the band the transparent native header draws
 					 * in, and that header is a view above the scene, so the taps never reached it.
-					 * See `ReaderToolbar`. The slot stays to centre the eyebrow.
+					 * See `ReaderToolbar`. The slot stays to centre the eyebrow — widened by the
+					 * bar's overhang, so it centres between the back button and the capsule.
 					 */}
 					<View style={[styles.headerSide, styles.headerSideEnd]} />
 				</View>
@@ -242,18 +471,43 @@ export const AllBabsScreen = ({ navigation, route }: Props) => {
 				</GestureDetector>
 			</View>
 
+			<LiveBar
+				followDirection={bandFollow.direction}
+				live={live}
+				onOpenSheet={() => navigation.setParams({ shouldOpenLive: true })}
+			/>
+
 			<ScrollView
 				contentContainerStyle={styles.body}
 				onContentSizeChange={handleContentSizeChange}
+				onLayout={event => {
+					metricsRef.current.viewport = event.nativeEvent.layout.height;
+				}}
+				onScroll={handleScroll}
+				onScrollBeginDrag={handleScrollBeginDrag}
 				ref={scrollRef}
+				scrollEventThrottle={64}
 				showsVerticalScrollIndicator={false}
 			>
+				{/* Before the text, so the band sits behind it. */}
+				{isJoined ? (
+					<LiveBandLayer
+						layoutVersion={band.layoutVersion}
+						rectsFor={rectsFor}
+						store={live.markStore}
+						tone={isLeader ? 'own' : 'follower'}
+					/>
+				) : null}
 				<ReaderBody
 					babNumber={babNumber}
 					font={readerSettings.readerArabicFont}
 					fontSize={readerSettings.readerFontSize}
 					numerals={readerSettings.readerNumerals}
 					onLongPressInvocation={setMealInvocation}
+					onParagraphLayout={band.onParagraphLayout}
+					onParagraphTextLayout={band.onParagraphTextLayout}
+					onPressMark={isLeader ? handlePressMark : undefined}
+					onPressParagraph={isLeader ? handlePressParagraph : undefined}
 				/>
 			</ScrollView>
 
@@ -281,7 +535,7 @@ export const AllBabsScreen = ({ navigation, route }: Props) => {
 					 */}
 					<AppButton
 						disabled={previousBabNumber === undefined}
-						onPress={() => previousBabNumber !== undefined && setBabNumber(previousBabNumber)}
+						onPress={() => previousBabNumber !== undefined && goToBab(previousBabNumber)}
 						style={styles.navButtonSlot}
 						title={t('abPrev')}
 						variant='surface'
@@ -294,7 +548,7 @@ export const AllBabsScreen = ({ navigation, route }: Props) => {
 						disabled={nextBabNumber === undefined}
 						icon='chevronRight'
 						iconPosition='trailing'
-						onPress={() => nextBabNumber !== undefined && setBabNumber(nextBabNumber)}
+						onPress={() => nextBabNumber !== undefined && goToBab(nextBabNumber)}
 						style={styles.navButtonSlot}
 						title={t('abNext')}
 						variant='primary'
@@ -308,6 +562,11 @@ export const AllBabsScreen = ({ navigation, route }: Props) => {
 				onClose={textSize.close}
 				settings={readerSettings}
 			/>
+
+			<LiveSheet live={live} />
+
+			{/* The band's hidden measuring copy of the paragraph — only while there is a band to place. */}
+			{isJoined ? band.measurer : null}
 
 			<MealSheet
 				arabicFont={faces.arabicFont}
@@ -359,12 +618,13 @@ const styles = StyleSheet.create({
 		flex: 1
 	},
 	headerSide: {
-		// Equal and fixed, so the eyebrow between them is centred on the header rather than on
-		// whatever is left over — "Geri" and the Aa button are different widths.
+		// Fixed, so the eyebrow is placed by the controls over them rather than by whatever is left
+		// over; the end one is wider by the bar's overhang (`headerSideEnd`).
 		width: 64
 	},
 	headerSideEnd: {
-		alignItems: 'flex-end'
+		alignItems: 'flex-end',
+		width: 64 + READ_TOGETHER_BAR_OVERHANG
 	},
 	headerTopRow: {
 		alignItems: 'center',

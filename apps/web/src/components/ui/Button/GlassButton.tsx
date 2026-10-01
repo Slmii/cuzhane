@@ -77,6 +77,11 @@ const GLYPH_BY_ICON: Partial<Record<IconName, GlyphSource>> = {
 	close: { systemName: 'xmark' },
 	chevronRight: { systemName: 'chevron.right' },
 	copy: { assetName: 'kopyala-copy-link' },
+	// "Takip et" while detached — which way the reader's line went. Apple's, like the chevrons.
+	arrowDown: { systemName: 'arrow.down' },
+	arrowUp: { systemName: 'arrow.up' },
+	// Birlikte oku's "Gönder", beside "Kodu kopyala" — without it the pair split into glass and drawn.
+	share: { assetName: 'paylas-share' },
 	// Ours, converted like the tick it sits opposite in Yönet — Apple's own `trash` is drawn to
 	// the full box the converted glyphs leave room in, so at one point size it came out visibly
 	// heavier than the tick.
