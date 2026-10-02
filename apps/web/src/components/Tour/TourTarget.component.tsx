@@ -111,7 +111,8 @@ export const TourTarget = ({ children, id, radius, style }: TourTargetProps) => 
 			 * sits over the bottom of the screen, and a counter behind it is on screen yet unseen — the
 			 * spotlight landed on the footer instead.
 			 */
-			scroll.measureInWindow((_sx, scrollY, _sw, scrollHeight) => {
+			// A scroll view is a native view like any other; its type only leaves `measureInWindow` out.
+			(scroll as unknown as View).measureInWindow((_sx, scrollY, _sw, scrollHeight) => {
 				const top = Math.max(VISIBLE_TOP, scrollY);
 				const bottom = Math.min(windowHeight - VISIBLE_BOTTOM, scrollY + scrollHeight);
 

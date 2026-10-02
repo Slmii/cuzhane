@@ -90,7 +90,7 @@ const goToTab = (tab: TourTab) => {
 };
 
 /** The pushed places, each onto whichever tab stack is focused. */
-const navigateTo = (place: Exclude<TourPlace, 'home' | 'groups'>, subject: TourSubject) => {
+const navigateTo = (place: Exclude<TourPlace, 'home' | 'groups' | 'here'>, subject: TourSubject) => {
 	// Typed loosely on purpose: these routes sit on whichever tab stack is focused, and this
 	// hook is outside all of them.
 	const navigate = navigationRef.navigate as unknown as (name: string, params: object) => void;
@@ -184,6 +184,11 @@ export const useTourNavigation = () => {
 
 		const step = run[stepIndex];
 		const place: TourPlace = step?.place ?? 'home';
+
+		// A hint's stop is wherever the reader already is: never moved there, never brought back.
+		if (place === 'here') {
+			return;
+		}
 
 		if (place !== currentPlace.current) {
 			currentPlace.current = place;

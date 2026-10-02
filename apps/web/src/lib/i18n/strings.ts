@@ -431,6 +431,7 @@ const tr = {
 	tourLegQuran: 'Kur’an',
 	tourLegHizb: 'Hizb',
 	tourLegEnd: 'Kapanış',
+	tourLegLive: 'İpucu',
 	tourEndTitle: 'Turu bitirelim mi?',
 	tourEndSub: 'İstediğin zaman Profil’den yeniden açabilirsin.',
 	tourEndYes: 'Turu bitir',
@@ -465,6 +466,10 @@ const tr = {
 	tour10Sub: 'Metne ya da “+ Bir tekrar”a dokunarak say. Yazan sayıya ulaşınca sonraki sayfa açılır.',
 	tour11Title: 'Hazırsın',
 	tour11Sub: 'Örnek gruplar kalktı. Şimdi bir gruba katıl ya da kendi grubunu kur.',
+	// The free readers' one-time hint at "Birlikte oku" — not one of the tour's numbered stops.
+	tourLiveTitle: 'Birlikte oku',
+	tourLiveSub:
+		'Buradan bir okuma oturumu açabilirsin. Davet ettiklerin aynı sayfayı kendi telefonlarında seninle birlikte takip eder. İstersen sesli de okuyabilirsin.',
 	tourReplay: 'Uygulama turu',
 	tourReplaySub: 'Tekrar izle',
 	obNext: 'Devam',
@@ -1038,6 +1043,20 @@ const tr = {
 	 * Sürüm 1.1'in kendi notları. Tasarımdaki örnek metinler değil — gerçekten değişenler.
 	 * Yeni bir sürüm çıkarken bu üç anahtarın yerine o sürümünkiler yazılır.
 	 */
+	rn150LiveTitle: 'Birlikte okuma',
+	rn150LiveBody:
+		'Bir okuma oturumu aç; grubundakiler aynı sayfayı seninle birlikte takip etsin. İstersen sesli oku, onlar seni dinlesin.',
+	rn150SahsiTitle: 'Şahsi okuma',
+	rn150SahsiBody:
+		'Kendi başına, kendi planınla oku: 10, 15, 30 gün ya da istediğin kadar. Uygulama her gün okuyacağın bölümü verir; bitince baştan başlar.',
+	rn150AheadTitle: 'Önden oku',
+	rn150AheadBody:
+		'Bugünkü okumanı bitirdiysen yarınınkini şimdiden okuyabilirsin. Önden okuduğun her gün, kendi gününe sayılır.',
+	rn150ReadersTitle: 'Bugün kim okudu',
+	rn150ReadersBody:
+		'Grup ilerlemesinde artık bugün kaç kişinin okuduğunu görürsün. Gizli isimli gruplarda yalnızca sayı görünür.',
+	rn150PlaceTitle: 'Kaldığın yer hatırlanır',
+	rn150PlaceBody: 'Kaldığın sayfa kaydedilir; başka bir telefonda açsan bile oradan devam edersin.',
 	rn140HizbTitle: 'Hizbü’l-Hakaik',
 	rn140HizbBody:
 		'Artık Hizbü’l-Hakaik de okunuyor: bir grup kur ve 7, 15 ya da 33 günlük bir plan seç. Her üyeye her gün bir okuma düşer; grubun o gün 33 bölümün ne kadarını okuduğu tek bakışta görünür. İstersen tek başına da okuyabilirsin.',
@@ -2195,6 +2214,7 @@ const en: Strings = {
 	tourLegQuran: 'Quran',
 	tourLegHizb: 'Hizb',
 	tourLegEnd: 'End',
+	tourLegLive: 'Tip',
 	tourEndTitle: 'End the tour?',
 	tourEndSub: 'You can start it again any time from Profile.',
 	tourEndYes: 'End tour',
@@ -2229,6 +2249,9 @@ const en: Strings = {
 	tour10Sub: 'Tap the text or “+ One more” to count. When you reach the number shown, the next page opens.',
 	tour11Title: 'You’re ready',
 	tour11Sub: 'The sample groups are gone. Now join a group or start your own.',
+	tourLiveTitle: 'Read together',
+	tourLiveSub:
+		'Start a reading session here. The people you invite follow the same page with you on their own phones. You can also read aloud.',
 	tourReplay: 'App tour',
 	tourReplaySub: 'Watch again',
 	obNext: 'Continue',
@@ -2740,6 +2763,20 @@ const en: Strings = {
 	hizbPart33Desc: 'Closing prayer: “Yâ Allâh, yâ Rahmân…”',
 	releaseNotesNew: 'new',
 	releaseNotesEmpty: 'This is the app’s first release. Later ones collect here.',
+	rn150LiveTitle: 'Reading together',
+	rn150LiveBody:
+		'Start a reading session and the people in your group follow the same page with you. You can read aloud and they listen.',
+	rn150SahsiTitle: 'Individual reading',
+	rn150SahsiBody:
+		'Read on your own, with your own plan: 10, 15 or 30 days, or as many as you like. The app gives you each day’s part, and starts again at the end.',
+	rn150AheadTitle: 'Read ahead',
+	rn150AheadBody:
+		'Once today’s reading is done, you can already read tomorrow’s. Every day you read ahead counts for its own day.',
+	rn150ReadersTitle: 'Who read today',
+	rn150ReadersBody:
+		'Group progress now shows how many people read today. In groups with hidden names, only the number is shown.',
+	rn150PlaceTitle: 'Your place is remembered',
+	rn150PlaceBody: 'The page you stopped on is saved, so you carry on from there, even on another phone.',
 	rn140HizbTitle: 'Hizbü’l-Hakaik',
 	rn140HizbBody:
 		'You can now read the Hizbü’l-Hakaik too: start a group and choose a 7, 15 or 33-day plan. Every member has a reading each day, and you see at a glance how much of the 33 portions the group read that day. You can also read on your own.',
@@ -3761,6 +3798,7 @@ const nl: Strings = {
 	tourLegQuran: 'Koran',
 	tourLegHizb: 'Hizb',
 	tourLegEnd: 'Einde',
+	tourLegLive: 'Tip',
 	tourEndTitle: 'Rondleiding stoppen?',
 	tourEndSub: 'Je kunt hem altijd opnieuw starten via Profiel.',
 	tourEndYes: 'Stoppen',
@@ -3797,6 +3835,9 @@ const nl: Strings = {
 		'Tik op de tekst of op “+ Nog een keer” om te tellen. Heb je het getal bereikt, dan gaat de volgende bladzijde open.',
 	tour11Title: 'Je bent klaar',
 	tour11Sub: 'De voorbeeldgroepen zijn weg. Word nu lid van een groep of begin je eigen groep.',
+	tourLiveTitle: 'Samen lezen',
+	tourLiveSub:
+		'Start hier een leessessie. Wie je uitnodigt, volgt dezelfde pagina met je mee op de eigen telefoon. Je kunt ook hardop lezen.',
 	tourReplay: 'App-rondleiding',
 	tourReplaySub: 'Opnieuw bekijken',
 	obNext: 'Verder',
@@ -4310,6 +4351,20 @@ const nl: Strings = {
 	hizbPart33Desc: 'Slotgebed: “Yâ Allâh, yâ Rahmân…”',
 	releaseNotesNew: 'nieuw',
 	releaseNotesEmpty: 'Dit is de eerste versie van de app. Latere versies verzamelen zich hier.',
+	rn150LiveTitle: 'Samen lezen',
+	rn150LiveBody:
+		'Start een leessessie en de mensen in je groep volgen dezelfde pagina met je mee. Je kunt hardop lezen en zij luisteren.',
+	rn150SahsiTitle: 'Individueel lezen',
+	rn150SahsiBody:
+		'Lees alleen, met je eigen plan: 10, 15 of 30 dagen, of zoveel als je wilt. De app geeft je elke dag je deel en begint aan het eind opnieuw.',
+	rn150AheadTitle: 'Vooruit lezen',
+	rn150AheadBody:
+		'Ben je klaar met de lezing van vandaag, dan kun je die van morgen al lezen. Elke dag die je vooruit leest, telt voor die dag zelf.',
+	rn150ReadersTitle: 'Wie las vandaag',
+	rn150ReadersBody:
+		'De groepsvoortgang laat nu zien hoeveel mensen vandaag lazen. In groepen met verborgen namen zie je alleen het aantal.',
+	rn150PlaceTitle: 'Je plek wordt onthouden',
+	rn150PlaceBody: 'De pagina waar je bleef wordt bewaard, zodat je daar verder gaat, zelfs op een andere telefoon.',
 	rn140HizbTitle: 'Hizbü’l-Hakaik',
 	rn140HizbBody:
 		'Je kunt nu ook de Hizbü’l-Hakaik lezen: start een groep en kies een plan van 7, 15 of 33 dagen. Elk lid heeft elke dag een lezing, en je ziet in één oogopslag hoeveel van de 33 delen de groep die dag las. Je kunt ook alleen lezen.',

@@ -15,6 +15,11 @@ type TourStepCardProps = {
 	position: { leg: TourLeg; n: number; of: number };
 	/** Null when the card cannot sit beside its target and is pinned low instead. */
 	arrow: TourArrow | null;
+	/**
+	 * A one-stop hint on the reader's own screen: no "Örnek" (nothing on it is a sample), no "1/1",
+	 * and "Tamam" rather than "Devam" — there is nothing to go on to.
+	 */
+	isHint?: boolean;
 	/** Absent on the run's first stop, where there is nothing behind to go back to. */
 	onBack?: () => void;
 	onNext: () => void;
@@ -39,7 +44,16 @@ type TourStepCardProps = {
  * geç" at the top right, where it covered the bar a stop can point at (T3's +). The card's left
  * corner carries one link instead: "Bu bölümü geç" in a kind's part, "Turu geç" elsewhere.
  */
-export const TourStepCard = ({ arrow, onBack, onNext, onSkipPart, onSkipTour, position, step }: TourStepCardProps) => {
+export const TourStepCard = ({
+	arrow,
+	isHint = false,
+	onBack,
+	onNext,
+	onSkipPart,
+	onSkipTour,
+	position,
+	step
+}: TourStepCardProps) => {
 	const { t } = useTranslation();
 	const { theme } = useThemeContext();
 	const link = onSkipPart
@@ -61,18 +75,22 @@ export const TourStepCard = ({ arrow, onBack, onNext, onSkipPart, onSkipTour, po
 			) : null}
 			<View style={styles.head}>
 				<Typography color={theme.colors.accent} style={styles.leg} weight='medium'>
-					{`${t(TOUR_LEG_LABEL[position.leg])} · ${position.n}/${position.of}`}
+					{isHint
+						? t(TOUR_LEG_LABEL[position.leg])
+						: `${t(TOUR_LEG_LABEL[position.leg])} · ${position.n}/${position.of}`}
 				</Typography>
-				<View style={[styles.sample, { backgroundColor: theme.colors.sand }]}>
-					<Typography
-						color={theme.colors.sandText}
-						numberOfLines={1}
-						style={styles.sampleLabel}
-						weight='semibold'
-					>
-						{t('tourSample')}
-					</Typography>
-				</View>
+				{isHint ? null : (
+					<View style={[styles.sample, { backgroundColor: theme.colors.sand }]}>
+						<Typography
+							color={theme.colors.sandText}
+							numberOfLines={1}
+							style={styles.sampleLabel}
+							weight='semibold'
+						>
+							{t('tourSample')}
+						</Typography>
+					</View>
+				)}
 			</View>
 
 			<Typography style={styles.title} variant='header3' weight='regular'>
@@ -98,7 +116,13 @@ export const TourStepCard = ({ arrow, onBack, onNext, onSkipPart, onSkipTour, po
 				{onBack ? (
 					<AppButton fullWidth={false} onPress={onBack} size='sm' title={t('tourBack')} variant='surface' />
 				) : null}
-				<AppButton fullWidth={false} onPress={onNext} size='sm' title={t('tourNext')} variant='primary' />
+				<AppButton
+					fullWidth={false}
+					onPress={onNext}
+					size='sm'
+					title={t(isHint ? 'tourOk' : 'tourNext')}
+					variant='primary'
+				/>
 			</View>
 		</View>
 	);

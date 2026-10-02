@@ -41,7 +41,10 @@ type TourContextValue = {
 	rects: Partial<Record<TourTargetId, TourRect>>;
 	subject: TourSubject | null;
 	setSubject: (subject: TourSubject | null) => void;
-	/** Opens the tour on the whole run, or — from Profil — on one kind's part alone. */
+	/**
+	 * Opens the tour on the whole run, or — from Profil — on one kind's part alone; or, from a free
+	 * reader, "Birlikte oku"'s one-stop hint (`live`).
+	 */
 	start: (choice?: TourChoice) => void;
 	next: () => void;
 	/** One stop back, never before the run's first. */
@@ -107,11 +110,15 @@ export const TourProvider = ({ children, isBlocked = false }: { children: ReactN
 	const hasRecorded = useRef(false);
 
 	const start = useCallback<TourContextValue['start']>((choice = 'all') => {
-		hasRecorded.current = false;
+		// A hint stands on the reader's own screen: no stand-in data, and seeing it is not seeing
+		// the tour — so there is nothing to record when it ends.
+		const isHint = choice === 'live';
+
+		hasRecorded.current = isHint;
 		setRun(stepsFor(choice));
 		setStepIndex(0);
 		setIsConfirmingEnd(false);
-		setIsDemo(true);
+		setIsDemo(!isHint);
 		setIsActive(true);
 	}, []);
 

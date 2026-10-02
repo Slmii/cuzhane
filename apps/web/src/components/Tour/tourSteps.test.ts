@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { legPosition, nextLegStart, stepsFor, TOUR_STEPS } from './tourSteps';
+import { isHintRun, legPosition, nextLegStart, stepsFor, TOUR_STEPS } from './tourSteps';
 
 describe('the tour’s run', () => {
 	it('walks every part for "Hepsi": the start, the three kinds and the close', () => {
@@ -47,5 +47,37 @@ describe('the tour’s run', () => {
 	it('points every stop but the two bookend cards at something on its screen', () => {
 		expect(TOUR_STEPS.filter(step => step.kind === 'spot').every(step => step.target !== undefined)).toBe(true);
 		expect(TOUR_STEPS.filter(step => step.kind !== 'spot').every(step => step.target === undefined)).toBe(true);
+	});
+});
+
+describe('the "Birlikte oku" hint', () => {
+	it('is one stop at the bar button, on the screen the reader is on', () => {
+		expect(stepsFor('live')).toEqual([
+			{
+				bodyKey: 'tourLiveSub',
+				kind: 'spot',
+				leg: 'live',
+				place: 'here',
+				target: 'liveButton',
+				titleKey: 'tourLiveTitle'
+			}
+		]);
+	});
+
+	it('is not part of the tour, nor of any run Profil can choose', () => {
+		expect(TOUR_STEPS.some(step => step.leg === 'live' || step.place === 'here')).toBe(false);
+
+		for (const choice of ['all', 'cevsen', 'quran', 'hizb'] as const) {
+			expect(isHintRun(stepsFor(choice))).toBe(false);
+		}
+
+		expect(isHintRun(stepsFor('live'))).toBe(true);
+	});
+
+	it('ends at its only stop', () => {
+		const run = stepsFor('live');
+
+		expect(legPosition(run, 0)).toEqual({ leg: 'live', n: 1, of: 1 });
+		expect(nextLegStart(run, 0)).toBe(1);
 	});
 });

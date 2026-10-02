@@ -14,7 +14,8 @@ export type TourTargetId =
 	| 'cuzGrid'
 	| 'cuzActions'
 	| 'hizbToday'
-	| 'counter';
+	| 'counter'
+	| 'liveButton';
 
 /**
  * Which screen a stop lives on. The tour navigates there itself before showing the card — see
@@ -22,14 +23,29 @@ export type TourTargetId =
  *
  * `group` and `reader` are the Cevşen part's; `pickCuz` (a hatim you are joining) and `cuz` (one
  * you hold) the Kur'an part's; `hizbGroup` and `hizbReader` the Hizb part's.
+ *
+ * `here` is the screen the reader is already on: a hint's stop, which the tour never navigates to
+ * and never leaves.
  */
-export type TourPlace = 'home' | 'groups' | 'group' | 'reader' | 'pickCuz' | 'cuz' | 'hizbGroup' | 'hizbReader';
+export type TourPlace =
+	| 'home'
+	| 'groups'
+	| 'group'
+	| 'reader'
+	| 'pickCuz'
+	| 'cuz'
+	| 'hizbGroup'
+	| 'hizbReader'
+	| 'here';
 
-/** The tour's parts (design T): a shared start, one per kind, and the close. */
-export type TourLeg = 'start' | 'cevsen' | 'quran' | 'hizb' | 'end';
+/** The tour's parts (design T): a shared start, one per kind, and the close — and the hints. */
+export type TourLeg = 'start' | 'cevsen' | 'quran' | 'hizb' | 'end' | 'live';
 
-/** What Profil › Uygulama turu runs (TP): everything, or one kind's part on its own. */
-export type TourChoice = 'all' | 'cevsen' | 'quran' | 'hizb';
+/**
+ * What Profil › Uygulama turu runs (TP): everything, or one kind's part on its own. `live` is not
+ * one of its choices: it is the free readers' one-time hint, see `LIVE_HINT_STEPS`.
+ */
+export type TourChoice = 'all' | 'cevsen' | 'quran' | 'hizb' | 'live';
 
 export type TourStep = {
 	leg: TourLeg;
@@ -83,11 +99,28 @@ export const TOUR_STEPS: readonly TourStep[] = [
 	{ bodyKey: 'tour11Sub', kind: 'closing', leg: 'end', place: 'home', titleKey: 'tour11Title' }
 ] as const;
 
+/**
+ * "Birlikte oku"'s hint: one stop at the bar button, the first time this phone opens a free
+ * reader. **Not part of the tour** — it is on the reader's own screen, with their own text, so
+ * nothing is a sample, nothing navigates and finishing it records nothing (see `isHintRun`).
+ */
+export const LIVE_HINT_STEPS: readonly TourStep[] = [
+	{
+		bodyKey: 'tourLiveSub',
+		kind: 'spot',
+		leg: 'live',
+		place: 'here',
+		target: 'liveButton',
+		titleKey: 'tourLiveTitle'
+	}
+] as const;
+
 /** Each part's label on its cards ("BAŞLANGIÇ · 2/3"). */
 export const TOUR_LEG_LABEL: Record<TourLeg, StringKey> = {
 	cevsen: 'tourLegCevsen',
 	end: 'tourLegEnd',
 	hizb: 'tourLegHizb',
+	live: 'tourLegLive',
 	quran: 'tourLegQuran',
 	start: 'tourLegStart'
 };
@@ -95,10 +128,17 @@ export const TOUR_LEG_LABEL: Record<TourLeg, StringKey> = {
 /**
  * The run a choice makes. "Hepsi" is the whole tour; one kind is that part alone, with neither
  * the start nor the close — those introduce the app, and whoever picked a kind from Profil is
- * already in it.
+ * already in it. `live` is the hint, which is not in the tour at all.
  */
 export const stepsFor = (choice: TourChoice): readonly TourStep[] =>
-	choice === 'all' ? TOUR_STEPS : TOUR_STEPS.filter(step => step.leg === choice);
+	choice === 'all'
+		? TOUR_STEPS
+		: choice === 'live'
+		? LIVE_HINT_STEPS
+		: TOUR_STEPS.filter(step => step.leg === choice);
+
+/** Whether a run is a hint on the screen the reader is on, rather than the tour's walk. */
+export const isHintRun = (run: readonly TourStep[]) => run.every(step => step.place === 'here');
 
 /** Which part a stop is in, and where in it: `n` of `of`, 1-based. */
 export const legPosition = (run: readonly TourStep[], index: number) => {

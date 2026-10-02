@@ -14,7 +14,7 @@ import { useTour, type TourRect } from './Tour.context';
 import { TourCenterCard } from './TourCenterCard.component';
 import { TourEndSheet } from './TourEndSheet.component';
 import { TourStepCard, type TourArrow } from './TourStepCard.component';
-import { legPosition } from './tourSteps';
+import { isHintRun, legPosition } from './tourSteps';
 import { useTourNavigation } from './useTourNavigation';
 
 /** How far the cut-out stands off the element it frames, and how round its corners are. */
@@ -191,6 +191,7 @@ export const TourOverlay = () => {
 	}
 
 	const isSpot = step.kind === 'spot';
+	const isHint = isHintRun(run);
 
 	/*
 	 * **Where the card goes is the design's own rule (section T): beside its target, with an
@@ -286,11 +287,14 @@ export const TourOverlay = () => {
 				>
 					<TourStepCard
 						arrow={arrow}
+						isHint={isHint}
 						{...(stepIndex > 0 ? { onBack: back } : {})}
 						onNext={next}
 						// One link in the card's corner: past this part, or — at the start, which has
-						// no part to skip — out of the tour.
-						{...(step.leg === 'cevsen' || step.leg === 'quran' || step.leg === 'hizb'
+						// no part to skip — out of the tour. A hint has neither: "Tamam" is its way out.
+						{...(isHint
+							? {}
+							: step.leg === 'cevsen' || step.leg === 'quran' || step.leg === 'hizb'
 							? { onSkipPart: skipPart }
 							: { onSkipTour: askToEnd })}
 						position={legPosition(run, stepIndex)}
