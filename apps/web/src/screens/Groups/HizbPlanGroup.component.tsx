@@ -47,7 +47,7 @@ import { partCountFor } from '@/lib/utils/groupKinds';
 import { hizbPortionLabel, kindLabelKey } from '@/lib/utils/groups';
 import { hizbAheadView, isReadBeforeItsDay } from '@/lib/utils/hizbAhead';
 import { planBoardCells, unreadPortionCount } from '@/lib/utils/hizbPlanBoard';
-import { bookmarkToCuzPlace, planReadingRoute } from '@/lib/utils/personalPlan';
+import { bookmarkToCuzPlace, planReadingRoute, quranDayPages } from '@/lib/utils/personalPlan';
 import { readersPreview } from '@/lib/utils/hizbReadersPreview';
 import { timeIn, timeUntilReset, zoneAbbreviation } from '@/lib/utils/roundReset';
 import {
@@ -161,9 +161,11 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 			// day on it is, and today's unread share outranks a missed one.
 			for (const number of text.portionsOf(reading)) {
 				const held = states.get(number);
+				// Today's babs, cüz or portions already marked are read on the board before the day is.
+				const cellState = state === 'today' && reading.readPortions.includes(number) ? 'read' : state;
 
-				if (!held || STATE_RANK[state] > STATE_RANK[held]) {
-					states.set(number, state);
+				if (!held || STATE_RANK[cellState] > STATE_RANK[held]) {
+					states.set(number, cellState);
 				}
 			}
 		}
@@ -351,21 +353,7 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 		: myPortions.length;
 	// A Kur'an always counts pages, as its group screen does: each cüz marked read is all of its
 	// pages, and the place kept adds the pages up to it in the cüz not yet marked.
-	const quranPages = () => {
-		const marked = myPortions
-			.filter(n => bookPortionsRead.includes(n))
-			.reduce((total, n) => total + pagesOfCuz(n), 0);
-		const placeCuz = quranPlace ? myPortions[quranPlace.cuzIndex] : undefined;
-		const upToPlace =
-			quranPlace && placeCuz !== undefined && !bookPortionsRead.includes(placeCuz)
-				? myPortions
-						.slice(0, quranPlace.cuzIndex)
-						.filter(n => !bookPortionsRead.includes(n))
-						.reduce((total, n) => total + pagesOfCuz(n), 0) + quranPlace.page
-				: 0;
-
-		return Math.min(pageCount, marked + upToPlace);
-	};
+	const quranPages = () => quranDayPages(myPortions, bookPortionsRead, today?.bookmark ?? 0, pagesOfCuz).read;
 	const page = !today
 		? 0
 		: isQuran
@@ -1685,8 +1673,9 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 			{isShared ? (
 				<MembersSheet groupId={group.id} isVisible={route.params.sheet === 'members'} onClose={closeSheet} />
 			) : null}
-			{/* R2: which of today's portions were read from the book — the Hizb's only. */}
-			{today && isHizb ? (
+			{/* R2: which of today's portions were read from the book — the Hizb's, or a Kur'an day's cüz.
+			    A Cevşen is read in the app only. */}
+			{today && group.kind !== 'CEVSEN' ? (
 				<HizbBookSheet
 					alreadyRead={bookPortionsRead}
 					isPending={todayUpdate.isPending}

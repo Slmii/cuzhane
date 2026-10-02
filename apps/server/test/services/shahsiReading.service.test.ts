@@ -291,9 +291,19 @@ describe('reading a Şahsi plan', () => {
 		expect(state).toMatchObject({ coveredSpans: [], coveredUnits: [2], coverage: { covered: 1, total: 30 } });
 		expect(state.missed).toEqual([]);
 		// The shelf's card counts the cüz marked so far, not 0 until the day is done.
-		expect((await hizbSummary(group.id, 'owner')).hizbToday).toMatchObject({ completed: false, readUnits: [2] });
-		const done = await updateHizbAssignment('owner', group.id, today.id, {
+		expect((await hizbSummary(group.id, 'owner')).hizbToday).toMatchObject({
+			completed: false,
+			readUnits: [2],
+			place: 0
+		});
+		// The place the reader keeps comes along too, for the shelf's pages.
+		const placed = await updateHizbAssignment('owner', group.id, today.id, {
 			version: partial.version,
+			bookmark: 35
+		});
+		expect((await hizbSummary(group.id, 'owner')).hizbToday).toMatchObject({ place: 35 });
+		const done = await updateHizbAssignment('owner', group.id, today.id, {
+			version: placed.version,
 			bookPortions: [3, 1, 2]
 		});
 		expect(done).toMatchObject({ readPortions: [], readFrom: 'BOOK' });

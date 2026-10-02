@@ -598,9 +598,10 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 													</View>
 												</CardSurface>
 											</>
-										) : (
+										) : kind === 'HATIM' && !isPersonal ? (
+											// A Kur'an group's cüz-taking; nothing a Cevşen or a Şahsi reading does.
 											<NoteCard text={t('qTypeNote')} />
-										)}
+										) : null}
 									</>
 								) : null}
 

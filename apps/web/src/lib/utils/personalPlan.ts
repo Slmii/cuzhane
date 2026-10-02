@@ -75,3 +75,29 @@ export const bookmarkToCuzPlace = (bookmark: number): { cuzIndex: number; page: 
 
 	return { cuzIndex, page: bookmark - cuzIndex * PAGES_PER_CUZ_SLOT };
 };
+
+/**
+ * How far into a Kur'an day, in pages: each cüz marked read is all of its pages, and the place kept
+ * adds the pages up to it in the cüz not yet marked. `pagesOf` is the mushaf the reader is set to.
+ * One count for the group screen and the shelf's card, so the two never disagree.
+ */
+export const quranDayPages = (
+	cuzNumbers: readonly number[],
+	marked: readonly number[],
+	bookmark: number,
+	pagesOf: (cuzNumber: number) => number
+): { read: number; total: number } => {
+	const total = cuzNumbers.reduce((sum, n) => sum + pagesOf(n), 0);
+	const done = cuzNumbers.filter(n => marked.includes(n)).reduce((sum, n) => sum + pagesOf(n), 0);
+	const place = bookmarkToCuzPlace(bookmark);
+	const placeCuz = place ? cuzNumbers[place.cuzIndex] : undefined;
+	const upToPlace =
+		place && placeCuz !== undefined && !marked.includes(placeCuz)
+			? cuzNumbers
+					.slice(0, place.cuzIndex)
+					.filter(n => !marked.includes(n))
+					.reduce((sum, n) => sum + pagesOf(n), 0) + place.page
+			: 0;
+
+	return { read: Math.min(total, done + upToPlace), total };
+};

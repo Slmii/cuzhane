@@ -230,7 +230,8 @@ export const ReaderBabMap = ({
 		() =>
 			isPlan
 				? [
-						{ color: theme.colors.accent, label: t('legRead') },
+						// Capitalised like its neighbours — `legRead` is the group strip's lowercase "okundu".
+						{ color: theme.colors.accent, label: t('hpLegendRead') },
 						{ color: theme.colors.accentMid, label: t('hpLegendToday') },
 						{ color: theme.colors.babMapOther, label: t('hpLegendLeft') }
 				  ]

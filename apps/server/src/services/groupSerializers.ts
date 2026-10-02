@@ -76,6 +76,8 @@ export type GroupSummary = {
 		units?: number[];
 		/** A Şahsi Kur'an day's cüz marked read so far, before the day is complete. */
 		readUnits?: number[];
+		/** A Şahsi Kur'an day's place, as its reading's `bookmark` keeps it (0: none yet). */
+		place?: number;
 		completed: boolean;
 		assignmentId: string | null;
 	} | null;

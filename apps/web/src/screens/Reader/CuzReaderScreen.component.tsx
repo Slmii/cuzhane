@@ -386,16 +386,14 @@ const CuzReaderBody = ({ navigation, route }: Props) => {
 
 		const target = remaining.find(number => number > cuzNumber) ?? remaining[0];
 
-		planUpdate.mutate(
-			{ bookPortions: [...planMarked, cuzNumber].sort((a, b) => a - b), version },
-			{
-				onSuccess: () => {
-					if (target !== undefined) {
-						crossInto(target, 1, target > cuzNumber ? 'next' : 'previous');
-					}
-				}
-			}
-		);
+		// The mark is shown at once (predicted in the cache), so the next cüz opens straight away —
+		// never from this write's own `onSuccess`: crossing saves the place with another write on the
+		// same mutation, and starting one inside the last one's callback throws in the library.
+		planUpdate.mutate({ bookPortions: [...planMarked, cuzNumber].sort((a, b) => a - b), version });
+
+		if (target !== undefined) {
+			crossInto(target, 1, target > cuzNumber ? 'next' : 'previous');
+		}
 	};
 
 	/*

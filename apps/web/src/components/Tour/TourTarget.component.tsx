@@ -87,20 +87,42 @@ export const TourTarget = ({ children, id, radius, style }: TourTargetProps) => 
 
 			const scroll = tourScroll?.scrollRef.current;
 			const inner = tourScroll?.innerRef.current;
-			const isHidden = y < VISIBLE_TOP || y + height > windowHeight - VISIBLE_BOTTOM;
+			const scrollIntoView = () => {
+				if (!scroll || !inner || !ref.current) {
+					return;
+				}
 
-			if (isCurrent && isHidden && scroll && inner && ref.current && scrolledForStep.current !== stepIndex) {
 				scrolledForStep.current = stepIndex;
 				ref.current.measureLayout(inner, (_left, top) => {
 					scroll.scrollTo({ animated: false, y: Math.max(0, top - SCROLL_CLEARANCE) });
 					// A frame for the scroll to land, then where the target now is.
 					requestAnimationFrame(() => ref.current?.measureInWindow(register));
 				});
+			};
+
+			if (!isCurrent || !scroll || !inner || scrolledForStep.current === stepIndex) {
+				register(x, y, width, height);
 
 				return;
 			}
 
-			register(x, y, width, height);
+			/*
+			 * Hidden means outside **the scroll view's own window**, not the screen's: a reader's footer
+			 * sits over the bottom of the screen, and a counter behind it is on screen yet unseen — the
+			 * spotlight landed on the footer instead.
+			 */
+			scroll.measureInWindow((_sx, scrollY, _sw, scrollHeight) => {
+				const top = Math.max(VISIBLE_TOP, scrollY);
+				const bottom = Math.min(windowHeight - VISIBLE_BOTTOM, scrollY + scrollHeight);
+
+				if (y < top || y + height > bottom) {
+					scrollIntoView();
+
+					return;
+				}
+
+				register(x, y, width, height);
+			});
 		});
 	}, [isCurrent, isFocused, register, stepIndex, tourScroll, windowHeight]);
 
@@ -118,7 +140,12 @@ export const TourTarget = ({ children, id, radius, style }: TourTargetProps) => 
 			return;
 		}
 
-		const timer = setTimeout(measure, SETTLE_MS);
+		// Once more when the stop has settled — and free to scroll again: a reader can reset its own
+		// scroll as its page lands, which put the counter back behind the footer after the first scroll.
+		const timer = setTimeout(() => {
+			scrolledForStep.current = null;
+			measure();
+		}, SETTLE_MS);
 
 		return () => clearTimeout(timer);
 	}, [isCurrent, measure]);

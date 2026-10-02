@@ -6,8 +6,25 @@ import {
 	planDayValues,
 	planReadingRoute,
 	planSplit,
-	planUnitsOf
+	planUnitsOf,
+	quranDayPages
 } from './personalPlan';
+
+describe('quranDayPages', () => {
+	// Twenty-one pages in cüz 1, twenty in cüz 2 — the typeset mushaf's.
+	const pagesOf = (cuzNumber: number) => (cuzNumber === 1 ? 21 : 20);
+
+	it('counts a marked cüz whole, and the place kept in the next one', () => {
+		expect(quranDayPages([1, 2], [], 0, pagesOf)).toEqual({ read: 0, total: 41 });
+		expect(quranDayPages([1, 2], [], cuzPlaceToBookmark(0, 4), pagesOf)).toEqual({ read: 4, total: 41 });
+		expect(quranDayPages([1, 2], [1], cuzPlaceToBookmark(1, 1), pagesOf)).toEqual({ read: 22, total: 41 });
+	});
+
+	it('does not count a place inside a cüz already marked twice', () => {
+		expect(quranDayPages([1, 2], [1], cuzPlaceToBookmark(0, 10), pagesOf)).toEqual({ read: 21, total: 41 });
+		expect(quranDayPages([1, 2], [1, 2], cuzPlaceToBookmark(1, 5), pagesOf)).toEqual({ read: 41, total: 41 });
+	});
+});
 
 describe('planUnitsOf', () => {
 	it('gives the Cevşen ten babs a day over ten days, in order', () => {

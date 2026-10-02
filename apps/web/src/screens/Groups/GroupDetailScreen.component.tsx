@@ -734,12 +734,8 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 				 * A Cevşen or a hatim draws each as one card headed like the board.
 				 */}
 				<ProgressSection count={`${myReadCount} / ${myBabNumbers.length}`} isCard label={t('hpMyProgress')}>
-					{/* "Başladı", as a Şahsi reading's day: a share begun and not yet read — above the slim
-					    "Senin ilerlemen". */}
-					{shareStarted ? (
-						<StartedProgress label={shareStarted.label} percent={shareStarted.percent} />
-					) : null}
-
+					{/* "Başladı", as a Şahsi reading's day: a share begun and not yet read — first, above the
+					    share panel; the slim "Senin ilerlemen" closes the section. */}
 					{/*
 					 * The sage "Sana atanan" strip *is* the collapsible's header now. It used to be
 					 * a separate banner sitting above a "Babların 1–5" row, which said the same
@@ -752,29 +748,38 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 					{/* No glass while it is closed: the sage fill *is* this panel, and the material
 				    tints itself `surface` and washes over whatever colour arrives in `style`. */}
 					{isHizb ? (
-						<HizbSharePanel
-							babs={babsQuery.data}
-							groupId={groupId}
-							onOpenPart={partNumber => navigation.navigate('HizbReader', { groupId, partNumber })}
-							onToggleRead={(partNumber, read) =>
-								setBabRead.mutate({ babNumber: partNumber, groupId, read })
-							}
-							partNumbers={myBabNumbers}
-							roundIndex={detail.roundIndex ?? 0}
-							viewerUserId={userId ?? null}
-						/>
+						<>
+							{shareStarted ? (
+								<StartedProgress label={shareStarted.label} percent={shareStarted.percent} />
+							) : null}
+							<HizbSharePanel
+								babs={babsQuery.data}
+								groupId={groupId}
+								onOpenPart={partNumber => navigation.navigate('HizbReader', { groupId, partNumber })}
+								onToggleRead={(partNumber, read) =>
+									setBabRead.mutate({ babNumber: partNumber, groupId, read })
+								}
+								partNumbers={myBabNumbers}
+								roundIndex={detail.roundIndex ?? 0}
+								viewerUserId={userId ?? null}
+							/>
+						</>
 					) : (
-						<CardSurface
-							hasGlassSurface={isMyBabsOpen}
-							isFlush
-							style={[
-								// Ringed in the accent, open or closed: your own share stands out from the rows around it.
-								{ borderColor: theme.colors.accent, borderWidth: 2 },
-								isMyBabsOpen ? null : { backgroundColor: theme.colors.accentSoft }
-							]}
-						>
-							{/* C1 of the first-use tour frames this row, closed or open. */}
-							<TourTarget id='assigned'>
+						// C1 of the first-use tour frames your share as you see it: "Başladı", then the panel.
+						<TourTarget id='assigned' style={styles.shareStack}>
+							{shareStarted ? (
+								<StartedProgress label={shareStarted.label} percent={shareStarted.percent} />
+							) : null}
+							<CardSurface
+								hasGlassSurface={isMyBabsOpen}
+								isFlush
+								style={[
+									// Ringed in the accent, open or closed: your own share stands out from the rows around it.
+									{ borderColor: theme.colors.accent, borderWidth: 2 },
+									isMyBabsOpen ? null : { backgroundColor: theme.colors.accentSoft }
+								]}
+							>
+								{/* C1 of the first-use tour frames this row, closed or open. */}
 								<Pressable
 									// The eyebrow and the sentence are gone from the row, so the label they carried
 									// has to come from here or it announces nothing but its numbers.
@@ -842,122 +847,122 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 										</Animated.View>
 									</View>
 								</Pressable>
-							</TourTarget>
-							{/* Clipped, and inert while closed: the rows stay mounted so the panel has a
+								{/* Clipped, and inert while closed: the rows stay mounted so the panel has a
 						    height to animate to, which also means they would otherwise still be
 						    reachable by a tap or by VoiceOver in a card that reads as shut. */}
-							<Animated.View
-								accessibilityElementsHidden={!isMyBabsOpen}
-								importantForAccessibility={isMyBabsOpen ? 'auto' : 'no-hide-descendants'}
-								pointerEvents={isMyBabsOpen ? 'auto' : 'none'}
-								style={[styles.myBabsBody, myBabsBodyStyle]}
-							>
-								{/*
-								 * The rows live in a scroller that fills the wrapper absolutely — which is
-								 * also what lets them be measured. As an ordinary child they inherited the
-								 * wrapper's animated height (nothing, while closed) and reported zero, so
-								 * the panel had no size to open to; a scroll view measures its content
-								 * unconstrained however short its own frame is.
-								 *
-								 * Scrolling turns on only when there is more than the cap, so a share that
-								 * fits can't swallow the page's own scroll.
-								 *
-								 * Not a `FlatList`: nesting a VirtualizedList inside the screen's
-								 * ScrollView is the thing React Native warns about, and a share is at most
-								 * a couple of dozen rows — the cap already stops it from being long, and
-								 * virtualising two dozen cheap rows would cost more than it saves.
-								 */}
-								<ScrollView
-									nestedScrollEnabled
-									scrollEnabled={isMyBabsOpen && myBabsHeight > MY_BABS_MAX_HEIGHT}
-									style={styles.myBabsScroll}
+								<Animated.View
+									accessibilityElementsHidden={!isMyBabsOpen}
+									importantForAccessibility={isMyBabsOpen ? 'auto' : 'no-hide-descendants'}
+									pointerEvents={isMyBabsOpen ? 'auto' : 'none'}
+									style={[styles.myBabsBody, myBabsBodyStyle]}
 								>
-									<View onLayout={event => setMyBabsHeight(event.nativeEvent.layout.height)}>
-										{myBabNumbers.length === 0 ? (
-											<BodyText color={theme.colors.faintText} style={styles.noAssignedBabs}>
-												{t('noAssignedBabs')}
-											</BodyText>
-										) : (
-											myBabs.map(bab => {
-												const isRead = bab.readAt !== null;
-												/*
-												 * **Who read it, not merely that it was read.** A bab in your
-												 * share can already have been read by whoever held that block on
-												 * an earlier rotation day. This drew your own ticked box over
-												 * their work and then offered an undo the server refuses —
-												 * only the reader may clear a read — so the tick was a control
-												 * that could not do the thing it looked like it did.
-												 */
-												const isReadByOthers = isRead && bab.readByUserId !== userId;
+									{/*
+									 * The rows live in a scroller that fills the wrapper absolutely — which is
+									 * also what lets them be measured. As an ordinary child they inherited the
+									 * wrapper's animated height (nothing, while closed) and reported zero, so
+									 * the panel had no size to open to; a scroll view measures its content
+									 * unconstrained however short its own frame is.
+									 *
+									 * Scrolling turns on only when there is more than the cap, so a share that
+									 * fits can't swallow the page's own scroll.
+									 *
+									 * Not a `FlatList`: nesting a VirtualizedList inside the screen's
+									 * ScrollView is the thing React Native warns about, and a share is at most
+									 * a couple of dozen rows — the cap already stops it from being long, and
+									 * virtualising two dozen cheap rows would cost more than it saves.
+									 */}
+									<ScrollView
+										nestedScrollEnabled
+										scrollEnabled={isMyBabsOpen && myBabsHeight > MY_BABS_MAX_HEIGHT}
+										style={styles.myBabsScroll}
+									>
+										<View onLayout={event => setMyBabsHeight(event.nativeEvent.layout.height)}>
+											{myBabNumbers.length === 0 ? (
+												<BodyText color={theme.colors.faintText} style={styles.noAssignedBabs}>
+													{t('noAssignedBabs')}
+												</BodyText>
+											) : (
+												myBabs.map(bab => {
+													const isRead = bab.readAt !== null;
+													/*
+													 * **Who read it, not merely that it was read.** A bab in your
+													 * share can already have been read by whoever held that block on
+													 * an earlier rotation day. This drew your own ticked box over
+													 * their work and then offered an undo the server refuses —
+													 * only the reader may clear a read — so the tick was a control
+													 * that could not do the thing it looked like it did.
+													 */
+													const isReadByOthers = isRead && bab.readByUserId !== userId;
 
-												return (
-													<BabRow
-														isRead={isRead}
-														isReadByOthers={isReadByOthers}
-														key={bab.number}
-														// A cüz opens its own page (Q4), where it is marked; a bab opens the
-														// reader, where a bab is read and marked at once.
-														onOpen={() =>
-															isHatim
-																? navigation.navigate('CuzDetail', {
-																		cuzNumber: bab.number,
-																		groupId
-																  })
-																: navigation.navigate('BabReader', {
-																		groupId,
-																		babNumber: bab.number
-																  })
-														}
-														onToggle={() =>
-															setBabRead.mutate({
-																babNumber: bab.number,
-																groupId,
-																read: !isRead
-															})
-														}
-														openLabel={t('read')}
-														subtitle={
-															isReadByOthers
-																? // Named where the server could resolve one, and falling
-																  // back where it couldn't rather than printing an id: a
-																  // member who has since left still has reads on this
-																  // board, and "cmt9x…" says less than nothing.
-																  bab.readByDisplayName
-																	? t('readBeforeYoursBy', {
-																			name:
-																				(detail.hideMemberNames &&
-																					!detail.isOwner) ||
-																				bab.readByUserId?.startsWith(
-																					'anonymous:'
-																				)
-																					? t('anonymousMember')
-																					: bab.readByDisplayName
-																	  })
-																	: t('readBeforeYours')
-																: isRead
-																? t('readToday')
-																: // **The sura range, not "Henüz okunmadı".** A cüz is
-																// named by where it falls — "Ahzâb 31 – Yâsîn 27" —
-																// and that is what someone about to read one needs;
-																// a bab's number already is its name, so the Cevşen
-																// row keeps saying whether it is read.
+													return (
+														<BabRow
+															isRead={isRead}
+															isReadByOthers={isReadByOthers}
+															key={bab.number}
+															// A cüz opens its own page (Q4), where it is marked; a bab opens the
+															// reader, where a bab is read and marked at once.
+															onOpen={() =>
 																isHatim
-																? cuzSuraRange(bab.number, language)
-																: t('notRead')
-														}
-														title={
-															isHatim
-																? t('cuzOrdinal', { n: bab.number })
-																: t('babOrdinal', { n: bab.number })
-														}
-													/>
-												);
-											})
-										)}
-									</View>
-								</ScrollView>
-							</Animated.View>
-						</CardSurface>
+																	? navigation.navigate('CuzDetail', {
+																			cuzNumber: bab.number,
+																			groupId
+																	  })
+																	: navigation.navigate('BabReader', {
+																			groupId,
+																			babNumber: bab.number
+																	  })
+															}
+															onToggle={() =>
+																setBabRead.mutate({
+																	babNumber: bab.number,
+																	groupId,
+																	read: !isRead
+																})
+															}
+															openLabel={t('read')}
+															subtitle={
+																isReadByOthers
+																	? // Named where the server could resolve one, and falling
+																	  // back where it couldn't rather than printing an id: a
+																	  // member who has since left still has reads on this
+																	  // board, and "cmt9x…" says less than nothing.
+																	  bab.readByDisplayName
+																		? t('readBeforeYoursBy', {
+																				name:
+																					(detail.hideMemberNames &&
+																						!detail.isOwner) ||
+																					bab.readByUserId?.startsWith(
+																						'anonymous:'
+																					)
+																						? t('anonymousMember')
+																						: bab.readByDisplayName
+																		  })
+																		: t('readBeforeYours')
+																	: isRead
+																	? t('readToday')
+																	: // **The sura range, not "Henüz okunmadı".** A cüz is
+																	// named by where it falls — "Ahzâb 31 – Yâsîn 27" —
+																	// and that is what someone about to read one needs;
+																	// a bab's number already is its name, so the Cevşen
+																	// row keeps saying whether it is read.
+																	isHatim
+																	? cuzSuraRange(bab.number, language)
+																	: t('notRead')
+															}
+															title={
+																isHatim
+																	? t('cuzOrdinal', { n: bab.number })
+																	: t('babOrdinal', { n: bab.number })
+															}
+														/>
+													);
+												})
+											)}
+										</View>
+									</ScrollView>
+								</Animated.View>
+							</CardSurface>
+						</TourTarget>
 					)}
 					{/* Under your share: the share first, then how you are doing across the rounds. */}
 					{myProgressQuery.isLoading ? <MyProgressCardSkeleton /> : null}
@@ -1144,6 +1149,8 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 						 */
 						<GridSkeleton
 							cellCount={unitCount}
+							// Bare inside the section's card, as the board it stands for is drawn.
+							isBare={isSectionCard}
 							legendCount={isHatim ? CUZ_LEGEND_COUNT : BAB_LEGEND_COUNT}
 						/>
 					) : isSectionCard ? (
@@ -1239,6 +1246,8 @@ const ProgressSection = ({
 };
 
 const styles = StyleSheet.create({
+	// The share as the tour frames it: "Başladı" and the panel, at the section's own gap.
+	shareStack: { gap: 12 },
 	bareBoard: {
 		gap: 12
 	},

@@ -1119,8 +1119,9 @@ const todayOf = (group: Group, mine: HizbEnrollment, today: number, own: HizbAss
 		planDays: mine.planDays,
 		portion,
 		...unitFields(group.kind, mine.planDays, portion),
-		// A Kur'an day's cüz marked so far — the shelf counts them before the day is done.
-		...(group.kind === 'HATIM' ? { readUnits: own?.readPortions ?? [] } : {}),
+		// A Kur'an day's cüz marked so far, and the place kept in it (the reader's `bookmark`) — the
+		// shelf counts its pages before the day is done.
+		...(group.kind === 'HATIM' ? { readUnits: own?.readPortions ?? [], place: own?.bookmark ?? 0 } : {}),
 		completed: own?.completedAt !== null && own?.completedAt !== undefined,
 		assignmentId: own?.id ?? null
 	};

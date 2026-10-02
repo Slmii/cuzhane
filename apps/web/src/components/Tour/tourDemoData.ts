@@ -531,7 +531,7 @@ const hizbAssignment = (): HizbAssignment => ({
 	day: 1,
 	delailRepetitions: 0,
 	id: HIZB_ASSIGNMENT_ID,
-	istighfarRepetitions: 4,
+	istighfarRepetitions: 1,
 	istighfarTarget: 11,
 	planDays: HIZB_PLAN_DAYS,
 	planVersion: PLAN_VERSION,

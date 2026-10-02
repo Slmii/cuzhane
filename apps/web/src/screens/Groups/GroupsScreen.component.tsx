@@ -23,7 +23,11 @@ import {
 	visibilityIcon,
 	visibilityLabelKey
 } from '@/lib/utils/groups';
-import { roundResetLabels } from '@/lib/utils/roundReset';
+import { roundResetLabels, timeIn } from '@/lib/utils/roundReset';
+import { quranDayPages } from '@/lib/utils/personalPlan';
+import { useGetUserSettings } from '@/lib/hooks/useUserSettings';
+import { mushafCuzPages } from '@/lib/content/mushaf';
+import { cuzPages } from '@/lib/content/quran';
 import { unitCountFor } from '@/lib/utils/units';
 import { GroupsScreenParams, TabStackParamList } from '@/navigation/types';
 import { JoinByCodeSheet } from '@/screens/Join/JoinByCodeSheet.component';
@@ -100,6 +104,12 @@ export const GroupsScreen = () => {
 
 	const isReducedMotion = useReducedMotion();
 	const cardLayout = isReducedMotion ? undefined : CARD_LAYOUT;
+	// A Şahsi Kur'an card counts pages in the mushaf the reader is set to, as its group screen does.
+	const isHusrev = useGetUserSettings().data?.readerArabicFont === 'husrev';
+	const pagesOfCuz = useCallback(
+		(cuzNumber: number) => (isHusrev ? mushafCuzPages(cuzNumber) : cuzPages(cuzNumber)).length,
+		[isHusrev]
+	);
 
 	// The design pins this block: the + stays reachable however far the shelf scrolls,
 	// which is the whole reason it moved up here from the bottom of the list. It paints
@@ -303,8 +313,28 @@ export const GroupsScreen = () => {
 										total: item.hizbReaders.total,
 										unit: t('hpReadersUnit')
 								  }
+								: item.planDays != null && item.kind === 'HATIM' && item.hizbToday?.units
+								? // A Şahsi Kur'an day counts pages, as its group screen does: "22 / 41 sayfa".
+								  (() => {
+										const pages = item.hizbToday.completed
+											? quranDayPages(item.hizbToday.units, item.hizbToday.units, 0, pagesOfCuz)
+											: quranDayPages(
+													item.hizbToday.units,
+													item.hizbToday.readUnits ?? [],
+													item.hizbToday.place ?? 0,
+													pagesOfCuz
+											  );
+
+										return {
+											kind: item.kind,
+											percent: Math.round((pages.read * 100) / Math.max(1, pages.total)),
+											readCount: pages.read,
+											total: pages.total,
+											unit: t('qPages')
+										};
+								  })()
 								: item.planDays != null && item.hizbToday?.units
-								? // A Şahsi Cevşen or Kur'an day counts its babs or cüz: "0 / 10 bab".
+								? // A Şahsi Cevşen day counts its babs: "0 / 10 bab".
 								  {
 										kind: item.kind,
 										// A Kur'an day's cüz count as they are marked, before the day is done.
@@ -331,7 +361,22 @@ export const GroupsScreen = () => {
 								  }
 						}
 						{...(reset
-							? { resetRow: <RoundResetRow groupLabel={reset.group} localLabel={reset.local} /> }
+							? {
+									resetRow: item.hizbIndividual ? (
+										// A Şahsi reading is the reader's own clock: the plain time, no zone, no "sende".
+										<RoundResetRow
+											groupLabel={t('spEveryDayAt', {
+												time: timeIn(
+													new Date(item.nextDayAt ?? item.roundEndsAt ?? ''),
+													language
+												)
+											})}
+											localLabel=''
+										/>
+									) : (
+										<RoundResetRow groupLabel={reset.group} localLabel={reset.local} />
+									)
+							  }
 							: {})}
 						// The ghost "Kurucu" tag, shown only on groups you started.
 						{...(item.isOwner ? { extraBadges: [{ label: t('creator') }] } : {})}
@@ -347,7 +392,7 @@ export const GroupsScreen = () => {
 				</Animated.View>
 			);
 		},
-		[cardLayout, goToGathering, goToGroup, language, t]
+		[cardLayout, goToGathering, goToGroup, language, pagesOfCuz, t]
 	);
 
 	if (isError) {
