@@ -1,5 +1,6 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+	createHizbAhead,
 	enrollHizbReading,
 	getHizbHistoryDay,
 	getHizbHistoryDays,
@@ -67,6 +68,26 @@ export const useSetHizbReadsFromBook = (groupId: string) => {
 	return useMutation({
 		mutationFn: (readsFromBook: boolean) => setHizbReadsFromBook(groupId, readsFromBook),
 		onSuccess: () => client.invalidateQueries({ queryKey: hizbReadingKey(groupId) })
+	});
+};
+/**
+ * "Oku" on the day ahead whose reading isn't made yet: the server makes it and answers with it.
+ * Not predicted — the reader needs the id the server gives it. The reading is put in place so the
+ * reader opens on it at once, and the state is refreshed for the row's id.
+ */
+export const useCreateHizbAhead = (groupId: string) => {
+	const client = useQueryClient();
+	const stateKey = [...hizbReadingKey(groupId), 'state'];
+
+	return useMutation({
+		mutationFn: () => createHizbAhead(groupId),
+		onSuccess: assignment => {
+			client.setQueryData(hizbAssignmentKey(groupId, assignment.id), assignment);
+			// Not awaited: the reader opens on the reading above without waiting for the state.
+			void client.invalidateQueries({ queryKey: stateKey });
+		},
+		// A refusal means the state moved on (the day turned, a day was undone elsewhere) — show it.
+		onError: () => client.invalidateQueries({ queryKey: stateKey })
 	});
 };
 /** H2 opens the tour's demo reading, answered from its demo like the rest of the tour. */

@@ -1,14 +1,11 @@
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
 import { Bone, SkeletonPulse } from '@/components/Skeleton/Skeleton.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
-import { CellGrid } from '@/components/ui/CellGrid/CellGrid.component';
-import type { CellGridItem } from '@/components/ui/CellGrid/CellGrid.types';
 import { Chip } from '@/components/ui/Chip/Chip.component';
 import type { CachedGroupShape } from '@/lib/hooks/useCachedGroup';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { kindLabelKey } from '@/lib/utils/groups';
-import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 type BoneWidth = number | `${number}%`;
@@ -21,7 +18,7 @@ type Props = {
 /**
  * P7 — the Hizb invite preview before it answers, in `HizbInvitePreview`'s own measures: the
  * heading, the plan (one card for a fixed plan, the three rows for a mixed one — so nothing below
- * moves when the answer lands), the 33 drawn empty, the time row and the foot's button. No status
+ * moves when the answer lands), today's count and an empty bar, the time row and the foot's button. No status
  * line: the loaded screen has none under its button, so one here would drop the button on arrival.
  *
  * Returned as the container's children, as the screen's are.
@@ -31,17 +28,6 @@ export const HizbInvitePreviewSkeleton = ({ plan }: Props) => {
 	const { theme } = useThemeContext();
 	const divider = theme.colors.divider;
 	const isMixed = plan?.hizbPlan === 0;
-
-	const cells = useMemo<CellGridItem[]>(
-		() =>
-			Array.from({ length: 33 }, (_, index) => ({
-				backgroundColor: theme.colors.segmentTrack,
-				key: index + 1,
-				label: index + 1,
-				labelColor: theme.colors.faintText
-			})),
-		[theme]
-	);
 
 	const line = (lineHeight: number, height: number, width: BoneWidth, tone: 'soft' | 'strong' = 'soft') => (
 		<View style={[styles.line, { height: lineHeight }]}>
@@ -117,7 +103,7 @@ export const HizbInvitePreviewSkeleton = ({ plan }: Props) => {
 								</View>
 								{line(17, 9, 80)}
 							</View>
-							<CellGrid borderWidth={1.5} columns={11} gap={4} items={cells} radius={6} />
+							<Bone height={6} radius={3} width='100%' />
 						</View>
 						<View style={[styles.timeFoot, { borderTopColor: divider }]}>
 							<Bone height={15} radius={7.5} width={15} />

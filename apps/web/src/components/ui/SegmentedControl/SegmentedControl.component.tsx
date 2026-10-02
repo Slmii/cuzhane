@@ -11,7 +11,7 @@ import type { SegmentedControlProps, SegmentProps } from './SegmentedControl.typ
 /** Matches the design's `transition: background .25s ease`. */
 const SELECTION_DURATION_MS = 250;
 
-const Segment = ({ icon, isSelected, isWide = false, label, onPress }: SegmentProps) => {
+const Segment = ({ fitsContent = false, icon, isSelected, isWide = false, label, onPress }: SegmentProps) => {
 	const { theme } = useThemeContext();
 
 	// Fades the pill's alpha rather than swapping to `transparent`, so the colour
@@ -33,7 +33,7 @@ const Segment = ({ icon, isSelected, isWide = false, label, onPress }: SegmentPr
 			onPress={onPress}
 			// Equal shares of the track, as the native control draws them on iOS — except a wide one,
 			// which starts from its label's width.
-			style={isWide ? styles.wideSlot : styles.slot}
+			style={fitsContent ? styles.fitSlot : isWide ? styles.wideSlot : styles.slot}
 		>
 			<Animated.View style={[styles.segment, { borderRadius: theme.radius.sm }, animatedStyle]}>
 				{/* Sized to the 11.5pt label beside it rather than the icon's own default. */}
@@ -47,7 +47,7 @@ const Segment = ({ icon, isSelected, isWide = false, label, onPress }: SegmentPr
 				) : null}
 				<Typography
 					color={isSelected ? theme.colors.text : theme.colors.subtext}
-					{...(isWide ? { numberOfLines: 1 } : {})}
+					{...(isWide || fitsContent ? { numberOfLines: 1 } : {})}
 					style={styles.label}
 					variant='bodyStrong'
 				>
@@ -58,7 +58,7 @@ const Segment = ({ icon, isSelected, isWide = false, label, onPress }: SegmentPr
 	);
 };
 
-const DrawnSegmentedControl = ({ onChange, options, style, value }: SegmentedControlProps) => {
+const DrawnSegmentedControl = ({ fitsContent = false, onChange, options, style, value }: SegmentedControlProps) => {
 	const { theme } = useThemeContext();
 
 	return (
@@ -76,6 +76,7 @@ const DrawnSegmentedControl = ({ onChange, options, style, value }: SegmentedCon
 				<Segment
 					{...(option.icon ? { icon: option.icon } : {})}
 					{...(option.isWide ? { isWide: true } : {})}
+					fitsContent={fitsContent}
 					isSelected={option.value === value}
 					key={option.value}
 					label={option.label}
@@ -101,6 +102,9 @@ const styles = StyleSheet.create({
 		justifyContent: 'center',
 		paddingHorizontal: 12,
 		paddingVertical: 6
+	},
+	fitSlot: {
+		flexShrink: 0
 	},
 	slot: {
 		flexBasis: 0,

@@ -26,6 +26,23 @@ export type HizbAssignment = {
 	readFrom: 'APP' | 'BOOK' | null;
 	completedAt: string | null;
 };
+/** The next day offered to read ahead once today's is read — one at a time, strictly in order. */
+export type HizbAhead = {
+	day: number;
+	/** Group-local civil date, as on a reading. */
+	date: string;
+	portion: number;
+	/** Its reading once made; null until "Oku" asks the server to make it (`createHizbAhead`). */
+	assignmentId: string | null;
+};
+/** How far the viewer has read ahead of today. */
+export type HizbAheadThrough = {
+	days: number;
+	/** The last day read ahead (group-local civil date). */
+	date: string;
+	/** Every day read ahead, in order: its date, its portion and when it was read. */
+	readings?: { day: number; date: string; portion: number; completedAt: string }[];
+};
 export type HizbReadingState = {
 	today: HizbAssignment | null;
 	enrollment: {
@@ -49,6 +66,10 @@ export type HizbReadingState = {
 	currentRound: { number: number; read: number; days: number } | null;
 	/** Every unread day of the viewer's before today, newest first — the catch-up list. */
 	missed: HizbAssignment[];
+	/** The day offered to read ahead; null (or absent, from an older server) when none is. */
+	ahead?: HizbAhead | null;
+	/** How far read ahead; null (or absent) when no day ahead is read. */
+	aheadThrough?: HizbAheadThrough | null;
 	/** Canonical text spans (`PLAN_SPANS` indexes) today's completed readings cover, group-wide. */
 	coveredSpans: number[];
 	/** The group's day before today, for "Geçen tur". Null on the group's first day. */
@@ -67,6 +88,8 @@ export type HizbReadingState = {
 		planDays: number;
 		portion: number;
 		completed: boolean;
+		/** When they read today; absent from an older server. */
+		completedAt?: string | null;
 		/** Opened today and part-way, not yet read. */
 		started: boolean;
 		/** The viewer's own row. */
@@ -125,6 +148,9 @@ export const setHizbReadsFromBook = (groupId: string, readsFromBook: boolean) =>
 		method: 'PATCH',
 		body: JSON.stringify({ readsFromBook })
 	});
+/** The day ahead's reading — made if it isn't there yet, the existing one if it is. */
+export const createHizbAhead = (groupId: string) =>
+	wrapperApi<HizbAssignment>(`/groups/${groupId}/reading/ahead`, { method: 'POST' });
 export const getHizbAssignment = (groupId: string, id: string) =>
 	wrapperApi<HizbAssignment>(`/groups/${groupId}/reading/assignments/${id}`, { method: 'GET' });
 export const updateHizbAssignment = (groupId: string, id: string, patch: HizbAssignmentPatch) =>

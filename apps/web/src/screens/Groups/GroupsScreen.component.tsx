@@ -286,14 +286,29 @@ export const GroupsScreen = () => {
 						name={item.name}
 						onAction={() => goToGroup(item.id)}
 						onPress={() => goToGroup(item.id)}
-						progress={{
-							kind: item.kind,
-							percent: item.percent,
-							readCount: item.readCount,
-							total: item.partCount,
-							// A private plan counts today's one reading: "1 / 1 bölüm", never "1 / 1 portions".
-							unit: t(item.partCount === 1 ? 'portionsOne' : partUnitKey(item.kind))
-						}}
+						progress={
+							// A shared Hizb plan counts its readers, not the 33: "2 / 3 okudu" — a goal a group
+							// of three or of five hundred can reach.
+							item.hizbReaders && !item.hizbIndividual
+								? {
+										kind: item.kind,
+										percent:
+											item.hizbReaders.total > 0
+												? Math.round((item.hizbReaders.read * 100) / item.hizbReaders.total)
+												: 0,
+										readCount: item.hizbReaders.read,
+										total: item.hizbReaders.total,
+										unit: t('hpReadersUnit')
+								  }
+								: {
+										kind: item.kind,
+										percent: item.percent,
+										readCount: item.readCount,
+										total: item.partCount,
+										// A private plan counts today's one reading: "1 / 1 bölüm", never "1 / 1 portions".
+										unit: t(item.partCount === 1 ? 'portionsOne' : partUnitKey(item.kind))
+								  }
+						}
 						{...(reset
 							? { resetRow: <RoundResetRow groupLabel={reset.group} localLabel={reset.local} /> }
 							: {})}

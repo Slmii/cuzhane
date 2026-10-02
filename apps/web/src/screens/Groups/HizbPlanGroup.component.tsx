@@ -1,5 +1,4 @@
 import type { HizbAssignment } from '@/api/hizbReading.api';
-import { HizbCoverageGrid } from '@/components/HizbCoverageGrid/HizbCoverageGrid.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
 import { TourTarget } from '@/components/Tour/TourTarget.component';
@@ -11,11 +10,14 @@ import type { CellGridItem } from '@/components/ui/CellGrid/CellGrid.types';
 import { Chip } from '@/components/ui/Chip/Chip.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
+import { NavRow } from '@/components/ui/NavRow/NavRow.component';
+import { ProgressBar } from '@/components/ui/ProgressBar/ProgressBar.component';
 import { CaptionText, TitleText, Typography } from '@/components/ui/Typography/Typography.component';
 import { planBlocks } from '@/lib/content/hizbPlans';
 import { useDeleteGroup } from '@/lib/hooks/useGroup';
 import { useHizbPlanText } from '@/lib/hooks/useHizbPlanText';
 import {
+	useCreateHizbAhead,
 	useEnrollHizb,
 	useHizbReading,
 	useSetHizbReadsFromBook,
@@ -23,17 +25,21 @@ import {
 } from '@/lib/hooks/useHizbReading';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useTranslation } from '@/lib/i18n/I18n.context';
+import { pluralKey } from '@/lib/i18n/plural';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { toAlphaColor } from '@/lib/theme/tokens';
 import type { GroupDetail } from '@/lib/types/domain';
 import { formatBabRange } from '@/lib/utils/babs';
 import { confirmDestructive } from '@/lib/utils/confirmDestructive';
 import { hizbPortionLabel, kindLabelKey } from '@/lib/utils/groups';
+import { hizbAheadView, isReadBeforeItsDay } from '@/lib/utils/hizbAhead';
 import { boardPortionsOf, planBoardCells, unreadPortionCount } from '@/lib/utils/hizbPlanBoard';
+import { readersPreview } from '@/lib/utils/hizbReadersPreview';
 import { timeIn, timeUntilReset, zoneAbbreviation } from '@/lib/utils/roundReset';
 import {
 	turkishDativeSuffix,
 	turkishGenitiveSuffix,
+	turkishNameDativeSuffix,
 	turkishWordAblativeSuffix,
 	turkishWordLocativeSuffix
 } from '@/lib/utils/turkishSuffixes';
@@ -77,6 +83,9 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 	// Today's reading, written from this screen: undo, and marking it read from the book (R1, R2, R4).
 	const todayUpdate = useUpdateHizbAssignment(group.id, today?.id ?? '');
 	const setReadsFromBook = useSetHizbReadsFromBook(group.id);
+	// Reading ahead: the next day, offered once today's is read.
+	const aheadView = data ? hizbAheadView(data) : null;
+	const createAhead = useCreateHizbAhead(group.id);
 	const [isBookSheetOpen, setIsBookSheetOpen] = useState(false);
 	const cells = useMemo(() => (data ? planBoardCells(data.coveredSpans, today) : []), [data, today]);
 	const isGroupDone = cells.length > 0 && cells.every(cell => cell.state === 'read');
@@ -84,6 +93,8 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 	const [pickedPlan, setPickedPlan] = useState<number | null>(group.hizbPlan || null);
 	// S6b: the delete confirmation for an individual reading.
 	const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+	// The days read ahead, listed in a sheet from "N gün ileridesin".
+	const [isAheadOpen, setIsAheadOpen] = useState(false);
 	const deleteGroup = useDeleteGroup();
 	/*
 	 * S6: an individual reading's round on the 33 — each day of it read, missed or today's, and the
@@ -191,13 +202,16 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 	const newestMissed = data.missed[0] ?? null;
 	const readCount = cells.filter(cell => cell.state === 'read').length;
 	const readersRead = data.members.filter(member => member.completed);
+	// Names hidden from this viewer: not the owner, nor a member ticked to see who read.
+	const namesHidden = group.hideMemberNames && !group.isOwner && !group.seesReaders;
+	const readers = readersPreview(data.members, { namesHidden });
+	const readersPercent = readers.total > 0 ? Math.round((readers.read * 100) / readers.total) : 0;
 	const open = (id: string) => navigation.navigate('HizbPlanReader', { groupId: group.id, assignmentId: id });
 	// T2, T3, T4 and T5 of the design.
 	const openMissed = () => navigation.navigate('HizbMissed', { groupId: group.id });
 	const openHistory = () => navigation.navigate('HizbPlanHistory', { groupId: group.id });
 	// A shared plan's "Tüm geçmiş" is the group's, day by day.
 	const openGroupHistory = () => navigation.navigate('HizbGroupHistory', { groupId: group.id });
-	const openProgress = () => navigation.navigate('HizbGroupProgress', { groupId: group.id });
 	const openReaders = () => navigation.navigate('HizbReaders', { groupId: group.id });
 
 	const { monthDay, portionDesc, portionsOf, trSuffix, workTitle } = text;
@@ -257,6 +271,22 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 	// Read from the book: the green row says so, with the time ("kitaptan · 16:47").
 	const isReadFromBook = isTodayDone && today?.readFrom === 'BOOK';
 	const readAt = timeIn(new Date(today?.completedAt ?? data.nextDayAt), language);
+	// A day read ahead says so — "Önceden okundu", and the day it was read on — rather than a time
+	// from an earlier day under "Bugün okundu".
+	const isReadEarly = today !== null && isReadBeforeItsDay(today.completedAt, today.date, group.timezone);
+	const readEarlySub =
+		isReadEarly && today
+			? [
+					hizbPortionLabel(formatBabRange(portionsOf(today)), t),
+					t('hpAheadReadOn', {
+						date: new Date(today.completedAt ?? data.nextDayAt).toLocaleDateString(language, {
+							day: 'numeric',
+							month: 'long'
+						})
+					}),
+					isReadFromBook ? t('hbFromBookAt', { time: readAt }) : readAt
+			  ].join(' · ')
+			: null;
 	// Portions already marked from the book on a day not finished yet.
 	const bookPortionsRead = today && !isTodayDone ? today.readPortions : [];
 	const isStarted =
@@ -266,14 +296,36 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 	const pageCount = today ? planBlocks(today.planDays, today.portion).length : 0;
 	const page = today ? Math.min(today.bookmark + 1, pageCount) : 0;
 	const myPortions = today ? portionsOf(today) : [];
-	// Read on the board — by someone else, not by the viewer's own ticks from the book.
-	const readByOthers = myPortions.filter(
-		number => cells[number - 1]?.state === 'read' && !(today?.readPortions ?? []).includes(number)
-	);
 	const round = data.currentRound;
 	const bannerMuted = toAlphaColor(theme.colors.onHeaderSurface, 0.62);
 	// The missed day's own round — the server counts rounds across a leave and a rejoin.
 	const missedRound = newestMissed?.round ?? null;
+
+	// The day offered ahead, on today's plan — "Yarın", or its weekday and date further out
+	// (capitalised: Dutch writes "maandag", and it opens the row).
+	const offer = aheadView?.offer && today ? { ...aheadView.offer, planDays: today.planDays } : null;
+	const weekdayDate = (date: string) => {
+		const label = new Date(`${date}T12:00:00Z`).toLocaleDateString(language, {
+			day: 'numeric',
+			month: 'long',
+			timeZone: 'UTC',
+			weekday: 'long'
+		});
+
+		return label.charAt(0).toLocaleUpperCase(language) + label.slice(1);
+	};
+	const offerWhen = offer ? (offer.daysAway === 1 ? t('hpAheadTomorrow') : weekdayDate(offer.date)) : '';
+	const through = aheadView?.through ?? null;
+	const throughDate = through ? monthDay(through.date, 'long') : '';
+
+	// "Oku" on the day ahead: its reading is made on the first tap, then opened like any other.
+	const openAhead = () => {
+		if (offer?.assignmentId) {
+			open(offer.assignmentId);
+		} else if (offer) {
+			createAhead.mutate(undefined, { onSuccess: assignment => open(assignment.id) });
+		}
+	};
 
 	// S6's short history: today and the four readings before it.
 	const recentReadings: HizbAssignment[] = [
@@ -290,10 +342,23 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 	// S7: joined after the group began, still in the first round.
 	const isJoinedLate =
 		active && joinedDate !== null && joinedDate > data.startedDate && round?.number === 1 && !data.isReturnedToday;
-	// A round that began mid-plan says where: "22. günden başladı, 21. günde biter".
+	// A round that began mid-plan says where it began and the day it ends — "Bölüm 7 ile başladın ·
+	// 2 Kasım günü biter" — not "7. günden başladın, 6. günde": a part of the plan, not a day.
 	const roundStart =
 		today && round && planDays > 0 ? ((((today.portion - round.days) % planDays) + planDays) % planDays) + 1 : 1;
-	const roundWrap = roundStart > 1 ? t('hpRoundWrap', { end: roundStart - 1, start: roundStart }) : null;
+	const roundEnd =
+		round && planDays > 0
+			? new Date(Date.parse(`${data.date}T12:00:00Z`) + (planDays - round.days) * 86_400_000)
+					.toISOString()
+					.slice(0, 10)
+			: data.date;
+	const roundWrap =
+		roundStart > 1
+			? t('hpRoundWrap', {
+					date: monthDay(roundEnd, 'long'),
+					portions: hizbPortionLabel(formatBabRange(portionsOf({ planDays, portion: roundStart })), t)
+			  })
+			: null;
 	const joinedLabel = joinedDate ? monthDay(joinedDate, 'long') : '';
 	const subtitle = !isShared
 		? t('hpSubtitleIndividual', { days: group.hizbPlan ?? planDays, start: group.hizbStartPortion ?? 1 })
@@ -357,8 +422,6 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 			</Typography>
 		</View>
 	);
-
-	const coverageGrid = <HizbCoverageGrid cells={cells} isOnBand={isGroupDone} />;
 
 	// Rounds: done, and where this one stands; the whole card opens the group's history. A shared
 	// group's only — an individual reading draws its own round card. Shown from the first day, as the
@@ -452,7 +515,7 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 							: styles.body
 					}
 				>
-					{/* W3: the group has covered all 33 today — the coverage leads, in a green band. */}
+					{/* W3: the group has covered all 33 today — a green band, its count and who took part. */}
 					{isShared && isGroupDone ? (
 						<View style={[styles.doneBand, { backgroundColor: theme.colors.accent }]}>
 							<View style={styles.doneBandHead}>
@@ -469,20 +532,10 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 										{t('hpGroupDone')}
 									</TitleText>
 								</View>
-								<Typography color={theme.colors.onAccent} style={styles.bandCount} variant='numeric'>
-									33
-									<Typography
-										color={toAlphaColor(theme.colors.onAccent, 0.6)}
-										style={styles.bandTotal}
-										variant='numeric'
-									>
-										{' / 33'}
-									</Typography>
-								</Typography>
 							</View>
-							{coverageGrid}
 							<CaptionText color={toAlphaColor(theme.colors.onAccent, 0.72)} style={styles.bandNote}>
-								{t('hpContributors', { count: readersRead.length })}
+								{/* In words, not "33 / 33": every other count here is people. */}
+								{`${t('hpWholeBookToday')} · ${t('hpContributors', { count: readersRead.length })}`}
 							</CaptionText>
 						</View>
 					) : null}
@@ -883,30 +936,33 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 										style={styles.rowTitle}
 										weight='semibold'
 									>
-										{t('hpReadToday')}
+										{`${isReadEarly ? t('hpReadEarly') : t('hpReadToday')} · ${workTitle(today)}`}
 									</CaptionText>
 									<CaptionText
 										color={toAlphaColor(theme.colors.accentStrong, 0.7)}
 										style={styles.rowSub}
 									>
-										{newestMissed
-											? t('hpReadTodaySub', {
-													day: today.portion,
-													time: isReadFromBook ? t('hbFromBookAt', { time: readAt }) : readAt,
-													title: workTitle(today)
-											  })
-											: isReadFromBook
-											? `${hizbPortionLabel(formatBabRange(myPortions), t)} · ${t(
-													'hbFromBookAt',
-													{
-														time: readAt
-													}
-											  )}`
-											: t('hpNoMissedSub', { portions: formatBabRange(myPortions) })}
+										{readEarlySub ??
+											(newestMissed
+												? t('hpReadTodaySub', {
+														day: today.portion,
+														time: isReadFromBook
+															? t('hbFromBookAt', { time: readAt })
+															: readAt
+												  })
+												: isReadFromBook
+												? `${hizbPortionLabel(formatBabRange(myPortions), t)} · ${t(
+														'hbFromBookAt',
+														{
+															time: readAt
+														}
+												  )}`
+												: t('hpNoMissedSub', { portions: formatBabRange(myPortions) }))}
 									</CaptionText>
 								</View>
-								{/* Not once the group has read all 33 (W3): the day is done for everyone. */}
-								{isGroupDone ? null : (
+								{/* Not once the group has read all 33 (W3): the day is done for everyone. Nor with a
+								    day read ahead: a day read ahead stays read. */}
+								{isGroupDone || !aheadView?.canUndoToday ? null : (
 									<AppButton
 										disabled={todayUpdate.isPending}
 										fullWidth={false}
@@ -919,9 +975,85 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 							</View>
 						) : null}
 
+						{/* The next day, once today's is read: one at a time, in order, in the same reader —
+						    and, in the same section, how far ahead, opening the list of days read ahead. */}
+						{offer || through ? (
+							<View style={[styles.aheadSection, { backgroundColor: theme.colors.background }]}>
+								<Typography
+									color={theme.colors.subtext}
+									style={[styles.cardEyebrow, styles.aheadEyebrow]}
+									variant='stat'
+									weight='medium'
+								>
+									{t('hpAheadEyebrow')}
+								</Typography>
+								{offer ? (
+									<View style={styles.aheadOfferRow}>
+										<View style={[styles.doneCheck, { backgroundColor: theme.colors.accentMuted }]}>
+											<Icon
+												color={theme.colors.accent}
+												name='calendar'
+												size={16}
+												strokeWidth={1.8}
+											/>
+										</View>
+										<View style={styles.flex}>
+											<CaptionText style={styles.rowTitle} weight='semibold'>
+												{`${offerWhen} · ${workTitle(offer)}`}
+											</CaptionText>
+											<CaptionText color={theme.colors.subtext} style={styles.rowSub}>
+												{hizbPortionLabel(formatBabRange(portionsOf(offer)), t)}
+											</CaptionText>
+											{createAhead.isError ? (
+												<CaptionText color={theme.colors.danger} style={styles.rowSub}>
+													{t('hpError')}
+												</CaptionText>
+											) : null}
+										</View>
+										<AppButton
+											disabled={createAhead.isPending}
+											fullWidth={false}
+											onPress={openAhead}
+											size='sm'
+											title={t('hpReadAction')}
+											variant='primary'
+										/>
+									</View>
+								) : null}
+								{/* How far ahead — no undo for a day read ahead; the chevron opens the days themselves. */}
+								{through ? (
+									<NavRow
+										label={t(
+											pluralKey(language, through.days, 'hpAheadDaysOne', 'hpAheadDaysOther'),
+											{
+												count: through.days
+											}
+										)}
+										meta={throughDate}
+										onPress={() => setIsAheadOpen(true)}
+										style={[
+											styles.aheadNavRow,
+											offer
+												? {
+														borderTopColor: theme.colors.divider,
+														borderTopWidth: StyleSheet.hairlineWidth
+												  }
+												: null
+										]}
+									/>
+								) : null}
+							</View>
+						) : null}
+
 						{/* W2: with today read, the dark button moves to the newest missed day. */}
 						{today && isTodayDone && newestMissed ? (
-							<CardSurface style={[styles.catchupCard, styles.cardGap]}>
+							<CardSurface
+								style={[
+									styles.catchupCard,
+									styles.cardGap,
+									{ borderColor: theme.colors.missed, borderWidth: 2 }
+								]}
+							>
 								<View style={styles.spread}>
 									<Typography
 										color={theme.colors.missed}
@@ -1158,74 +1290,236 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 					{isShared ? (
 						<>
 							<CardSurface isFlush>
-								<SectionHeading count={`${readCount} / ${cells.length}`} label={t('hpGroupProgress')} />
-								{isGroupDone ? null : (
-									<View style={styles.coverageBody}>
-										<View style={styles.coverageHead}>
-											<View>
-												<Typography style={styles.coverageNumber} variant='numeric'>
-													{`${readCount} `}
+								<SectionHeading
+									count={`${readers.read} / ${readers.total}`}
+									label={t('hpGroupProgress')}
+								/>
+								{/* Today's readers, for a group of three or of five hundred: how many read, then a
+								    few of them — you first — and the whole list a tap away. */}
+								<View style={styles.coverageBody}>
+									{readers.isAllRead && !isGroupDone ? (
+										<View style={[styles.allReadBand, { backgroundColor: theme.colors.accent }]}>
+											<View
+												style={[
+													styles.allReadDisc,
+													{ backgroundColor: toAlphaColor(theme.colors.onAccent, 0.18) }
+												]}
+											>
+												<Icon
+													color={theme.colors.onAccent}
+													name='check'
+													size={18}
+													strokeWidth={2.2}
+												/>
+											</View>
+											<View style={styles.flex}>
+												<TitleText color={theme.colors.onAccent} style={styles.allReadTitle}>
+													{t('hpAllReadToday')}
+												</TitleText>
+												<CaptionText
+													color={toAlphaColor(theme.colors.onAccent, 0.8)}
+													style={styles.rowSub}
+												>
+													{t('hpReadersToday', { read: readers.read, total: readers.total })}
+												</CaptionText>
+											</View>
+										</View>
+									) : (
+										<>
+											<View style={styles.coverageHead}>
+												<View>
+													<Typography style={styles.coverageNumber} variant='numeric'>
+														{`${readers.read} `}
+														<Typography
+															color={theme.colors.faintText}
+															style={styles.coverageTotal}
+															variant='numeric'
+														>
+															{`/ ${readers.total}`}
+														</Typography>
+													</Typography>
 													<Typography
 														color={theme.colors.faintText}
-														style={styles.coverageTotal}
-														variant='numeric'
+														style={styles.statLabel}
+														variant='stat'
+														weight='medium'
 													>
-														/ 33
+														{t('hpReadersReadToday')}
 													</Typography>
-												</Typography>
-												<Typography
-													color={theme.colors.faintText}
-													style={styles.statLabel}
-													variant='stat'
-													weight='medium'
+												</View>
+												<CaptionText
+													color={theme.colors.subtext}
+													style={styles.leftCount}
+													weight='semibold'
 												>
-													{t('hpPortionsRead')}
-												</Typography>
+													{t('hpPercent', { percent: readersPercent })}
+												</CaptionText>
 											</View>
-											<CaptionText
-												color={theme.colors.subtext}
-												style={styles.leftCount}
-												weight='semibold'
+											<ProgressBar
+												fillColor={theme.colors.accent}
+												height={6}
+												percent={readersPercent}
+											/>
+										</>
+									)}
+								</View>
+								{readers.rows.map(reader => {
+									const isAnonymous = !reader.isMe && reader.displayName === null;
+									const name = reader.isMe
+										? t('hpYou')
+										: reader.displayName ?? t('hpAnonymousReader');
+									const chip = reader.completed
+										? {
+												background: theme.colors.accentSoft,
+												foreground: theme.colors.accent,
+												label: reader.completedAt
+													? timeIn(new Date(reader.completedAt), language)
+													: t('hpStatusDone')
+										  }
+										: reader.started
+										? {
+												background: theme.colors.sand,
+												foreground: theme.colors.sandText,
+												label: t('hpStatusStarted')
+										  }
+										: {
+												background: theme.colors.segmentTrack,
+												foreground: theme.colors.faintText,
+												label: t('hpStatusWaiting')
+										  };
+
+									return (
+										<View
+											key={reader.id}
+											style={[
+												styles.linkRow,
+												{
+													borderTopColor: theme.colors.divider,
+													borderTopWidth: StyleSheet.hairlineWidth
+												}
+											]}
+										>
+											<View
+												style={[
+													styles.readerAvatar,
+													{
+														backgroundColor: reader.isMe
+															? theme.colors.accent
+															: isAnonymous
+															? theme.colors.segmentTrack
+															: theme.colors.accentSoft
+													}
+												]}
 											>
-												{t('hpLeftCount', { count: 33 - readCount })}
+												{isAnonymous ? (
+													<Icon
+														color={theme.colors.faintText}
+														name='lock'
+														size={13}
+														strokeWidth={1.8}
+													/>
+												) : (
+													<CaptionText
+														color={
+															reader.isMe ? theme.colors.onAccent : theme.colors.accent
+														}
+														style={styles.avatarLabel}
+														weight='semibold'
+													>
+														{name.charAt(0).toLocaleUpperCase(language)}
+													</CaptionText>
+												)}
+											</View>
+											<View style={styles.flex}>
+												<CaptionText style={styles.rowTitle} weight='semibold'>
+													{name}
+												</CaptionText>
+												<CaptionText color={theme.colors.faintText} style={styles.rowSub}>
+													{t('hpReaderLine', {
+														day: reader.portion,
+														portions: text.portionsLabel(reader)
+													})}
+												</CaptionText>
+											</View>
+											<View style={[styles.readerChip, { backgroundColor: chip.background }]}>
+												<CaptionText
+													color={chip.foreground}
+													style={styles.smallStrong}
+													weight='semibold'
+												>
+													{chip.label}
+												</CaptionText>
+											</View>
+										</View>
+									);
+								})}
+								{/* Names hidden from you: rows of "Bir üye" would say nothing, so the rest is a count. */}
+								{namesHidden && readers.othersRead > 0 ? (
+									<View
+										style={[
+											styles.linkRow,
+											{
+												borderTopColor: theme.colors.divider,
+												borderTopWidth: StyleSheet.hairlineWidth
+											}
+										]}
+									>
+										<View
+											style={[
+												styles.readerAvatar,
+												{ backgroundColor: theme.colors.segmentTrack }
+											]}
+										>
+											<Icon
+												color={theme.colors.faintText}
+												name='lock'
+												size={13}
+												strokeWidth={1.8}
+											/>
+										</View>
+										<View style={styles.flex}>
+											<CaptionText style={styles.rowTitle} weight='semibold'>
+												{t(
+													// "3 üye daha okudu" under your own row; without one (no plan yet), "3 üye okudu".
+													readers.rows.length > 0
+														? pluralKey(
+																language,
+																readers.othersRead,
+																'hpOthersReadOne',
+																'hpOthersReadOther'
+														  )
+														: pluralKey(
+																language,
+																readers.othersRead,
+																'hpMembersReadOne',
+																'hpMembersReadOther'
+														  ),
+													{
+														count: readers.othersRead
+													}
+												)}
+											</CaptionText>
+											<CaptionText color={theme.colors.faintText} style={styles.rowSub}>
+												{t('hpNamesHiddenShort')}
 											</CaptionText>
 										</View>
-										{coverageGrid}
-										{today && !isTodayDone ? (
-											myPortions.length === 1 && readByOthers.length > 0 ? (
-												// S7: someone else read your portion — your own day still waits.
-												<CaptionText color={theme.colors.faintText} style={styles.shareNote}>
-													{t('hpYourShareOthersRead', { portion: myPortions[0] ?? '' })}
-												</CaptionText>
-											) : myPortions.length === 1 ? (
-												<View style={styles.legend}>
-													<LegendKey
-														color={theme.colors.accent}
-														label={t('hizbLegendRead')}
-													/>
-													<LegendKey
-														color={theme.colors.segmentTrack}
-														label={t('hpLegendLeft')}
-													/>
-													<LegendKey
-														color={theme.colors.accentMuted}
-														label={t('hpYourShare', { portions: myPortions[0] ?? '' })}
-														ring={theme.colors.text}
-													/>
-												</View>
-											) : (
-												<CaptionText color={theme.colors.faintText} style={styles.shareNote}>
-													{readByOthers.length > 0
-														? t('hpYourShareOthers', {
-																others: formatBabRange(readByOthers),
-																portions: formatBabRange(myPortions)
-														  })
-														: t('hpYourShare', { portions: formatBabRange(myPortions) })}
-												</CaptionText>
-											)
-										) : null}
 									</View>
-								)}
+								) : null}
+								{readers.hasMore && !isPicking ? (
+									<NavRow
+										label={t('hpSeeAll')}
+										meta={
+											readers.waiting > 0
+												? t('hpFilterWaiting', { count: readers.waiting })
+												: undefined
+										}
+										onPress={openReaders}
+										style={{
+											borderTopColor: theme.colors.divider,
+											borderTopWidth: StyleSheet.hairlineWidth
+										}}
+									/>
+								) : null}
 								{/* S5: the first day has no yesterday yet. */}
 								{isFirstDay && !isGroupDone ? (
 									<View
@@ -1257,17 +1551,13 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 								) : null}
 								{/* Not while choosing a plan (S1) or out of the order (S3): yesterday is a member's view. */}
 								{data.previousDay && !isPicking && !removed ? (
-									<Pressable
-										accessibilityRole='button'
-										onPress={openProgress}
+									<View
 										style={[
 											styles.linkRow,
-											isGroupDone
-												? null
-												: {
-														borderTopColor: theme.colors.divider,
-														borderTopWidth: StyleSheet.hairlineWidth
-												  }
+											{
+												borderTopColor: theme.colors.divider,
+												borderTopWidth: StyleSheet.hairlineWidth
+											}
 										]}
 									>
 										<View
@@ -1284,89 +1574,8 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 										<CaptionText style={[styles.flex, styles.smallStrong]} weight='semibold'>
 											{t('hpYesterdayUnread')}
 										</CaptionText>
-										<CaptionText color={theme.colors.accent} style={styles.linkHint}>
-											{t('hpLast30')}
-										</CaptionText>
-										<Icon
-											color={theme.colors.accent}
-											name='chevronRight'
-											size={15}
-											strokeWidth={1.8}
-										/>
-									</Pressable>
+									</View>
 								) : null}
-								{isPicking ? null : (
-									<Pressable
-										accessibilityRole='button'
-										onPress={openReaders}
-										style={[
-											styles.linkRow,
-											{
-												borderTopColor: theme.colors.divider,
-												borderTopWidth: StyleSheet.hairlineWidth
-											}
-										]}
-									>
-										<View style={styles.avatars}>
-											{readersRead.slice(0, 3).map((reader, index) => {
-												const tones = [
-													[theme.colors.accentSoft, theme.colors.accent],
-													[theme.colors.sand, theme.colors.sandText],
-													[theme.colors.missedSurface, theme.colors.missed]
-												] as const;
-												const [background, foreground] =
-													tones[index % tones.length] ?? tones[0];
-
-												return (
-													<View
-														key={reader.id}
-														style={[
-															styles.avatar,
-															index > 0 ? styles.avatarOverlap : null,
-															{
-																backgroundColor: background,
-																borderColor: theme.colors.surface
-															}
-														]}
-													>
-														{/* A hidden name has no initial either, as on the readers list —
-														    "Anonim" drew an "A" that read as a name. */}
-														{reader.displayName === null && !reader.isMe ? (
-															<Icon
-																color={foreground}
-																name='lock'
-																size={10}
-																strokeWidth={1.8}
-															/>
-														) : (
-															<CaptionText
-																color={foreground}
-																style={styles.avatarLabel}
-																weight='semibold'
-															>
-																{(reader.isMe ? t('hpYou') : reader.displayName ?? '')
-																	.charAt(0)
-																	.toLocaleUpperCase(language)}
-															</CaptionText>
-														)}
-													</View>
-												);
-											})}
-										</View>
-										<CaptionText style={[styles.flex, styles.smallStrong]} weight='semibold'>
-											{t('hpReadersToday', {
-												read: readersRead.length,
-												total: data.members.length
-											})}
-										</CaptionText>
-										<Icon
-											color={theme.colors.faintText}
-											name='chevronRight'
-											size={15}
-											strokeWidth={1.8}
-										/>
-									</Pressable>
-								)}
 							</CardSurface>
 							<View style={styles.groupCardGap}>{roundsCard}</View>
 						</>
@@ -1401,6 +1610,66 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 					portions={today.boardPortions}
 					readsFromBook={data.readsFromBook}
 				/>
+			) : null}
+			{/* The days read ahead: each one's date, its portion and when it was read. */}
+			{through && today ? (
+				<AppBottomSheet
+					description={t(pluralKey(language, through.days, 'hpAheadThroughOne', 'hpAheadThroughOther'), {
+						count: through.days,
+						date: throughDate,
+						suffix: trSuffix(turkishNameDativeSuffix(throughDate))
+					})}
+					isVisible={isAheadOpen}
+					onClose={() => setIsAheadOpen(false)}
+					title={t('hpAheadSheetTitle')}
+				>
+					<View style={styles.deleteBody}>
+						<CardSurface isFlush>
+							{(through.readings ?? []).map((reading, index) => (
+								<View
+									key={reading.day}
+									style={[
+										styles.deleteRow,
+										index > 0
+											? {
+													borderTopColor: theme.colors.divider,
+													borderTopWidth: StyleSheet.hairlineWidth
+											  }
+											: null
+									]}
+								>
+									<View style={[styles.doneCheck, { backgroundColor: theme.colors.accentSoft }]}>
+										<Icon color={theme.colors.accent} name='check' size={16} strokeWidth={2.4} />
+									</View>
+									<View style={styles.flex}>
+										<CaptionText style={styles.rowTitle} weight='semibold'>
+											{`${weekdayDate(reading.date)} · ${workTitle({
+												planDays: today.planDays,
+												portion: reading.portion
+											})}`}
+										</CaptionText>
+										<CaptionText color={theme.colors.subtext} style={styles.rowSub}>
+											{hizbPortionLabel(
+												formatBabRange(
+													portionsOf({ planDays: today.planDays, portion: reading.portion })
+												),
+												t
+											)}
+										</CaptionText>
+										<CaptionText color={theme.colors.subtext} style={styles.rowSub}>
+											{t('hpAheadReadOn', {
+												date: new Date(reading.completedAt).toLocaleDateString(language, {
+													day: 'numeric',
+													month: 'long'
+												})
+											})}
+										</CaptionText>
+									</View>
+								</View>
+							))}
+						</CardSurface>
+					</View>
+				</AppBottomSheet>
 			) : null}
 			{/* S6b: deleting an individual reading — what goes with it, and that it can't be undone. */}
 			{!isShared ? (
@@ -1564,9 +1833,7 @@ const styles = StyleSheet.create({
 	doneBand: { borderRadius: 18, gap: 12, marginBottom: 22, paddingHorizontal: 16, paddingVertical: 18 },
 	doneBandHead: { alignItems: 'flex-start', flexDirection: 'row', gap: 10 },
 	doneBandTitle: { fontSize: 22, lineHeight: 27.5, marginTop: 6 },
-	bandCount: { fontSize: 26, lineHeight: 26 },
-	bandTotal: { fontSize: 15 },
-	bandNote: { fontSize: 11.5 },
+	bandNote: { fontSize: 11.5, marginTop: -10 },
 	// Today's card.
 	todayBody: { padding: 16 },
 	// Out to the section card's edges: its body is inset 15, and this row carries its own 16.
@@ -1719,12 +1986,17 @@ const styles = StyleSheet.create({
 	doneCheck: { alignItems: 'center', borderRadius: 16, height: 32, justifyContent: 'center', width: 32 },
 	rowTitle: { fontSize: 12.5 },
 	rowSub: { fontSize: 11, marginTop: 2 },
+	// Reading ahead: the next day and how far ahead, one section like the done row.
+	aheadSection: { borderRadius: 16, marginBottom: 10, overflow: 'hidden' },
+	aheadOfferRow: { alignItems: 'center', flexDirection: 'row', gap: 12, paddingHorizontal: 14, paddingVertical: 12 },
+	aheadEyebrow: { paddingHorizontal: 14, paddingTop: 12 },
+	aheadNavRow: { paddingHorizontal: 14, paddingVertical: 12 },
 	// W2's catch-up card.
 	catchupCard: { padding: 16 },
 	centerLink: { alignItems: 'center', marginTop: 10 },
 	linkLabel: { fontSize: 11.5 },
 	noteRow: {
-		alignItems: 'flex-start',
+		alignItems: 'center',
 		borderTopWidth: StyleSheet.hairlineWidth,
 		flexDirection: 'row',
 		gap: 9,
@@ -1745,13 +2017,14 @@ const styles = StyleSheet.create({
 	legendKey: { alignItems: 'center', flexDirection: 'row', gap: 6 },
 	legendLabel: { fontSize: 10.5 },
 	swatch: { borderRadius: 3, borderWidth: 1.5, height: 9, width: 9 },
-	shareNote: { fontSize: 11, lineHeight: 16.5, marginTop: 11 },
+	readerAvatar: { alignItems: 'center', borderRadius: 15, height: 30, justifyContent: 'center', width: 30 },
+	readerChip: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 },
+	allReadBand: { alignItems: 'center', borderRadius: 16, flexDirection: 'row', gap: 12, padding: 14 },
+	allReadDisc: { alignItems: 'center', borderRadius: 18, height: 36, justifyContent: 'center', width: 36 },
+	allReadTitle: { fontSize: 19, lineHeight: 24 },
 	linkRow: { alignItems: 'center', flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingVertical: 12 },
 	linkHint: { fontSize: 11 },
 	smallBadge: { alignItems: 'center', borderRadius: 7, height: 24, justifyContent: 'center', minWidth: 24 },
 	smallBadgeLabel: { fontSize: 13, lineHeight: 16 },
-	avatars: { flexDirection: 'row' },
-	avatar: { alignItems: 'center', borderRadius: 12, borderWidth: 2, height: 24, justifyContent: 'center', width: 24 },
-	avatarOverlap: { marginLeft: -6 },
 	avatarLabel: { fontSize: 10, lineHeight: 14 }
 });

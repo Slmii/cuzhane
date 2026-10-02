@@ -1,12 +1,14 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import { z } from 'zod';
 import type { ResponseLocals } from '@interfaces/response.types';
+import { readAheadRateLimit } from '@middleware/rateLimit.middleware';
 import {
 	enrollHizb,
 	getHizbState,
 	getHizbAssignment,
 	getHizbHistoryDay,
 	getHizbHistoryDays,
+	openHizbAhead,
 	setHizbReadsFromBook,
 	updateHizbAssignment
 } from '@services/hizbReading.service';
@@ -64,6 +66,11 @@ router.post(
 			z.object({ planDays: z.union([z.literal(7), z.literal(15), z.literal(33)]) }).parse(req.body).planDays
 		)
 	)
+);
+router.post(
+	'/ahead',
+	readAheadRateLimit,
+	handle((_req, user, id) => openHizbAhead(user, id))
 );
 router.patch(
 	'/preferences',

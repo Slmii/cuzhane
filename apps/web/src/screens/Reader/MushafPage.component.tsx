@@ -20,7 +20,7 @@ import { fitsOnLines, flowRows, type RowAlignment, rowBands } from '@/screens/Re
 import { isDivineName, readerFaces } from '@/screens/Reader/ReaderBody.component';
 import { SuraHeader } from '@/screens/Reader/SuraHeader.component';
 import { type RefObject, useEffect, useRef, useState } from 'react';
-import { type LayoutChangeEvent, StyleSheet, View } from 'react-native';
+import { type LayoutChangeEvent, Platform, StyleSheet, View } from 'react-native';
 
 type Faces = ReturnType<typeof readerFaces>;
 
@@ -101,6 +101,10 @@ const MEASURE_WIDTH = 10000;
  * fraction of a point, and a row filled to the last hair could come out a hair wider on screen.
  */
 const ROUNDING_SLACK = 1;
+/** Android only — how far a word's ink may reach past its measured width, each side (`inkRoomFor`). */
+const INK_ROOM_EM = 0.5;
+/** Android only — the text's own margin over its measured width, so rounding never shortens it. */
+const INK_SLACK = 2;
 
 /**
  * **The basmala, from the text itself.** It is Al-Fātiḥa's first ayah, and the mushaf sets it
@@ -347,12 +351,39 @@ export const MushafPage = ({
 	 * layer, and not the basmala over a sura, which is 1:1's words set as a heading, not a verse
 	 * of this sura. `suppressHighlighting` keeps iOS from greying a word while it is held.
 	 */
+	/*
+	 * **Room for the ink on Android, without moving a word.** Android draws a text only inside its
+	 * own box, and this face's marks reach past a word's advance on both sides: the pause sign over
+	 * its own space (67:3's طِبَاقٗا ۖ lost it), a shadda-and-kasra lam at a word's start (67:5's
+	 * لِّلشَّيَٰطِينِ lost its first lam). `overflow: 'visible'` does not reach past the text's own
+	 * box. So a word on the page is made wider than its measured width on both sides and pulled
+	 * back by as much — the row lays out exactly as measured — and the text gets its measured width
+	 * plus `INK_SLACK`: given the bare measured width, a padded one-line text came a hair short
+	 * after rounding and Android cut it with "…" (67:2's ٱلْعَزِيزُ). The measuring pass has none of
+	 * this — it is what measures the width. iOS draws past a box and is left as it was.
+	 */
+	const inkRoomFor = (measuredWidth: number) => {
+		if (Platform.OS !== 'android') {
+			return {};
+		}
+
+		const room = faces.arabicFontSize * INK_ROOM_EM;
+
+		return {
+			marginHorizontal: -(room + INK_SLACK / 2),
+			paddingHorizontal: room,
+			width: measuredWidth + room * 2 + INK_SLACK
+		};
+	};
+
 	const renderWord = (
 		word: QuranWord,
 		reactKey: string,
 		isSajdah = false,
 		onLongPress?: () => void,
-		onPress?: () => void
+		onPress?: () => void,
+		/** The word's width from the measuring pass — on the page only, for `inkRoomFor`. */
+		measuredWidth?: number
 	) => {
 		if (isVerseEnd(word)) {
 			return renderVerseEnd(word, reactKey, isSajdah, onLongPress, onPress);
@@ -379,7 +410,8 @@ export const MushafPage = ({
 					fontSize: faces.arabicFontSize,
 					lineHeight: faces.baseFontSize * 2,
 					overflow: 'visible',
-					writingDirection: 'rtl'
+					writingDirection: 'rtl',
+					...(measuredWidth === undefined ? {} : inkRoomFor(measuredWidth))
 				}}
 			>
 				{content}
@@ -518,7 +550,8 @@ export const MushafPage = ({
 						item.key,
 						item.isSajdah,
 						onLongPressVerse && item.verseKey ? () => onLongPressVerse(item.verseKey) : undefined,
-						onPressVerse && item.verseKey ? () => onPressVerse(item.verseKey) : undefined
+						onPressVerse && item.verseKey ? () => onPressVerse(item.verseKey) : undefined,
+						widthOf(item)
 					)
 				)}
 			</View>

@@ -89,6 +89,16 @@ export const poolRateLimit = rateLimit({
 	handler: tooManyRequestsHandler
 });
 
+/** Opening the next day's Hizb portion to read ahead — a row per day, so a wall against a loop. */
+export const readAheadRateLimit = rateLimit({
+	windowMs: 60 * 1000,
+	limit: 30,
+	standardHeaders: 'draft-7',
+	legacyHeaders: false,
+	keyGenerator: userKey,
+	handler: tooManyRequestsHandler
+});
+
 /** Things that call a third party or write a row per request: the verse meal and push-token registration. */
 export const externalCallRateLimit = rateLimit({
 	windowMs: 60 * 1000,

@@ -396,6 +396,7 @@ export const ProfileScreen = () => {
 					 */}
 					<SegmentedControl
 						onChange={handleAppearanceChange}
+						fitsContent
 						options={[
 							{ label: t('light'), value: 'light' },
 							{ label: t('dark'), value: 'dark' },

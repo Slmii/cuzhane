@@ -157,7 +157,6 @@ export type TabDetailParamList = {
 	/** A personal-plan group's history: every reading of the viewer's, newest first — from the rounds card (T3). */
 	HizbPlanHistory: { groupId: string };
 	/** A personal-plan group's day in full: today's 33, yesterday, the last 30 days (T4). */
-	HizbGroupProgress: { groupId: string };
 	/** A personal-plan group's readers today (T5), or on `day` (a group day number) from "Tüm geçmiş". */
 	HizbReaders: { groupId: string; day?: number };
 	/** A shared plan's "Tüm geçmiş": the group's days, newest first, each opening its readers. */

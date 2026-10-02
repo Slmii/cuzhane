@@ -1,5 +1,6 @@
 import { GroupCard } from '@/components/GroupCard/GroupCard.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
+import { ProgressBar } from '@/components/ui/ProgressBar/ProgressBar.component';
 import { CaptionText, Typography } from '@/components/ui/Typography/Typography.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { pluralKey } from '@/lib/i18n/plural';
@@ -8,21 +9,20 @@ import { toAlphaColor } from '@/lib/theme/tokens';
 import { ResetTimeLabel } from '@/components/ResetTimeLabel/ResetTimeLabel.component';
 import { SeatStack } from '@/components/ui/SeatStack/SeatStack.component';
 import { compactCount, hizbAgeLabel } from '@/lib/utils/hizbDiscover';
-import { unreadPortionCount } from '@/lib/utils/hizbPlanBoard';
 import { timeIn } from '@/lib/utils/roundReset';
 import { memo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { HizbDiscoverCardProps } from './HizbDiscoverCard.types';
 
-/** The 33 portions, one notch each. */
+/** The longest plan, named when a group's own is missing. */
 const PORTIONS = 33;
-const NOTCHES = Array.from({ length: PORTIONS }, (_, index) => index);
 
 /**
  * Keşfet's card for a Hizb group on personal plans — "Hizb Kişisel Plan", section 5, cards
  * 01–08, one to one. The shell is the other kinds' (white card, kind chip, the name in the serif);
- * what sets it apart is the progress: 33 notches filling from the left with today's portions, and
- * "bugün", because it starts over every night. On 33 / 33 the same slot turns into W3's green band.
+ * what sets it apart is the progress: how many of its readers read today, and "bugün", because it
+ * starts over every night — a count any group can reach, whatever its size or mix of plans. When
+ * everyone has read, the same slot turns green.
  *
  * No seats, "x boş yer", "Başlamadı", "Dolu", names or avatars: a plan group starts on creation and
  * has no member limit. The inactivity rule and hidden names show as a short label each, because
@@ -31,11 +31,11 @@ const NOTCHES = Array.from({ length: PORTIONS }, (_, index) => index);
 const HizbDiscoverCardComponent = ({ group, onPress }: HizbDiscoverCardProps) => {
 	const { language, t } = useTranslation();
 	const { theme } = useThemeContext();
-	// Portions of the 33, from the covered spans — `readCount` counts spans, which a 7- or 15-day
-	// reading splits finer than the board.
-	const read = PORTIONS - unreadPortionCount(group.hizbCoveredSpans ?? []);
-	const percent = Math.round((read * 100) / PORTIONS);
-	const isDone = read >= PORTIONS;
+	// Today's readers — a count only, so it shows to anyone, hidden names or not.
+	const read = group.hizbReaders?.read ?? 0;
+	const total = group.hizbReaders?.total ?? 0;
+	const percent = total > 0 ? Math.round((read * 100) / total) : 0;
+	const isDone = total > 0 && read === total;
 	const isMixed = group.hizbPlan === 0;
 	const age = hizbAgeLabel(group.hizbDay ?? 1, t);
 	const hasRules = Boolean(group.inactivityDays) || group.hideMemberNames;
@@ -66,33 +66,25 @@ const HizbDiscoverCardComponent = ({ group, onPress }: HizbDiscoverCardProps) =>
 			{...(group.dedication ? { subtitle: group.dedication } : {})}
 		>
 			{isDone ? (
-				// 03: the day is covered — W3's band, the group still open to join.
+				// 03: everyone read today — the green band, the group still open to join.
 				<View style={[styles.band, { backgroundColor: theme.colors.accent }]}>
 					<View style={styles.bandHead}>
 						<View style={styles.bandTitle}>
 							<Icon color={theme.colors.onAccent} name='check' size={14} strokeWidth={2.4} />
 							<CaptionText color={theme.colors.onAccent} style={styles.bandLabel} weight='semibold'>
-								{t('hdDoneToday')}
+								{t('hpAllReadToday')}
 							</CaptionText>
 						</View>
 						<Typography color={theme.colors.onAccent} style={styles.bandCount} variant='numeric'>
-							{PORTIONS}
+							{read}
 							<Typography
 								color={toAlphaColor(theme.colors.onAccent, 0.62)}
 								style={styles.bandTotal}
 								variant='numeric'
 							>
-								{` / ${PORTIONS}`}
+								{` / ${total}`}
 							</Typography>
 						</Typography>
-					</View>
-					<View style={styles.notches}>
-						{NOTCHES.map(index => (
-							<View
-								key={index}
-								style={[styles.notch, { backgroundColor: toAlphaColor(theme.colors.onAccent, 0.9) }]}
-							/>
-						))}
 					</View>
 				</View>
 			) : (
@@ -102,7 +94,7 @@ const HizbDiscoverCardComponent = ({ group, onPress }: HizbDiscoverCardProps) =>
 							<Typography style={styles.count} variant='numeric'>
 								{read}
 								<Typography color={theme.colors.faintText} style={styles.countTotal} variant='numeric'>
-									{` / ${PORTIONS}`}
+									{` / ${total}`}
 								</Typography>
 							</Typography>
 							<Typography
@@ -111,25 +103,14 @@ const HizbDiscoverCardComponent = ({ group, onPress }: HizbDiscoverCardProps) =>
 								variant='stat'
 								weight='medium'
 							>
-								{t('hdToday').toLocaleUpperCase(language)}
+								{t('hpReadersReadToday')}
 							</Typography>
 						</View>
 						<CaptionText color={theme.colors.faintText} style={styles.percent} weight='semibold'>
 							{read === 0 ? t('hdNotYetRead') : t('hpPercent', { percent })}
 						</CaptionText>
 					</View>
-					{/* How much, not which: the notches fill from the left. Which ones is the preview's grid. */}
-					<View style={styles.notches}>
-						{NOTCHES.map(index => (
-							<View
-								key={index}
-								style={[
-									styles.notch,
-									{ backgroundColor: index < read ? theme.colors.accent : theme.colors.progressTrack }
-								]}
-							/>
-						))}
-					</View>
+					<ProgressBar fillColor={theme.colors.accent} height={6} percent={percent} style={styles.bar} />
 				</>
 			)}
 
@@ -175,8 +156,7 @@ const styles = StyleSheet.create({
 	countTotal: { fontSize: 14 },
 	today: { fontSize: 10, letterSpacing: 0.6 },
 	percent: { fontSize: 11 },
-	notches: { flexDirection: 'row', gap: 2, marginTop: 8 },
-	notch: { borderRadius: 2, flex: 1, height: 6 },
+	bar: { marginTop: 8 },
 	band: { borderRadius: 12, paddingBottom: 11, paddingHorizontal: 12, paddingTop: 10 },
 	bandHead: { alignItems: 'center', flexDirection: 'row', gap: 10, justifyContent: 'space-between' },
 	bandTitle: { alignItems: 'center', flexDirection: 'row', gap: 7 },

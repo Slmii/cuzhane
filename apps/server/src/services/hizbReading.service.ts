@@ -13,7 +13,7 @@ import {
 } from '@utils/hizbPlans';
 import { civilDayNumber, startOfCivilDay } from '@utils/rounds';
 import { normalizeUserId } from '@utils/normalizeUserId';
-import type { Group, HizbEnrollment, Prisma } from '../generated/prisma/client';
+import type { Group, HizbAssignment, HizbEnrollment, Prisma } from '../generated/prisma/client';
 import { lockGroup } from './rounds.service';
 import { notifyHizbRead } from './hizbReadNotice.service';
 
@@ -58,6 +58,13 @@ export async function expireHizb(tx: Prisma.TransactionClient, group: Group) {
 		await tx.hizbEnrollment.updateMany({
 			where: { id: { in: ids } },
 			data: { endDay, reason: 'INACTIVITY', removalDays: group.inactivityDays }
+		});
+	}
+	if (endingOn.size > 0) {
+		// A day opened ahead goes with the plan, as it does when the member leaves. Never a read one:
+		// a day read ahead keeps the plan running past it.
+		await tx.hizbAssignment.deleteMany({
+			where: { enrollmentId: { in: [...endingOn.values()].flat() }, day: { gt: today } }
 		});
 	}
 }
@@ -176,28 +183,53 @@ const boardPortionsRead = (spans: readonly number[]) => {
 /** When the group's next reading day begins: the next local midnight in its own zone. */
 const nextDayAtFor = (group: Group, today: number) => startOfCivilDay(today + 1, group.timezone).toISOString();
 
+/** A day's row of a plan: what `materialize` writes on the day, and reading ahead writes early. */
+const rowFor = (group: Group, enrollment: HizbEnrollment, anchor: number, day: number) => ({
+	enrollmentId: enrollment.id,
+	day,
+	portion: portionForDay(enrollment.planDays, enrollment.sequence + group.hizbStartPortion - 1, day - anchor),
+	traversal: Math.floor((day - enrollment.joinedDay) / enrollment.planDays)
+});
+
+/** Days read ahead never move `generatedThrough`: their rows are skipped here when their day comes. */
 async function materialize(tx: Prisma.TransactionClient, group: Group, enrollment: HizbEnrollment) {
 	const lastDay = Math.min(dayOf(group), enrollment.endDay === null ? Infinity : enrollment.endDay - 1);
 	const anchor = civilDayNumber(group.startedAt ?? group.startsAt, group.timezone);
 	for (let from = enrollment.generatedThrough + 1; from <= lastDay; from += 500) {
 		const until = Math.min(from + 499, lastDay);
 		await tx.hizbAssignment.createMany({
-			data: Array.from({ length: until - from + 1 }, (_, i) => ({
-				enrollmentId: enrollment.id,
-				day: from + i,
-				portion: portionForDay(
-					enrollment.planDays,
-					enrollment.sequence + group.hizbStartPortion - 1,
-					from + i - anchor
-				),
-				traversal: Math.floor((from + i - enrollment.joinedDay) / enrollment.planDays)
-			})),
+			data: Array.from({ length: until - from + 1 }, (_, i) => rowFor(group, enrollment, anchor, from + i)),
 			skipDuplicates: true
 		});
 	}
 	if (lastDay > enrollment.generatedThrough) {
 		await tx.hizbEnrollment.update({ where: { id: enrollment.id }, data: { generatedThrough: lastDay } });
 	}
+}
+
+/**
+ * Reading ahead past today: how many days after it are read, one after another, and the first that
+ * is not — the day offered next, with its row if one was opened. Read ahead strictly in order, the
+ * read days are always the ones straight after today.
+ */
+async function aheadOf(tx: Prisma.TransactionClient, enrollmentId: string, today: number) {
+	const upcoming = await tx.hizbAssignment.findMany({
+		where: { enrollmentId, day: { gt: today } },
+		orderBy: { day: 'asc' },
+		select: { id: true, day: true, completedAt: true, portion: true }
+	});
+	let read = 0;
+	while (upcoming[read]?.day === today + 1 + read && upcoming[read]?.completedAt) {
+		read++;
+	}
+	const next = today + 1 + read;
+	return {
+		read,
+		next,
+		row: upcoming[read]?.day === next ? upcoming[read]! : null,
+		// The days read ahead, in order — for the list behind "N gün ileridesin".
+		readDays: upcoming.slice(0, read)
+	};
 }
 
 export async function closeHizbEnrollment(tx: Prisma.TransactionClient, group: Group, userId: string) {
@@ -207,14 +239,61 @@ export async function closeHizbEnrollment(tx: Prisma.TransactionClient, group: G
 	await expireHizb(tx, group);
 	const enrollments = await tx.hizbEnrollment.findMany({ where: { groupId: group.id, userId, endDay: null } });
 	for (const enrollment of enrollments) {
-		// Today's existing commitment remains available as historical catch-up.
+		// Today's existing commitment remains available as historical catch-up; days read ahead go.
 		await materialize(tx, group, enrollment);
+		await tx.hizbAssignment.deleteMany({ where: { enrollmentId: enrollment.id, day: { gt: dayOf(group) } } });
 		await tx.hizbEnrollment.update({
 			where: { id: enrollment.id },
 			data: { endDay: dayOf(group) + 1, reason: 'LEFT' }
 		});
 	}
 }
+
+/*
+ * Rounds are counted across every enrollment — a member who left and came back carries on from
+ * where they were — while `traversal` restarts at 0 in each. So each enrollment's rounds are offset
+ * by all the rounds its earlier enrollments started.
+ */
+function roundsOf(enrollments: readonly HizbEnrollment[], today: number) {
+	const roundsIn = (e: HizbEnrollment) => {
+		const last = Math.min(today, e.endDay === null ? today : e.endDay - 1);
+		return last < e.joinedDay ? 0 : Math.floor((last - e.joinedDay) / e.planDays) + 1;
+	};
+	const offset = new Map<string, number>();
+	let started = 0;
+	for (const e of [...enrollments].sort((a, b) => a.joinedDay - b.joinedDay || a.ordinal - b.ordinal)) {
+		offset.set(e.id, started);
+		started += roundsIn(e);
+	}
+	return { offset, started };
+}
+
+/** A day's reading as the group screen has it: today's, a missed one, one in history or read ahead. */
+const serializeAssignment = (
+	a: HizbAssignment & { enrollment: HizbEnrollment },
+	roundOffset: ReadonlyMap<string, number>
+) => ({
+	id: a.id,
+	// The overall round this reading belongs to, 1-based.
+	round: (roundOffset.get(a.enrollmentId) ?? 0) + a.traversal + 1,
+	day: a.day,
+	date: dateOf(a.day),
+	planDays: a.enrollment.planDays,
+	planVersion: a.enrollment.planVersion,
+	portion: a.portion,
+	traversal: a.traversal,
+	repetitions: a.repetitions,
+	delailRepetitions: a.delailRepetitions,
+	requiresDelailRepetition: hasDelailRepetition(a.enrollment.planDays, a.portion),
+	istighfarRepetitions: a.istighfarRepetitions,
+	istighfarTarget: a.istighfarTarget,
+	requiresIstighfar: hasIstighfar(a.enrollment.planDays, a.portion),
+	version: a.version,
+	bookmark: a.bookmark,
+	requiresSekine: hasSekine(a.enrollment.planDays, a.portion),
+	...bookFields(a),
+	completedAt: a.completedAt?.toISOString() ?? null
+});
 
 export async function getHizbState(userId: string, groupId: string, cursor?: string) {
 	const user = normalizeUserId(userId);
@@ -250,46 +329,12 @@ export async function getHizbState(userId: string, groupId: string, cursor?: str
 				take: 101,
 				...(cursor ? { cursor: { id: cursor }, skip: 1 } : {})
 			});
-			/*
-			 * Rounds are counted across every enrollment — a member who left and came back carries on
-			 * from where they were — while `traversal` restarts at 0 in each. So each enrollment's
-			 * rounds are offset by all the rounds its earlier enrollments started.
-			 */
-			const roundsIn = (e: HizbEnrollment) => {
-				const last = Math.min(today, e.endDay === null ? today : e.endDay - 1);
-				return last < e.joinedDay ? 0 : Math.floor((last - e.joinedDay) / e.planDays) + 1;
-			};
-			const roundOffset = new Map<string, number>();
-			let roundsStarted = 0;
-			for (const e of [...enrollments].sort((a, b) => a.joinedDay - b.joinedDay || a.ordinal - b.ordinal)) {
-				roundOffset.set(e.id, roundsStarted);
-				roundsStarted += roundsIn(e);
-			}
-			const serialize = (a: NonNullable<typeof assignment>) => ({
-				id: a.id,
-				// The overall round this reading belongs to, 1-based.
-				round: (roundOffset.get(a.enrollmentId) ?? 0) + a.traversal + 1,
-				day: a.day,
-				date: dateOf(a.day),
-				planDays: a.enrollment.planDays,
-				planVersion: a.enrollment.planVersion,
-				portion: a.portion,
-				traversal: a.traversal,
-				repetitions: a.repetitions,
-				delailRepetitions: a.delailRepetitions,
-				requiresDelailRepetition: hasDelailRepetition(a.enrollment.planDays, a.portion),
-				istighfarRepetitions: a.istighfarRepetitions,
-				istighfarTarget: a.istighfarTarget,
-				requiresIstighfar: hasIstighfar(a.enrollment.planDays, a.portion),
-				version: a.version,
-				bookmark: a.bookmark,
-				requiresSekine: hasSekine(a.enrollment.planDays, a.portion),
-				...bookFields(a),
-				completedAt: a.completedAt?.toISOString() ?? null
-			});
+			const rounds = roundsOf(enrollments, today);
+			const serialize = (a: NonNullable<typeof assignment>) => serializeAssignment(a, rounds.offset);
+			// A day read ahead counts once its day comes, here as on the board.
 			const completeCycles = await tx.hizbAssignment.groupBy({
 				by: ['enrollmentId', 'traversal'],
-				where: { ...mine, completedAt: { not: null } },
+				where: { ...mine, completedAt: { not: null }, day: { lte: today } },
 				_count: { _all: true }
 			});
 			const completedTraversals = completeCycles.filter(
@@ -335,7 +380,10 @@ export async function getHizbState(userId: string, groupId: string, cursor?: str
 				readingsOn.set(a.day, day);
 			}
 			const readingsFor = (day: number) => [...(readingsOn.get(day)?.values() ?? [])];
-			const readToday = new Set(reads.filter(a => a.day === today && a.completedAt).map(a => a.enrollmentId));
+			// Who read today, and when — the time shows on the readers' rows ("✓ 09:27").
+			const readToday = new Map(
+				reads.filter(a => a.day === today && a.completedAt).map(a => [a.enrollmentId, a.completedAt!])
+			);
 			const memberByUser = new Map(members.map(m => [m.userId, m]));
 			// Today's readings that are under way: a page turned or a count begun, not yet read. A
 			// member who hasn't opened the app today has no row for today, so isn't started.
@@ -372,12 +420,13 @@ export async function getHizbState(userId: string, groupId: string, cursor?: str
 			// The round today's reading is in: its number, its days read so far, and its days come round.
 			const currentRound = assignment
 				? {
-						number: roundsStarted,
+						number: rounds.started,
 						read: await tx.hizbAssignment.count({
 							where: {
 								enrollmentId: assignment.enrollmentId,
 								traversal: assignment.traversal,
-								completedAt: { not: null }
+								completedAt: { not: null },
+								day: { lte: today }
 							}
 						}),
 						days:
@@ -386,8 +435,32 @@ export async function getHizbState(userId: string, groupId: string, cursor?: str
 							1
 				  }
 				: null;
+			const ahead = current?.endDay === null ? await aheadOf(tx, current.id, today) : null;
 			return {
 				today: assignment ? serialize(assignment) : null,
+				// Once today is read: the next day's portion, offered to read ahead.
+				ahead:
+					current && ahead && assignment?.completedAt
+						? {
+								day: ahead.next,
+								date: dateOf(ahead.next),
+								portion: rowFor(group, current, anchor, ahead.next).portion,
+								assignmentId: ahead.row?.id ?? null
+						  }
+						: null,
+				// How far past today the member has read.
+				aheadThrough: ahead?.read
+					? {
+							days: ahead.read,
+							date: dateOf(ahead.next - 1),
+							readings: ahead.readDays.map(row => ({
+								day: row.day,
+								date: dateOf(row.day),
+								portion: row.portion,
+								completedAt: row.completedAt!.toISOString()
+							}))
+					  }
+					: null,
 				currentRound,
 				missed: missed.map(serialize),
 				coveredSpans: spansOn(today),
@@ -438,6 +511,8 @@ export async function getHizbState(userId: string, groupId: string, cursor?: str
 						planDays: e.planDays,
 						portion: portionForDay(e.planDays, e.sequence + group.hizbStartPortion - 1, today - anchor),
 						completed: readToday.has(e.id),
+						// When, for a hidden name too: a time says nothing about who.
+						completedAt: readToday.get(e.id)?.toISOString() ?? null,
 						// Opened and part-way, not yet read — "Başladı" on the readers list.
 						started: startedToday.has(e.id),
 						isMe
@@ -589,6 +664,39 @@ export async function getHizbHistoryDay(userId: string, groupId: string, day: nu
 	});
 }
 
+/**
+ * Reading ahead: with today read, the next day's portion — then the one after, one day at a time,
+ * with no limit. Its row is opened early, as `materialize` would open it on its day, and counts for
+ * that day when it comes. Asked again before it is read, the same row comes back.
+ */
+export async function openHizbAhead(userId: string, groupId: string) {
+	const user = normalizeUserId(userId);
+	return prisma.$transaction(async tx => {
+		await lockGroup(tx, groupId);
+		const group = await requireReader(tx, user, groupId);
+		await expireHizb(tx, group);
+		const enrollments = await tx.hizbEnrollment.findMany({ where: { groupId, userId: user } });
+		const current = enrollments.find(e => e.endDay === null);
+		if (!current) {
+			throw new HttpError(NOT_FOUND, 'You have no reading plan in this group');
+		}
+		await materialize(tx, group, current);
+		const today = dayOf(group);
+		const todays = await tx.hizbAssignment.findUnique({
+			where: { enrollmentId_day: { enrollmentId: current.id, day: today } }
+		});
+		if (!todays?.completedAt) {
+			throw new HttpError(CONFLICT, 'Read today’s portion first');
+		}
+		const { next, row } = await aheadOf(tx, current.id, today);
+		const anchor = civilDayNumber(group.startedAt ?? group.startsAt, group.timezone);
+		const offered = row
+			? await tx.hizbAssignment.findUniqueOrThrow({ where: { id: row.id } })
+			: await tx.hizbAssignment.create({ data: rowFor(group, current, anchor, next) });
+		return serializeAssignment({ ...offered, enrollment: current }, roundsOf(enrollments, today).offset);
+	});
+}
+
 export type HizbAssignmentUpdate = {
 	version: number;
 	read?: boolean | undefined;
@@ -624,8 +732,33 @@ export async function updateHizbAssignment(
 		if (!assignment) {
 			throw new HttpError(NOT_FOUND, 'Reading not found');
 		}
-		if (assignment.day > dayOf(group)) {
-			throw new HttpError(BAD_REQUEST, 'This reading is in the future');
+		const today = dayOf(group);
+		// A later day is read ahead in order: today and every day up to it read first. Undoing a read day
+		// is not reading — the rule below governs it — but anything else on an unread day is.
+		if (assignment.day > today && (input.read !== false || assignment.completedAt === null)) {
+			const readBefore = await tx.hizbAssignment.count({
+				where: {
+					enrollmentId: assignment.enrollmentId,
+					day: { gte: today, lt: assignment.day },
+					completedAt: { not: null }
+				}
+			});
+			if (readBefore !== assignment.day - today) {
+				throw new HttpError(CONFLICT, 'This reading is in the future');
+			}
+		}
+		// Read ahead is undone from the end: today, or a day after it, only with no later day read.
+		if (input.read === false && assignment.completedAt !== null && assignment.day >= today) {
+			const readAfter = await tx.hizbAssignment.count({
+				where: {
+					enrollmentId: assignment.enrollmentId,
+					day: { gt: assignment.day },
+					completedAt: { not: null }
+				}
+			});
+			if (readAfter > 0) {
+				throw new HttpError(CONFLICT, 'Undo the later days first');
+			}
 		}
 		if (!Number.isInteger(input.version) || input.version < 0) {
 			throw new HttpError(BAD_REQUEST, 'Invalid version');
@@ -739,7 +872,7 @@ export async function updateHizbAssignment(
 			read &&
 			assignment.completedAt === null &&
 			assignment.readNoticeSentAt === null &&
-			assignment.day === dayOf(group) &&
+			assignment.day === today &&
 			!group.hizbIndividual;
 		await tx.hizbAssignment.update({
 			where: { id: assignment.id },
@@ -772,10 +905,14 @@ export async function updateHizbAssignment(
 			announced = dayPortions;
 		}
 		if (read && assignment.completedAt === null) {
-			await tx.hizbEnrollment.updateMany({
-				where: { groupId, userId: user, endDay: null },
-				data: { lastReadDay: dayOf(group) }
-			});
+			// Active through today — and through a day read ahead, which keeps the plan running until then.
+			const active = await tx.hizbEnrollment.findFirst({ where: { groupId, userId: user, endDay: null } });
+			if (active) {
+				await tx.hizbEnrollment.update({
+					where: { id: active.id },
+					data: { lastReadDay: Math.max(today, assignment.day, active.lastReadDay ?? today) }
+				});
+			}
 		}
 		if (input.read === false) {
 			const active = await tx.hizbEnrollment.findFirst({ where: { groupId, userId: user, endDay: null } });
@@ -787,9 +924,18 @@ export async function updateHizbAssignment(
 					},
 					orderBy: { completedAt: 'desc' }
 				});
+				// The furthest day still read, which may be ahead of the last day anything was read on.
+				const furthest = await tx.hizbAssignment.findFirst({
+					where: { enrollmentId: active.id, completedAt: { not: null } },
+					orderBy: { day: 'desc' }
+				});
+				const lastReadDay = Math.max(
+					last?.completedAt ? civilDayNumber(last.completedAt, group.timezone) : -Infinity,
+					furthest?.day ?? -Infinity
+				);
 				await tx.hizbEnrollment.update({
 					where: { id: active.id },
-					data: { lastReadDay: last?.completedAt ? civilDayNumber(last.completedAt, group.timezone) : null }
+					data: { lastReadDay: Number.isFinite(lastReadDay) ? lastReadDay : null }
 				});
 			}
 		}
@@ -867,6 +1013,7 @@ export async function hizbSummary(groupId: string, viewerUserId: string) {
 			include: { enrollment: true }
 		});
 		const reads = marked.filter(a => a.completedAt !== null);
+		const activeIds = new Set(active.map(e => e.id));
 		const coveredSpans = spansCoveredBy(
 			marked.map(a => ({
 				planDays: a.enrollment.planDays,
@@ -910,6 +1057,12 @@ export async function hizbSummary(groupId: string, viewerUserId: string) {
 			// The Discover card and the invite preview: today's board, the reset, and whether the
 			// viewer was taken out of the order (P6).
 			hizbCoveredSpans: coveredSpans,
+			// Every card's count, whatever the group's size or mix of plans: everyone on a plan now,
+			// and how many of them read today. A count only — nothing about who.
+			hizbReaders: {
+				read: reads.filter(a => activeIds.has(a.enrollmentId)).length,
+				total: active.length
+			},
 			nextDayAt: nextDayAtFor(group, today),
 			hizbRemoved: latest?.reason === 'INACTIVITY',
 			// The rule's length when it removed them — the group's may have changed since.

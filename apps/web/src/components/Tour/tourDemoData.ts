@@ -559,6 +559,7 @@ const hizbSummary = (): GroupSummary => {
 		endsAt: null,
 		hideMemberNames: false,
 		hizbCoveredSpans: spans,
+		hizbReaders: { read: HIZB_READER_NAMES.length - 2, total: HIZB_READER_NAMES.length },
 		hizbDay: 41,
 		hizbIndividual: false,
 		hizbPlan: 0,

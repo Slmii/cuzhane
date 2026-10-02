@@ -158,34 +158,25 @@ export const HizbPlanGroupSkeleton = ({ plan }: Props) => {
 									</View>
 									{line(17, 9, 72)}
 								</View>
-								<CellGrid borderWidth={1.5} columns={11} gap={4} items={cells} radius={6} />
-								{legend}
+								<Bone height={6} radius={3} width='100%' />
 							</View>
-							{/* Yesterday, then today's readers. */}
+							{/* A few of today's readers, then yesterday's row. */}
+							{[0, 1, 2].map(index => (
+								<View
+									key={index}
+									style={[styles.linkRow, styles.hairlineTop, { borderTopColor: divider }]}
+								>
+									<Bone height={30} radius={15} width={30} />
+									<View style={styles.flex}>
+										{line(17, 9, '44%', 'strong')}
+										{line(15, 8, '62%')}
+									</View>
+									<Bone height={22} radius={11} tone='soft' width={46} />
+								</View>
+							))}
 							<View style={[styles.linkRow, styles.hairlineTop, { borderTopColor: divider }]}>
 								<Bone height={24} radius={7} width={24} />
 								<View style={styles.flex}>{line(17, 9, '64%', 'strong')}</View>
-								{line(17, 8, 48)}
-								<Bone height={14} radius={3} tone='soft' width={8} />
-							</View>
-							<View style={[styles.linkRow, styles.hairlineTop, { borderTopColor: divider }]}>
-								<View style={styles.avatars}>
-									{[0, 1, 2].map(index => (
-										<View
-											key={index}
-											style={[
-												styles.avatar,
-												index > 0 ? styles.avatarOverlap : null,
-												{
-													backgroundColor: theme.colors.secondary,
-													borderColor: theme.colors.surface
-												}
-											]}
-										/>
-									))}
-								</View>
-								<View style={styles.flex}>{line(17, 9, '52%', 'strong')}</View>
-								<Bone height={14} radius={3} tone='soft' width={8} />
 							</View>
 						</CardSurface>
 
@@ -298,9 +289,6 @@ const styles = StyleSheet.create({
 	legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginTop: 11 },
 	legendKey: { alignItems: 'center', flexDirection: 'row', gap: 6 },
 	linkRow: { alignItems: 'center', flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingVertical: 12 },
-	avatars: { flexDirection: 'row' },
-	avatar: { borderRadius: 12, borderWidth: 2, height: 24, width: 24 },
-	avatarOverlap: { marginLeft: -6 },
 	// The rounds card.
 	groupCardGap: { marginTop: 10 },
 	statsRow: { flexDirection: 'row' },

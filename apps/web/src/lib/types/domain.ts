@@ -68,6 +68,8 @@ export type GroupSummary = {
 	hizbToday?: { planDays: number; portion: number; completed: boolean; assignmentId: string | null } | null;
 	/** A personal-plan Hizb's board today: the canonical spans its completed readings cover. */
 	hizbCoveredSpans?: number[];
+	/** A personal-plan Hizb's readers today: everyone on a plan now, and how many of them read. */
+	hizbReaders?: { read: number; total: number };
 	/** A personal-plan Hizb's next reading day: the next local midnight in the group's zone. */
 	nextDayAt?: string;
 	/** The viewer was taken out of a personal-plan Hizb's order by the inactivity rule. */
@@ -207,8 +209,9 @@ export type GroupDetail = GroupSummary & {
 /** Unauthenticated-ish preview shown when opening an invite link or entering a code. */
 export type GroupInvitePreview = {
 	hizbPlan?: number | null;
-	/** See `GroupSummary` — the same four fields, from `hizbSummary`. */
+	/** See `GroupSummary` — the same fields, from `hizbSummary`. */
 	hizbCoveredSpans?: number[];
+	hizbReaders?: { read: number; total: number };
 	nextDayAt?: string;
 	hizbRemoved?: boolean;
 	hizbRemovalDays?: number | null;
