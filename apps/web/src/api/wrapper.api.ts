@@ -30,6 +30,13 @@ export class WrapperApiError extends Error {
 export const CLIENT_KINDS_HEADER = 'X-Cuzhane-Kinds';
 export const CLIENT_KINDS = 'CEVSEN,HATIM,HIZB';
 
+/**
+ * The kinds this build can draw a Şahsi (one-person plan) reading of. Without it the server hides
+ * such a group, or answers 426 — an older build would open it as an empty board.
+ */
+export const PERSONAL_KINDS_HEADER = 'X-Cuzhane-Personal-Kinds';
+export const PERSONAL_KINDS = 'CEVSEN,HATIM';
+
 /** Holds a reference to the Clerk `getToken` function, set at app startup. */
 let _getToken: (() => Promise<string | null>) | null = null;
 /**
@@ -132,6 +139,7 @@ export const wrapperApi = async <T>(endpoint: string, init?: RequestInit): Promi
 				...(token ? { Authorization: `Bearer ${token}` } : {}),
 				[CLIENT_KINDS_HEADER]: CLIENT_KINDS,
 				'X-Cuzhane-Hizb-Plans': '1',
+				[PERSONAL_KINDS_HEADER]: PERSONAL_KINDS,
 				...(init?.headers || {})
 			}
 		});

@@ -29,6 +29,12 @@ import {
 	TitleText,
 	Typography
 } from '@/components/ui/Typography/Typography.component';
+import { useGetReadingPlaces } from '@/lib/hooks/useReadingPlaces';
+import { useGetUserSettings } from '@/lib/hooks/useUserSettings';
+import { cuzPages } from '@/lib/content/quran';
+import { portionPageCount } from '@/lib/content/hizbPortions';
+import { mushafCuzPages } from '@/lib/content/mushaf';
+import { StartedProgress } from '@/components/StartedProgress/StartedProgress.component';
 import { useGetBabs, useSetBabRead } from '@/lib/hooks/useBab';
 import { useCachedGroup } from '@/lib/hooks/useCachedGroup';
 import { useCurrentUserId } from '@/lib/hooks/useCurrentUserId';
@@ -60,6 +66,7 @@ import { ManageSheet } from '@/screens/Groups/ManageSheet.component';
 import { MembersSheet } from '@/screens/Groups/MembersSheet.component';
 import { ShareSheet } from '@/screens/Groups/ShareSheet.component';
 import { JoinedWelcomeSkeleton } from '@/screens/Join/JoinedWelcomeSkeleton.component';
+import { isPersonalPlanGroup } from '@/lib/utils/personalPlan';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -100,9 +107,9 @@ const KIND_MARK_SIZE = 44;
 type Props = NativeStackScreenProps<TabStackParamList, 'GroupDetail'>;
 
 /**
- * A Hizb group read on personal plans is a screen of its own (`HizbPlanGroup`); every other
- * group — Cevşen, hatim, or a Hizb group divided by seat — is the one below, which draws each
- * kind's own sections.
+ * A group read on personal plans — a Hizb plan, or a Şahsi Cevşen or Kur'an reading — is a screen
+ * of its own (`HizbPlanGroup`); every other group — Cevşen, hatim, or a Hizb group divided by
+ * seat — is the one below, which draws each kind's own sections.
  */
 export const GroupDetailScreen = (props: Props) => {
 	const query = useGetGroupById(props.route.params.groupId);
@@ -126,7 +133,7 @@ export const GroupDetailScreen = (props: Props) => {
 			</ScreenContainer>
 		);
 	}
-	return query.data.hizbPlan != null ? (
+	return isPersonalPlanGroup(query.data) ? (
 		<HizbPlanGroup {...props} group={query.data} />
 	) : (
 		<LegacyGroupDetailScreen {...props} />
@@ -163,7 +170,8 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 	};
 	// Declared up here with the other hooks: the loading and error branches below return
 	// early, and a hook that only runs on the happy path would change order between renders.
-	const [isMyBabsOpen, setIsMyBabsOpen] = useState(false);
+	// Open to begin with, as the Hizb's panel: your share is what you came to the group for.
+	const [isMyBabsOpen, setIsMyBabsOpen] = useState(true);
 	// The base `chevron` glyph points right, so down is +90° and up is -90°. Closed points
 	// down at the content it will reveal; open points up at the content it will hide. One
 	// glyph rotated through half a turn, rather than swapping in a second icon.
@@ -227,6 +235,12 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 	const loadingKind = groupQuery.data?.kind ?? cached?.kind;
 
 	const babsQuery = useGetBabs(groupId);
+	// A Kur'an group's places in its cüz, for "Başladı · Sayfa 22 / 41"; the mushaf the reader is set to.
+	const placesQuery = useGetReadingPlaces(
+		groupId,
+		groupQuery.data?.kind === 'HATIM' || groupQuery.data?.kind === 'HIZB'
+	);
+	const isHusrev = useGetUserSettings().data?.readerArabicFont === 'husrev';
 	const isFlexible = groupQuery.data?.splitMode === 'FLEXIBLE';
 	const flexiblePoolQuery = useGetPoolSlots(groupId, { isEnabled: isFlexible });
 	// Both read from the query data rather than the narrowed `detail` below, so they sit with
@@ -391,6 +405,57 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 	const isDaily = detail.cycle === 'DAILY';
 	const isRoundComplete = detail.completedAt !== null;
 	const isHatim = detail.kind === 'HATIM';
+	/*
+	 * How far into this round's share, for "Başladı" — only once begun and while not all read. A
+	 * Cevşen counts its babs read; a Kur'an or a Hizb its pages, each cüz or portion read whole and
+	 * the others up to the place kept in them (a cüz in the mushaf the reader is set to), or its
+	 * cüz or portions while no place is kept.
+	 */
+	const shareStarted = (() => {
+		const total = myBabNumbers.length;
+
+		if (total === 0 || myReadCount === total) {
+			return null;
+		}
+
+		if (isHatim || isHizb) {
+			const pagesOf = (unit: number) =>
+				isHizb ? portionPageCount(unit) : (isHusrev ? mushafCuzPages(unit) : cuzPages(unit)).length;
+			const places = new Map((placesQuery.data?.places ?? []).map(place => [place.unitNumber, place.position]));
+			// A Kur'an always counts pages — a cüz read is all of its pages — so it reads the same before
+			// a place is kept as after.
+			const hasPlace = isHatim || myBabs.some(bab => bab.readAt === null && (places.get(bab.number) ?? 0) > 0);
+
+			if (hasPlace) {
+				const pageTotal = myBabs.reduce((sum, bab) => sum + pagesOf(bab.number), 0);
+				const pagesRead = myBabs.reduce(
+					(sum, bab) =>
+						sum +
+						(bab.readAt !== null
+							? pagesOf(bab.number)
+							: Math.min(pagesOf(bab.number), places.get(bab.number) ?? 0)),
+					0
+				);
+
+				return {
+					label: t('hpPageOf', { page: pagesRead, total: pageTotal }),
+					percent: (pagesRead * 100) / Math.max(1, pageTotal)
+				};
+			}
+		}
+
+		if (myReadCount === 0) {
+			return null;
+		}
+
+		return {
+			label: t(isHizb ? 'spPortionProgress' : 'spBabProgress', {
+				page: myReadCount,
+				total
+			}),
+			percent: (myReadCount * 100) / total
+		};
+	})();
 	// A hundred or thirty, from the group rather than a constant — see `unitCountFor`.
 	const unitCount = unitCountFor(detail.kind);
 	// Newest closed round — the list arrives newest-first with the open one at the head.
@@ -669,13 +734,10 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 				 * A Cevşen or a hatim draws each as one card headed like the board.
 				 */}
 				<ProgressSection count={`${myReadCount} / ${myBabNumbers.length}`} isCard label={t('hpMyProgress')}>
-					{myProgressQuery.isLoading ? <MyProgressCardSkeleton /> : null}
-					{myProgress ? (
-						<MyProgressCard
-							isHatim={isHatim}
-							onPress={() => navigation.navigate('MyProgress', { groupId })}
-							progress={myProgress}
-						/>
+					{/* "Başladı", as a Şahsi reading's day: a share begun and not yet read — above the slim
+					    "Senin ilerlemen". */}
+					{shareStarted ? (
+						<StartedProgress label={shareStarted.label} percent={shareStarted.percent} />
 					) : null}
 
 					{/*
@@ -705,7 +767,11 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 						<CardSurface
 							hasGlassSurface={isMyBabsOpen}
 							isFlush
-							style={isMyBabsOpen ? null : { backgroundColor: theme.colors.accentSoft }}
+							style={[
+								// Ringed in the accent, open or closed: your own share stands out from the rows around it.
+								{ borderColor: theme.colors.accent, borderWidth: 2 },
+								isMyBabsOpen ? null : { backgroundColor: theme.colors.accentSoft }
+							]}
 						>
 							{/* C1 of the first-use tour frames this row, closed or open. */}
 							<TourTarget id='assigned'>
@@ -893,6 +959,15 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 							</Animated.View>
 						</CardSurface>
 					)}
+					{/* Under your share: the share first, then how you are doing across the rounds. */}
+					{myProgressQuery.isLoading ? <MyProgressCardSkeleton /> : null}
+					{myProgress ? (
+						<MyProgressCard
+							isHatim={isHatim}
+							onPress={() => navigation.navigate('MyProgress', { groupId })}
+							progress={myProgress}
+						/>
+					) : null}
 				</ProgressSection>
 
 				{/*

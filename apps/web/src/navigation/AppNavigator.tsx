@@ -2,6 +2,7 @@ import { HizbPlanReader } from '@/screens/Hizb/HizbPlanReader.component';
 import { HizbMissedScreen } from '@/screens/Groups/HizbMissedScreen.component';
 import { HizbGroupHistoryScreen } from '@/screens/Groups/HizbGroupHistoryScreen.component';
 import { HizbPlanHistoryScreen } from '@/screens/Groups/HizbPlanHistoryScreen.component';
+import { CevsenPlanReader } from '@/screens/Reader/CevsenPlanReader.component';
 import { HizbReadersScreen } from '@/screens/Groups/HizbReadersScreen.component';
 import { GroupHowItWorksScreen } from '@/screens/Groups/GroupHowItWorksScreen.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
@@ -530,6 +531,13 @@ const sharedTabScreens = ({ isProfileRoot = false }: { isProfileRoot?: boolean }
 			component={HizbPlanReader}
 			options={{ ...nativeBackScreenOptions, headerRight: () => <ReaderToolbar /> }}
 		/>
+		{/* A Şahsi Cevşen day's reader, with the same bar and text-size control as the others. */}
+		<TabStack.Screen
+			name='CevsenPlanReader'
+			component={CevsenPlanReader}
+			options={{ ...nativeBackScreenOptions, headerRight: () => <ReaderToolbar /> }}
+		/>
+		{/* A Şahsi Kur'an day: its cüz to mark, each opening the cüz reader. */}
 		<TabStack.Screen name='HizbMissed' component={HizbMissedScreen} options={nativeBackScreenOptions} />
 		<TabStack.Screen name='HizbPlanHistory' component={HizbPlanHistoryScreen} options={nativeBackScreenOptions} />
 		<TabStack.Screen name='HizbReaders' component={HizbReadersScreen} options={nativeBackScreenOptions} />

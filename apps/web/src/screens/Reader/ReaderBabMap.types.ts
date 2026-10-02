@@ -36,6 +36,11 @@ export type ReaderBabMapProps = {
 	 */
 	hasLegend?: boolean;
 	/**
+	 * A Şahsi plan's strip has no pool and no other members: its key reads read, today's babs
+	 * and the rest still to come.
+	 */
+	isPlan?: boolean;
+	/**
 	 * How many ticks the strip has — the Cevşen reader's hundred, or the Hizb reader's current
 	 * section's block count, so one strip serves both texts. **With `spots`, it must be the
 	 * group's part count**: the pool's blocks are cut from the seat split of exactly that many

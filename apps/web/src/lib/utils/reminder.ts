@@ -74,10 +74,11 @@ export const reminderTotals = (groups: GroupSummary[] | undefined): ReminderTota
 
 	return running.reduce<ReminderTotals>(
 		(totals, group) => {
+			// A Şahsi Cevşen day owes its babs, not the one reading.
 			const outstanding = group.hizbToday
 				? group.hizbToday.completed
 					? 0
-					: 1
+					: group.hizbToday.units?.length ?? 1
 				: Math.max(0, group.myBabNumbers.length - group.myReadCount);
 			const isHizb = group.kind === 'HIZB';
 

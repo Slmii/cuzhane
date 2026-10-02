@@ -7,7 +7,9 @@ import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { PullToRefresh } from '@/components/ui/PullToRefresh/PullToRefresh.component';
 import { CaptionText, Typography } from '@/components/ui/Typography/Typography.component';
 import type { HizbAssignment } from '@/api/hizbReading.api';
+import { useGetGroupById } from '@/lib/hooks/useGroup';
 import { useHizbReading } from '@/lib/hooks/useHizbReading';
+import { planReadingRoute } from '@/lib/utils/personalPlan';
 import { useHizbPlanText } from '@/lib/hooks/useHizbPlanText';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useTranslation } from '@/lib/i18n/I18n.context';
@@ -29,21 +31,25 @@ export const HizbMissedScreen = ({ navigation, route }: Props) => {
 	const { groupId } = route.params;
 	const { language, t } = useTranslation();
 	const { theme } = useThemeContext();
-	const text = useHizbPlanText();
+	// The group's book, from the screen it was opened from — a Şahsi Cevşen or Kur'an reads here too.
+	// Until the group is known, its book is too: Hizb labels on a Cevşen or Kur'an day would throw.
+	const groupKind = useGetGroupById(groupId).data?.kind;
+	const kind = groupKind ?? 'HIZB';
+	const text = useHizbPlanText(kind);
 	const query = useHizbReading(groupId);
 	const pullToRefresh = usePullToRefresh(query);
 	const data = query.data?.pages[0];
 
 	const open = useCallback(
-		(assignmentId: string) => navigation.navigate('HizbPlanReader', { assignmentId, groupId }),
-		[groupId, navigation]
+		(assignmentId: string) => navigation.navigate(planReadingRoute(kind), { assignmentId, groupId }),
+		[groupId, kind, navigation]
 	);
 
 	if (query.isError) {
 		return <ErrorState queries={[query]} />;
 	}
 
-	if (!data) {
+	if (!data || !groupKind) {
 		return <HizbMissedSkeleton />;
 	}
 
@@ -68,7 +74,12 @@ export const HizbMissedScreen = ({ navigation, route }: Props) => {
 				</View>
 				<View style={styles.copy}>
 					<CaptionText style={styles.title} weight='semibold'>
-						{t('hpPortionWork', { portions: text.portionsLabel(reading), work: text.workTitle(reading) })}
+						{text.isHizb
+							? t('hpPortionWork', {
+									portions: text.portionsLabel(reading),
+									work: text.workTitle(reading)
+							  })
+							: `${text.partsLabel(reading)} · ${text.partsAside(reading)}`}
 					</CaptionText>
 					{desc ? (
 						<CaptionText color={theme.colors.faintText} style={styles.desc}>

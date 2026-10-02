@@ -109,8 +109,6 @@ export const GroupDetailSkeleton = ({ kind = 'CEVSEN' }: Props) => {
 					</View>
 				</CardSurface>
 
-				<MyProgressCardSkeleton />
-
 				{/*
 				 * "Sana atanan", closed: the slice badge with its count chip beside it, one line of
 				 * label — the sentence that once sat under it is gone on the screen too — and the done
@@ -195,6 +193,9 @@ export const GroupDetailSkeleton = ({ kind = 'CEVSEN' }: Props) => {
 						/>
 					</CardSurface>
 				)}
+
+				{/* Under the share, as on the screen. */}
+				<MyProgressCardSkeleton />
 
 				{/* The row shape "Geçen tur" and "Havuz" share: a tile, two lines, a chevron. */}
 				<CardSurface style={styles.rowCard}>

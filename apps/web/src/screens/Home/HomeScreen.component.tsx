@@ -19,6 +19,7 @@ import { pluralKey } from '@/lib/i18n/plural';
 import type { StringKey } from '@/lib/i18n/strings';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { hizbPartsLabel, partLabelKey } from '@/lib/utils/groups';
+import { planReadingRoute } from '@/lib/utils/personalPlan';
 import {
 	buildHomeTasks,
 	homeStateFor,
@@ -173,6 +174,7 @@ export const HomeScreen = () => {
 				.map(task => ({
 					cuzNumber: task.nextNumber ?? 0,
 					groupId: task.groupId,
+					isPlan: task.isPlan,
 					roundIndex: task.roundIndex ?? 0
 				})),
 		[pending]
@@ -227,9 +229,12 @@ export const HomeScreen = () => {
 			return;
 		}
 
-		// A plan's owed day opens its own reading, as a Cevşen share opens its bab.
+		// A plan's owed day opens its own reading, as a Cevşen share opens its bab — in its own book's reader.
 		if (task.planAssignmentId !== null) {
-			navigation.navigate('HizbPlanReader', { assignmentId: task.planAssignmentId, groupId: task.groupId });
+			navigation.navigate(planReadingRoute(task.kind), {
+				assignmentId: task.planAssignmentId,
+				groupId: task.groupId
+			});
 
 			return;
 		}
@@ -293,7 +298,9 @@ export const HomeScreen = () => {
 		return { page: Math.min(read, total), total };
 	};
 
-	const isBegun = (task: HomeTask) => (task.kind === 'HATIM' ? pagesOf(task).page > 0 : task.done > 0);
+	// A Şahsi Kur'an day counts its marked cüz on its own screen, not a held cüz's pages.
+	const isBegun = (task: HomeTask) =>
+		task.kind === 'HATIM' && !task.isPlan ? pagesOf(task).page > 0 : task.done > 0;
 
 	const nextCard = next
 		? (() => {
@@ -335,7 +342,7 @@ export const HomeScreen = () => {
 					);
 				}
 
-				const pages = next.kind === 'HATIM' ? pagesOf(next) : null;
+				const pages = next.kind === 'HATIM' && !next.isPlan ? pagesOf(next) : null;
 				const place =
 					next.kind === 'HATIM'
 						? t('homeCuzRange', { range: next.nextNumber ?? '' })
@@ -366,6 +373,24 @@ export const HomeScreen = () => {
 											'countPortionsOther'
 										),
 										{ count: next.isPlan ? next.unitNumbers.length : next.total }
+								  )
+								: next.isPlan
+								? // A Şahsi day counts its babs or cüz, as its heading names them.
+								  t(
+										next.kind === 'HATIM'
+											? pluralKey(
+													language,
+													next.unitNumbers.length,
+													'countCuzOne',
+													'countCuzOther'
+											  )
+											: pluralKey(
+													language,
+													next.unitNumbers.length,
+													'countBabsOne',
+													'countBabsOther'
+											  ),
+										{ count: next.unitNumbers.length }
 								  )
 								: t(pluralKey(language, next.total, 'countBabsOne', 'countBabsOther'), {
 										count: next.total
@@ -505,7 +530,7 @@ export const HomeScreen = () => {
 								);
 							}
 
-							const pages = task.kind === 'HATIM' ? pagesOf(task) : null;
+							const pages = task.kind === 'HATIM' && !task.isPlan ? pagesOf(task) : null;
 
 							return (
 								<HomeGroupRow

@@ -74,8 +74,6 @@ export const HatimGroupSkeleton = () => {
 					</View>
 				</CardSurface>
 
-				<MyProgressCardSkeleton />
-
 				{/*
 				 * "Cüzlerin", closed. The badge is wider than the Cevşen's square because it holds
 				 * the cüz themselves ("7 · 22"), and there is no slice chip beside it — a hatim's
@@ -100,6 +98,9 @@ export const HatimGroupSkeleton = () => {
 					</View>
 					<View style={[styles.assignedMeta, { backgroundColor: toAlphaColor(theme.colors.accent, 0.18) }]} />
 				</CardSurface>
+
+				{/* Under the share, as on the screen. */}
+				<MyProgressCardSkeleton />
 
 				{/* The row shape "Geçen tur", "Havuz" and "Hatim duası" all share: a tile, two lines, a chevron. */}
 				<CardSurface style={styles.rowCard}>

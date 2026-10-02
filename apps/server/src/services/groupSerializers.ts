@@ -10,7 +10,8 @@ import type {
 	Group,
 	GroupBab as GroupBabModel,
 	GroupMember as GroupMemberModel,
-	PoolClaimRelease as PoolClaimReleaseModel
+	PoolClaimRelease as PoolClaimReleaseModel,
+	ReadingPlace as ReadingPlaceModel
 } from '../generated/prisma/client';
 
 // These mirror apps/web/src/lib/types/domain.ts exactly — the server has no shared types
@@ -65,7 +66,19 @@ export type GroupMember = {
 };
 
 export type GroupSummary = {
-	hizbToday?: { planDays: number; portion: number; completed: boolean; assignmentId: string | null } | null;
+	/**
+	 * The viewer's day on a personal plan. `portion` is the plan's day, 1-based; `units` — on a Şahsi
+	 * Cevşen or Kur'an reading only — are that day's babs or cüz.
+	 */
+	hizbToday?: {
+		planDays: number;
+		portion: number;
+		units?: number[];
+		/** A Şahsi Kur'an day's cüz marked read so far, before the day is complete. */
+		readUnits?: number[];
+		completed: boolean;
+		assignmentId: string | null;
+	} | null;
 	/** A personal-plan Hizb's board today: the canonical spans its completed readings cover. */
 	hizbCoveredSpans?: number[];
 	/** A personal-plan Hizb's readers today: everyone on a plan now, and how many of them read. */
@@ -79,7 +92,13 @@ export type GroupSummary = {
 	/** Which day of the group today is, 1-based, in the group's zone. */
 	hizbDay?: number;
 	hizbPlan?: number | null;
+	/** One person's private reading, of any kind: a Hizb individual plan or a Şahsi Cevşen/Kur'an. */
 	hizbIndividual?: boolean;
+	/**
+	 * A Şahsi Cevşen or Kur'an reading's length in days — its book split over them, read by the
+	 * `/reading` routes like a Hizb plan. Null on every other group, a Hizb included.
+	 */
+	planDays?: number | null;
 	hizbStartPortion?: number;
 	inactivityDays?: number | null;
 	hideMemberNames: boolean;
@@ -208,6 +227,21 @@ export type PoolClaimReleaseNotice = {
 	endBab: number;
 };
 
+/** The viewer's place in one unit of the round — see `readingPlace.service`. */
+export type ReadingPlace = {
+	unitNumber: number;
+	/** The page within the unit, 1-based, or null when only pages read are known. */
+	position: number | null;
+	textPagesRead: number;
+	husrevPagesRead: number;
+};
+
+/** The viewer's places in the round the group is on. */
+export type ReadingPlaces = {
+	roundIndex: number;
+	places: ReadingPlace[];
+};
+
 export type GroupInvitePreview = {
 	hizbPlan?: number | null;
 	/** See `GroupSummary` — the same fields, from `hizbSummary`. */
@@ -218,6 +252,8 @@ export type GroupInvitePreview = {
 	hizbRemovalDays?: number | null;
 	hizbDay?: number;
 	hizbIndividual?: boolean;
+	/** See `GroupSummary.planDays`. */
+	planDays?: number | null;
 	hizbStartPortion?: number;
 	inactivityDays?: number | null;
 	hideMemberNames: boolean;
@@ -414,7 +450,8 @@ export const toGroupSummary = (
 	const memberCount = members.length;
 	const spotsLeft = Math.max(0, group.spots - memberCount);
 	const roundIndex = roundIndexFor(group);
-	const isHatim = group.kind === 'HATIM';
+	// A Şahsi Kur'an reading has no cüz to hold or pick: its day comes from its plan (`hizbSummary`).
+	const isHatim = group.kind === 'HATIM' && group.planDays === null;
 	const plan = resolveUnitPlan({ group, holdings, members, roundIndex });
 
 	const viewerMember = members.find(member => member.userId === viewerUserId);
@@ -474,6 +511,7 @@ export const toGroupSummary = (
 		id: group.id,
 		hizbPlan: group.hizbPlan,
 		hizbIndividual: group.hizbIndividual,
+		planDays: group.planDays,
 		hizbStartPortion: group.hizbStartPortion,
 		inactivityDays: group.inactivityDays,
 		hideMemberNames: group.hideMemberNames,
@@ -750,6 +788,7 @@ export const toInvitePreview = (
 		id: group.id,
 		hizbPlan: group.hizbPlan,
 		hizbIndividual: group.hizbIndividual,
+		planDays: group.planDays,
 		hizbStartPortion: group.hizbStartPortion,
 		inactivityDays: group.inactivityDays,
 		name: group.name,
@@ -812,3 +851,12 @@ export const toInvitePreview = (
 		nextRange
 	};
 };
+
+export const toReadingPlace = (
+	place: Pick<ReadingPlaceModel, 'husrevPagesRead' | 'position' | 'textPagesRead' | 'unitNumber'>
+): ReadingPlace => ({
+	unitNumber: place.unitNumber,
+	position: place.position,
+	textPagesRead: place.textPagesRead,
+	husrevPagesRead: place.husrevPagesRead
+});

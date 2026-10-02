@@ -51,13 +51,16 @@ export const deleteAccountForUser = async (userId: string): Promise<{ success: t
 		}
 
 		/*
-		 * A Hizb plan's enrollment is **closed, not deleted** — leaving, the same as `removeMember`.
+		 * A personal plan's enrollment is **closed, not deleted** — leaving, the same as `removeMember`.
 		 * Its assignments cascade from it, and they are the member's reads: deleting it took their
 		 * completed portions out of the group's coverage. Enrollments in groups they owned went
 		 * with the group; ones already closed stay as they are.
 		 */
 		const planGroups = await tx.group.findMany({
-			where: { hizbPlan: { not: null }, hizbEnrollments: { some: { userId: normalizedUserId, endDay: null } } }
+			where: {
+				OR: [{ hizbPlan: { not: null } }, { planDays: { not: null } }],
+				hizbEnrollments: { some: { userId: normalizedUserId, endDay: null } }
+			}
 		});
 
 		for (const group of planGroups) {
@@ -67,6 +70,8 @@ export const deleteAccountForUser = async (userId: string): Promise<{ success: t
 		await tx.groupMember.deleteMany({ where: { userId: normalizedUserId } });
 		// "Bu turu atla" choices — a record about the member, so it leaves with them.
 		await tx.cuzRoundSkip.deleteMany({ where: { userId: normalizedUserId } });
+		// Where they left off in the readers, in groups they merely joined.
+		await tx.readingPlace.deleteMany({ where: { userId: normalizedUserId } });
 
 		await tx.cheer.deleteMany({
 			where: { OR: [{ fromUserId: normalizedUserId }, { toUserId: normalizedUserId }] }

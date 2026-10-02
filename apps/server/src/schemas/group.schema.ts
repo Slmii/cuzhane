@@ -1,6 +1,6 @@
-import { partCountFor } from '@utils/groupKinds';
+import { PERSONAL_PLAN_MAX_DAYS, partCountFor } from '@utils/groupKinds';
 import { DEFAULT_TIME_ZONE, isValidTimeZone } from '@utils/rounds';
-import { CUZ_COUNT } from '@utils/units';
+import { CUZ_COUNT, PART_COUNT } from '@utils/units';
 import { z } from 'zod';
 
 /**
@@ -77,6 +77,37 @@ export const PoolCuzParamsSchema = z.object({
 	cuzNumber: z.coerce.number().int().min(1).max(CUZ_COUNT)
 });
 
+/**
+ * A unit of the group's board — a bab, a cüz or a Hizb portion. The largest count is the outer
+ * bound; the service holds it to the group's own `unitCountFor`.
+ */
+export const ReadingPlaceParamsSchema = z.object({
+	groupId: z.string().trim().min(1).max(64),
+	unitNumber: z.coerce
+		.number()
+		.int()
+		.min(1)
+		.max(Math.max(...Object.values(PART_COUNT)))
+});
+
+/** The most pages a unit has: a cüz in either pagination, or a Hizb portion's blocks. */
+export const READING_PLACE_MAX_PAGES = 30;
+
+/** "Kaldığım yer" and the pages turned past, either or both. See `readingPlace.service`. */
+export const SaveReadingPlaceBodySchema = z
+	.object({
+		position: z.number().int().min(1).max(READING_PLACE_MAX_PAGES).optional(),
+		textPagesRead: z.number().int().min(0).max(READING_PLACE_MAX_PAGES).optional(),
+		husrevPagesRead: z.number().int().min(0).max(READING_PLACE_MAX_PAGES).optional()
+	})
+	.strict()
+	.refine(
+		body => body.position !== undefined || body.textPagesRead !== undefined || body.husrevPagesRead !== undefined,
+		{ message: 'Nothing to save' }
+	);
+
+export type SaveReadingPlaceBody = z.infer<typeof SaveReadingPlaceBodySchema>;
+
 /** A member's own cüz for the round in progress — QR1's pick. See `cuzRound.service`. */
 export const PickRoundCuzBodySchema = z.object({
 	cuzNumbers: z.array(z.number().int().min(1).max(CUZ_COUNT)).min(1).max(CUZ_COUNT)
@@ -94,9 +125,9 @@ const CreateGroupBaseSchema = z.object({
 });
 
 /**
- * A personal plan or an individual reading is the Hizb's alone. Declared on the other kinds
- * only so a body asking for one is **refused rather than stripped** — stripped, it would
- * quietly create a shared group the creator never asked for.
+ * The Hizb's plan fields. Declared on the other kinds only so a body asking for one is **refused
+ * rather than stripped** — stripped, it would quietly create a shared group the creator never
+ * asked for. Those kinds ask for a Şahsi reading with `planDays` instead.
  */
 const NotHizbSchema = {
 	hizbIndividual: z.literal(false, { message: 'Individual reading requires Hizb' }).optional(),
@@ -130,8 +161,17 @@ const CreateCevsenBodySchema = CreateGroupBaseSchema.extend({
 	splitMode: z.enum(['ROTATION', 'FIXED', 'FLEXIBLE']).default('ROTATION'),
 	cycle: z.enum(['DAILY', 'WEEKLY']).default('WEEKLY'),
 	spots: z.number().int().default(20),
+	/**
+	 * Şahsi reading: the hundred babs over this many days, one person's, private — so none of the
+	 * sharing settings above apply. Immutable, like the kind.
+	 */
+	planDays: z.number().int().min(1).max(PERSONAL_PLAN_MAX_DAYS.CEVSEN).optional(),
 	...NotHizbSchema
 }).superRefine((body, context) => {
+	// A Şahsi reading has no seats and no shared round to size.
+	if (body.planDays !== undefined) {
+		return;
+	}
 	if (body.splitMode === 'FLEXIBLE') {
 		if (body.visibility !== 'OPEN') {
 			context.addIssue({ code: 'custom', message: 'Flexible groups must be open', path: ['visibility'] });
@@ -187,8 +227,17 @@ const CreateHatimBodySchema = CreateGroupBaseSchema.extend({
 	 * you cannot be in a hatim and hold no cüz — so it is enforced at the edge rather than
 	 * left to the client's disabled button.
 	 */
-	cuzNumbers: z.array(z.number().int().min(1).max(30)).min(1).max(30),
+	cuzNumbers: z.array(z.number().int().min(1).max(30)).min(1).max(30).optional(),
+	/**
+	 * Şahsi reading: the thirty cüz over this many days, one person's, private — so none of the
+	 * sharing settings above, and no cüz to pick: the plan reads them all, in order.
+	 */
+	planDays: z.number().int().min(1).max(PERSONAL_PLAN_MAX_DAYS.HATIM).optional(),
 	...NotHizbSchema
+}).superRefine((body, context) => {
+	if (body.planDays === undefined && body.cuzNumbers === undefined) {
+		context.addIssue({ code: 'custom', message: 'Choose at least one cüz', path: ['cuzNumbers'] });
+	}
 });
 
 /**
@@ -201,6 +250,8 @@ const CreateHizbBodySchema = CreateGroupBaseSchema.extend({
 	hizbIndividual: z.boolean().default(false),
 	hizbStartPortion: z.number().int().min(1).max(33).default(1),
 	hizbPlan: z.union([z.literal(0), z.literal(7), z.literal(15), z.literal(33)]).optional(),
+	// Refused rather than stripped, as `NotHizbSchema` does the other way round: a Hizb plan is `hizbPlan`.
+	planDays: z.undefined({ message: 'A plan length in days is for Cevşen and Kur’an groups' }).optional(),
 	inactivityDays: z.number().int().min(1).max(365).nullable().optional(),
 	// "Okuma sorumluları" — a shared plan's "has read" notice to the ticked members only.
 	readSeersEnabled: z.boolean().default(false),

@@ -8,7 +8,9 @@ import {
 	GroupSummary,
 	GroupVisibility,
 	PoolCuz,
-	PoolSlot
+	PoolSlot,
+	ReadingPlace,
+	ReadingPlaces
 } from '@/lib/types/domain';
 
 type CreateGroupCommon = {
@@ -63,7 +65,12 @@ export type CreateGroupInput =
 			roundDays: number;
 			/** The cüz the creator takes (QC4). The server requires at least one. */
 			cuzNumbers: number[];
-	  });
+	  })
+	/**
+	 * A Şahsi Cevşen or Kur'an reading: one person's, private, the book split over `planDays`
+	 * (Cevşen 1–90, Kur'an 1–30). The server ignores every sharing setting on it.
+	 */
+	| (CreateGroupCommon & { kind: 'CEVSEN' | 'HATIM'; planDays: number });
 
 // Mirrors the server's UpdateGroupBodySchema. `kind`, `spots`, `splitMode` and `cycle` are
 // immutable once the group exists and are deliberately absent — the server rejects them.
@@ -187,6 +194,27 @@ export const pickRoundCuz = async ({ cuzNumbers, groupId }: { cuzNumbers: number
 /** QR1's "Bu turu atla": the member's cüz go back to the havuz and the round is sat out. */
 export const skipRound = async (groupId: string) =>
 	wrapperApi<{ success: boolean }>(`/groups/${groupId}/round-skip`, { method: 'POST' });
+
+/** The viewer's places in the group's current round — a board group only, never a personal plan. */
+export const getReadingPlaces = async (groupId: string) =>
+	wrapperApi<ReadingPlaces>(`/groups/${groupId}/reading-places`, { method: 'GET' });
+
+/** What a save carries: the page now open, the pages turned past (only ever raised), or both. */
+export type ReadingPlacePatch = { position?: number; textPagesRead?: number; husrevPagesRead?: number };
+
+export const saveReadingPlace = async ({
+	groupId,
+	patch,
+	unitNumber
+}: {
+	groupId: string;
+	patch: ReadingPlacePatch;
+	unitNumber: number;
+}) =>
+	wrapperApi<ReadingPlace>(`/groups/${groupId}/reading-places/${unitNumber}`, {
+		method: 'PUT',
+		body: JSON.stringify(patch)
+	});
 
 /** Acknowledges the "a joiner took over the block you volunteered for" notices in a group. */
 export const markPoolReleasesSeen = async (groupId: string) =>

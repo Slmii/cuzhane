@@ -57,6 +57,32 @@ describe('createGroupSchema', () => {
 	});
 });
 
+describe('Şahsi Cevşen and Kur’an creation', () => {
+	it('accepts a Cevşen read alone over one to ninety days', () => {
+		expect(issuePaths({ kind: 'CEVSEN', hizbIndividual: true, planDays: 1 })).toEqual([]);
+		expect(issuePaths({ kind: 'CEVSEN', hizbIndividual: true, planDays: 90 })).toEqual([]);
+	});
+
+	it('accepts a Kur’an read alone over one to thirty days', () => {
+		expect(issuePaths({ kind: 'HATIM', hizbIndividual: true, planDays: 1 })).toEqual([]);
+		expect(issuePaths({ kind: 'HATIM', hizbIndividual: true, planDays: 30 })).toEqual([]);
+	});
+
+	it('refuses a length past the kind’s range, on the plan length', () => {
+		expect(issuePaths({ kind: 'HATIM', hizbIndividual: true, planDays: 31 })).toEqual(['planDays']);
+		expect(issuePaths({ kind: 'CEVSEN', hizbIndividual: true, planDays: 91 })).toEqual(['planDays']);
+		expect(issuePaths({ kind: 'CEVSEN', hizbIndividual: true, planDays: 0 })).toEqual(['planDays']);
+	});
+
+	it('asks a Şahsi Cevşen nothing about seats or a cadence', () => {
+		expect(issuePaths({ kind: 'CEVSEN', hizbIndividual: true, spots: 7, cycle: 'MONTHLY' })).toEqual([]);
+	});
+
+	it('leaves the plan length alone on a shared group', () => {
+		expect(issuePaths({ kind: 'HATIM', planDays: 60 })).toEqual([]);
+	});
+});
+
 describe('individual Hizb creation', () => {
 	it('keeps the individual choice and starting portion', () => {
 		const result = schema.parse({

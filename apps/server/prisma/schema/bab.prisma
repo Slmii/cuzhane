@@ -172,3 +172,29 @@ model CuzRoundSkip {
     @@unique([groupId, userId, roundIndex])
     @@index([userId])
 }
+
+/// Where a member is inside one unit of a board group's round — a cüz, a bab or a Hizb portion —
+/// so the reader opens there again on any device. Only ever read or written by its own member.
+///
+/// Belongs to its round: a group that keeps its cüz hands the same cüz back next round, unread,
+/// so last round's place means nothing then. A personal-plan group keeps its place on the plan
+/// reading's `bookmark` instead, and has no rows here.
+model ReadingPlace {
+    id              String   @id @default(cuid())
+    groupId         String
+    userId          String
+    roundIndex      Int
+    unitNumber      Int
+    /// The page within the unit, 1-based — "Kaldığım yer". Null while only pages read are known.
+    position        Int?
+    /// A cüz's pages turned past this round, per pagination (the typeset pages, Hüsrev's own) —
+    /// Ana sayfa's "4/20 s". Only ever raised.
+    textPagesRead   Int      @default(0)
+    husrevPagesRead Int      @default(0)
+    updatedAt       DateTime @updatedAt
+
+    group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+    @@unique([groupId, userId, roundIndex, unitNumber])
+    @@index([userId])
+}

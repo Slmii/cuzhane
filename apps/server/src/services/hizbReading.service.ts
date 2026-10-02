@@ -1,6 +1,8 @@
 import prisma from '@db/prisma';
 import { BAD_REQUEST, CONFLICT, FORBIDDEN, NOT_FOUND } from '@config/httpCodes';
 import { HttpError } from '@config/httpError';
+import { babNumbersForSlot } from '@utils/babs';
+import { isPersonalPlan, partCountFor, type GroupKindName } from '@utils/groupKinds';
 import {
 	hasDelailRepetition,
 	hasIstighfar,
@@ -8,7 +10,6 @@ import {
 	isPlanDays,
 	PLAN_SPANS,
 	PLAN_VERSION,
-	portionForDay,
 	spansFor
 } from '@utils/hizbPlans';
 import { civilDayNumber, startOfCivilDay } from '@utils/rounds';
@@ -20,13 +21,43 @@ import { notifyHizbRead } from './hizbReadNotice.service';
 const dayOf = (group: Group) => civilDayNumber(new Date(), group.timezone);
 const dateOf = (day: number) => new Date(day * 86400000).toISOString().slice(0, 10);
 
+/*
+ * The plan engine — days, rounds, reading ahead, catch-up, undo — is the same for every kind; only
+ * what a day reads differs. A Hizb day is cut on its text (`utils/hizbPlans`) and carries its
+ * repetition gates. A Şahsi Cevşen or Kur'an day is a block of babs or cüz: the book split over the
+ * plan's days as seats split it (`rangeForSlot`), the first days one longer when it does not divide
+ * evenly, with no gates. Its portion is the day of the plan, 1-based.
+ */
+
+/** Which day of its plan a reading day falls on, 1-based — `portionForDay` for any length. */
+const planPortionFor = (days: number, sequence: number, dayIndex: number) =>
+	((((sequence + dayIndex) % days) + days) % days) + 1;
+
+/** A Cevşen or Kur'an plan day's babs or cüz. */
+const unitsOfDay = (kind: GroupKindName, planDays: number, portion: number) =>
+	babNumbersForSlot(portion - 1, planDays, partCountFor(kind));
+
+/** What a Cevşen or Kur'an day reads, on whatever carries its portion; nothing extra on a Hizb one. */
+const unitFields = (kind: GroupKindName, planDays: number, portion: number): { units?: number[] } =>
+	kind === 'HIZB' ? {} : { units: unitsOfDay(kind, planDays, portion) };
+
+/** The Hizb's repetition gates — Sekine, the opening istighfar, the Delâil salawat. Hizb only. */
+const gatesOf = (kind: GroupKindName, planDays: number, portion: number) =>
+	kind === 'HIZB'
+		? {
+				sekine: hasSekine(planDays, portion),
+				istighfar: hasIstighfar(planDays, portion),
+				delail: hasDelailRepetition(planDays, portion)
+		  }
+		: { sekine: false, istighfar: false, delail: false };
+
 async function requireReader(tx: Prisma.TransactionClient, userId: string, groupId: string) {
 	const member = await tx.groupMember.findUnique({ where: { groupId_userId: { groupId, userId } } });
 	if (!member) {
 		throw new HttpError(FORBIDDEN, 'You must belong to this group');
 	}
 	const group = await tx.group.findUniqueOrThrow({ where: { id: groupId } });
-	if (group.hizbPlan === null) {
+	if (!isPersonalPlan(group)) {
 		throw new HttpError(BAD_REQUEST, 'This group does not use personal plans');
 	}
 	return group;
@@ -75,6 +106,9 @@ export async function enrollHizbInTransaction(
 	userId: string,
 	requested?: number
 ) {
+	if (group.planDays !== null) {
+		return enrollShahsiReader(tx, group, group.planDays, userId);
+	}
 	const days = requested ?? (group.hizbPlan || 33);
 	if (!isPlanDays(days) || (group.hizbPlan !== 0 && group.hizbPlan !== days)) {
 		throw new HttpError(BAD_REQUEST, 'Follow the plan selected by the group creator');
@@ -107,11 +141,40 @@ export async function enrollHizbInTransaction(
 	});
 }
 
+/**
+ * A Şahsi Cevşen or Kur'an reading's one plan, made with the group: its reader is enrolled at
+ * creation, from the first part (sequence 0), on the group's own length. No plan counter — nobody
+ * else ever joins.
+ */
+async function enrollShahsiReader(tx: Prisma.TransactionClient, group: Group, planDays: number, userId: string) {
+	const current = await tx.hizbEnrollment.findFirst({ where: { groupId: group.id, userId, endDay: null } });
+	if (current) {
+		return current;
+	}
+	const allocated = await tx.group.update({ where: { id: group.id }, data: { hizbNextSlot: { increment: 1 } } });
+	const today = dayOf(group);
+	return tx.hizbEnrollment.create({
+		data: {
+			groupId: group.id,
+			userId,
+			planDays,
+			planVersion: PLAN_VERSION,
+			sequence: 0,
+			ordinal: allocated.hizbNextSlot - 1,
+			joinedDay: today,
+			generatedThrough: today - 1
+		}
+	});
+}
+
 export async function enrollHizb(userId: string, groupId: string, days?: number) {
 	const user = normalizeUserId(userId);
 	await prisma.$transaction(async tx => {
 		await lockGroup(tx, groupId);
 		const group = await requireReader(tx, user, groupId);
+		if (group.planDays !== null) {
+			throw new HttpError(BAD_REQUEST, 'This reading began when it was created');
+		}
 		await enrollHizbInTransaction(tx, group, user, days);
 	});
 	return getHizbState(user, groupId);
@@ -137,30 +200,56 @@ const spansOfReading = (reading: DayReading) => {
 	return own.filter(span => ticked.has(span));
 };
 
-/** The canonical text spans a day's readings cover — what the group's board draws. */
-const spansCoveredBy = (readings: readonly DayReading[]) => [...new Set(readings.flatMap(spansOfReading))];
+/** What one reading covers on the board: a Hizb day's text spans, or a Cevşen/Kur'an day's babs or cüz. */
+const coverOf = (kind: GroupKindName, reading: DayReading) =>
+	kind === 'HIZB'
+		? spansOfReading(reading)
+		: unitsOfDay(kind, reading.planDays, reading.portion).filter(
+				unit => !reading.partial || reading.partial.includes(unit)
+		  );
+
+/** What a day's readings cover — what the group's board draws: text spans for the Hizb, else units. */
+const coveredBy = (kind: GroupKindName, readings: readonly DayReading[]) => [
+	...new Set(readings.flatMap(reading => coverOf(kind, reading)))
+];
+
+/**
+ * The parts of the day the book sheet offers to tick: the board's 33 a Hizb day touches, or a Kur'an
+ * day's own cüz. A Cevşen is read in the app only, so it offers none.
+ */
+const bookPortionsOf = (kind: GroupKindName, planDays: number, portion: number) =>
+	kind === 'HIZB' ? boardPortionsFor(planDays, portion) : kind === 'HATIM' ? unitsOfDay(kind, planDays, portion) : [];
 
 /**
  * How a reading was marked, for the day's card: the board portions it touches (what the book sheet
  * ticks), those ticked so far, and whether a finished day was read in the app or from the book.
  */
-const bookFields = (a: {
-	portion: number;
-	readPortions: number[];
-	readFrom: string | null;
-	enrollment: { planDays: number };
-}) => ({
-	boardPortions: boardPortionsFor(a.enrollment.planDays, a.portion),
+const bookFields = (
+	kind: GroupKindName,
+	a: {
+		portion: number;
+		readPortions: number[];
+		readFrom: string | null;
+		enrollment: { planDays: number };
+	}
+) => ({
+	boardPortions: bookPortionsOf(kind, a.enrollment.planDays, a.portion),
 	readPortions: a.readPortions,
 	readFrom: a.readFrom === 'BOOK' || a.readFrom === 'APP' ? a.readFrom : null
 });
 
-/** Coverage of the whole text by a day's spans. */
-const coverageOfSpans = (spans: readonly number[]) => ({
-	covered: spans.length,
-	total: PLAN_SPANS.length,
-	complete: spans.length === PLAN_SPANS.length
-});
+/** Coverage of the whole book by a day's spans (Hizb) or units (Cevşen, Kur'an). */
+const coverageOf = (kind: GroupKindName, covered: readonly number[]) => {
+	const total = kind === 'HIZB' ? PLAN_SPANS.length : partCountFor(kind);
+	return { covered: covered.length, total, complete: covered.length === total };
+};
+
+/**
+ * A day's cover as the state carries it: a Hizb's `coveredSpans`; a Cevşen's or Kur'an's
+ * `coveredUnits`, with `coveredSpans` left empty for the shape.
+ */
+const coverFields = (kind: GroupKindName, covered: number[]): { coveredSpans: number[]; coveredUnits?: number[] } =>
+	kind === 'HIZB' ? { coveredSpans: covered } : { coveredSpans: [], coveredUnits: covered };
 
 /** Which of the board's 33 a plan's day touches — what the book sheet offers to tick (the web's `boardPortionsOf`). */
 export const boardPortionsFor = (planDays: number, portion: number) => {
@@ -187,7 +276,7 @@ const nextDayAtFor = (group: Group, today: number) => startOfCivilDay(today + 1,
 const rowFor = (group: Group, enrollment: HizbEnrollment, anchor: number, day: number) => ({
 	enrollmentId: enrollment.id,
 	day,
-	portion: portionForDay(enrollment.planDays, enrollment.sequence + group.hizbStartPortion - 1, day - anchor),
+	portion: planPortionFor(enrollment.planDays, enrollment.sequence + group.hizbStartPortion - 1, day - anchor),
 	traversal: Math.floor((day - enrollment.joinedDay) / enrollment.planDays)
 });
 
@@ -233,7 +322,7 @@ async function aheadOf(tx: Prisma.TransactionClient, enrollmentId: string, today
 }
 
 export async function closeHizbEnrollment(tx: Prisma.TransactionClient, group: Group, userId: string) {
-	if (group.hizbPlan === null) {
+	if (!isPersonalPlan(group)) {
 		return;
 	}
 	await expireHizb(tx, group);
@@ -268,31 +357,41 @@ function roundsOf(enrollments: readonly HizbEnrollment[], today: number) {
 	return { offset, started };
 }
 
+/** A day's reading on its own, as its reader opens it. */
+const readingOf = (kind: GroupKindName, a: HizbAssignment & { enrollment: HizbEnrollment }) => {
+	const gates = gatesOf(kind, a.enrollment.planDays, a.portion);
+	return {
+		id: a.id,
+		day: a.day,
+		date: dateOf(a.day),
+		planDays: a.enrollment.planDays,
+		planVersion: a.enrollment.planVersion,
+		portion: a.portion,
+		...unitFields(kind, a.enrollment.planDays, a.portion),
+		traversal: a.traversal,
+		repetitions: a.repetitions,
+		delailRepetitions: a.delailRepetitions,
+		requiresDelailRepetition: gates.delail,
+		istighfarRepetitions: a.istighfarRepetitions,
+		istighfarTarget: a.istighfarTarget,
+		requiresIstighfar: gates.istighfar,
+		version: a.version,
+		bookmark: a.bookmark,
+		requiresSekine: gates.sekine,
+		...bookFields(kind, a),
+		completedAt: a.completedAt?.toISOString() ?? null
+	};
+};
+
 /** A day's reading as the group screen has it: today's, a missed one, one in history or read ahead. */
 const serializeAssignment = (
+	kind: GroupKindName,
 	a: HizbAssignment & { enrollment: HizbEnrollment },
 	roundOffset: ReadonlyMap<string, number>
 ) => ({
-	id: a.id,
+	...readingOf(kind, a),
 	// The overall round this reading belongs to, 1-based.
-	round: (roundOffset.get(a.enrollmentId) ?? 0) + a.traversal + 1,
-	day: a.day,
-	date: dateOf(a.day),
-	planDays: a.enrollment.planDays,
-	planVersion: a.enrollment.planVersion,
-	portion: a.portion,
-	traversal: a.traversal,
-	repetitions: a.repetitions,
-	delailRepetitions: a.delailRepetitions,
-	requiresDelailRepetition: hasDelailRepetition(a.enrollment.planDays, a.portion),
-	istighfarRepetitions: a.istighfarRepetitions,
-	istighfarTarget: a.istighfarTarget,
-	requiresIstighfar: hasIstighfar(a.enrollment.planDays, a.portion),
-	version: a.version,
-	bookmark: a.bookmark,
-	requiresSekine: hasSekine(a.enrollment.planDays, a.portion),
-	...bookFields(a),
-	completedAt: a.completedAt?.toISOString() ?? null
+	round: (roundOffset.get(a.enrollmentId) ?? 0) + a.traversal + 1
 });
 
 export async function getHizbState(userId: string, groupId: string, cursor?: string) {
@@ -330,7 +429,7 @@ export async function getHizbState(userId: string, groupId: string, cursor?: str
 				...(cursor ? { cursor: { id: cursor }, skip: 1 } : {})
 			});
 			const rounds = roundsOf(enrollments, today);
-			const serialize = (a: NonNullable<typeof assignment>) => serializeAssignment(a, rounds.offset);
+			const serialize = (a: NonNullable<typeof assignment>) => serializeAssignment(group.kind, a, rounds.offset);
 			// A day read ahead counts once its day comes, here as on the board.
 			const completeCycles = await tx.hizbAssignment.groupBy({
 				by: ['enrollmentId', 'traversal'],
@@ -407,9 +506,9 @@ export async function getHizbState(userId: string, groupId: string, cursor?: str
 				).map(a => a.enrollmentId)
 			);
 			const anchor = civilDayNumber(group.startedAt ?? group.startsAt, group.timezone);
-			// Which canonical text spans a day's readings cover, for the group's board.
-			const spansOn = (day: number) => spansCoveredBy(readingsFor(day));
-			const coverage = (day: number) => coverageOfSpans(spansOn(day));
+			// What a day's readings cover, for the group's board: text spans, or babs or cüz.
+			const coveredOn = (day: number) => coveredBy(group.kind, readingsFor(day));
+			const coverage = (day: number) => coverageOf(group.kind, coveredOn(day));
 			// The catch-up list: every unread day of the viewer's before today, newest first. Uncapped —
 			// the history screen lists them all, and a day row is a few numbers.
 			const missed = await tx.hizbAssignment.findMany({
@@ -436,6 +535,7 @@ export async function getHizbState(userId: string, groupId: string, cursor?: str
 				  }
 				: null;
 			const ahead = current?.endDay === null ? await aheadOf(tx, current.id, today) : null;
+			const aheadPortion = current && ahead ? rowFor(group, current, anchor, ahead.next).portion : null;
 			return {
 				today: assignment ? serialize(assignment) : null,
 				// Once today is read: the next day's portion, offered to read ahead.
@@ -444,7 +544,8 @@ export async function getHizbState(userId: string, groupId: string, cursor?: str
 						? {
 								day: ahead.next,
 								date: dateOf(ahead.next),
-								portion: rowFor(group, current, anchor, ahead.next).portion,
+								portion: aheadPortion!,
+								...unitFields(group.kind, current.planDays, aheadPortion!),
 								assignmentId: ahead.row?.id ?? null
 						  }
 						: null,
@@ -457,17 +558,22 @@ export async function getHizbState(userId: string, groupId: string, cursor?: str
 								day: row.day,
 								date: dateOf(row.day),
 								portion: row.portion,
+								...unitFields(group.kind, current!.planDays, row.portion),
 								completedAt: row.completedAt!.toISOString()
 							}))
 					  }
 					: null,
 				currentRound,
 				missed: missed.map(serialize),
-				coveredSpans: spansOn(today),
+				...coverFields(group.kind, coveredOn(today)),
 				// The group's day before today — "Geçen tur" on a daily plan. Null on its first day.
 				previousDay:
 					today > anchor
-						? { date: dateOf(today - 1), ...coverage(today - 1), coveredSpans: spansOn(today - 1) }
+						? {
+								date: dateOf(today - 1),
+								...coverage(today - 1),
+								...coverFields(group.kind, coveredOn(today - 1))
+						  }
 						: null,
 				enrollment: current
 					? {
@@ -505,11 +611,13 @@ export async function getHizbState(userId: string, groupId: string, cursor?: str
 					const m = memberByUser.get(e.userId);
 					const isMe = e.userId === user;
 					const anonymous = namesHiddenFrom(group, user, memberByUser.get(user)) && !isMe;
+					const portion = planPortionFor(e.planDays, e.sequence + group.hizbStartPortion - 1, today - anchor);
 					return {
 						id: e.id,
 						displayName: anonymous ? null : m?.displayName ?? null,
 						planDays: e.planDays,
-						portion: portionForDay(e.planDays, e.sequence + group.hizbStartPortion - 1, today - anchor),
+						portion,
+						...unitFields(group.kind, e.planDays, portion),
 						completed: readToday.has(e.id),
 						// When, for a hidden name too: a time says nothing about who.
 						completedAt: readToday.get(e.id)?.toISOString() ?? null,
@@ -639,11 +747,13 @@ export async function getHizbHistoryDay(userId: string, groupId: string, day: nu
 				const a = byEnrollment.get(e.id);
 				const isMe = e.userId === user;
 				const member = memberByUser.get(e.userId);
+				const portion = planPortionFor(e.planDays, e.sequence + group.hizbStartPortion - 1, day - anchor);
 				return {
 					id: e.id,
 					displayName: hidden && !isMe ? null : member?.displayName ?? null,
 					planDays: e.planDays,
-					portion: portionForDay(e.planDays, e.sequence + group.hizbStartPortion - 1, day - anchor),
+					portion,
+					...unitFields(group.kind, e.planDays, portion),
 					completed: Boolean(a?.completedAt),
 					// Opened and part-way, not yet read.
 					started:
@@ -693,7 +803,11 @@ export async function openHizbAhead(userId: string, groupId: string) {
 		const offered = row
 			? await tx.hizbAssignment.findUniqueOrThrow({ where: { id: row.id } })
 			: await tx.hizbAssignment.create({ data: rowFor(group, current, anchor, next) });
-		return serializeAssignment({ ...offered, enrollment: current }, roundsOf(enrollments, today).offset);
+		return serializeAssignment(
+			group.kind,
+			{ ...offered, enrollment: current },
+			roundsOf(enrollments, today).offset
+		);
 	});
 }
 
@@ -733,9 +847,17 @@ export async function updateHizbAssignment(
 			throw new HttpError(NOT_FOUND, 'Reading not found');
 		}
 		const today = dayOf(group);
+		// A finished Kur'an or Cevşen day with one cüz or bab unmarked: undone, keeping the rest
+		// marked, in one write.
+		const unticks =
+			group.kind !== 'HIZB' &&
+			input.bookPortions !== undefined &&
+			input.read === undefined &&
+			assignment.completedAt !== null;
+		const undoes = input.read === false || unticks;
 		// A later day is read ahead in order: today and every day up to it read first. Undoing a read day
 		// is not reading — the rule below governs it — but anything else on an unread day is.
-		if (assignment.day > today && (input.read !== false || assignment.completedAt === null)) {
+		if (assignment.day > today && (!undoes || assignment.completedAt === null)) {
 			const readBefore = await tx.hizbAssignment.count({
 				where: {
 					enrollmentId: assignment.enrollmentId,
@@ -748,7 +870,7 @@ export async function updateHizbAssignment(
 			}
 		}
 		// Read ahead is undone from the end: today, or a day after it, only with no later day read.
-		if (input.read === false && assignment.completedAt !== null && assignment.day >= today) {
+		if (undoes && assignment.completedAt !== null && assignment.day >= today) {
 			const readAfter = await tx.hizbAssignment.count({
 				where: {
 					enrollmentId: assignment.enrollmentId,
@@ -763,12 +885,18 @@ export async function updateHizbAssignment(
 		if (!Number.isInteger(input.version) || input.version < 0) {
 			throw new HttpError(BAD_REQUEST, 'Invalid version');
 		}
+		const changesIstighfar = input.istighfarRepetitions !== undefined || input.istighfarTarget !== undefined;
+		// The repetition counters are the Hizb's; a Cevşen or Kur'an day has none.
+		if (
+			group.kind !== 'HIZB' &&
+			(input.repetitions !== undefined || input.delailRepetitions !== undefined || changesIstighfar)
+		) {
+			throw new HttpError(BAD_REQUEST, 'This reading has no repetitions');
+		}
+		const gates = gatesOf(group.kind, assignment.enrollment.planDays, assignment.portion);
 		if (
 			input.repetitions !== undefined &&
-			(!Number.isInteger(input.repetitions) ||
-				input.repetitions < 0 ||
-				input.repetitions > 19 ||
-				!hasSekine(assignment.enrollment.planDays, assignment.portion))
+			(!Number.isInteger(input.repetitions) || input.repetitions < 0 || input.repetitions > 19 || !gates.sekine)
 		) {
 			throw new HttpError(BAD_REQUEST, 'Invalid repetition count');
 		}
@@ -777,12 +905,11 @@ export async function updateHizbAssignment(
 			(!Number.isInteger(input.delailRepetitions) ||
 				input.delailRepetitions < 0 ||
 				input.delailRepetitions > 3 ||
-				!hasDelailRepetition(assignment.enrollment.planDays, assignment.portion))
+				!gates.delail)
 		) {
 			throw new HttpError(BAD_REQUEST, 'Invalid Delail repetition count');
 		}
-		const changesIstighfar = input.istighfarRepetitions !== undefined || input.istighfarTarget !== undefined;
-		if (changesIstighfar && !hasIstighfar(assignment.enrollment.planDays, assignment.portion)) {
+		if (changesIstighfar && !gates.istighfar) {
 			throw new HttpError(BAD_REQUEST, 'This reading has no opening istighfar');
 		}
 		if (
@@ -799,7 +926,12 @@ export async function updateHizbAssignment(
 		) {
 			throw new HttpError(BAD_REQUEST, 'Choose between 1 and 100 istighfar repetitions');
 		}
-		const dayPortions = boardPortionsFor(assignment.enrollment.planDays, assignment.portion);
+		// What a day's ticks may name: the book sheet's portions — or, for a Cevşen read in the app, the
+		// day's babs, each ticked by its "Okudum" while the reader moves freely with its arrows.
+		const dayPortions =
+			group.kind === 'CEVSEN'
+				? unitsOfDay(group.kind, assignment.enrollment.planDays, assignment.portion)
+				: bookPortionsOf(group.kind, assignment.enrollment.planDays, assignment.portion);
 		if (input.bookPortions !== undefined) {
 			const ticked = new Set(input.bookPortions);
 			if (
@@ -810,7 +942,7 @@ export async function updateHizbAssignment(
 			) {
 				throw new HttpError(BAD_REQUEST, 'Invalid portions');
 			}
-			if (assignment.completedAt !== null) {
+			if (assignment.completedAt !== null && !(unticks && ticked.size < dayPortions.length)) {
 				throw new HttpError(CONFLICT, 'This reading is already read');
 			}
 		}
@@ -839,17 +971,17 @@ export async function updateHizbAssignment(
 			throw new HttpError(CONFLICT, 'Reading changed on another device. Refresh and try again.');
 		}
 		const repetitions = input.repetitions ?? assignment.repetitions;
-		const read = completesFromBook || (input.read ?? assignment.completedAt !== null);
+		const read = completesFromBook || (!unticks && (input.read ?? assignment.completedAt !== null));
 		// Read from the book, the counters were kept by the reader: no gate, now or on a later page turn.
 		const isFromBook = completesFromBook || (assignment.completedAt !== null && assignment.readFrom === 'BOOK');
 		const gated = read && !isFromBook;
-		if (gated && hasSekine(assignment.enrollment.planDays, assignment.portion) && repetitions < 19) {
+		if (gated && gates.sekine && repetitions < 19) {
 			throw new HttpError(CONFLICT, 'Complete all 19 Sekine repetitions first');
 		}
 		const delailRepetitions = input.delailRepetitions ?? assignment.delailRepetitions;
 		if (
 			gated &&
-			hasDelailRepetition(assignment.enrollment.planDays, assignment.portion) &&
+			gates.delail &&
 			(assignment.completedAt === null || input.delailRepetitions !== undefined) &&
 			delailRepetitions < 3
 		) {
@@ -860,7 +992,7 @@ export async function updateHizbAssignment(
 		// Keep historical completions intact without inventing counts; new completions must meet the target.
 		if (
 			gated &&
-			hasIstighfar(assignment.enrollment.planDays, assignment.portion) &&
+			gates.istighfar &&
 			(assignment.completedAt === null || changesIstighfar) &&
 			istighfarRepetitions < istighfarTarget
 		) {
@@ -889,13 +1021,13 @@ export async function updateHizbAssignment(
 				readPortions:
 					input.bookPortions && !completesFromBook
 						? [...input.bookPortions].sort((a, b) => a - b)
-						: read || input.read === false
+						: read || undoes
 						? []
 						: assignment.readPortions,
 				readFrom: read
 					? assignment.completedAt
 						? assignment.readFrom
-						: completesFromBook
+						: completesFromBook && group.kind !== 'CEVSEN'
 						? 'BOOK'
 						: 'APP'
 					: null
@@ -914,7 +1046,7 @@ export async function updateHizbAssignment(
 				});
 			}
 		}
-		if (input.read === false) {
+		if (undoes) {
 			const active = await tx.hizbEnrollment.findFirst({ where: { groupId, userId: user, endDay: null } });
 			if (active) {
 				const last = await tx.hizbAssignment.findFirst({
@@ -972,28 +1104,27 @@ export async function getHizbAssignment(userId: string, groupId: string, id: str
 		if (!a) {
 			throw new HttpError(NOT_FOUND, 'Reading not found');
 		}
-		return {
-			id: a.id,
-			day: a.day,
-			date: dateOf(a.day),
-			planDays: a.enrollment.planDays,
-			planVersion: a.enrollment.planVersion,
-			portion: a.portion,
-			traversal: a.traversal,
-			repetitions: a.repetitions,
-			delailRepetitions: a.delailRepetitions,
-			requiresDelailRepetition: hasDelailRepetition(a.enrollment.planDays, a.portion),
-			istighfarRepetitions: a.istighfarRepetitions,
-			istighfarTarget: a.istighfarTarget,
-			requiresIstighfar: hasIstighfar(a.enrollment.planDays, a.portion),
-			version: a.version,
-			bookmark: a.bookmark,
-			requiresSekine: hasSekine(a.enrollment.planDays, a.portion),
-			...bookFields(a),
-			completedAt: a.completedAt?.toISOString() ?? null
-		};
+		return readingOf(group.kind, a);
 	});
 }
+
+/** The viewer's day for Home and reminders: its plan day and, on a Cevşen or Kur'an plan, its units. */
+const todayOf = (group: Group, mine: HizbEnrollment, today: number, own: HizbAssignment | null) => {
+	const portion = planPortionFor(
+		mine.planDays,
+		mine.sequence + group.hizbStartPortion - 1,
+		today - civilDayNumber(group.startedAt ?? group.startsAt, group.timezone)
+	);
+	return {
+		planDays: mine.planDays,
+		portion,
+		...unitFields(group.kind, mine.planDays, portion),
+		// A Kur'an day's cüz marked so far — the shelf counts them before the day is done.
+		...(group.kind === 'HATIM' ? { readUnits: own?.readPortions ?? [] } : {}),
+		completed: own?.completedAt !== null && own?.completedAt !== undefined,
+		assignmentId: own?.id ?? null
+	};
+};
 
 /** Public-safe aggregate for discovery and the group shelf; no personal history or names. */
 export async function hizbSummary(groupId: string, viewerUserId: string) {
@@ -1014,14 +1145,17 @@ export async function hizbSummary(groupId: string, viewerUserId: string) {
 		});
 		const reads = marked.filter(a => a.completedAt !== null);
 		const activeIds = new Set(active.map(e => e.id));
-		const coveredSpans = spansCoveredBy(
+		const covered = coveredBy(
+			group.kind,
 			marked.map(a => ({
 				planDays: a.enrollment.planDays,
 				portion: a.portion,
 				...(a.completedAt ? {} : { partial: a.readPortions })
 			}))
 		);
-		const coverage = coverageOfSpans(coveredSpans);
+		const coverage = coverageOf(group.kind, covered);
+		// A shared board is the Hizb's alone; a Şahsi Cevşen or Kur'an reading counts its one day.
+		const coveredSpans = group.kind === 'HIZB' ? covered : [];
 		const portionsRead = boardPortionsRead(coveredSpans);
 		const mine = active.find(e => e.userId === viewerUserId);
 		// Out of the reading order: no enrollment running, and the last one ended by the inactivity rule.
@@ -1069,18 +1203,7 @@ export async function hizbSummary(groupId: string, viewerUserId: string) {
 			hizbRemovalDays: latest?.reason === 'INACTIVITY' ? latest.removalDays : null,
 			// "41. gün" on the card: the group's own day, counted from 1 on the day it began.
 			hizbDay: today - civilDayNumber(group.startedAt ?? group.startsAt, group.timezone) + 1,
-			hizbToday: mine
-				? {
-						planDays: mine.planDays,
-						portion: portionForDay(
-							mine.planDays,
-							mine.sequence + group.hizbStartPortion - 1,
-							today - civilDayNumber(group.startedAt ?? group.startsAt, group.timezone)
-						),
-						completed: own?.completedAt !== null && own?.completedAt !== undefined,
-						assignmentId: own?.id ?? null
-				  }
-				: null
+			hizbToday: mine ? todayOf(group, mine, today, own) : null
 		};
 	});
 }

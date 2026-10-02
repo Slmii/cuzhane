@@ -99,6 +99,16 @@ export const readAheadRateLimit = rateLimit({
 	handler: tooManyRequestsHandler
 });
 
+/** Saving the reader's place, written as pages turn — generous for reading, a wall against a loop. */
+export const readingPlaceRateLimit = rateLimit({
+	windowMs: 60 * 1000,
+	limit: 120,
+	standardHeaders: 'draft-7',
+	legacyHeaders: false,
+	keyGenerator: userKey,
+	handler: tooManyRequestsHandler
+});
+
 /** Things that call a third party or write a row per request: the verse meal and push-token registration. */
 export const externalCallRateLimit = rateLimit({
 	windowMs: 60 * 1000,

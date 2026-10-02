@@ -1,5 +1,11 @@
 import { useGetGroupById } from '@/lib/hooks/useGroup';
 import { useRequireRoundCuz } from '@/lib/hooks/useHatimRoundGate';
+import { useHizbAssignment, useUpdateHizbAssignment } from '@/lib/hooks/useHizbReading';
+import { useGetReadingPlaces, useSaveReadingPlace } from '@/lib/hooks/useReadingPlaces';
+import { placeIn } from '@/lib/utils/readingPlaces';
+import { useGetBabs, useSetBabRead } from '@/lib/hooks/useBab';
+import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
+import { bookmarkToCuzPlace, cuzPlaceToBookmark, planUnitsOf } from '@/lib/utils/personalPlan';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CaptionText, EyebrowText, TitleText } from '@/components/ui/Typography/Typography.component';
 import { READER_FONT_SIZE_DEFAULT } from '@/lib/content/cevsen';
@@ -48,20 +54,74 @@ type Props = NativeStackScreenProps<TabStackParamList, 'CuzReader'>;
  *
  * **Reading here marks nothing.** Q4 is where a cüz is marked read, and the frame's own
  * subtitle calls this reader optional: a mushaf or another app is just as good. What this
- * screen keeps for you is your *place* — "Kaldığım yeri işaretle" — on the device, like the
- * recent searches, so opening the cüz again lands on the page you left.
+ * screen keeps for you is your *place* — "Kaldığım yeri işaretle" — on the server and on the
+ * device, so opening the cüz again, on any device, lands on the page you left.
  *
  * The text is the Madinah mushaf's, bundled by `fetch-quran-text.ts` and never touched
  * here; the page itself — its lines, sura headers and ayah marks — is `MushafPage`. With
  * "Hüsrev hattı" chosen the same shell shows that edition's printed pages instead
  * (`MushafImagePage`), walking its own twenty pages a cüz.
  */
-export const CuzReaderScreen = ({ navigation, route }: Props) => {
-	const { cuzNumber, groupId } = route.params;
-	// Holding no cüz this round means QR1 comes first, however this screen was reached.
+/**
+ * A Şahsi Kur'an day opened by its reading alone (`assignmentId`, from the group screen, the
+ * missed days or the history): its cüz are fetched first, then handed to the reader as its route,
+ * opening on the first one not yet marked.
+ */
+const PlanDayLoader = ({ navigation, route }: Props) => {
+	const { assignmentId = '', groupId } = route.params;
+	const { theme } = useThemeContext();
+	const query = useHizbAssignment(groupId, assignmentId);
+	const reading = query.data;
+
+	useEffect(() => {
+		if (!reading) {
+			return;
+		}
+
+		const cuzNumbers = reading.units ?? planUnitsOf('HATIM', reading.planDays, reading.portion);
+		// The place marked in the day, else its first cüz not yet marked, from the top.
+		const place = bookmarkToCuzPlace(reading.bookmark);
+		const placeCuz = place ? cuzNumbers[place.cuzIndex] : undefined;
+
+		navigation.setParams({
+			cuzNumber:
+				placeCuz ?? cuzNumbers.find(number => !reading.readPortions.includes(number)) ?? cuzNumbers[0] ?? 1,
+			...(placeCuz !== undefined && place ? { page: place.page } : {}),
+			plan: { cuzNumbers, day: reading.day }
+		});
+	}, [navigation, reading]);
+
+	return query.isError ? (
+		<ErrorState queries={[query]} />
+	) : (
+		<SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]} />
+	);
+};
+
+export const CuzReaderScreen = (props: Props) => {
+	const { assignmentId, cuzNumber, plan } = props.route.params;
+
+	return assignmentId !== undefined && (plan === undefined || cuzNumber === undefined) ? (
+		<PlanDayLoader {...props} />
+	) : (
+		<CuzReaderBody {...props} />
+	);
+};
+
+const CuzReaderBody = ({ navigation, route }: Props) => {
+	const { assignmentId, groupId, plan } = route.params;
+	const cuzNumber = route.params.cuzNumber ?? 1;
+	// Holding no cüz this round means QR1 comes first, however this screen was reached. A Şahsi
+	// reading's day (`plan`) is never asked — the gate knows its group holds none.
 	useRequireRoundCuz(groupId, navigation);
 	// The same cached query the gate above reads — here for which cüz you hold, to page on into.
 	const groupQuery = useGetGroupById(groupId);
+	// A Şahsi day's reading, for "Okudum" at its end; nothing is asked for a group's cüz.
+	const planReading = useHizbAssignment(groupId, assignmentId ?? '', assignmentId !== undefined);
+	const planUpdate = useUpdateHizbAssignment(groupId, assignmentId ?? '');
+	// A group's cüz, for "Okudum" on its last page: whether it is yours this round, and read yet.
+	const babsQuery = useGetBabs(groupId, assignmentId === undefined);
+	const setBabRead = useSetBabRead();
 	const { language, t } = useTranslation();
 	const { theme } = useThemeContext();
 	const tabBarOffset = useContext(TabBarOffsetContext);
@@ -101,32 +161,64 @@ export const CuzReaderScreen = ({ navigation, route }: Props) => {
 	/** Set the moment the reader turns a page, so a bookmark arriving late cannot turn it back. */
 	const hasTurnedRef = useRef(route.params.page !== undefined);
 
-	// The round the bookmark belongs to — see `cuzBookmark`. Null until the group has answered.
-	const roundIndex = groupQuery.data?.roundIndex ?? null;
+	// The round the bookmark belongs to — see `cuzBookmark`. Null until the group has answered. A
+	// Şahsi day keeps it under the day's own number, which comes with it.
+	const roundIndex = plan?.day ?? groupQuery.data?.roundIndex ?? null;
+
+	/*
+	 * A group's cüz keeps its place on the server too (`readingPlaces`), so it opens there on any
+	 * device: a number, null when the server holds none, undefined until it has answered.
+	 */
+	const isGroupCuz = assignmentId === undefined;
+	const placesQuery = useGetReadingPlaces(groupId, isGroupCuz);
+	const saveServerPlace = useSaveReadingPlace();
+	const serverPlace = isGroupCuz ? placeIn(placesQuery.data, roundIndex, cuzNumber) : undefined;
+	const serverPage = serverPlace === undefined ? undefined : serverPlace?.position ?? null;
+	// Which cüz and round the server's answer was applied to — once each, so this reader's own saves,
+	// which update the same cache, do not mark the page as they turn it.
+	const restoredRef = useRef<string | null>(null);
 
 	useEffect(() => {
 		if (!userId || roundIndex === null) {
 			return;
 		}
 
-		let isCurrent = true;
-
-		void readCuzBookmark(userId, groupId, cuzNumber, roundIndex).then(page => {
-			if (!isCurrent || page === null) {
-				return;
-			}
-
+		const restore = (page: number) => {
 			setBookmarkedPage(page);
 
 			if (!hasTurnedRef.current) {
 				setPageIndex(Math.min(page - 1, pageCount - 1));
+			}
+		};
+		const opened = `${cuzNumber}:${roundIndex}`;
+
+		if (serverPage !== undefined) {
+			if (restoredRef.current === opened) {
+				return;
+			}
+
+			restoredRef.current = opened;
+
+			if (serverPage !== null) {
+				restore(serverPage);
+
+				return;
+			}
+		}
+
+		// The device's place while the server has not answered, or when it holds none.
+		let isCurrent = true;
+
+		void readCuzBookmark(userId, groupId, cuzNumber, roundIndex).then(page => {
+			if (isCurrent && page !== null) {
+				restore(page);
 			}
 		});
 
 		return () => {
 			isCurrent = false;
 		};
-	}, [cuzNumber, groupId, pageCount, roundIndex, userId]);
+	}, [cuzNumber, groupId, pageCount, roundIndex, serverPage, userId]);
 
 	/*
 	 * Pages read, for Ana sayfa's "4/20 s" — **counted on a forward turn only**, as the page
@@ -138,6 +230,15 @@ export const CuzReaderScreen = ({ navigation, route }: Props) => {
 	const recordPagesRead = (pages: number) => {
 		if (userId && roundIndex !== null) {
 			void recordCuzPagesRead(userId, groupId, cuzNumber, roundIndex, pagination, pages);
+
+			if (isGroupCuz) {
+				saveServerPlace(
+					groupId,
+					roundIndex,
+					cuzNumber,
+					pagination === 'husrev' ? { husrevPagesRead: pages } : { textPagesRead: pages }
+				);
+			}
 		}
 	};
 
@@ -185,9 +286,31 @@ export const CuzReaderScreen = ({ navigation, route }: Props) => {
 	 * (`MushafImagePage`'s `onShown`), not on the tap. Scrolling at once moved the page being
 	 * left before the next one was there, and from a scrolled page that read as a flicker.
 	 */
+	/**
+	 * The place, kept as it is read — the cüz opens there again. Kept on the device, and on the
+	 * server so it opens there on any device: a group's cüz in its reading places, a Şahsi day on the
+	 * reading, where the group screen shows it.
+	 */
+	const savePlace = (onCuz: number, pageNumber: number) => {
+		if (userId && roundIndex !== null) {
+			void writeCuzBookmark(userId, groupId, onCuz, roundIndex, pageNumber);
+
+			if (isGroupCuz) {
+				saveServerPlace(groupId, roundIndex, onCuz, { position: pageNumber });
+			}
+		}
+
+		const cuzIndex = plan?.cuzNumbers.indexOf(onCuz) ?? -1;
+
+		if (assignmentId !== undefined && cuzIndex >= 0) {
+			planUpdate.mutate({ bookmark: cuzPlaceToBookmark(cuzIndex, pageNumber) });
+		}
+	};
+
 	const turnTo = (index: number) => {
 		hasTurnedRef.current = true;
 		setPageIndex(index);
+		savePlace(cuzNumber, index + 1);
 
 		if (!isHusrev) {
 			scrollToTop();
@@ -202,8 +325,10 @@ export const CuzReaderScreen = ({ navigation, route }: Props) => {
 	 * **In place, by `setParams`** — not `replace`, which slid the whole screen in as a new one,
 	 * header strip, footer and all. Only the sura title and the page move (`cuzTurn`); the rest
 	 * of the reader stays where it is, and back still leaves the reader.
+	 *
+	 * A Şahsi day walks its own cüz instead: the day's, which its plan reads.
 	 */
-	const heldCuz = [...(groupQuery.data?.myBabNumbers ?? [])].sort((a, b) => a - b);
+	const heldCuz = [...(plan?.cuzNumbers ?? groupQuery.data?.myBabNumbers ?? [])].sort((a, b) => a - b);
 	const nextHeldCuz = heldCuz.find(number => number > cuzNumber);
 	const previousHeldCuz = heldCuz.filter(number => number < cuzNumber).at(-1);
 	const isFirstPage = pageIndex === 0;
@@ -222,10 +347,55 @@ export const CuzReaderScreen = ({ navigation, route }: Props) => {
 		setCuzTurn(direction);
 		setPageIndex(targetPage - 1);
 		navigation.setParams({ cuzNumber: targetCuz, page: targetPage });
+		savePlace(targetCuz, targetPage);
 
 		if (!isHusrev) {
 			scrollToTop();
 		}
+	};
+
+	/*
+	 * A Şahsi Kur'an day: on the last page of each of its cüz, "Okudum" marks that cüz read and
+	 * carries on into the next one still to read. Marking the last of them marks the day read and
+	 * goes back to the group.
+	 */
+	const isPlanDayRead = planReading.data?.completedAt != null;
+	const planMarked = isPlanDayRead ? heldCuz : planReading.data?.readPortions ?? [];
+	// A group's cüz the same way, when it is yours this round: read, then on to the next you hold.
+	const isGroupCuzMine = assignmentId === undefined && (groupQuery.data?.myBabNumbers.includes(cuzNumber) ?? false);
+	const isGroupCuzRead = babsQuery.data?.find(bab => bab.number === cuzNumber)?.readAt != null;
+	const isCuzEnd = isLastPage && (assignmentId !== undefined || isGroupCuzMine);
+	const isCuzMarked = assignmentId !== undefined ? planMarked.includes(cuzNumber) : isGroupCuzRead;
+	const isMarkingCuz = planUpdate.isPending || setBabRead.isPending;
+	const markGroupCuz = () =>
+		setBabRead.mutate(
+			{ babNumber: cuzNumber, groupId, read: true },
+			{
+				onSuccess: () => (nextHeldCuz !== undefined ? crossInto(nextHeldCuz, 1, 'next') : navigation.goBack())
+			}
+		);
+	const markPlanCuz = () => {
+		const version = planReading.data?.version;
+		const remaining = heldCuz.filter(number => number !== cuzNumber && !planMarked.includes(number));
+
+		if (remaining.length === 0) {
+			planUpdate.mutate({ read: true, version }, { onSuccess: () => navigation.goBack() });
+
+			return;
+		}
+
+		const target = remaining.find(number => number > cuzNumber) ?? remaining[0];
+
+		planUpdate.mutate(
+			{ bookPortions: [...planMarked, cuzNumber].sort((a, b) => a - b), version },
+			{
+				onSuccess: () => {
+					if (target !== undefined) {
+						crossInto(target, 1, target > cuzNumber ? 'next' : 'previous');
+					}
+				}
+			}
+		);
 	};
 
 	/*
@@ -291,9 +461,7 @@ export const CuzReaderScreen = ({ navigation, route }: Props) => {
 		setBookmarkedPage(pageNumber);
 
 		// Kept on screen either way; stored only once the round it belongs to is known.
-		if (userId && roundIndex !== null) {
-			void writeCuzBookmark(userId, groupId, cuzNumber, roundIndex, pageNumber);
-		}
+		savePlace(cuzNumber, pageNumber);
 	};
 
 	const isPlaceMarked = bookmarkedPage === pageIndex + 1;
@@ -437,16 +605,27 @@ export const CuzReaderScreen = ({ navigation, route }: Props) => {
 				/>
 				{/* Marking the place, and saying so once it is marked — one control, two readings,
 				    so the row never twitches under the thumb. */}
-				<AppButton
-					disabled={isPlaceMarked}
-					// The set's own bookmark, converted to an SF Symbol (`kaldigin-yer-bookmark`) so the
-					// glass button can draw it on iOS, and drawn by `ui/Icon` on Android — one glyph on both.
-					icon={isPlaceMarked ? 'check' : 'bookmark'}
-					onPress={handleMarkPlace}
-					style={styles.markButtonSlot}
-					title={t(isPlaceMarked ? 'qPlaceMarked' : 'qMarkPlace')}
-					variant={isPlaceMarked ? 'surface' : 'accent'}
-				/>
+				{isCuzEnd ? (
+					<AppButton
+						disabled={isCuzMarked || isMarkingCuz}
+						icon='check'
+						onPress={assignmentId !== undefined ? markPlanCuz : markGroupCuz}
+						style={styles.markButtonSlot}
+						title={t(isCuzMarked ? 'qCuzDone' : 'markRead')}
+						variant={isCuzMarked ? 'surface' : 'primary'}
+					/>
+				) : (
+					<AppButton
+						disabled={isPlaceMarked}
+						// The set's own bookmark, converted to an SF Symbol (`kaldigin-yer-bookmark`) so the
+						// glass button can draw it on iOS, and drawn by `ui/Icon` on Android — one glyph on both.
+						icon={isPlaceMarked ? 'check' : 'bookmark'}
+						onPress={handleMarkPlace}
+						style={styles.markButtonSlot}
+						title={t(isPlaceMarked ? 'qPlaceMarked' : 'qMarkPlace')}
+						variant={isPlaceMarked ? 'surface' : 'accent'}
+					/>
+				)}
 				<AppButton
 					accessibilityLabel={t('nextPage')}
 					disabled={isLastPage && nextHeldCuz === undefined}

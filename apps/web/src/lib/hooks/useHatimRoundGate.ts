@@ -178,12 +178,15 @@ export const useHatimRoundGate = (groupId: string, navigation: Navigation): { is
  *
  * Only while focused: `replace` acts on the top of the stack, so from under a pushed screen it
  * would take that screen's place instead — see `RoundStartScreen`.
+ *
+ * A Şahsi Kur'an reading holds no cüz — its plan reads them all in turn — so it never picks.
  */
 export const useRequireRoundCuz = (groupId: string, navigation: Navigation): void => {
 	const isFocused = useIsFocused();
 	const detail = useGetGroupById(groupId).data;
 	const mustPick =
 		detail?.kind === 'HATIM' &&
+		detail.planDays == null &&
 		detail.status === 'RUNNING' &&
 		detail.myBabNumbers.length === 0 &&
 		!detail.hasSkippedRound;

@@ -14,6 +14,8 @@ export const groupQueryKeys = {
 	rounds: (groupId: string) => [...groupQueryKeys.root(), 'rounds', groupId] as const,
 	round: (groupId: string, roundIndex: number) => [...groupQueryKeys.root(), 'rounds', groupId, roundIndex] as const,
 	myProgress: (groupId: string) => [...groupQueryKeys.root(), 'my-progress', groupId] as const,
+	/** The viewer's places in the readers, for the round the group is on — see `useReadingPlaces`. */
+	readingPlaces: (groupId: string) => [...groupQueryKeys.root(), 'reading-places', groupId] as const,
 	/** Every repetition count cached for a group — the prefix `partRepetitions` extends. */
 	repetitions: (groupId: string) => [...groupQueryKeys.root(), 'repetitions', groupId] as const,
 	/**
@@ -49,6 +51,7 @@ export const groupOwnedQueryKeys = (groupId: string) => [
 	groupQueryKeys.members(groupId),
 	groupQueryKeys.rounds(groupId),
 	groupQueryKeys.myProgress(groupId),
+	groupQueryKeys.readingPlaces(groupId),
 	groupQueryKeys.repetitions(groupId),
 	groupQueryKeys.previewByGroup(groupId)
 ];

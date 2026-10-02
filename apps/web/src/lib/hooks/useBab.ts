@@ -8,7 +8,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLiveRefetchInterval } from './useLiveRefetchInterval';
 import { groupQueryKeys, profileQueryKeys } from './queryKeys';
 
-export const useGetBabs = (groupId: string) => {
+export const useGetBabs = (groupId: string, isEnabled = true) => {
 	const refetchInterval = useLiveRefetchInterval();
 	const isDemo = useIsTourDemo();
 
@@ -16,7 +16,7 @@ export const useGetBabs = (groupId: string) => {
 	return useQuery({
 		queryKey: isDemo ? tourDemoQueryKeys.babs(groupId) : groupQueryKeys.babs(groupId),
 		queryFn: isDemo ? async () => tourDemoBabs(groupId) : () => getBabs(groupId),
-		enabled: !!groupId,
+		enabled: !!groupId && isEnabled,
 		...(isDemo ? { initialData: () => tourDemoBabs(groupId), staleTime: Infinity } : { refetchInterval })
 	});
 };

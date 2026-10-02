@@ -23,7 +23,8 @@ const update = z
 		delailRepetitions: z.number().int().min(0).max(3).optional(),
 		repetitions: z.number().int().min(0).max(19).optional(),
 		bookmark: z.number().int().min(0).max(1000).optional(),
-		bookPortions: z.array(z.number().int().min(1).max(33)).min(1).max(33).optional()
+		// The Hizb's 33, a Kur'an day's cüz, or a Cevşen day's babs (up to 100); the service checks the day's own.
+		bookPortions: z.array(z.number().int().min(1).max(100)).min(1).max(100).optional()
 	})
 	.refine(
 		v =>

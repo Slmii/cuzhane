@@ -13,6 +13,7 @@ import { useGetBabs, useSetBabRead } from '@/lib/hooks/useBab';
 import { useCurrentUserId } from '@/lib/hooks/useCurrentUserId';
 import { useGetGroupById, useTakePoolPart } from '@/lib/hooks/useGroup';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
+import { useGetReadingPlaces, useSaveReadingPlace } from '@/lib/hooks/useReadingPlaces';
 import { useGetRepetitions, useSetRepetitions } from '@/lib/hooks/useRepetitions';
 import { useCoverBabs, useGetRoundDetail } from '@/lib/hooks/useRounds';
 import { useGetUserSettings, useUpdateUserSettings } from '@/lib/hooks/useUserSettings';
@@ -20,6 +21,8 @@ import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { requiredRepetitions } from '@/lib/utils/groupKinds';
 import { hizbPartsLabel } from '@/lib/utils/groups';
+import { isPersonalPlanGroup } from '@/lib/utils/personalPlan';
+import { placeIn } from '@/lib/utils/readingPlaces';
 import {
 	canMarkPortion,
 	countsRepetitions,
@@ -221,8 +224,25 @@ export const HizbPortionReader = ({ navigation, params }: Props) => {
 
 	// The page: the route's portion, and the block of it this screen is on.
 	const blocks = blocksOf(partNumber);
-	const [page, setPage] = useState<HizbPage>({ blockIndex: 0, partNumber });
-	const blockIndex = page.partNumber === partNumber ? Math.min(page.blockIndex, blocks.length - 1) : 0;
+	// The page the screen opened on, kept by identity: every move sets a new one.
+	const [openingPage] = useState<HizbPage>(() => ({ blockIndex: 0, partNumber }));
+	const [page, setPage] = useState<HizbPage>(openingPage);
+
+	/*
+	 * **The page you left a portion on is kept on the server** (`readingPlaces`), in the open
+	 * round, and the portion this screen opened on opens there again — only while the reader is
+	 * still on the page it opened on: an answer arriving after a turn or a jump never moves them
+	 * back. A closed round's gap is covered rather than read on, so it keeps no place.
+	 */
+	const keepsPlace = !isCovering && openRoundIndex !== null && group !== undefined && !isPersonalPlanGroup(group);
+	const placesQuery = useGetReadingPlaces(groupId, keepsPlace);
+	const saveServerPlace = useSaveReadingPlace();
+	const savedPlace = keepsPlace ? placeIn(placesQuery.data, openRoundIndex, openingPage.partNumber) : undefined;
+	const shownPage =
+		page === openingPage && savedPlace?.position
+			? { blockIndex: savedPlace.position - 1, partNumber: openingPage.partNumber }
+			: page;
+	const blockIndex = shownPage.partNumber === partNumber ? Math.min(shownPage.blockIndex, blocks.length - 1) : 0;
 	const current = blocks[blockIndex] ?? blocks[0];
 
 	/*
@@ -322,6 +342,10 @@ export const HizbPortionReader = ({ navigation, params }: Props) => {
 		}
 
 		setPage(next);
+
+		if (keepsPlace && openRoundIndex !== null) {
+			saveServerPlace(groupId, openRoundIndex, next.partNumber, { position: next.blockIndex + 1 });
+		}
 
 		if (next.partNumber !== partNumber) {
 			navigation.setParams({ partNumber: next.partNumber });

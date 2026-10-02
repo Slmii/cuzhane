@@ -52,7 +52,21 @@ export type TabDetailParamList = {
 	 * Q5 — reading a cüz page by page. `page` is 1-based within the cüz and only seeds where it
 	 * opens; the screen owns it from there. `shouldOpenTextSize` as on `BabReader`.
 	 */
-	CuzReader: { groupId: string; cuzNumber: number; page?: number; shouldOpenTextSize?: boolean };
+	CuzReader: {
+		groupId: string;
+		/** Absent only with `assignmentId`: a Şahsi day opens on its first cüz not yet marked. */
+		cuzNumber?: number;
+		/** A Şahsi Kur'an day's reading: the reader loads its cüz, and marks the day read at its end. */
+		assignmentId?: string;
+		page?: number;
+		shouldOpenTextSize?: boolean;
+		/**
+		 * Opened from a Şahsi Kur'an day: the day's cüz, which the arrows walk instead of the cüz held
+		 * in a round, and the reading's day number, which the marked place is kept under in place of
+		 * a round (a day reads each of its cüz once).
+		 */
+		plan?: { cuzNumbers: number[]; day: number };
+	};
 	JoinedWelcome: { groupId: string };
 	/**
 	 * `sheet` asks the screen to open one of its sheets on arrival. It exists so the bar's
@@ -152,6 +166,8 @@ export type TabDetailParamList = {
 	 * `BabReader`, in either shape.
 	 */
 	HizbPlanReader: { groupId: string; assignmentId: string; shouldOpenTextSize?: boolean };
+	/** A Şahsi Cevşen reading's day: its babs in order, marked read at the end. */
+	CevsenPlanReader: { groupId: string; assignmentId: string; shouldOpenTextSize?: boolean };
 	/** A personal-plan group's missed days, newest first — opened from "Senin ilerlemen" (T2). */
 	HizbMissed: { groupId: string };
 	/** A personal-plan group's history: every reading of the viewer's, newest first — from the rounds card (T3). */

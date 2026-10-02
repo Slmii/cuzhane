@@ -45,7 +45,7 @@ const privacyTr: LegalPage = {
 			bullets: [
 				'Hesabın: e-posta adresin, adın ve yüklediysen profil fotoğrafın.',
 				'Grupların: kurduğun veya katıldığın grupların adları, niyet metni, üyeliğin ve grup içindeki sıran.',
-				'Okuma ilerlemen: hangi babı hangi turda okuduğun ve havuzdan üstlendiğin bablar.',
+				'Okuma ilerlemen: hangi babı hangi turda okuduğun, havuzdan üstlendiğin bablar ve bir grubun cüzünde ya da Hizb bölümünde kaldığın sayfa ile kaç sayfa okuduğun.',
 				'Ayarların: arayüz dili, tema, hatırlatma saati, bildirim tercihlerin ve okuma ekranının yazı tipi ile boyutu.',
 				'Bildirim kutun: gruplarında olan bitenin kaydı — olayın türü, grubun adı ve ilgili üyenin görünen adı.',
 				'Bildirim için cihaz anahtarın (push token).',
@@ -127,7 +127,7 @@ const privacyEn: LegalPage = {
 			bullets: [
 				'Your account: email address, name, and a profile photo if you upload one.',
 				'Your groups: the names of groups you create or join, their intention text, your membership and your seat within the group.',
-				'Your reading progress: which bab you read in which round, and any babs you claimed from the pool.',
+				'Your reading progress: which bab you read in which round, any babs you claimed from the pool, and in a group’s cüz or Hizb portion the page you stopped on and how many pages you have read.',
 				'Your settings: interface language, theme, reminder time, your notification preferences, and the reader’s typeface and size.',
 				'Your notification inbox: a record of what happened in your groups — the kind of event, the group’s name, and the display name of the member it concerns.',
 				'A device key for notifications (a push token).',
@@ -209,7 +209,7 @@ const privacyNl: LegalPage = {
 			bullets: [
 				'Je account: e-mailadres, naam en een profielfoto als je die uploadt.',
 				'Je groepen: de namen van groepen die je maakt of waaraan je meedoet, de intentietekst, je lidmaatschap en je plaats in de groep.',
-				'Je leesvoortgang: welke bab je in welke ronde las, en welke babs je uit de pool nam.',
+				'Je leesvoortgang: welke bab je in welke ronde las, welke babs je uit de pool nam, en in een cüz of Hizb-deel van een groep de bladzijde waar je bleef en hoeveel bladzijden je las.',
 				'Je instellingen: taal, thema, herinneringstijd, je meldingsvoorkeuren, en het lettertype en de lettergrootte van het leesscherm.',
 				'Je meldingenoverzicht: een verslag van wat er in je groepen gebeurde — het soort gebeurtenis, de naam van de groep en de weergavenaam van het betrokken lid.',
 				'Een apparaatsleutel voor meldingen (push token).',

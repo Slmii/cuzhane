@@ -219,3 +219,25 @@ it('counts personal Hizb assignments without treating inactive readers as owing 
 		unreadPortions: 1
 	});
 });
+
+it('counts a Şahsi Cevşen day by its babs, and leaves a Şahsi Kur’an out as it does every hatim', () => {
+	const cevsen = group({
+		kind: 'CEVSEN',
+		planDays: 10,
+		myBabNumbers: [],
+		hizbToday: { assignmentId: 'c', planDays: 10, portion: 5, units: [41, 42, 43, 44, 45], completed: false }
+	});
+	const quran = group({
+		kind: 'HATIM',
+		planDays: 15,
+		myBabNumbers: [],
+		hizbToday: { assignmentId: 'q', planDays: 15, portion: 2, units: [3, 4], completed: false }
+	});
+	expect(reminderTotals([cevsen, quran])).toEqual({
+		participatingGroups: 1,
+		pendingGroups: 1,
+		unread: 5,
+		unreadBabs: 5,
+		unreadPortions: 0
+	});
+});

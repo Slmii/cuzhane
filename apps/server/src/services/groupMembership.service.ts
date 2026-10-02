@@ -21,7 +21,7 @@ import { notifyGroupMembers } from './groupEvents.service';
 import { memberJoinedPush, memberLeftPush } from '@utils/pushCopy';
 import { sendPushToUser } from './push.service';
 import { poolClaimReleasedPush, pushLanguageFor } from '@utils/pushCopy';
-import type { GroupKindName } from '@utils/groupKinds';
+import { isPersonalPlan, type GroupKindName } from '@utils/groupKinds';
 import type { GroupDetail, GroupInvitePreview, GroupMember } from './groupSerializers';
 import { ensureCurrentRoundFor } from './rounds.service';
 
@@ -54,7 +54,7 @@ const loadDetail = async (groupId: string, viewerUserId: string): Promise<GroupD
 		holdings,
 		group.roundSkips.map(skip => skip.roundIndex)
 	);
-	return group.hizbPlan !== null ? { ...detail, ...(await hizbSummary(group.id, viewerUserId)) } : detail;
+	return isPersonalPlan(group) ? { ...detail, ...(await hizbSummary(group.id, viewerUserId)) } : detail;
 };
 
 export const previewGroupByCode = async (userId: string, rawCode: string): Promise<GroupInvitePreview> => {
@@ -74,7 +74,7 @@ export const previewGroupByCode = async (userId: string, rawCode: string): Promi
 	const holdings = await holdingsFor(prisma, group, group.roundIndex);
 	const preview = toInvitePreview(group, group.babs, group.members, normalizedUserId, holdings);
 
-	return group.hizbPlan !== null ? { ...preview, ...(await hizbSummary(group.id, normalizedUserId)) } : preview;
+	return isPersonalPlan(group) ? { ...preview, ...(await hizbSummary(group.id, normalizedUserId)) } : preview;
 };
 
 export const previewGroupById = async (userId: string, groupId: string): Promise<GroupInvitePreview> => {
@@ -99,7 +99,7 @@ export const previewGroupById = async (userId: string, groupId: string): Promise
 	const holdings = await holdingsFor(prisma, group, group.roundIndex);
 	const preview = toInvitePreview(group, group.babs, group.members, normalizedUserId, holdings);
 
-	return group.hizbPlan !== null ? { ...preview, ...(await hizbSummary(group.id, normalizedUserId)) } : preview;
+	return isPersonalPlan(group) ? { ...preview, ...(await hizbSummary(group.id, normalizedUserId)) } : preview;
 };
 
 const MAX_SLOT_ATTEMPTS = 5;
@@ -555,6 +555,8 @@ const removeMember = async (
 		 * promise, a read is a fact.
 		 */
 		await tx.cuzHolding.deleteMany({ where: { groupId, userId } });
+		// Their place in the reader is theirs alone and means nothing once they are gone.
+		await tx.readingPlace.deleteMany({ where: { groupId, userId } });
 
 		// Nothing above can clear a read any more, so this can only ever *complete* a round —
 		// the last bab of a departed member's claim being released does not un-read anything.

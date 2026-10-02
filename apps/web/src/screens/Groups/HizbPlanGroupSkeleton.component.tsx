@@ -10,6 +10,7 @@ import type { CachedGroupShape } from '@/lib/hooks/useCachedGroup';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { toAlphaColor } from '@/lib/theme/tokens';
+import { partCountFor } from '@/lib/utils/groupKinds';
 import { kindLabelKey } from '@/lib/utils/groups';
 import { StyleSheet, View } from 'react-native';
 import { useMemo } from 'react';
@@ -35,19 +36,24 @@ export const HizbPlanGroupSkeleton = ({ plan }: Props) => {
 	const { theme } = useThemeContext();
 	const divider = theme.colors.divider;
 	const isShared = !plan.hizbIndividual;
+	const isHizb = plan.kind === 'HIZB';
 	const planLabel = plan.hizbPlan ? t('hpDays', { days: plan.hizbPlan }) : t('hpMixedPlan');
-	// A 7- or 15-day plan's day covers several of the 33, named as chips under the title.
-	const hasPortionChips = plan.hizbPlan === 7 || plan.hizbPlan === 15;
+	// A 7- or 15-day plan's day covers several of the 33, named as chips under the title; a Kur'an
+	// day of several cüz too. A Cevşen day's babs are its title.
+	const hasPortionChips = isHizb
+		? plan.hizbPlan === 7 || plan.hizbPlan === 15
+		: plan.kind === 'HATIM' && plan.planDays !== null && plan.planDays < partCountFor('HATIM');
 
+	// The round's board: the Hizb's 33, a Cevşen's hundred babs or a Kur'an's thirty cüz.
 	const cells = useMemo<CellGridItem[]>(
 		() =>
-			Array.from({ length: 33 }, (_, index) => ({
+			Array.from({ length: partCountFor(plan.kind) }, (_, index) => ({
 				backgroundColor: theme.colors.segmentTrack,
 				key: index + 1,
 				label: index + 1,
 				labelColor: theme.colors.faintText
 			})),
-		[theme]
+		[plan.kind, theme]
 	);
 
 	/** A bone centred in a text line of the given height, as the text will sit. */
@@ -83,7 +89,9 @@ export const HizbPlanGroupSkeleton = ({ plan }: Props) => {
 				subtitle={
 					isShared
 						? t('hpMembersDaily', { count: plan.memberCount })
-						: t('hpSubtitleIndividual', { days: plan.hizbPlan, start: plan.hizbStartPortion })
+						: isHizb
+						? t('hpSubtitleIndividual', { days: plan.hizbPlan, start: plan.hizbStartPortion })
+						: t('spSubtitle', { days: plan.planDays ?? 0 })
 				}
 				title={plan.name}
 				titleLines={1}
@@ -94,12 +102,25 @@ export const HizbPlanGroupSkeleton = ({ plan }: Props) => {
 						) : (
 							<Chip label={t('hpIndividualChip')} tone='neutral' />
 						)}
-						<Chip label={t(kindLabelKey('HIZB'))} tone='neutral' />
+						<Chip label={t(kindLabelKey(plan.kind))} tone='neutral' />
 					</View>
 				}
 			/>
 
 			<SkeletonPulse style={styles.body}>
+				{/* A Şahsi reading's clock card: the time left, its label, then the reset row. */}
+				{isShared ? null : (
+					<CardSurface isFlush style={styles.cardGap}>
+						<View style={styles.clockCell}>
+							{line(30, 22, 112, 'strong')}
+							<View style={styles.clockLabel}>{line(14, 8, 96)}</View>
+						</View>
+						<View style={[styles.clockReset, { borderTopColor: theme.colors.divider }]}>
+							<Bone height={15} radius={7.5} width={15} />
+							{line(17, 9, 90, 'strong')}
+						</View>
+					</CardSurface>
+				)}
 				{eyebrow(t('hpMyProgress'))}
 
 				{/* Today's card: date and tag, the title, its description, the button, the reset row. */}
@@ -111,7 +132,9 @@ export const HizbPlanGroupSkeleton = ({ plan }: Props) => {
 						</View>
 						<View style={styles.readingTitle}>{line(26.25, 15, '56%', 'strong')}</View>
 						{/* A single portion has its description; a day of several has its chips instead. */}
-						{hasPortionChips ? null : <View style={styles.readingDesc}>{line(18.75, 9, '82%')}</View>}
+						{hasPortionChips || !isHizb ? null : (
+							<View style={styles.readingDesc}>{line(18.75, 9, '82%')}</View>
+						)}
 						{hasPortionChips ? (
 							<View style={styles.portionChips}>
 								{[24, 24, 24].map((width, index) => (
@@ -206,7 +229,7 @@ export const HizbPlanGroupSkeleton = ({ plan }: Props) => {
 								{line(19, 11, 52, 'strong')}
 								{line(19, 8, 110)}
 							</View>
-							<CellGrid borderWidth={1.5} columns={11} gap={4} items={cells} radius={6} />
+							<CellGrid borderWidth={1.5} columns={isHizb ? 11 : 10} gap={4} items={cells} radius={6} />
 							{legend}
 						</CardSurface>
 
@@ -253,6 +276,17 @@ export const HizbPlanGroupSkeleton = ({ plan }: Props) => {
 
 /* `HizbPlanGroup`'s styles, measure for measure. */
 const styles = StyleSheet.create({
+	// The Şahsi clock card, at `HizbPlanGroup`'s measures.
+	clockCell: { paddingHorizontal: 15, paddingVertical: 14 },
+	clockLabel: { marginTop: 4 },
+	clockReset: {
+		alignItems: 'center',
+		borderTopWidth: StyleSheet.hairlineWidth,
+		flexDirection: 'row',
+		gap: 9,
+		paddingHorizontal: 16,
+		paddingVertical: 12
+	},
 	flex: { flex: 1, minWidth: 0 },
 	line: { justifyContent: 'center' },
 	spread: { alignItems: 'center', flexDirection: 'row', gap: 10, justifyContent: 'space-between' },

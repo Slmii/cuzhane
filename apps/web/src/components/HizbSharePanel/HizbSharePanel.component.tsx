@@ -111,7 +111,11 @@ export const HizbSharePanel = ({
 		<CardSurface
 			hasGlassSurface={isOpen}
 			isFlush
-			style={isOpen ? null : { backgroundColor: theme.colors.accentSoft }}
+			style={[
+				// Ringed in the accent, as the Cevşen's and Kur'an's share panel.
+				{ borderColor: theme.colors.accent, borderWidth: 2 },
+				isOpen ? null : { backgroundColor: theme.colors.accentSoft }
+			]}
 		>
 			{/* C1 of the first-use tour frames this row, as it frames the Cevşen's. */}
 			<TourTarget id='assigned'>

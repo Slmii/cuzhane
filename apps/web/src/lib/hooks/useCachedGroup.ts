@@ -1,4 +1,5 @@
 import type { GroupDetail, GroupInvitePreview, GroupKind, GroupStatus, GroupSummary } from '@/lib/types/domain';
+import { isPersonalPlanGroup } from '@/lib/utils/personalPlan';
 import { useQueryClient } from '@tanstack/react-query';
 import { groupQueryKeys } from './queryKeys';
 
@@ -6,13 +7,19 @@ import { groupQueryKeys } from './queryKeys';
 export type CachedGroupShape = {
 	kind: GroupKind;
 	status: GroupStatus;
-	/** A Hizb personal-plan group's heading, so its skeleton draws the real title and chips. */
+	/**
+	 * A personal-plan group's heading — a Hizb plan's or a Şahsi Cevşen/Kur'an reading's — so its
+	 * skeleton draws the real title and chips.
+	 */
 	plan: {
 		hizbIndividual: boolean;
 		hizbPlan: number;
 		hizbStartPortion: number;
+		kind: GroupKind;
 		memberCount: number;
 		name: string;
+		/** A Şahsi Cevşen or Kur'an reading's length; null on a Hizb plan. */
+		planDays: number | null;
 	} | null;
 };
 
@@ -51,16 +58,17 @@ export const useCachedGroup = (groupId: string): CachedGroupShape | undefined =>
 
 	return {
 		kind: found.kind,
-		plan:
-			found.hizbPlan == null
-				? null
-				: {
-						hizbIndividual: found.hizbIndividual ?? false,
-						hizbPlan: found.hizbPlan,
-						hizbStartPortion: found.hizbStartPortion ?? 1,
-						memberCount: found.memberCount,
-						name: found.name
-				  },
+		plan: isPersonalPlanGroup(found)
+			? {
+					hizbIndividual: found.hizbIndividual ?? false,
+					hizbPlan: found.hizbPlan ?? 0,
+					hizbStartPortion: found.hizbStartPortion ?? 1,
+					kind: found.kind,
+					memberCount: found.memberCount,
+					name: found.name,
+					planDays: found.planDays ?? null
+			  }
+			: null,
 		status: found.status
 	};
 };

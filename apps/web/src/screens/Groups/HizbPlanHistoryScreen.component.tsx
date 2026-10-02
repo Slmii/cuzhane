@@ -6,12 +6,13 @@ import { Icon } from '@/components/ui/Icon/Icon.component';
 import { PullToRefresh } from '@/components/ui/PullToRefresh/PullToRefresh.component';
 import { CaptionText, Typography } from '@/components/ui/Typography/Typography.component';
 import type { HizbAssignment } from '@/api/hizbReading.api';
+import { useGetGroupById } from '@/lib/hooks/useGroup';
 import { useHizbReading } from '@/lib/hooks/useHizbReading';
 import { useHizbPlanText } from '@/lib/hooks/useHizbPlanText';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import { hizbPortionLabel } from '@/lib/utils/groups';
+import { planReadingRoute } from '@/lib/utils/personalPlan';
 import type { TabStackParamList } from '@/navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useMemo } from 'react';
@@ -33,7 +34,11 @@ export const HizbPlanHistoryScreen = ({ navigation, route }: Props) => {
 	const { groupId } = route.params;
 	const { t } = useTranslation();
 	const { theme } = useThemeContext();
-	const text = useHizbPlanText();
+	// The group's book, from the screen it was opened from — a Şahsi Cevşen or Kur'an reads here too.
+	// Until the group is known, its book is too: Hizb labels on a Cevşen or Kur'an day would throw.
+	const groupKind = useGetGroupById(groupId).data?.kind;
+	const kind = groupKind ?? 'HIZB';
+	const text = useHizbPlanText(kind);
 	const query = useHizbReading(groupId);
 	const pullToRefresh = usePullToRefresh(query);
 	const data = query.data?.pages[0];
@@ -47,8 +52,8 @@ export const HizbPlanHistoryScreen = ({ navigation, route }: Props) => {
 	}, [query.data]);
 
 	const open = useCallback(
-		(assignmentId: string) => navigation.navigate('HizbPlanReader', { assignmentId, groupId }),
-		[groupId, navigation]
+		(assignmentId: string) => navigation.navigate(planReadingRoute(kind), { assignmentId, groupId }),
+		[groupId, kind, navigation]
 	);
 
 	const loadMore = useCallback(() => {
@@ -61,7 +66,7 @@ export const HizbPlanHistoryScreen = ({ navigation, route }: Props) => {
 		return <ErrorState queries={[query]} />;
 	}
 
-	if (!data) {
+	if (!data || !groupKind) {
 		return <HizbPlanHistorySkeleton />;
 	}
 
@@ -82,9 +87,9 @@ export const HizbPlanHistoryScreen = ({ navigation, route }: Props) => {
 				{text.monthDay(reading.date, 'short')}
 			</Typography>
 			<CaptionText numberOfLines={1} style={styles.title} weight='semibold'>
-				{hizbPortionLabel(text.portionsLabel(reading), t)}
+				{text.partsLabel(reading)}
 				<CaptionText color={theme.colors.faintText} style={styles.title}>
-					{` · ${text.workTitle(reading)}`}
+					{` · ${text.partsAside(reading)}`}
 				</CaptionText>
 			</CaptionText>
 			{reading.completedAt ? (

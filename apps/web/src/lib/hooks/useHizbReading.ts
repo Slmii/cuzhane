@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { type InfiniteData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
 	createHizbAhead,
 	enrollHizbReading,
@@ -9,7 +9,8 @@ import {
 	setHizbReadsFromBook,
 	updateHizbAssignment,
 	type HizbAssignment,
-	type HizbAssignmentPatch
+	type HizbAssignmentPatch,
+	type HizbReadingState
 } from '@/api/hizbReading.api';
 import { useIsTourDemo } from '@/components/Tour/Tour.context';
 import { tourDemoHizbAssignment, tourDemoHizbReading } from '@/components/Tour/tourDemoData';
@@ -91,10 +92,11 @@ export const useCreateHizbAhead = (groupId: string) => {
 	});
 };
 /** H2 opens the tour's demo reading, answered from its demo like the rest of the tour. */
-export const useHizbAssignment = (groupId: string, id: string) => {
+export const useHizbAssignment = (groupId: string, id: string, isEnabled = true) => {
 	const isDemo = useIsTourDemo();
 
 	return useQuery({
+		enabled: isEnabled,
 		queryKey: isDemo ? tourDemoQueryKeys.hizbAssignment(id) : hizbAssignmentKey(groupId, id),
 		queryFn: isDemo ? async () => tourDemoHizbAssignment() : () => getHizbAssignment(groupId, id),
 		...(isDemo ? { initialData: () => tourDemoHizbAssignment(), staleTime: Infinity } : {})
@@ -129,14 +131,19 @@ export const useUpdateHizbAssignment = (groupId: string, id: string) => {
 		/*
 		 * Page turns and counts show at once rather than after the round trip — both are
 		 * absolute values, so the next tap builds on the predicted one. Marking read is not
-		 * predicted: the server decides whether the repetitions allow it.
+		 * predicted: the server decides whether the repetitions allow it. Ticks are — a bab or cüz
+		 * marked shows at once, as the group reader's does; none of them is gated.
 		 */
-		onMutate: async ({ read: _read, version: _version, bookPortions: _bookPortions, ...fields }) => {
+		onMutate: async ({ read: _read, version: _version, bookPortions, ...fields }) => {
 			await client.cancelQueries({ queryKey: key });
 			const previous = client.getQueryData<HizbAssignment>(key);
 
 			if (previous) {
-				client.setQueryData<HizbAssignment>(key, { ...previous, ...fields });
+				client.setQueryData<HizbAssignment>(key, {
+					...previous,
+					...fields,
+					...(bookPortions !== undefined ? { readPortions: bookPortions } : {})
+				});
 			}
 
 			return { previous };
@@ -146,6 +153,18 @@ export const useUpdateHizbAssignment = (groupId: string, id: string) => {
 			const isLast = client.isMutating({ mutationKey }) <= 1;
 			client.setQueryData<HizbAssignment>(key, current =>
 				isLast || !current ? assignment : { ...current, version: assignment.version }
+			);
+			// The group screen's copy of today too: a page turned or a place kept shows there at once
+			// ("Sayfa 12 / 41"), without waiting for the next time the group is fetched.
+			client.setQueryData<InfiniteData<HizbReadingState>>([...hizbReadingKey(groupId), 'state'], data =>
+				data
+					? {
+							...data,
+							pages: data.pages.map(page =>
+								page.today?.id === assignment.id ? { ...page, today: assignment } : page
+							)
+					  }
+					: data
 			);
 			if (patch.read !== undefined || patch.bookPortions !== undefined) {
 				await Promise.all([

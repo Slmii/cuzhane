@@ -268,7 +268,10 @@ export const GroupsScreen = () => {
 						 * a Cevşen share with pool blocks on top as its current block plus a chip.
 						 */
 						footerLabel={
-							isFlexible
+							// A Şahsi Cevşen or Kur'an reading names its length, as a Hizb plan does.
+							item.planDays != null
+								? t('hpDays', { days: item.planDays })
+								: isFlexible
 								? item.hizbPlan != null
 									? item.hizbPlan
 										? t('hpDays', { days: item.hizbPlan })
@@ -278,7 +281,7 @@ export const GroupsScreen = () => {
 										share.current
 								  }`
 						}
-						footerMoreCount={isFlexible ? 0 : share.moreCount}
+						footerMoreCount={isFlexible || item.planDays != null ? 0 : share.moreCount}
 						// Filled even when the round is finished: the hatim itself is ongoing, so a
 						// de-emphasised button would read as "this group is done". Only the label
 						// softens — there is nothing left to continue today.
@@ -299,6 +302,24 @@ export const GroupsScreen = () => {
 										readCount: item.hizbReaders.read,
 										total: item.hizbReaders.total,
 										unit: t('hpReadersUnit')
+								  }
+								: item.planDays != null && item.hizbToday?.units
+								? // A Şahsi Cevşen or Kur'an day counts its babs or cüz: "0 / 10 bab".
+								  {
+										kind: item.kind,
+										// A Kur'an day's cüz count as they are marked, before the day is done.
+										percent: Math.round(
+											((item.hizbToday.completed
+												? item.hizbToday.units.length
+												: item.hizbToday.readUnits?.length ?? 0) *
+												100) /
+												item.hizbToday.units.length
+										),
+										readCount: item.hizbToday.completed
+											? item.hizbToday.units.length
+											: item.hizbToday.readUnits?.length ?? 0,
+										total: item.hizbToday.units.length,
+										unit: t(partUnitKey(item.kind))
 								  }
 								: {
 										kind: item.kind,

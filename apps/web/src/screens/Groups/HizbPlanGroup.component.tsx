@@ -10,10 +10,21 @@ import type { CellGridItem } from '@/components/ui/CellGrid/CellGrid.types';
 import { Chip } from '@/components/ui/Chip/Chip.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
+import { STARTED_LABEL_WIDTH, StartedProgress } from '@/components/StartedProgress/StartedProgress.component';
 import { NavRow } from '@/components/ui/NavRow/NavRow.component';
 import { ProgressBar } from '@/components/ui/ProgressBar/ProgressBar.component';
-import { CaptionText, TitleText, Typography } from '@/components/ui/Typography/Typography.component';
+import {
+	CaptionText,
+	NumericText,
+	StatText,
+	TitleText,
+	Typography
+} from '@/components/ui/Typography/Typography.component';
+import { RoundResetRow } from '@/components/RoundResetRow/RoundResetRow.component';
 import { planBlocks } from '@/lib/content/hizbPlans';
+import { mushafCuzPages } from '@/lib/content/mushaf';
+import { cuzPages } from '@/lib/content/quran';
+import { useGetUserSettings } from '@/lib/hooks/useUserSettings';
 import { useDeleteGroup } from '@/lib/hooks/useGroup';
 import { useHizbPlanText } from '@/lib/hooks/useHizbPlanText';
 import {
@@ -28,12 +39,15 @@ import { useTranslation } from '@/lib/i18n/I18n.context';
 import { pluralKey } from '@/lib/i18n/plural';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { toAlphaColor } from '@/lib/theme/tokens';
-import type { GroupDetail } from '@/lib/types/domain';
+import type { StringKey } from '@/lib/i18n/strings';
+import type { GroupDetail, GroupKind } from '@/lib/types/domain';
 import { formatBabRange } from '@/lib/utils/babs';
 import { confirmDestructive } from '@/lib/utils/confirmDestructive';
+import { partCountFor } from '@/lib/utils/groupKinds';
 import { hizbPortionLabel, kindLabelKey } from '@/lib/utils/groups';
 import { hizbAheadView, isReadBeforeItsDay } from '@/lib/utils/hizbAhead';
-import { boardPortionsOf, planBoardCells, unreadPortionCount } from '@/lib/utils/hizbPlanBoard';
+import { planBoardCells, unreadPortionCount } from '@/lib/utils/hizbPlanBoard';
+import { bookmarkToCuzPlace, planReadingRoute } from '@/lib/utils/personalPlan';
 import { readersPreview } from '@/lib/utils/hizbReadersPreview';
 import { timeIn, timeUntilReset, zoneAbbreviation } from '@/lib/utils/roundReset';
 import {
@@ -67,13 +81,27 @@ type Props = NativeStackScreenProps<TabStackParamList, 'GroupDetail'> & { group:
  *   counts for its own day's coverage and round, never for today's 33.
  * - When the group has covered all 33 today, the coverage moves to a green band on top (W3) —
  *   the reader's day and the group's day are two separate "done"s.
+ *
+ * A Şahsi Cevşen or Kur'an reading (`planDays`) is this screen's individual layout too: its day is
+ * a block of babs or cüz, its round a board of 100 or 30. It has no work titles, no Sekine or
+ * istighfar. The Cevşen is read in the app only; a Kur'an day has the Hizb's two buttons — the cüz
+ * reader on its first unread cüz, and "Kitaptan okudum" with its cüz to tick.
  */
 const STATE_RANK = { read: 0, missed: 1, today: 2 } as const;
+
+/** The most repetitions a counter draws as separate segments; past it, one bar. */
+const MAX_SEGMENTS = 33;
+
+/** How many cells a row of the round's board holds: the Hizb's 33 in three rows, the others ten. */
+const ROUND_COLUMNS: Record<GroupKind, number> = { CEVSEN: 10, HATIM: 10, HIZB: 11 };
 
 export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 	const { t, language } = useTranslation();
 	const { theme } = useThemeContext();
-	const text = useHizbPlanText();
+	// The mushaf the reader is set to, for a Kur'an day's pages.
+	const isHusrev = useGetUserSettings().data?.readerArabicFont === 'husrev';
+	const text = useHizbPlanText(group.kind);
+	const isHizb = group.kind === 'HIZB';
 	const query = useHizbReading(group.id);
 	const enroll = useEnrollHizb(group.id);
 	const pullToRefresh = usePullToRefresh(query);
@@ -87,7 +115,12 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 	const aheadView = data ? hizbAheadView(data) : null;
 	const createAhead = useCreateHizbAhead(group.id);
 	const [isBookSheetOpen, setIsBookSheetOpen] = useState(false);
-	const cells = useMemo(() => (data ? planBoardCells(data.coveredSpans, today) : []), [data, today]);
+	// The 33 are the Hizb's alone: a Cevşen or Kur'an plan's day has no board (and `spansFor` knows
+	// only the Hizb's 7, 15 and 33).
+	const cells = useMemo(
+		() => (data && isHizb ? planBoardCells(data.coveredSpans, today) : []),
+		[data, isHizb, today]
+	);
 	const isGroupDone = cells.length > 0 && cells.every(cell => cell.state === 'read');
 	// S1: the plan chosen on the picker before it is started — the one option when the plan is fixed.
 	const [pickedPlan, setPickedPlan] = useState<number | null>(group.hizbPlan || null);
@@ -126,7 +159,7 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 
 			// Two days can share a cell (15 days: 2 and 3 both reach 6); it is read only when every
 			// day on it is, and today's unread share outranks a missed one.
-			for (const number of boardPortionsOf(reading.planDays, reading.portion)) {
+			for (const number of text.portionsOf(reading)) {
 				const held = states.get(number);
 
 				if (!held || STATE_RANK[state] > STATE_RANK[held]) {
@@ -136,15 +169,17 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 		}
 
 		const first = readings.at(-1);
-		const startCell = first ? boardPortionsOf(first.planDays, first.portion)[0] ?? null : null;
-		const items: CellGridItem[] = Array.from({ length: 33 }, (_, index) => {
+		const startCell = first ? text.portionsOf(first)[0] ?? null : null;
+		// The Hizb's board is always its 33; a Cevşen's or Kur'an's, its babs or cüz.
+		const items: CellGridItem[] = Array.from({ length: partCountFor(group.kind) }, (_, index) => {
 			const number = index + 1;
 			const state = states.get(number);
 			const backgroundColor =
 				state === 'read'
 					? theme.colors.accent
 					: state === 'missed'
-					? theme.colors.missedSurface
+					? // Red, as the Cevşen's and Kur'an's rounds draw a missed part.
+					  theme.colors.missed
 					: state === 'today'
 					? theme.colors.accentMuted
 					: theme.colors.segmentTrack;
@@ -163,19 +198,15 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 					state === 'read'
 						? theme.colors.onAccent
 						: state === 'missed'
-						? theme.colors.missed
+						? theme.colors.onAccent
 						: state === 'today'
 						? theme.colors.accent
 						: theme.colors.faintText
 			};
 		});
 
-		return {
-			items,
-			missed: readings.filter(reading => reading.id !== current.id && !reading.completedAt).length,
-			read: readings.filter(reading => reading.completedAt).length
-		};
-	}, [group.hizbIndividual, query.data, theme]);
+		return { items };
+	}, [group.hizbIndividual, group.kind, query.data, text, theme]);
 	if (query.isError) {
 		return <ErrorState queries={[query]} />;
 	}
@@ -188,8 +219,10 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 						hizbIndividual: group.hizbIndividual ?? false,
 						hizbPlan: group.hizbPlan ?? 0,
 						hizbStartPortion: group.hizbStartPortion ?? 1,
+						kind: group.kind,
 						memberCount: group.memberCount,
-						name: group.name
+						name: group.name,
+						planDays: group.planDays ?? null
 					}}
 				/>
 			</ScreenContainer>
@@ -206,7 +239,9 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 	const namesHidden = group.hideMemberNames && !group.isOwner && !group.seesReaders;
 	const readers = readersPreview(data.members, { namesHidden });
 	const readersPercent = readers.total > 0 ? Math.round((readers.read * 100) / readers.total) : 0;
-	const open = (id: string) => navigation.navigate('HizbPlanReader', { groupId: group.id, assignmentId: id });
+	// A day opens in its own book's reading: the Hizb's or the Cevşen's reader, or a Kur'an day's cüz.
+	const open = (id: string) =>
+		navigation.navigate(planReadingRoute(group.kind), { groupId: group.id, assignmentId: id });
 	// T2, T3, T4 and T5 of the design.
 	const openMissed = () => navigation.navigate('HizbMissed', { groupId: group.id });
 	const openHistory = () => navigation.navigate('HizbPlanHistory', { groupId: group.id });
@@ -215,15 +250,13 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 	const openReaders = () => navigation.navigate('HizbReaders', { groupId: group.id });
 
 	const { monthDay, portionDesc, portionsOf, trSuffix, workTitle } = text;
+	// The line under a day's title: the Hizb's portions under its work, the plan's day under a
+	// Cevşen or Kur'an day's parts (which are its title).
+	const contextOf = (reading: { planDays: number; portion: number }) =>
+		isHizb ? text.partsLabel(reading) : text.dayLabel(reading);
 
 	const resetInstant = new Date(data.nextDayAt);
 	const localTime = t('yourTimeAt', { time: timeIn(resetInstant, language) });
-	const nextAt = t('hpNextAt', {
-		time: timeIn(resetInstant, language, group.timezone),
-		zone: zoneAbbreviation(resetInstant, language, group.timezone)
-	});
-	// Recomputed each render, not memoised on the reset instant, so it keeps counting down.
-	const nextIn = t('hpNextIn', { left: t('hoursLeft', timeUntilReset(data.nextDayAt)) });
 
 	const confirmUndo = () =>
 		confirmDestructive({
@@ -268,8 +301,9 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 	};
 
 	const isTodayDone = today?.completedAt != null;
-	// Read from the book: the green row says so, with the time ("kitaptan · 16:47").
-	const isReadFromBook = isTodayDone && today?.readFrom === 'BOOK';
+	// Read from the book: the green row says so, with the time ("kitaptan · 16:47"). A Kur'an day
+	// marked cüz by cüz may have been read anywhere, so it says only the time.
+	const isReadFromBook = isHizb && isTodayDone && today?.readFrom === 'BOOK';
 	const readAt = timeIn(new Date(today?.completedAt ?? data.nextDayAt), language);
 	// A day read ahead says so — "Önceden okundu", and the day it was read on — rather than a time
 	// from an earlier day under "Bugün okundu".
@@ -277,7 +311,7 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 	const readEarlySub =
 		isReadEarly && today
 			? [
-					hizbPortionLabel(formatBabRange(portionsOf(today)), t),
+					contextOf(today),
 					t('hpAheadReadOn', {
 						date: new Date(today.completedAt ?? data.nextDayAt).toLocaleDateString(language, {
 							day: 'numeric',
@@ -287,15 +321,62 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 					isReadFromBook ? t('hbFromBookAt', { time: readAt }) : readAt
 			  ].join(' · ')
 			: null;
-	// Portions already marked from the book on a day not finished yet.
+	// Portions already marked from the book on a day not finished yet — a Kur'an day's cüz marked so far.
 	const bookPortionsRead = today && !isTodayDone ? today.readPortions : [];
+	const myPortions = today ? portionsOf(today) : [];
+	const isQuran = group.kind === 'HATIM';
+	// A Kur'an day's place, kept on the reading by the cüz reader: which cüz, and the page in it.
+	const quranPlace = isQuran && today ? bookmarkToCuzPlace(today.bookmark) : null;
+	// Pages in the mushaf the reader is set to — Hüsrev walks twenty a cüz, the typeset text its own.
+	const pagesOfCuz = (cuzNumber: number) => (isHusrev ? mushafCuzPages(cuzNumber) : cuzPages(cuzNumber)).length;
+	// A Kur'an day is started once its place is marked or a cüz of it is marked read.
 	const isStarted =
 		today !== null &&
 		!isTodayDone &&
-		(today.bookmark > 0 || today.repetitions > 0 || today.istighfarRepetitions > 0 || today.delailRepetitions > 0);
-	const pageCount = today ? planBlocks(today.planDays, today.portion).length : 0;
-	const page = today ? Math.min(today.bookmark + 1, pageCount) : 0;
-	const myPortions = today ? portionsOf(today) : [];
+		(isQuran
+			? quranPlace !== null || bookPortionsRead.length > 0
+			: bookPortionsRead.length > 0 ||
+			  today.bookmark > 0 ||
+			  today.repetitions > 0 ||
+			  today.istighfarRepetitions > 0 ||
+			  today.delailRepetitions > 0);
+	// The Hizb reader's pages; the Cevşen's babs, one a page; a Kur'an day's pages up to its place, or
+	// its cüz as they are marked.
+	const pageCount = !today
+		? 0
+		: isHizb
+		? planBlocks(today.planDays, today.portion).length
+		: isQuran
+		? myPortions.reduce((total, cuzNumber) => total + pagesOfCuz(cuzNumber), 0)
+		: myPortions.length;
+	// A Kur'an always counts pages, as its group screen does: each cüz marked read is all of its
+	// pages, and the place kept adds the pages up to it in the cüz not yet marked.
+	const quranPages = () => {
+		const marked = myPortions
+			.filter(n => bookPortionsRead.includes(n))
+			.reduce((total, n) => total + pagesOfCuz(n), 0);
+		const placeCuz = quranPlace ? myPortions[quranPlace.cuzIndex] : undefined;
+		const upToPlace =
+			quranPlace && placeCuz !== undefined && !bookPortionsRead.includes(placeCuz)
+				? myPortions
+						.slice(0, quranPlace.cuzIndex)
+						.filter(n => !bookPortionsRead.includes(n))
+						.reduce((total, n) => total + pagesOfCuz(n), 0) + quranPlace.page
+				: 0;
+
+		return Math.min(pageCount, marked + upToPlace);
+	};
+	const page = !today
+		? 0
+		: isQuran
+		? quranPages()
+		: group.kind === 'CEVSEN'
+		? // The babs marked read — never the place the arrows have moved to.
+		  bookPortionsRead.length
+		: Math.min(today.bookmark + 1, pageCount);
+	// The Hizb's book buttons; a Cevşen reads in the app, and a Kur'an day opens its cüz to mark.
+	const readTitle: StringKey =
+		group.kind === 'HATIM' ? (isStarted ? 'hpContinue' : 'hbReadInApp') : isStarted ? 'hpContinue' : 'hbReadInApp';
 	const round = data.currentRound;
 	const bannerMuted = toAlphaColor(theme.colors.onHeaderSurface, 0.62);
 	// The missed day's own round — the server counts rounds across a leave and a rejoin.
@@ -356,12 +437,14 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 		roundStart > 1
 			? t('hpRoundWrap', {
 					date: monthDay(roundEnd, 'long'),
-					portions: hizbPortionLabel(formatBabRange(portionsOf({ planDays, portion: roundStart })), t)
+					portions: text.partsLabel({ planDays, portion: roundStart })
 			  })
 			: null;
 	const joinedLabel = joinedDate ? monthDay(joinedDate, 'long') : '';
 	const subtitle = !isShared
-		? t('hpSubtitleIndividual', { days: group.hizbPlan ?? planDays, start: group.hizbStartPortion ?? 1 })
+		? isHizb
+			? t('hpSubtitleIndividual', { days: group.hizbPlan ?? planDays, start: group.hizbStartPortion ?? 1 })
+			: t('spSubtitle', { days: group.planDays ?? planDays })
 		: removed
 		? t('hpSubtitleRemoved', { count: group.memberCount, plan: planLabel })
 		: isPicking
@@ -378,25 +461,16 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 		  })
 		: t('hpMembersDaily', { count: group.memberCount });
 
-	const nextRow = (label: string) => (
-		<View style={[styles.footRow, { borderTopColor: theme.colors.divider }]}>
-			<Icon color={theme.colors.faintText} name='clock' size={15} strokeWidth={1.7} />
-			<CaptionText style={styles.footLabel} weight='semibold'>
-				{label}
-			</CaptionText>
-			<CaptionText color={theme.colors.accent} style={styles.localTime}>
-				{localTime}
-			</CaptionText>
-		</View>
-	);
-
 	const counterRow = (label: string, count: number, target: number) => (
 		<View key={label} style={styles.progressLine}>
 			<CaptionText color={theme.colors.subtext} style={styles.counterLabel} weight='semibold'>
 				{label}
 			</CaptionText>
-			{target <= 3 ? (
-				<View style={styles.segments}>
+			{/* One segment a repetition: what is left reads at a glance, as the tesbih is counted.
+			    Tighter once there are many, so nineteen still fit the line. An istighfar target set
+			    high (up to 100) has no room for segments, and stays one bar. */}
+			{target <= MAX_SEGMENTS ? (
+				<View style={[styles.segments, { gap: target > 12 ? 2 : 4 }]}>
 					{Array.from({ length: target }, (_, index) => (
 						<View
 							key={index}
@@ -469,17 +543,13 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 					</CaptionText>
 				</View>
 			) : null}
-			{/* With today read, its card is gone: the next reading's time comes here instead. */}
-			{today && isTodayDone ? (
-				nextRow(nextIn)
-			) : (
-				<View style={[styles.historyRow, { borderTopColor: theme.colors.divider }]}>
-					<CaptionText style={styles.footLabel} weight='semibold'>
-						{t('hpAllHistory')}
-					</CaptionText>
-					<Icon color={theme.colors.faintText} name='chevronRight' size={15} strokeWidth={1.8} />
-				</View>
-			)}
+			{/* When the next day comes is the clock card's, on top. */}
+			<View style={[styles.historyRow, { borderTopColor: theme.colors.divider }]}>
+				<CaptionText style={styles.footLabel} weight='semibold'>
+					{t('hpAllHistory')}
+				</CaptionText>
+				<Icon color={theme.colors.faintText} name='chevronRight' size={15} strokeWidth={1.8} />
+			</View>
 		</CardSurface>
 	) : null;
 
@@ -712,11 +782,53 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 						</View>
 					) : null}
 
+					{/* The groups' stats card: how long until the next day, and when it comes. A shared plan
+					    adds its people and says the group's zone beside the reader's; a Şahsi reading is
+					    the reader's own clock alone. */}
+					<CardSurface isFlush style={styles.cardGap}>
+						<View style={styles.clockRow}>
+							{isShared ? (
+								<View
+									style={[
+										styles.clockCell,
+										styles.clockCellDivided,
+										{ borderRightColor: theme.colors.divider }
+									]}
+								>
+									<NumericText>{String(group.memberCount)}</NumericText>
+									<StatText color={theme.colors.faintText} style={styles.clockLabel}>
+										{t('members')}
+									</StatText>
+								</View>
+							) : null}
+							<View style={styles.clockCell}>
+								<NumericText>{t('hoursLeft', timeUntilReset(data.nextDayAt))}</NumericText>
+								<StatText color={theme.colors.faintText} style={styles.clockLabel}>
+									{t('spUntilNext')}
+								</StatText>
+							</View>
+						</View>
+						<RoundResetRow
+							groupLabel={
+								isShared
+									? t('hdEveryDayAt', {
+											time: timeIn(resetInstant, language, group.timezone),
+											zone: zoneAbbreviation(resetInstant, language, group.timezone)
+									  })
+									: t('spEveryDayAt', { time: timeIn(resetInstant, language) })
+							}
+							localLabel={isShared ? localTime : ''}
+							style={[styles.clockReset, { borderTopColor: theme.colors.divider }]}
+							variant='panel'
+						/>
+					</CardSurface>
+
 					{/* "Benim ilerlemem": one headed card around the reader's own rows, as on the Cevşen's. */}
 					<SectionCard
 						isCard={!isPicking}
 						label={t('hpMyProgress')}
-						style={removed ? styles.removedEyebrow : undefined}
+						// An individual reading's round card follows at the cards' own gap, not a section's.
+						style={removed ? styles.removedEyebrow : !isShared ? styles.cardGap : undefined}
 					>
 						{/* W1/W4: today's reading, the one dark button. H1 of the first-use tour — the wrapper
 					    carries the card's gap, so the spotlight is the card alone. */}
@@ -724,7 +836,9 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 							<TourTarget id='hizbToday' style={styles.cardGap}>
 								{/* No card of its own: it is the section card's first row, edge to edge. */}
 								<View style={styles.todayBlock}>
-									<View style={styles.todayBody}>
+									{/* The card ends on its buttons — when the next day comes is the clock card's, on
+									    top — so the gap down to the banner is the button's own 14, not 16 more of the card. */}
+									<View style={[styles.todayBody, styles.todayBodyLast]}>
 										<View style={styles.spread}>
 											<Typography
 												color={theme.colors.accent}
@@ -743,7 +857,8 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 													variant='stat'
 													weight='semibold'
 												>
-													{isShared
+													{/* A Cevşen or Kur'an day's parts are its title, so its tag is the day. */}
+													{isShared || !isHizb
 														? t('hpPlanDay', { day: today.portion, days: today.planDays })
 														: hizbPortionLabel(formatBabRange(myPortions), t)}
 												</Typography>
@@ -755,8 +870,9 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 												{portionDesc(today)}
 											</CaptionText>
 										) : null}
-										{/* A shorter plan's day covers several of the 33 — named as chips. */}
-										{myPortions.length > 1 ? (
+										{/* A shorter plan's day covers several of the 33 — named as chips. A Cevşen or
+										    Kur'an day's babs or cüz are its title; its progress is the box below. */}
+										{myPortions.length > 1 && isHizb ? (
 											<View style={styles.portionChips}>
 												{myPortions.map(number => {
 													// Marked from the book already: filled, as the read state draws them.
@@ -812,50 +928,14 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 										) : null}
 										{/* Started is not read: the page and the counts carry on where they were. */}
 										{isStarted ? (
-											<View
-												style={[
-													styles.progressBox,
-													{ backgroundColor: theme.colors.background }
-												]}
+											<StartedProgress
+												label={t(isHizb || isQuran ? 'hpPageOf' : 'spBabProgress', {
+													page,
+													total: pageCount
+												})}
+												percent={(page * 100) / Math.max(1, pageCount)}
+												style={styles.progressBox}
 											>
-												{/* On its own line above the rows, so it heads them all rather than the page. */}
-												<View
-													style={[styles.startedTag, { backgroundColor: theme.colors.sand }]}
-												>
-													<Typography
-														color={theme.colors.sandText}
-														style={styles.startedLabel}
-														variant='stat'
-														weight='semibold'
-													>
-														{t('hpStarted')}
-													</Typography>
-												</View>
-												<View style={styles.progressLine}>
-													<CaptionText
-														color={theme.colors.subtext}
-														style={styles.smallStrong}
-														weight='semibold'
-													>
-														{t('hpPageOf', { page, total: pageCount })}
-													</CaptionText>
-													<View
-														style={[
-															styles.bar,
-															{ backgroundColor: theme.colors.progressTrack }
-														]}
-													>
-														<View
-															style={[
-																styles.barFill,
-																{
-																	backgroundColor: theme.colors.accent,
-																	width: `${(page * 100) / Math.max(1, pageCount)}%`
-																}
-															]}
-														/>
-													</View>
-												</View>
 												{today.requiresSekine
 													? counterRow(t('hpCounterSekine'), today.repetitions, 19)
 													: null}
@@ -869,14 +949,22 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 												{today.requiresDelailRepetition
 													? counterRow(t('hpCounterSalavat'), today.delailRepetitions, 3)
 													: null}
-											</View>
+											</StartedProgress>
 										) : null}
 										{/*
 										 * R1: two ways to read — the app is the dark button, the book the grey one.
 										 * R4: a member who always reads from the book gets them the other way round,
 										 * with the app a link.
 										 */}
-										{data.readsFromBook ? (
+										{group.kind === 'CEVSEN' ? (
+											<AppButton
+												onPress={() => open(today.id)}
+												size='lg'
+												style={styles.firstButton}
+												title={t(readTitle)}
+												variant='primary'
+											/>
+										) : data.readsFromBook ? (
 											<>
 												<AppButton
 													disabled={todayUpdate.isPending}
@@ -890,7 +978,7 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 												<AppButton
 													onPress={() => open(today.id)}
 													style={styles.appLink}
-													title={t(isStarted ? 'hpContinue' : 'hbReadInApp')}
+													title={t(readTitle)}
 													variant='ghost'
 												/>
 											</>
@@ -900,7 +988,7 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 													onPress={() => open(today.id)}
 													size='lg'
 													style={styles.firstButton}
-													title={t(isStarted ? 'hpContinue' : 'hbReadInApp')}
+													title={t(readTitle)}
 													variant='primary'
 												/>
 												<AppButton
@@ -915,7 +1003,6 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 											</>
 										)}
 									</View>
-									{nextRow(nextAt)}
 								</View>
 							</TourTarget>
 						) : null}
@@ -957,7 +1044,9 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 															time: readAt
 														}
 												  )}`
-												: t('hpNoMissedSub', { portions: formatBabRange(myPortions) }))}
+												: isHizb
+												? t('hpNoMissedSub', { portions: formatBabRange(myPortions) })
+												: t('spNoMissedSub', { day: text.dayLabel(today) }))}
 									</CaptionText>
 								</View>
 								{/* Not once the group has read all 33 (W3): the day is done for everyone. Nor with a
@@ -1002,7 +1091,7 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 												{`${offerWhen} · ${workTitle(offer)}`}
 											</CaptionText>
 											<CaptionText color={theme.colors.subtext} style={styles.rowSub}>
-												{hizbPortionLabel(formatBabRange(portionsOf(offer)), t)}
+												{contextOf(offer)}
 											</CaptionText>
 											{createAhead.isError ? (
 												<CaptionText color={theme.colors.danger} style={styles.rowSub}>
@@ -1076,12 +1165,7 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 								</View>
 								<TitleText style={styles.readingTitle}>{workTitle(newestMissed)}</TitleText>
 								<CaptionText color={theme.colors.subtext} style={styles.readingDesc}>
-									{[
-										hizbPortionLabel(formatBabRange(portionsOf(newestMissed)), t),
-										portionDesc(newestMissed)
-									]
-										.filter(Boolean)
-										.join(' · ')}
+									{[contextOf(newestMissed), portionDesc(newestMissed)].filter(Boolean).join(' · ')}
 								</CaptionText>
 								<AppButton
 									onPress={() => open(newestMissed.id)}
@@ -1099,7 +1183,8 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 										{t('hpAllMissed', { count: data.missedCount })}
 									</CaptionText>
 								</Pressable>
-								{missedRound !== null ? (
+								{/* The Hizb's note on the group's 33; a Şahsi Cevşen or Kur'an has no such board. */}
+								{missedRound !== null && isHizb ? (
 									<View style={[styles.noteRow, { borderTopColor: theme.colors.divider }]}>
 										<Icon color={theme.colors.accent} name='clock' size={14} strokeWidth={1.8} />
 										<CaptionText color={theme.colors.subtext} style={[styles.flex, styles.note]}>
@@ -1182,16 +1267,16 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 									</CaptionText>
 								) : null}
 							</View>
-							<CellGrid borderWidth={1.5} columns={11} gap={4} items={individualRound.items} radius={6} />
+							<CellGrid
+								borderWidth={1.5}
+								columns={ROUND_COLUMNS[group.kind]}
+								gap={4}
+								items={individualRound.items}
+								radius={6}
+							/>
 							<View style={styles.legend}>
-								<LegendKey
-									color={theme.colors.accent}
-									label={t('hpLegendReadCount', { count: individualRound.read })}
-								/>
-								<LegendKey
-									color={theme.colors.missedSurface}
-									label={t('hpLegendMissedCount', { count: individualRound.missed })}
-								/>
+								<LegendKey color={theme.colors.accent} label={t('hpLegendRead')} />
+								<LegendKey color={theme.colors.missed} label={t('hpLegendMissed')} />
 								<LegendKey
 									color={theme.colors.accentMuted}
 									label={t('hpLegendToday')}
@@ -1231,9 +1316,9 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 										{monthDay(reading.date, 'short')}
 									</Typography>
 									<CaptionText numberOfLines={1} style={styles.historyTitle} weight='semibold'>
-										{hizbPortionLabel(formatBabRange(portionsOf(reading)), t)}
+										{text.partsLabel(reading)}
 										<CaptionText color={theme.colors.faintText} style={styles.historyTitle}>
-											{` · ${workTitle(reading)}`}
+											{` · ${text.partsAside(reading)}`}
 										</CaptionText>
 									</CaptionText>
 									{reading.completedAt ? (
@@ -1579,11 +1664,12 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 							</CardSurface>
 							<View style={styles.groupCardGap}>{roundsCard}</View>
 						</>
-					) : (
+					) : group.kind !== 'HATIM' ? (
+						// A Kur'an day's cüz marked from a mushaf count too; the Hizb and the Cevşen count the app's.
 						<CaptionText textAlign='center' color={theme.colors.subtext}>
 							{t('hpIndividualCountHint')}
 						</CaptionText>
-					)}
+					) : null}
 				</View>
 
 				{isShared ? (
@@ -1599,8 +1685,8 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 			{isShared ? (
 				<MembersSheet groupId={group.id} isVisible={route.params.sheet === 'members'} onClose={closeSheet} />
 			) : null}
-			{/* R2: which of today's portions were read from the book. */}
-			{today ? (
+			{/* R2: which of today's portions were read from the book — the Hizb's only. */}
+			{today && isHizb ? (
 				<HizbBookSheet
 					alreadyRead={bookPortionsRead}
 					isPending={todayUpdate.isPending}
@@ -1609,6 +1695,7 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 					onConfirm={confirmBook}
 					portions={today.boardPortions}
 					readsFromBook={data.readsFromBook}
+					{...(group.kind === 'HATIM' ? { unit: 'cuz' as const } : {})}
 				/>
 			) : null}
 			{/* The days read ahead: each one's date, its portion and when it was read. */}
@@ -1649,12 +1736,7 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 											})}`}
 										</CaptionText>
 										<CaptionText color={theme.colors.subtext} style={styles.rowSub}>
-											{hizbPortionLabel(
-												formatBabRange(
-													portionsOf({ planDays: today.planDays, portion: reading.portion })
-												),
-												t
-											)}
+											{contextOf({ planDays: today.planDays, portion: reading.portion })}
 										</CaptionText>
 										<CaptionText color={theme.colors.subtext} style={styles.rowSub}>
 											{t('hpAheadReadOn', {
@@ -1836,6 +1918,7 @@ const styles = StyleSheet.create({
 	bandNote: { fontSize: 11.5, marginTop: -10 },
 	// Today's card.
 	todayBody: { padding: 16 },
+	todayBodyLast: { paddingBottom: 4 },
 	// Out to the section card's edges: its body is inset 15, and this row carries its own 16.
 	todayBlock: { marginHorizontal: -15, marginTop: -15 },
 	readingTitle: { fontSize: 21, lineHeight: 26.25, marginTop: 10 },
@@ -1845,14 +1928,13 @@ const styles = StyleSheet.create({
 	portionChip: { borderRadius: 7, paddingHorizontal: 8, paddingVertical: 5 },
 	portionChipLabel: { fontSize: 11, lineHeight: 14 },
 	portionCount: { fontSize: 11.5, lineHeight: 22, marginLeft: 4 },
-	progressBox: { borderRadius: 12, gap: 8, marginTop: 12, paddingHorizontal: 12, paddingVertical: 10 },
+	progressBox: { marginTop: 12 },
 	progressLine: { alignItems: 'center', flexDirection: 'row', gap: 8 },
-	startedTag: { alignSelf: 'flex-start', borderRadius: 5, paddingHorizontal: 7, paddingVertical: 3 },
-	startedLabel: { fontSize: 9.5, letterSpacing: 0.57 },
 	smallStrong: { fontSize: 11 },
-	counterLabel: { fontSize: 11, width: 58 },
-	segments: { flexDirection: 'row', gap: 4 },
-	segment: { borderRadius: 3, height: 5, width: 18 },
+	// The page line's own label width, so every bar in the box starts on one line.
+	counterLabel: { fontSize: 11, width: STARTED_LABEL_WIDTH },
+	segments: { flex: 1, flexDirection: 'row' },
+	segment: { borderRadius: 3, flex: 1, height: 5 },
 	bar: { borderRadius: 2, flex: 1, height: 4, overflow: 'hidden' },
 	barFill: { height: '100%' },
 	monoCount: { fontSize: 11 },
@@ -1872,6 +1954,12 @@ const styles = StyleSheet.create({
 		paddingHorizontal: 16,
 		paddingVertical: 12
 	},
+	// A Şahsi reading's clock card, as the groups' stats card draws its cells and reset row.
+	clockRow: { flexDirection: 'row' },
+	clockCell: { flex: 1, paddingHorizontal: 15, paddingVertical: 14 },
+	clockCellDivided: { borderRightWidth: StyleSheet.hairlineWidth },
+	clockLabel: { marginTop: 4 },
+	clockReset: { borderTopWidth: StyleSheet.hairlineWidth },
 	// Section S.
 	pickCard: { marginBottom: 22, padding: 16 },
 	pickTitle: { fontSize: 21, lineHeight: 26.25 },
