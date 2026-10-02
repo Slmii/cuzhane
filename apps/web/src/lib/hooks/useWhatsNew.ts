@@ -2,8 +2,9 @@ import { useTour } from '@/components/Tour/Tour.context';
 import { useIsFocused } from '@react-navigation/native';
 import { CURRENT_RELEASE } from '@/lib/content/releaseNotes';
 import { useGetUserSettings } from '@/lib/hooks/useUserSettings';
+import { BUILD_CHANNEL } from '@/lib/utils/appVersion';
 import { didOnboardThisLaunch } from '@/lib/utils/onboardingLaunch';
-import { whatsNewDecision } from '@/lib/utils/whatsNew';
+import { whatsNewDecision, whatsNewStorageKey } from '@/lib/utils/whatsNew';
 import * as SecureStore from 'expo-secure-store';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -11,8 +12,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * The last release whose notes this install has seen. On the device, like the theme and the
  * language — not on the account: "what's new" is about the app on *this* phone having changed,
  * and the same account on a phone still running the old build has not had that happen yet.
+ * One per build channel, so preview and the store build each announce a release — see
+ * `whatsNewStorageKey`.
  */
-const STORAGE_KEY = 'whatsNew.lastSeenReleaseId';
+const STORAGE_KEY = whatsNewStorageKey(BUILD_CHANNEL);
 
 /**
  * Whether to open the "Neler yeni" sheet (design P1), and how to close it.

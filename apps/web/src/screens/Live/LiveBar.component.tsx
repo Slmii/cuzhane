@@ -1,14 +1,18 @@
+import { LiveVoiceMeter } from '@/components/LiveVoice/LiveVoiceMeter.component';
 import { Avatar } from '@/components/ui/Avatar/Avatar.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
 import { CaptionText, MonoText, Typography } from '@/components/ui/Typography/Typography.component';
+import { useLiveVoice, useLiveVoiceLook } from '@/lib/hooks/useLiveVoice';
 import { useTranslation } from '@/lib/i18n/I18n.context';
+import { liveVoice } from '@/lib/live/liveVoice';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { toAlphaColor } from '@/lib/theme/tokens';
 import { formatInviteCode } from '@/lib/utils/inviteCode';
 import { LiveDot } from '@/screens/Live/LiveDot.component';
-import { LiveTeachRow } from '@/screens/Live/LiveTeachRow.component';
 import { formatCountdown, formatLivePlace, LIVE_GRACE_SECONDS } from '@/screens/Live/liveFormat';
+import { LiveTeachRow } from '@/screens/Live/LiveTeachRow.component';
+import { LIVE_BAR_HEIGHT, LiveVoiceBar } from '@/screens/Live/LiveVoiceBar.component';
 import type { useFreeReaderLive } from '@/screens/Live/useFreeReaderLive';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
@@ -25,6 +29,8 @@ type Props = {
 
 /** How many followers' initials the leader's row shows before "+N". */
 const MAX_AVATARS = 3;
+/** The voice's mark in place of the dot: the mark box's height (the meter's bars overhang its width a little). */
+const VOICE_MARK_SIZE = 14;
 
 /** The countdown while the reader is away, ticking only while it shows. Also the return strip's. */
 export const useSecondsLeft = (awaySince: number | null) => {
@@ -70,9 +76,24 @@ export const LiveBar = ({ followDirection = 'down', live, onOpenSheet }: Props) 
 	const { theme } = useThemeContext();
 	const { code, state } = live;
 	const secondsLeft = useSecondsLeft(state.status === 'away' && live.isFollower ? state.awaySince : null);
+	const voiceLook = useLiveVoiceLook(state);
+	const voice = useLiveVoice();
 
 	if (code === null) {
 		return null;
+	}
+
+	/*
+	 * **Voice takes a follower's bar while it has something to say** (Birlikte Oku Ses) — but not
+	 * over the reader dropping out, whose countdown stands (lane J, "Duraklama"), nor over a
+	 * follower who let go, whose bar is "Takip et". The reader's own bar stays as it is: their voice
+	 * is the mic button beside the code, on and off.
+	 */
+	const isVoiceBar =
+		voiceLook !== null && state.gone === null && state.status === 'live' && live.isFollower && !state.isDetached;
+
+	if (isVoiceBar) {
+		return <LiveVoiceBar look={voiceLook} onOpenSheet={onOpenSheet} />;
 	}
 
 	const leader = state.people.find(person => person.isLeader);
@@ -146,6 +167,30 @@ export const LiveBar = ({ followDirection = 'down', live, onOpenSheet }: Props) 
 			: theme.colors.accent;
 
 	const isLiveLeader = live.isLeader && state.gone === null && state.status !== 'connecting';
+	/*
+	 * **The reader's voice is one button beside the code** — a struck-through mic while muted, the
+	 * mic in accent while it is on (connecting and paused count as on: the reader asked for it,
+	 * and tapping again turns it off). A refused microphone opens the sheet instead, which says
+	 * why and leads to Settings; a build or server without voice shows no button at all.
+	 */
+	const hasVoiceToggle =
+		isLiveLeader && voice.isSupported && voice.role === 'reader' && voice.state !== 'unavailable';
+	const isVoiceOn = voice.state === 'connecting' || voice.state === 'listening' || voice.state === 'paused';
+	/*
+	 * While the reader's voice is on, the live dot gives way to the voice's own mark (Birlikte Oku
+	 * Ses): the level meter in the accent, or — paused — the paused microphone in sand, never
+	 * moving bars. Off, the dot stays.
+	 */
+	const voiceMark = hasVoiceToggle && look.mark === 'pulse' && isVoiceOn ? voice.state : null;
+	const toggleVoice = () => {
+		if (isVoiceOn) {
+			liveVoice.stop();
+		} else if (voice.reason === 'microphone-refused') {
+			onOpenSheet();
+		} else {
+			void liveVoice.start();
+		}
+	};
 
 	return (
 		<>
@@ -159,6 +204,15 @@ export const LiveBar = ({ followDirection = 'down', live, onOpenSheet }: Props) 
 					<View style={styles.markBox}>
 						{look.mark === 'spin' ? (
 							<ActivityIndicator color={theme.colors.text} size='small' style={styles.spinner} />
+						) : voiceMark === 'paused' ? (
+							<Icon
+								color={theme.colors.liveStripWarnAccent}
+								name='micPaused'
+								size={VOICE_MARK_SIZE}
+								strokeWidth={1.6}
+							/>
+						) : voiceMark !== null ? (
+							<LiveVoiceMeter color={markColor} size={VOICE_MARK_SIZE} />
 						) : (
 							<LiveDot
 								color={markColor}
@@ -168,16 +222,40 @@ export const LiveBar = ({ followDirection = 'down', live, onOpenSheet }: Props) 
 						)}
 					</View>
 					<View style={styles.copy}>
-						<Typography color={look.titleColor} style={styles.title} weight='semibold'>
+						<Typography color={look.titleColor} numberOfLines={1} style={styles.title} weight='semibold'>
 							{look.title}
 						</Typography>
 						{look.sub ? (
-							<CaptionText color={look.subColor} style={styles.sub}>
+							<CaptionText color={look.subColor} numberOfLines={1} style={styles.sub}>
 								{look.sub}
 							</CaptionText>
 						) : null}
 					</View>
+				</Pressable>
 
+				{/*
+				 * **Outside the bar's tap areas, not inside one.** On iOS the button is a native glass
+				 * control, which does not take the touch away from a Pressable around it: inside the
+				 * tap area, muting also opened the sheet.
+				 */}
+				{hasVoiceToggle ? (
+					<AppButton
+						accessibilityLabel={isVoiceOn ? t('liveVoiceTurnOff') : t('liveVoiceRowTitle')}
+						fullWidth={false}
+						icon={isVoiceOn ? 'mic' : 'micOff'}
+						onPress={toggleVoice}
+						size='sm'
+						variant={isVoiceOn ? 'accent' : 'surface'}
+					/>
+				) : null}
+
+				<Pressable
+					accessibilityElementsHidden
+					disabled={!look.isTappable}
+					importantForAccessibility='no-hide-descendants'
+					onPress={onOpenSheet}
+					style={styles.sideTapArea}
+				>
 					{isLiveLeader && followers.length === 0 ? (
 						<View
 							style={[
@@ -256,7 +334,11 @@ const styles = StyleSheet.create({
 		borderBottomWidth: StyleSheet.hairlineWidth,
 		flexDirection: 'row',
 		gap: 12,
-		minHeight: 60,
+		/*
+		 * **One height in every state**, the voice bar's (`LiveVoiceBar`, 66): a follower's bar swaps
+		 * between this one and that one as the reader mutes and unmutes, and must not jump.
+		 */
+		height: LIVE_BAR_HEIGHT,
 		paddingBottom: 10,
 		paddingLeft: 18,
 		paddingRight: 14,
@@ -300,6 +382,12 @@ const styles = StyleSheet.create({
 	tapArea: {
 		alignItems: 'center',
 		flex: 1,
+		flexDirection: 'row',
+		gap: 12
+	},
+	/** The code (or initials) and the chevron: the same tap as the rest of the bar. */
+	sideTapArea: {
+		alignItems: 'center',
 		flexDirection: 'row',
 		gap: 12
 	},

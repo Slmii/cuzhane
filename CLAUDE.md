@@ -182,7 +182,7 @@ Three kinds: the **Cevşen** (`CEVSEN`, 100 babs), the **Kur'an** (`HATIM`, 30 c
     if nothing fits, extend the shared component rather than adding a look-alike.
 -   **Icons** only via `components/ui/Icon` (stroke only, ≥14px). **Never a typographic character as an
     icon**, not even inside a string. Beside a glass control use `ui/Icon/SymbolIcon`. An icon-only
-    `AppButton` is the 44pt disc; it goes glass only for icons in `GLYPH_BY_ICON`, and needs
+    `AppButton` is the 44pt disc (`size='sm'`: a 38pt one, still a 44pt target); it goes glass only for icons in `GLYPH_BY_ICON`, and needs
     `fullWidth={false}` in a row. `ICON_ONLY_GLYPH_SIZE` is mirrored in `Button.component.tsx` and
     `GlassButton.tsx`.
 -   Native glass controls (`AppButton`, `SegmentedControl`) are created once and hidden/shown, never

@@ -13,8 +13,9 @@ const server = app.listen(env.PORT, () => {
 const liveSockets = attachLiveSockets(server);
 
 const shutdown = async () => {
-	// Before `server.close()`: open sockets would otherwise hold it open until they time out.
-	liveSockets.close();
+	// Before `server.close()`: open sockets would otherwise hold it open until they time out. Awaited
+	// so the readers' voice tracks are closed at Cloudflare before the exit (bounded, a couple of seconds).
+	await liveSockets.close();
 	server.close(async () => {
 		await prisma.$disconnect();
 		process.exit(0);

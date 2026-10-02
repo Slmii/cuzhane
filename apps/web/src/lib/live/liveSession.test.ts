@@ -36,8 +36,8 @@ const snapshot = (overrides: Partial<Extract<LiveServerFrame, { t: 'snapshot' }>
 	mark: null,
 	markShown: false,
 	people: [
-		{ isLeader: true, isYou: false, name: 'Reader' },
-		{ isLeader: false, isYou: true, name: 'Me' }
+		{ isLeader: true, isListening: false, isYou: false, name: 'Reader' },
+		{ isLeader: false, isListening: false, isYou: true, name: 'Me' }
 	],
 	pos: null,
 	role: 'follower',
@@ -45,6 +45,7 @@ const snapshot = (overrides: Partial<Extract<LiveServerFrame, { t: 'snapshot' }>
 	session: { code: 'ABCD2345', id: 'session-1', kind: 'CEVSEN', startedAt: '2026-10-01T10:00:00.000Z' },
 	status: 'live',
 	t: 'snapshot',
+	voice: 'off',
 	...overrides
 });
 
@@ -328,6 +329,29 @@ describe('live session', () => {
 			{ pos: cevsen(20, 0.21), t: 'pos' },
 			{ pos: cevsen(20, 0.3), t: 'pos' }
 		]);
+	});
+
+	it('carries the reader’s voice, and passes on every announcement of it — the same one again too', () => {
+		const { session, socket } = setup();
+		const heard = vi.fn();
+
+		session.onVoice(heard);
+		session.join('ABCD2345', 'CEVSEN');
+		socket.handlersOf().onFrame(snapshot({ voice: 'on' }));
+		expect(session.getSnapshot()?.voice).toBe('on');
+
+		socket.handlersOf().onFrame({ t: 'voice', voice: 'on' });
+		socket.handlersOf().onFrame({ t: 'voice', voice: 'paused' });
+		expect(session.getSnapshot()?.voice).toBe('paused');
+		expect(heard.mock.calls).toEqual([
+			['on', true],
+			['on', false],
+			['paused', false]
+		]);
+
+		// Over with the session.
+		socket.handlersOf().onFrame({ reason: 'ended', t: 'ended' });
+		expect(session.getSnapshot()?.voice).toBe('off');
 	});
 
 	it('lets a follower’s line go on its own when the reader’s clear never comes', () => {

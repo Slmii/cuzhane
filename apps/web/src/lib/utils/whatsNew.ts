@@ -84,3 +84,14 @@ export const whatsNewDecision = ({
 
 	return isNewcomer ? 'record' : 'show';
 };
+
+/**
+ * **Where this build keeps the last release it announced — one key per channel.** Preview and the
+ * store build are the same app to the phone, and the storage (iOS's keychain) outlives replacing
+ * one with the other: a release seen on preview was already "seen" when the store build arrived,
+ * so its sheet never opened. Production keeps the key it has always had, so nobody who already
+ * saw a release in the store build is shown it again. `channel` is `BUILD_CHANNEL` — null in the
+ * store build.
+ */
+export const whatsNewStorageKey = (channel: string | null) =>
+	channel === null ? 'whatsNew.lastSeenReleaseId' : `whatsNew.lastSeenReleaseId.${channel}`;

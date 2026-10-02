@@ -1,6 +1,6 @@
 import { resolveAuthToken } from '@/api/wrapper.api';
 import { API_BASE_URL } from '@/lib/constants';
-import type { LiveMark, LivePosition, LiveServerFrame } from '@/lib/types/domain';
+import type { LiveMark, LivePosition, LiveServerFrame, LiveVoice } from '@/lib/types/domain';
 import { AppState } from 'react-native';
 
 /**
@@ -16,6 +16,9 @@ import { AppState } from 'react-native';
  *   again, and the server hands the current place straight back.
  * - **Some closes are final**: the session ended (4410) or never existed (4404) — reconnecting
  *   cannot help, so `onGone` is called instead.
+ * - **Live voice holds it in the background** (`hold`). While the voice plays or goes out, the
+ *   phone keeps the app running, and the socket is what lets a listener in and tells them the
+ *   voice stopped — so it stays, and reconnects there too.
  */
 
 /** The server's close codes — see `apps/server/src/schemas/live.schema.ts`. */
@@ -41,6 +44,7 @@ const socketUrl = () => `${API_BASE_URL.replace(/^http/, 'ws')}/api/live-socket`
 export const openLiveConnection = (code: string, handlers: Handlers) => {
 	let ws: WebSocket | null = null;
 	let isClosed = false;
+	let isHeld = false;
 	let attempt = 0;
 	let seq = 0;
 	let retryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -65,7 +69,7 @@ export const openLiveConnection = (code: string, handlers: Handlers) => {
 	};
 
 	const scheduleRetry = () => {
-		if (isClosed || retryTimer || AppState.currentState !== 'active') {
+		if (isClosed || retryTimer || (AppState.currentState !== 'active' && !isHeld)) {
 			return;
 		}
 
@@ -168,22 +172,33 @@ export const openLiveConnection = (code: string, handlers: Handlers) => {
 		};
 	};
 
+	/** Lets go of the socket in the background, unless live voice holds it. */
+	const letGo = () => {
+		if (isHeld) {
+			return;
+		}
+
+		// A reconnect already waiting goes too, or it would open a socket in the background.
+		stopTimers();
+
+		const socket = ws;
+
+		ws = null;
+		socket?.close();
+	};
+
 	const appState = AppState.addEventListener('change', next => {
 		if (next === 'active') {
 			attempt = 0;
 			connect();
-		} else if (next === 'background' && ws) {
+		} else if (next === 'background') {
 			/*
 			 * `background` only. iOS reports `inactive` for a moment whenever something covers
 			 * the app — the share sheet the reader opens to send the code, Control Centre, an
 			 * incoming call — and letting go then left the reader's own screen deaf to who joined.
 			 * Let go rather than be killed: the server's grace window covers a short trip away.
 			 */
-			const socket = ws;
-
-			ws = null;
-			stopTimers();
-			socket.close();
+			letGo();
 		}
 	});
 
@@ -199,6 +214,29 @@ export const openLiveConnection = (code: string, handlers: Handlers) => {
 		sendMark: (mark: LiveMark | null, shown: boolean) => {
 			seq += 1;
 			sendOn(ws, { mark, seq, shown, t: 'mark' });
+		},
+		/** The reader's app on its own voice: it cannot send (`paused`), or can again (`on`). */
+		sendVoice: (state: Exclude<LiveVoice, 'off'>) => {
+			seq += 1;
+			sendOn(ws, { seq, state, t: 'voice' });
+		},
+		/**
+		 * Live voice keeps the socket in the background while it is held — and, when held there,
+		 * brings it back (a lock-screen play after the socket dropped). Let go in the background,
+		 * it closes as it would have.
+		 */
+		hold: (isHolding: boolean) => {
+			isHeld = isHolding;
+
+			if (AppState.currentState === 'active') {
+				return;
+			}
+
+			if (isHeld) {
+				connect();
+			} else {
+				letGo();
+			}
 		},
 		close: () => {
 			isClosed = true;

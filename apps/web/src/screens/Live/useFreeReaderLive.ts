@@ -21,7 +21,8 @@ const ALONE: LiveReadingState = {
 	readerPlace: null,
 	role: null,
 	sessionId: null,
-	status: 'connecting'
+	status: 'connecting',
+	voice: 'off'
 };
 
 /**

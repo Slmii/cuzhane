@@ -86,15 +86,27 @@ export const ClientFrameSchema = z.discriminatedUnion('t', [
 		seq: z.number().int().min(0),
 		mark: LiveMarkSchema.nullable(),
 		shown: z.boolean()
-	})
+	}),
+	/**
+	 * The reader's app on its own voice: `paused` when it cannot send (no network, a call took the
+	 * microphone), `on` when it can again — after a reconnect too. Turning voice on or off is a
+	 * request (`POST`/`DELETE …/voice`), never this frame.
+	 */
+	z.object({ t: z.literal('voice'), seq: z.number().int().min(0), state: z.enum(['on', 'paused']) })
 ]);
 
 export type ClientFrame = z.infer<typeof ClientFrameSchema>;
 
-/** Who is in the session, as each person is shown to the others. `name` null means "Member". */
-export type LivePerson = { name: string | null; isLeader: boolean; isYou: boolean };
+/**
+ * Who is in the session, as each person is shown to the others. `name` null means "Member";
+ * `isListening` is whether they hear the reader's voice now, on any of their phones.
+ */
+export type LivePerson = { name: string | null; isLeader: boolean; isYou: boolean; isListening: boolean };
 
 export type LiveStatus = 'live' | 'away';
+
+/** The reader's voice: off unless they turn it on; paused while it cannot reach anyone. */
+export type LiveVoice = 'off' | 'on' | 'paused';
 
 export type LiveEndReason = 'ended' | 'leader-left' | 'replaced' | 'expired' | 'idle';
 
@@ -110,10 +122,12 @@ export type ServerFrame =
 			mark: LiveMark | null;
 			markShown: boolean;
 			people: LivePerson[];
+			voice: LiveVoice;
 	  }
 	| { t: 'pos'; seq: number; pos: LivePosition }
 	| { t: 'mark'; seq: number; mark: LiveMark | null; shown: boolean }
 	| { t: 'status'; status: LiveStatus }
+	| { t: 'voice'; voice: LiveVoice }
 	| { t: 'people'; people: LivePerson[] }
 	| { t: 'ended'; reason: LiveEndReason }
 	| { t: 'error'; code: 'bad-frame' | 'not-found' | 'not-joined' | 'not-leader' | 'wrong-kind' };
@@ -153,6 +167,15 @@ export const FRAMES_PER_SECOND = 12;
 /** Dropped frames a socket may accumulate before it is closed. */
 export const MAX_DROPPED_FRAMES = 100;
 
+/** How long a listener session may wait for its answer (`PUT …/voice/listen`) before it is forgotten. */
+export const VOICE_LISTEN_ANSWER_MS = 60_000;
+/** Listener sessions one person may have waiting for an answer, or being made — enough for several phones. */
+export const MAX_PENDING_LISTENS = 4;
+/** Waits before each retry of closing a track at Cloudflare; after the last, the failure is logged. */
+export const VOICE_CLOSE_RETRY_MS = [1000, 4000];
+/** On shutdown, how long closing the readers' tracks at Cloudflare may hold up the exit. */
+export const VOICE_SHUTDOWN_MS = 2000;
+
 /** `POST /api/live`: which free reader the session is read in. */
 export const StartLiveSessionBodySchema = z.object({ kind: z.enum(['CEVSEN', 'QURAN']) });
 
@@ -161,3 +184,21 @@ export type StartLiveSessionBody = z.infer<typeof StartLiveSessionBodySchema>;
 export const LiveCodeParamsSchema = z.object({ code: z.string().trim().min(1).max(16) });
 
 export const LiveSessionIdParamsSchema = z.object({ sessionId: z.string().trim().min(1).max(64) });
+
+/** An SDP is a few kilobytes; this leaves room for many codecs and candidates, not for a flood. */
+const SdpSchema = z.string().min(1).max(16_000);
+
+/** `POST /api/live/:sessionId/voice`: the reader's WebRTC offer, and the `mid` of its microphone track. */
+export const StartLiveVoiceBodySchema = z.object({ sdp: SdpSchema, mid: z.string().min(1).max(16) });
+
+export type StartLiveVoiceBody = z.infer<typeof StartLiveVoiceBodySchema>;
+
+/** `PUT /api/live/:sessionId/voice/listen`: a listener's answer to the offer `POST …/listen` returned. */
+export const AnswerLiveVoiceBodySchema = z.object({ listenerSessionId: z.string().min(1).max(128), sdp: SdpSchema });
+
+export type AnswerLiveVoiceBody = z.infer<typeof AnswerLiveVoiceBodySchema>;
+
+/** `DELETE /api/live/:sessionId/voice/listen`: the listener session the app has closed. */
+export const StopListeningBodySchema = z.object({ listenerSessionId: z.string().min(1).max(128) });
+
+export type StopListeningBody = z.infer<typeof StopListeningBodySchema>;

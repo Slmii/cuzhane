@@ -1,0 +1,10 @@
+{
+	"platforms": ["apple", "android"],
+	"apple": {
+		"modules": ["LiveVoiceModule"],
+		"appDelegateSubscribers": ["LiveVoiceAppDelegateSubscriber"]
+	},
+	"android": {
+		"modules": ["expo.modules.livevoice.LiveVoiceModule"]
+	}
+}

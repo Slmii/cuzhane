@@ -8,6 +8,7 @@ import { useAppFocusSync } from '@/lib/hooks/useAppFocusSync';
 import { useBreadcrumbTrail } from '@/lib/hooks/useBreadcrumbTrail';
 import { useAuthTokenSync } from '@/lib/hooks/useAuthTokenSync';
 import { useLiveSessionAccountGuard } from '@/lib/hooks/useLiveSessionAccountGuard';
+import { useLiveVoiceAnnouncements, useLiveVoiceTexts } from '@/lib/hooks/useLiveVoice';
 import { I18nProvider } from '@/lib/i18n/I18n.context';
 import { buildNavigationTheme } from '@/lib/theme/navigationTheme';
 import { ThemeProvider, useThemeContext } from '@/lib/theme/ThemeProvider.context';
@@ -71,6 +72,8 @@ const AppContainer = () => {
 	const [isUpdateCheckComplete, setIsUpdateCheckComplete] = useState(false);
 	useAuthTokenSync();
 	useLiveSessionAccountGuard();
+	useLiveVoiceTexts();
+	useLiveVoiceAnnouncements();
 	useAppFocusSync();
 	// The last steps a bug report carries — see `lib/utils/breadcrumbs`.
 	useBreadcrumbTrail();

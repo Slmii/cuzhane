@@ -17,6 +17,7 @@ import {
 	leaveRoom,
 	publishMark,
 	publishPosition,
+	publishVoice,
 	send,
 	stopAllRooms,
 	type LiveClient
@@ -204,6 +205,11 @@ export const attachLiveSockets = (server: Server) => {
 			return;
 		}
 
+		if (message.t === 'voice') {
+			publishVoice(state, message.seq, message.state);
+			return;
+		}
+
 		publishPosition(state, message.seq, message.pos);
 	};
 
@@ -299,17 +305,22 @@ export const attachLiveSockets = (server: Server) => {
 	sweep.unref();
 
 	return {
-		/** Shutdown: every client is told to reconnect (1012) rather than left to time out. */
-		close: () => {
+		/**
+		 * Shutdown: every client is told to reconnect (1012) rather than left to time out. Resolves
+		 * once the readers' voice tracks are closed at Cloudflare, or that has taken too long.
+		 */
+		close: async () => {
 			clearInterval(sweep);
 			server.off('upgrade', onUpgrade);
-			stopAllRooms();
+
+			const rooms = stopAllRooms();
 
 			for (const ws of states.keys()) {
 				ws.close(CLOSE.restart, 'restart');
 			}
 
 			wss.close();
+			await rooms;
 		}
 	};
 };

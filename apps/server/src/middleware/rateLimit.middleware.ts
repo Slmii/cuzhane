@@ -56,6 +56,29 @@ export const liveLookupRateLimit = rateLimit({
 	handler: tooManyRequestsHandler
 });
 
+/**
+ * The reader turning their voice on and off — each a call to Cloudflare. A reconnecting app starts
+ * it again, so more than a person would tap, still far below a loop.
+ */
+export const liveVoiceRateLimit = rateLimit({
+	windowMs: 60 * 1000,
+	limit: 20,
+	standardHeaders: 'draft-7',
+	legacyHeaders: false,
+	keyGenerator: userKey,
+	handler: tooManyRequestsHandler
+});
+
+/** A follower starting to listen and answering Cloudflare's offer — two calls per listen, all to Cloudflare. */
+export const liveListenRateLimit = rateLimit({
+	windowMs: 60 * 1000,
+	limit: 30,
+	standardHeaders: 'draft-7',
+	legacyHeaders: false,
+	keyGenerator: userKey,
+	handler: tooManyRequestsHandler
+});
+
 /** Taking and releasing pool slots and cüz — generous for real use, a wall against a loop. */
 export const poolRateLimit = rateLimit({
 	windowMs: 60 * 1000,

@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { whatsNewDecision, type WhatsNewInput } from './whatsNew';
+import { whatsNewDecision, whatsNewStorageKey, type WhatsNewInput } from './whatsNew';
+
+describe('whatsNewStorageKey', () => {
+	it('keeps the key production has always used, so nobody is shown a release twice', () => {
+		expect(whatsNewStorageKey(null)).toBe('whatsNew.lastSeenReleaseId');
+	});
+
+	it('gives preview and development a key of their own', () => {
+		expect(whatsNewStorageKey('preview')).toBe('whatsNew.lastSeenReleaseId.preview');
+		expect(whatsNewStorageKey('development')).toBe('whatsNew.lastSeenReleaseId.development');
+		expect(whatsNewStorageKey('preview')).not.toBe(whatsNewStorageKey(null));
+	});
+});
 
 const decide = (overrides: Partial<WhatsNewInput> = {}) =>
 	whatsNewDecision({

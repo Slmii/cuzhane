@@ -247,6 +247,14 @@ export type AppTheme = {
 		liveStripShadow: string;
 		liveStripShadowNear: string;
 		/**
+		 * Live voice (Birlikte Oku Ses) draws in the strip's tones — live sage, sand for paused, the
+		 * quiet grey for "sesini kapattı". This is the one colour it adds: the well behind the
+		 * microphone on the sheet's "Sesimi aç" row while it is off, the design's `chip`.
+		 */
+		liveVoiceWell: string;
+		/** The "sesini kapattı" glyph: the voice design's calm accent, a shade stronger than `liveStripQuietAccent`. */
+		liveVoiceQuietAccent: string;
+		/**
 		 * The verse ornament's crimson — its own colour, not `danger`.
 		 *
 		 * They coincide in dark mode and diverge in light, where `danger` is the deeper
@@ -391,6 +399,8 @@ export const lightTheme: AppTheme = {
 		liveStripQuietAccent: 'rgba(28,29,26,0.5)',
 		liveStripShadow: 'rgba(28,29,26,0.14)',
 		liveStripShadowNear: 'rgba(28,29,26,0.08)',
+		liveVoiceWell: '#F2F0EA',
+		liveVoiceQuietAccent: 'rgba(28,29,26,0.55)',
 		ornament: '#A65D5D',
 		scrim: '#141513'
 	},
@@ -517,6 +527,8 @@ export const darkTheme: AppTheme = {
 		liveStripShadow: 'rgba(0,0,0,0.45)',
 		// The design draws dark mode's lift as the one wide shadow.
 		liveStripShadowNear: 'rgba(0,0,0,0)',
+		liveVoiceWell: '#2A2C27',
+		liveVoiceQuietAccent: 'rgba(242,240,234,0.6)',
 		ornament: '#C97B7B',
 		scrim: '#141513'
 	},

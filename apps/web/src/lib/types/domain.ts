@@ -602,9 +602,13 @@ export type LiveMark =
 	| { k: 'QURAN'; edition: 'text'; cuz: number; page: number; verse: string }
 	| { k: 'QURAN'; edition: 'husrev'; cuz: number; page: number; line: number };
 
-export type LivePerson = { name: string | null; isLeader: boolean; isYou: boolean };
+/** `isListening` is whether they hear the reader's voice now, on any of their phones. */
+export type LivePerson = { name: string | null; isLeader: boolean; isYou: boolean; isListening: boolean };
 
 export type LiveStatus = 'live' | 'away';
+
+/** The reader's voice: off unless they turn it on; paused while it cannot reach anyone. */
+export type LiveVoice = 'off' | 'on' | 'paused';
 
 export type LiveEndReason = 'ended' | 'leader-left' | 'replaced' | 'expired' | 'idle';
 
@@ -620,10 +624,26 @@ export type LiveServerFrame =
 			mark: LiveMark | null;
 			markShown: boolean;
 			people: LivePerson[];
+			voice: LiveVoice;
 	  }
 	| { t: 'pos'; seq: number; pos: LivePosition }
 	| { t: 'mark'; seq: number; mark: LiveMark | null; shown: boolean }
 	| { t: 'status'; status: LiveStatus }
+	| { t: 'voice'; voice: LiveVoice }
 	| { t: 'people'; people: LivePerson[] }
 	| { t: 'ended'; reason: LiveEndReason }
 	| { t: 'error'; code: 'bad-frame' | 'not-found' | 'not-joined' | 'not-leader' | 'wrong-kind' };
+
+/**
+ * Live voice's requests (`/api/live/:sessionId/voice…`) — mirrors the server's
+ * `liveVoice.service.ts`. `iceServers` is Cloudflare's TURN answer, passed through.
+ */
+export type LiveIceServer = { urls: string | string[]; username?: string; credential?: string };
+
+export type LiveVoiceStarted = { answer: { type: 'answer'; sdp: string }; iceServers: LiveIceServer[] };
+
+export type LiveVoiceListening = {
+	listenerSessionId: string;
+	offer: { type: 'offer'; sdp: string };
+	iceServers: LiveIceServer[];
+};

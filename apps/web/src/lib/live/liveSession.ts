@@ -6,7 +6,8 @@ import type {
 	LivePosition,
 	LiveReadingKind,
 	LiveServerFrame,
-	LiveStatus
+	LiveStatus,
+	LiveVoice
 } from '@/lib/types/domain';
 import { openLiveConnection } from '@/lib/utils/liveConnection';
 
@@ -58,6 +59,8 @@ export type LiveReadingState = {
 	readerPlace: LivePlace | null;
 	/** When the reader went away, for the row's countdown; null while they are here. */
 	awaySince: number | null;
+	/** The reader's voice as the room has it — what `lib/live/liveVoice` follows. */
+	voice: LiveVoice;
 };
 
 /** The session as the app shows it: what it is, and the words-level state above. */
@@ -133,7 +136,8 @@ const INITIAL: LiveReadingState = {
 	readerPlace: null,
 	role: null,
 	sessionId: null,
-	status: 'connecting'
+	status: 'connecting',
+	voice: 'off'
 };
 
 /** A throttle that always lets the last value through. */
@@ -206,10 +210,21 @@ export const createLiveSession = (deps: Deps) => {
 	 */
 	let intent = 0;
 	const listeners = new Set<() => void>();
+	const voiceListeners = new Set<(voice: LiveVoice, isSnapshot: boolean) => void>();
 	let mark = NO_MARK;
 	const markListeners = new Set<() => void>();
 
 	const emit = () => listeners.forEach(listener => listener());
+
+	/*
+	 * **Every announcement of the voice, not only a change of it.** A reader who publishes again
+	 * (back from a dropped connection) is announced `on` while it already was, and each listener
+	 * has to pull the new track — a change of `voice` in the state alone would not show it.
+	 */
+	const setVoice = (voice: LiveVoice, isSnapshot: boolean) => {
+		update(current => (current.voice === voice ? current : { ...current, voice }));
+		voiceListeners.forEach(listener => listener(voice, isSnapshot));
+	};
 
 	const setMark = (next: LiveMarkState) => {
 		mark = next;
@@ -317,6 +332,8 @@ export const createLiveSession = (deps: Deps) => {
 							sessionId: frame.session.id,
 							status: frame.status
 						}));
+						// An API from before live voice sends none: as good as off.
+						setVoice(frame.voice ?? 'off', true);
 
 						if (frame.role === 'follower') {
 							receivePosition(frame.pos);
@@ -368,13 +385,16 @@ export const createLiveSession = (deps: Deps) => {
 							status: frame.status
 						}));
 						return;
+					case 'voice':
+						setVoice(frame.voice, false);
+						return;
 					case 'people':
 						update(current => ({ ...current, people: frame.people }));
 						return;
 					case 'ended':
 						stopExpiry();
 						setMark(NO_MARK);
-						update(current => ({ ...current, gone: frame.reason }));
+						update(current => ({ ...current, gone: frame.reason, voice: 'off' }));
 						return;
 					default:
 				}
@@ -386,7 +406,7 @@ export const createLiveSession = (deps: Deps) => {
 
 				stopExpiry();
 				setMark(NO_MARK);
-				update(current => ({ ...current, gone: current.gone ?? reason }));
+				update(current => ({ ...current, gone: current.gone ?? reason, voice: 'off' }));
 			},
 			onState: next => {
 				if (isCurrent() && next === 'connecting') {
@@ -453,6 +473,19 @@ export const createLiveSession = (deps: Deps) => {
 			return () => listeners.delete(listener);
 		},
 		markStore,
+
+		/** Each announcement of the reader's voice — a snapshot's too (`isSnapshot`), after a (re)join. */
+		onVoice: (listener: (voice: LiveVoice, isSnapshot: boolean) => void) => {
+			voiceListeners.add(listener);
+
+			return () => voiceListeners.delete(listener);
+		},
+
+		/** The reader's app on its own voice (`liveConnection.sendVoice`); nothing without a socket. */
+		sendVoice: (voiceState: Exclude<LiveVoice, 'off'>) => connection?.sendVoice(voiceState),
+
+		/** Live voice keeps the socket in the background while it plays or goes out. */
+		holdInBackground: (isHolding: boolean) => connection?.hold(isHolding),
 
 		/** The reading's last place, for a reader of this kind opened now; null for any other. */
 		placeFor: (kind: LiveReadingKind): LivePosition | null =>

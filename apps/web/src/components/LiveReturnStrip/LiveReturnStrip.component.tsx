@@ -4,7 +4,7 @@ import { ProgressRing } from '@/components/ui/ProgressRing/ProgressRing.componen
 import { Typography } from '@/components/ui/Typography/Typography.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import { toAlphaColor, type AppTheme } from '@/lib/theme/tokens';
+import { toAlphaColor } from '@/lib/theme/tokens';
 import { useSecondsLeft } from '@/screens/Live/LiveBar.component';
 import { Ripple } from '@/components/ui/Ripple/Ripple.component';
 import { formatCountdown, LIVE_GRACE_SECONDS } from '@/screens/Live/liveFormat';
@@ -18,7 +18,10 @@ import {
 	type AccessibilityActionEvent
 } from 'react-native';
 import Animated, { useReducedMotion } from 'react-native-reanimated';
-import { announcedSecondsOf, describeLiveStrip, type LiveStripTone } from './liveReturnStrip';
+import { announcedSecondsOf, describeLiveStrip } from './liveReturnStrip';
+import { toneColors, voiceToneColors } from './liveStripTones';
+import { LiveVoiceBadge } from '@/components/LiveVoice/LiveVoiceLead.component';
+import { useLiveVoiceAction, useLiveVoiceLook } from '@/lib/hooks/useLiveVoice';
 import type { LiveReturnStripProps } from './LiveReturnStrip.types';
 
 /** At this text size and up the button takes a line of its own ("çok büyük yazı"). */
@@ -35,51 +38,6 @@ const RING_STROKE = 2.5;
  * (each tab carries its own), and only its **first** appearance rises — a tab switch is not one.
  */
 let risenForCode: string | null = null;
-
-type ToneColors = {
-	background: string;
-	border: string;
-	title: string;
-	sub: string;
-	lead: string;
-	accent: string;
-};
-
-/** The design's TONES, by token — see `liveStrip*` in `tokens.ts`. */
-const toneColors = (theme: AppTheme, tone: LiveStripTone): ToneColors => {
-	const { colors } = theme;
-
-	switch (tone) {
-		case 'live':
-			return {
-				accent: colors.liveStripAccent,
-				background: colors.liveStrip,
-				border: colors.liveStripBorder,
-				lead: colors.liveStripLead,
-				sub: colors.liveStripSub,
-				title: colors.text
-			};
-		case 'warn':
-			return {
-				accent: colors.liveStripWarnAccent,
-				background: colors.liveStripWarn,
-				border: colors.liveStripWarnBorder,
-				lead: colors.liveStripWarnLead,
-				sub: colors.liveStripWarnSub,
-				title: colors.liveStripWarnTitle
-			};
-		case 'calm':
-		case 'done':
-			return {
-				accent: tone === 'calm' ? colors.liveStripQuietAccent : toAlphaColor(colors.text, 0.45),
-				background: colors.liveStripQuiet,
-				border: toAlphaColor(colors.text, 0.12),
-				lead: colors.liveStripQuietLead,
-				sub: colors.liveStripQuietSub,
-				title: colors.text
-			};
-	}
-};
 
 /** The design's connecting mark: a ring with its top open, turning. Still under Reduce Motion. */
 const Spinner = ({ color }: { color: string }) => {
@@ -116,6 +74,10 @@ const Spinner = ({ color }: { color: string }) => {
  *
  * One accessibility element: its title and line, and what a double tap does. The countdown is
  * announced every quarter minute rather than read out every second.
+ *
+ * **Live voice** (Birlikte Oku Ses, lane E) takes the words, the tone and the button while it has
+ * something to say: a badge in the disc's corner, and "Sesi kapat", "Dinle" or "Durdur" as a
+ * button of its own beside the strip's tap, which still goes back to reading.
  */
 export const LiveReturnStrip = ({ bottom, onDismiss, onHeightChange, onReturn, state }: LiveReturnStripProps) => {
 	const { theme } = useThemeContext();
@@ -132,7 +94,17 @@ export const LiveReturnStrip = ({ bottom, onDismiss, onHeightChange, onReturn, s
 	}, [state.code]);
 
 	const look = describeLiveStrip(state, secondsLeft, t, language);
-	const tone = toneColors(theme, look.tone);
+	const voiceLook = useLiveVoiceLook(state);
+	const onVoiceAction = useLiveVoiceAction();
+	/*
+	 * **Voice speaks on the strip while it has something to say** (Birlikte Oku Ses, lane E) — not
+	 * over connecting, the dropped reader's countdown, or the end, which keep their own words.
+	 */
+	const voice = look.isEnded || look.lead === 'spinner' || look.hasCountdown ? null : voiceLook;
+	const tone = voice ? voiceToneColors(theme, voice.tone) : toneColors(theme, look.tone);
+	const title = voice ? voice.stripTitle : look.title;
+	const sub = voice ? voice.stripSub : look.sub;
+	const isPulsing = voice ? false : look.isPulsing;
 	const announcedSeconds = look.hasCountdown ? announcedSecondsOf(secondsLeft) : null;
 	const announcement =
 		announcedSeconds === null ? null : t('liveReturnDroppedSub', { time: formatCountdown(announcedSeconds) });
@@ -154,10 +126,12 @@ export const LiveReturnStrip = ({ bottom, onDismiss, onHeightChange, onReturn, s
 	const lead = (
 		<View style={styles.leadBox}>
 			{/* The live ripple round the disc, as on the reader's Birlikte button: 40pt to 56pt in a 66pt strip. */}
-			{look.isPulsing ? <Ripple color={tone.accent} maxScale={1.4} size={LEAD_SIZE} /> : null}
+			{isPulsing ? <Ripple color={tone.accent} maxScale={1.4} size={LEAD_SIZE} /> : null}
 			<View style={[styles.lead, { backgroundColor: tone.lead }]}>
 				{look.lead === 'spinner' ? (
 					<Spinner color={tone.accent} />
+				) : voice?.stripGlyph && state.role === 'leader' ? (
+					<Icon color={tone.accent} name={voice.stripGlyph} size={22} strokeWidth={1.6} />
 				) : look.lead === 'initials' ? (
 					<Typography color={tone.accent} style={styles.initials} weight='semibold'>
 						{look.initials}
@@ -182,19 +156,35 @@ export const LiveReturnStrip = ({ bottom, onDismiss, onHeightChange, onReturn, s
 					trackColor={toAlphaColor(tone.accent, 0.22)}
 				/>
 			) : null}
+			{voice?.badge ? (
+				<LiveVoiceBadge
+					badge={voice.badge}
+					color={tone.accent}
+					ink={tone.lead}
+					isReader={state.role === 'leader'}
+					ringColor={tone.background}
+				/>
+			) : null}
 		</View>
 	);
 
 	const copy = (
 		<View style={styles.copy}>
 			<Typography color={tone.title} style={styles.title} weight='semibold'>
-				{look.title}
+				{title}
 			</Typography>
 			<Typography color={tone.sub} style={styles.sub}>
-				{look.sub}
+				{sub}
 			</Typography>
 		</View>
 	);
+
+	/*
+	 * Voice's own button ("Sesi kapat", "Dinle", "Durdur") stands beside the strip's tap rather
+	 * than inside it — it does something else than going back, so a screen reader reaches it on
+	 * its own ("Ayşe Yılmaz sesli okuyor. Dinle, düğme."). The notice has none, and no "Okumaya dön".
+	 */
+	const voiceButton = voice?.button ?? null;
 
 	// Hidden from the screen reader: the strip is the one element, and its action is the button's.
 	const button = (
@@ -237,33 +227,60 @@ export const LiveReturnStrip = ({ bottom, onDismiss, onHeightChange, onReturn, s
 					: {})
 			}}
 		>
-			<Pressable
-				accessibilityActions={[{ name: 'activate' }]}
-				accessibilityHint={look.isEnded ? t('liveReturnDismissHint') : t('liveReturnHint')}
-				accessibilityLabel={`${look.title}, ${announcement !== null ? announcement : look.sub}`}
-				accessibilityRole='button'
-				accessible
-				onAccessibilityAction={handleAccessibilityAction}
-				// Ended, a tap on the strip does nothing; only "Tamam" puts it away.
-				{...(look.isEnded ? {} : { onPress: onReturn })}
-				style={[styles.press, isStacked ? styles.stacked : styles.row]}
-			>
-				{isStacked ? (
-					<>
-						<View style={styles.row}>
-							{lead}
-							{copy}
-						</View>
-						{button}
-					</>
-				) : (
-					<>
+			{voice ? (
+				<View style={[styles.voiceLayout, isStacked ? styles.stacked : styles.row]}>
+					<Pressable
+						accessibilityHint={t('liveReturnHint')}
+						accessibilityLabel={`${title}, ${sub}`}
+						accessibilityRole='button'
+						onPress={onReturn}
+						style={[styles.row, styles.voicePress]}
+					>
 						{lead}
 						{copy}
-						{button}
-					</>
-				)}
-			</Pressable>
+					</Pressable>
+					{voiceButton ? (
+						<View style={isStacked ? null : styles.buttonBox}>
+							<AppButton
+								fullWidth={isStacked}
+								icon={voiceButton.icon}
+								onPress={() => onVoiceAction(voiceButton.action)}
+								size='md'
+								title={voiceButton.label}
+								variant={voiceButton.isPrimary ? 'primary' : 'surface'}
+							/>
+						</View>
+					) : null}
+				</View>
+			) : (
+				<Pressable
+					accessibilityActions={[{ name: 'activate' }]}
+					accessibilityHint={look.isEnded ? t('liveReturnDismissHint') : t('liveReturnHint')}
+					accessibilityLabel={`${look.title}, ${announcement !== null ? announcement : look.sub}`}
+					accessibilityRole='button'
+					accessible
+					onAccessibilityAction={handleAccessibilityAction}
+					// Ended, a tap on the strip does nothing; only "Tamam" puts it away.
+					{...(look.isEnded ? {} : { onPress: onReturn })}
+					style={[styles.press, isStacked ? styles.stacked : styles.row]}
+				>
+					{isStacked ? (
+						<>
+							<View style={styles.row}>
+								{lead}
+								{copy}
+							</View>
+							{button}
+						</>
+					) : (
+						<>
+							{lead}
+							{copy}
+							{button}
+						</>
+					)}
+				</Pressable>
+			)}
 		</Animated.View>
 	);
 };
@@ -337,5 +354,16 @@ const styles = StyleSheet.create({
 	title: {
 		fontSize: 14,
 		lineHeight: 18
+	},
+	// The padding the press has in the plain strip: here on the row that holds the press and the button.
+	voiceLayout: {
+		paddingBottom: 10,
+		paddingLeft: 12,
+		paddingRight: 10,
+		paddingTop: 10
+	},
+	voicePress: {
+		flex: 1,
+		minWidth: 0
 	}
 });

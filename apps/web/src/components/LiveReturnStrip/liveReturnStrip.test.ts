@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import type { LiveSessionState } from '@/lib/hooks/useLiveSession';
 import { interpolate, STRINGS, type StringKey } from '@/lib/i18n/strings';
+import { darkTheme, lightTheme } from '@/lib/theme/tokens';
 import { announcedSecondsOf, describeLiveStrip, hasLiveStrip, initialsOf, liveReaderRouteFor } from './liveReturnStrip';
+import { toneColors, voiceToneColors } from './liveStripTones';
 
 const tr = (key: StringKey, values?: Record<string, string | number>) => interpolate(STRINGS.tr[key], values);
 const en = (key: StringKey, values?: Record<string, string | number>) => interpolate(STRINGS.en[key], values);
 
-const READER = { isLeader: true, isYou: false, name: 'Ayşe Yılmaz' };
-const FOLLOWER = { isLeader: false, isYou: false, name: 'Mehmet' };
+const READER = { isLeader: true, isListening: false, isYou: false, name: 'Ayşe Yılmaz' };
+const FOLLOWER = { isLeader: false, isListening: false, isYou: false, name: 'Mehmet' };
 
 const session = (overrides: Partial<LiveSessionState> = {}): LiveSessionState => ({
 	awaySince: null,
@@ -20,6 +22,7 @@ const session = (overrides: Partial<LiveSessionState> = {}): LiveSessionState =>
 	role: 'leader',
 	sessionId: 's1',
 	status: 'live',
+	voice: 'off',
 	...overrides
 });
 
@@ -121,5 +124,15 @@ describe('the strip’s rules', () => {
 		expect(announcedSecondsOf(48)).toBe(60);
 		expect(announcedSecondsOf(45)).toBe(45);
 		expect(announcedSecondsOf(1)).toBe(15);
+	});
+});
+
+describe('voiceToneColors', () => {
+	it('draws the "sesini kapattı" glyph in the voice design’s calm accent, the strip’s own otherwise', () => {
+		expect(voiceToneColors(lightTheme, 'calm').accent).toBe('rgba(28,29,26,0.55)');
+		expect(voiceToneColors(darkTheme, 'calm').accent).toBe('rgba(242,240,234,0.6)');
+		expect(voiceToneColors(lightTheme, 'calm').background).toBe(toneColors(lightTheme, 'calm').background);
+		expect(voiceToneColors(darkTheme, 'warn')).toEqual(toneColors(darkTheme, 'warn'));
+		expect(voiceToneColors(lightTheme, 'live')).toEqual(toneColors(lightTheme, 'live'));
 	});
 });

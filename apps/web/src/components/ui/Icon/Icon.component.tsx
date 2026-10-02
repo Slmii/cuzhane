@@ -533,7 +533,39 @@ const GLYPHS: Record<IconName, Glyph> = {
 		paths: ['M10.9 12.9l7.6-7.6', 'M15.4 8.4l2.1 2.1', 'M17.6 6.2l2.1 2.1']
 	},
 	// The dot is a zero-length stroke rather than a filled circle — the set carries no fill.
-	info: { circles: [[12, 12, 8.6]], paths: ['M12 8.2v.2', 'M12 11.4v4.4'] }
+	info: { circles: [[12, 12, 8.6]], paths: ['M12 8.2v.2', 'M12 11.4v4.4'] },
+
+	/*
+	 * Live voice (Birlikte Oku Ses, lane I). "Açık olmayı dolgu anlatır, duraklamayı iki çizgi":
+	 * on is the shape washed, paused is the shape with two bars beside it — the paused microphone
+	 * moved 2.6 left to make room for them.
+	 */
+	mic: { paths: ['M5.6 11.6a6.4 6.4 0 0 0 12.8 0', 'M12 18v2.8'], rects: [[8.6, 3.4, 6.8, 11, 3.4]] },
+	micOn: {
+		wash: { rects: [[8.6, 3.4, 6.8, 11, 3.4]] },
+		paths: ['M5.6 11.6a6.4 6.4 0 0 0 12.8 0', 'M12 18v2.8'],
+		rects: [[8.6, 3.4, 6.8, 11, 3.4]]
+	},
+	micPaused: {
+		paths: ['M3 11.6a6.4 6.4 0 0 0 12.8 0', 'M9.4 18v2.8', 'M18.8 8.4v5.4', 'M21.6 8.4v5.4'],
+		rects: [[6, 3.4, 6.8, 11, 3.4]]
+	},
+	micOff: {
+		paths: ['M5.6 11.6a6.4 6.4 0 0 0 12.8 0', 'M12 18v2.8', 'M4.4 4.4l15.2 15.2'],
+		rects: [[8.6, 3.4, 6.8, 11, 3.4]]
+	},
+	speaker: { paths: ['M4.4 9.6h3.2l4.4-3.8v12.4l-4.4-3.8H4.4z', 'M15.4 9.4a3.8 3.8 0 0 1 0 5.2'] },
+	speakerOn: {
+		wash: { paths: ['M4.4 9.6h3.2l4.4-3.8v12.4l-4.4-3.8H4.4z'] },
+		paths: [
+			'M4.4 9.6h3.2l4.4-3.8v12.4l-4.4-3.8H4.4z',
+			'M15.4 9.4a3.8 3.8 0 0 1 0 5.2',
+			'M18.2 6.8a7.6 7.6 0 0 1 0 10.4'
+		]
+	},
+	speakerPaused: { paths: ['M4.4 9.6h3.2l4.4-3.8v12.4l-4.4-3.8H4.4z', 'M16.6 9.4v5.2', 'M19.8 9.4v5.2'] },
+	// Solid, as the design draws it on the button and the lock screen ("dolu").
+	stop: { filled: { rects: [[6.6, 6.6, 10.8, 10.8, 2.2]] } }
 };
 
 /**

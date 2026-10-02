@@ -13,6 +13,7 @@ import { toAlphaColor } from '@/lib/theme/tokens';
 import { formatInviteCode, liveLink } from '@/lib/utils/inviteCode';
 import { formatLivePlace } from '@/screens/Live/liveFormat';
 import type { useFreeReaderLive } from '@/screens/Live/useFreeReaderLive';
+import { LiveVoiceRow } from '@/screens/Live/LiveVoiceRow.component';
 import * as Clipboard from 'expo-clipboard';
 import { useState } from 'react';
 import { FlatList, Pressable, Share, StyleSheet, View } from 'react-native';
@@ -127,6 +128,24 @@ export const LiveSheet = ({ live }: Props) => {
 							{person.isLeader ? <Chip label={t('liveTagReader')} tone='accent' /> : null}
 							{person.isYou ? <Chip label={t('liveTagYou')} tone='neutral' /> : null}
 						</View>
+						{/* The reader sees whom their voice reaches (B4). */}
+						{view === 'share' && person.isListening === true ? (
+							<View style={styles.listening}>
+								<Icon
+									color={theme.colors.liveStripAccent}
+									name='speakerOn'
+									size={16}
+									strokeWidth={1.6}
+								/>
+								<Typography
+									color={theme.colors.liveStripAccent}
+									style={styles.listeningLabel}
+									weight='semibold'
+								>
+									{t('liveVoiceListeningTag')}
+								</Typography>
+							</View>
+						) : null}
 					</View>
 				)}
 				style={styles.peopleList}
@@ -197,7 +216,10 @@ export const LiveSheet = ({ live }: Props) => {
 					</>
 				) : null}
 
-				{/* The session's whole section on one card, as the intro sets its points. */}
+				{/*
+				 * The session in cards, as the intro sets its points: the code, the voice row, then
+				 * who is here and ending it (Birlikte Oku Ses, B1).
+				 */}
 				{view === 'share' && code ? (
 					<CardSurface style={styles.section}>
 						<View style={styles.codePanel}>
@@ -223,6 +245,12 @@ export const LiveSheet = ({ live }: Props) => {
 								variant='primary'
 							/>
 						</View>
+					</CardSurface>
+				) : null}
+				{/* "Sesimi aç" right under the code (Birlikte Oku Ses, B1); none in a build without voice. */}
+				{view === 'share' && code ? <LiveVoiceRow people={state.people} /> : null}
+				{view === 'share' && code ? (
+					<CardSurface style={styles.section}>
 						{people}
 						{quietAction(t('liveEnd'), t('liveEndNote'), live.end)}
 					</CardSurface>
@@ -290,6 +318,14 @@ const styles = StyleSheet.create({
 		fontSize: 13.5,
 		lineHeight: 21,
 		marginTop: -8
+	},
+	listening: {
+		alignItems: 'center',
+		flexDirection: 'row',
+		gap: 5
+	},
+	listeningLabel: {
+		fontSize: 12
 	},
 	noOne: {
 		fontSize: 13,

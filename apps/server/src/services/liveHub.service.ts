@@ -3,15 +3,20 @@ import {
 	HEARTBEAT_INTERVAL_MS,
 	IDLE_AFTER_MS,
 	LEADER_GRACE_MS,
+	MAX_PENDING_LISTENS,
 	MAX_SESSION_MS,
+	VOICE_LISTEN_ANSWER_MS,
+	VOICE_SHUTDOWN_MS,
 	type LiveEndReason,
 	type LiveMark,
 	type LivePerson,
 	type LivePosition,
 	type LiveStatus,
+	type LiveVoice,
 	type ServerFrame
 } from '@schemas/live.schema';
 import { expireLiveSession, touchLiveSession } from '@services/liveSession.service';
+import { closeTrack } from '@services/liveVoice.service';
 import { getMemberProfiles } from '@utils/memberProfiles';
 import type { WebSocket } from 'ws';
 import type { LiveSession } from '../generated/prisma/client';
@@ -30,6 +35,9 @@ export type LiveClient = {
 	/** The highest `seq` this socket has sent; older frames arriving late are dropped. */
 	lastSeq: number;
 };
+
+/** The reader's microphone track at Cloudflare: the session it was pushed into, and its `mid` there. */
+export type VoiceTrack = { cloudflareSessionId: string; mid: string };
 
 type Room = {
 	session: LiveSession;
@@ -51,7 +59,25 @@ type Room = {
 	/** When the list was last sent, and the one send waiting to follow it — see `schedulePeople`. */
 	peopleSentAt: number;
 	peopleTimer: NodeJS.Timeout | null;
+	/** The reader's voice (`liveVoice.service.ts`), and their track at Cloudflare while it is not off. */
+	voice: LiveVoice;
+	voiceTrack: VoiceTrack | null;
+	/**
+	 * Each listener's Cloudflare session, against the person it was made for — so only they can
+	 * answer or stop it — and whether they answered it: from then on they are shown as listening.
+	 */
+	listeners: Map<string, Listener>;
+	/** Listen requests still waiting on Cloudflare, per person — they count against `MAX_PENDING_LISTENS`. */
+	pendingListens: Map<string, number>;
+	/**
+	 * Which start of the voice may still go live. Each start takes the next number before asking
+	 * Cloudflare; a later start, turning it off and the reader's socket leaving all move it on, so
+	 * a start that was overtaken while Cloudflare answered can tell, and never goes live.
+	 */
+	voiceGeneration: number;
 };
+
+type Listener = { userId: string; answered: boolean; createdAt: number };
 
 /** The list of who is here goes out at most this often, however many come and go in between. */
 const PEOPLE_EVERY_MS = 1000;
@@ -121,8 +147,13 @@ const peopleOrder = (room: Room) => [
 	...new Set([room.session.leaderUserId, ...[...room.followers].map(client => client.userId)])
 ];
 
-const personOf = (room: Room, userId: string, viewerUserId: string): LivePerson => ({
+/** Who hears the reader now: answered for the current track, on any of their phones. */
+const listeningUsers = (room: Room) =>
+	new Set([...room.listeners.values()].filter(listener => listener.answered).map(listener => listener.userId));
+
+const personOf = (room: Room, userId: string, viewerUserId: string, listening: Set<string>): LivePerson => ({
 	isLeader: userId === room.session.leaderUserId,
+	isListening: listening.has(userId),
 	isYou: userId === viewerUserId,
 	name: room.names.get(userId) ?? null
 });
@@ -151,7 +182,8 @@ const announcePeople = (room: Room) => {
 	room.peopleSentAt = Date.now();
 
 	const order = peopleOrder(room);
-	const entries = order.map(userId => JSON.stringify(personOf(room, userId, '')));
+	const listening = listeningUsers(room);
+	const entries = order.map(userId => JSON.stringify(personOf(room, userId, '', listening)));
 	const indexOf = new Map(order.map((userId, index) => [userId, index]));
 
 	for (const client of everyone(room)) {
@@ -160,7 +192,7 @@ const announcePeople = (room: Room) => {
 			own === undefined
 				? entries
 				: entries.map((entry, index) =>
-						index === own ? JSON.stringify(personOf(room, client.userId, client.userId)) : entry
+						index === own ? JSON.stringify(personOf(room, client.userId, client.userId, listening)) : entry
 				  );
 
 		sendRaw(client, `{"t":"people","people":[${people.join(',')}]}`);
@@ -255,6 +287,11 @@ export const endRoom = (sessionId: string, reason: LiveEndReason) => {
 	rooms.delete(sessionId);
 	stopTimers(room);
 
+	// Whatever ended it, the reader's voice stops reaching anyone. Followers learn it from `ended`.
+	if (room.voiceTrack) {
+		void closeTrack(room.voiceTrack);
+	}
+
 	for (const client of everyone(room)) {
 		send(client, { reason, t: 'ended' });
 		client.sessionId = null;
@@ -267,6 +304,13 @@ const markAway = (room: Room) => {
 	room.status = 'away';
 	stopHeartbeat(room);
 	broadcast(room, { status: 'away', t: 'status' });
+
+	// Their voice is not reaching anyone either. Back on only when their app says so.
+	if (room.voice === 'on') {
+		room.voice = 'paused';
+		broadcast(room, { t: 'voice', voice: 'paused' });
+	}
+
 	room.awayTimer = setTimeout(() => expireAndEnd(room.session.id, 'leader-left'), LEADER_GRACE_MS);
 	room.awayTimer.unref();
 };
@@ -294,12 +338,17 @@ const roomFor = (session: LiveSession): Room => {
 		peopleSentAt: 0,
 		peopleTimer: null,
 		leaders: new Set(),
+		listeners: new Map(),
+		pendingListens: new Map(),
+		voiceGeneration: 0,
 		mark: null,
 		markShown: false,
 		pos: null,
 		seq: 0,
 		session,
-		status: 'away'
+		status: 'away',
+		voice: 'off',
+		voiceTrack: null
 	};
 
 	rooms.set(session.id, room);
@@ -358,8 +407,10 @@ export const joinRoom = async (client: LiveClient, session: LiveSession): Promis
 		}
 	}
 
+	const listening = listeningUsers(room);
+
 	send(client, {
-		people: peopleOrder(room).map(userId => personOf(room, userId, client.userId)),
+		people: peopleOrder(room).map(userId => personOf(room, userId, client.userId, listening)),
 		mark: room.mark,
 		markShown: room.markShown,
 		pos: room.pos,
@@ -367,7 +418,8 @@ export const joinRoom = async (client: LiveClient, session: LiveSession): Promis
 		seq: room.seq,
 		session: { code: session.code, id: session.id, kind: session.kind, startedAt: session.startedAt.toISOString() },
 		status: room.status,
-		t: 'snapshot'
+		t: 'snapshot',
+		voice: room.voice
 	});
 
 	schedulePeople(room);
@@ -385,8 +437,21 @@ export const leaveRoom = (client: LiveClient) => {
 		return;
 	}
 
-	room.leaders.delete(client);
+	// A reader's socket leaving overtakes any start of the voice still waiting on Cloudflare.
+	if (room.leaders.delete(client)) {
+		room.voiceGeneration += 1;
+	}
+
 	room.followers.delete(client);
+
+	// Gone from the room on every phone: no longer listening, and their listener sessions cannot be answered.
+	if (room.listeners.size > 0 && !everyone(room).some(other => other.userId === client.userId)) {
+		for (const [listenerSessionId, { userId }] of room.listeners) {
+			if (userId === client.userId) {
+				room.listeners.delete(listenerSessionId);
+			}
+		}
+	}
 
 	if (room.leaders.size === 0 && room.status === 'live') {
 		markAway(room);
@@ -469,6 +534,263 @@ export const publishMark = (client: LiveClient, clientSeq: number, mark: LiveMar
 	broadcast(room, { mark, seq: room.seq, shown: room.markShown, t: 'mark' }, client);
 };
 
+/**
+ * The reader's app on its own voice: it cannot send (`paused`) or can again (`on`). Only says
+ * whether a voice that is on reaches anyone — turning it on and off are requests
+ * (`liveVoice.service.ts`), so while it is off this is ignored.
+ */
+export const publishVoice = (client: LiveClient, clientSeq: number, state: 'on' | 'paused') => {
+	const room = client.sessionId ? rooms.get(client.sessionId) : undefined;
+
+	if (!room) {
+		send(client, { code: 'not-joined', t: 'error' });
+		return;
+	}
+
+	if (!room.leaders.has(client)) {
+		send(client, { code: 'not-leader', t: 'error' });
+		return;
+	}
+
+	if (clientSeq <= client.lastSeq) {
+		return;
+	}
+
+	client.lastSeq = clientSeq;
+
+	if (room.voice === 'off' || room.voice === state) {
+		return;
+	}
+
+	room.voice = state;
+	broadcast(room, { t: 'voice', voice: state });
+};
+
+/** Is this person the session's reader, connected on the socket now? */
+const isReaderHere = (room: Room, userId: string) => [...room.leaders].some(client => client.userId === userId);
+
+/** Is this person following the session on the socket now? The reader's own sockets are never followers. */
+const isFollowerHere = (room: Room, userId: string) => [...room.followers].some(client => client.userId === userId);
+
+/** A listener session still waiting for its answer past `VOICE_LISTEN_ANSWER_MS` was abandoned. */
+const isAbandoned = (listener: Listener, now = Date.now()) =>
+	!listener.answered && now - listener.createdAt > VOICE_LISTEN_ANSWER_MS;
+
+/** Who a listener session was made for, if it was made in this room for the current track and is not abandoned. */
+export const voiceListenerOwner = (sessionId: string, listenerSessionId: string): string | undefined => {
+	const listener = rooms.get(sessionId)?.listeners.get(listenerSessionId);
+
+	return listener && !isAbandoned(listener) ? listener.userId : undefined;
+};
+
+/**
+ * A follower may start listening: they are in the room, voice is not off, and they have fewer than
+ * `MAX_PENDING_LISTENS` listener sessions waiting for an answer or being made. **The slot is taken
+ * here, before Cloudflare is asked**, and given back with `release` once the request is done —
+ * counted only when made, requests sent together could all pass. Abandoned listener sessions are
+ * forgotten on the way.
+ */
+export const reserveListen = (
+	sessionId: string,
+	userId: string
+): { track: VoiceTrack; release: () => void } | 'not-here' | 'off' | 'full' => {
+	const room = rooms.get(sessionId);
+
+	if (!room || !isFollowerHere(room, userId)) {
+		return 'not-here';
+	}
+
+	if (!room.voiceTrack) {
+		return 'off';
+	}
+
+	const now = Date.now();
+	let waiting = room.pendingListens.get(userId) ?? 0;
+
+	for (const [listenerSessionId, listener] of room.listeners) {
+		if (isAbandoned(listener, now)) {
+			room.listeners.delete(listenerSessionId);
+		} else if (listener.userId === userId && !listener.answered) {
+			waiting += 1;
+		}
+	}
+
+	if (waiting >= MAX_PENDING_LISTENS) {
+		return 'full';
+	}
+
+	room.pendingListens.set(userId, (room.pendingListens.get(userId) ?? 0) + 1);
+
+	let released = false;
+	const release = () => {
+		if (released) {
+			return;
+		}
+
+		released = true;
+
+		const pending = room.pendingListens.get(userId) ?? 0;
+
+		if (pending <= 1) {
+			room.pendingListens.delete(userId);
+		} else {
+			room.pendingListens.set(userId, pending - 1);
+		}
+	};
+
+	return { release, track: room.voiceTrack };
+};
+
+/** The track is gone, so nobody hears it: every listener session is forgotten, and the list says so. */
+const forgetListeners = (room: Room) => {
+	const anyListening = listeningUsers(room).size > 0;
+
+	room.listeners.clear();
+
+	if (anyListening) {
+		schedulePeople(room);
+	}
+};
+
+/** The listener answered Cloudflare's offer: from now on they are shown as listening. */
+export const markVoiceListening = (sessionId: string, listenerSessionId: string) => {
+	const room = rooms.get(sessionId);
+	// Forgotten while Cloudflare answered — voice off, a new track, or they left: nothing to show.
+	const listener = room?.listeners.get(listenerSessionId);
+
+	if (!room || !listener || listener.answered) {
+		return;
+	}
+
+	const wasListening = listeningUsers(room).has(listener.userId);
+
+	listener.answered = true;
+
+	if (!wasListening) {
+		schedulePeople(room);
+	}
+};
+
+/**
+ * A listener stopped. False if the listener session is someone else's; one that is unknown or
+ * already forgotten is stopped already.
+ */
+export const stopVoiceListener = (sessionId: string, userId: string, listenerSessionId: string): boolean => {
+	const room = rooms.get(sessionId);
+	const listener = room?.listeners.get(listenerSessionId);
+
+	if (!room || !listener) {
+		return true;
+	}
+
+	if (listener.userId !== userId) {
+		return false;
+	}
+
+	room.listeners.delete(listenerSessionId);
+
+	// Another phone of theirs may still be listening; the list changes only if none is.
+	if (listener.answered && !listeningUsers(room).has(userId)) {
+		schedulePeople(room);
+	}
+
+	return true;
+};
+
+/**
+ * The reader is about to start their voice: the generation this start may go live under, taken
+ * now — before Cloudflare is asked — so anything that happens meanwhile overtakes it. Null if
+ * they are not connected as the reader.
+ */
+export const beginVoicePublish = (sessionId: string, userId: string): number | null => {
+	const room = rooms.get(sessionId);
+
+	if (!room || !isReaderHere(room, userId)) {
+		return null;
+	}
+
+	room.voiceGeneration += 1;
+
+	return room.voiceGeneration;
+};
+
+/**
+ * Voice is on, with this track — only if nothing overtook the start since `beginVoicePublish`.
+ * A track already there is the reader's earlier start — their app reconnecting — so it is closed,
+ * its listeners forgotten, and everyone told `on` again: the followers listening re-listen to the
+ * new track. False if overtaken; the caller closes the track it made.
+ */
+export const startVoice = (sessionId: string, generation: number, track: VoiceTrack): boolean => {
+	const room = rooms.get(sessionId);
+
+	if (!room || room.voiceGeneration !== generation) {
+		return false;
+	}
+
+	const previous = room.voiceTrack;
+
+	room.voice = 'on';
+	room.voiceTrack = track;
+	forgetListeners(room);
+
+	if (previous) {
+		void closeTrack(previous);
+	}
+
+	broadcast(room, { t: 'voice', voice: 'on' });
+
+	return true;
+};
+
+/**
+ * Voice is off: the track is closed at Cloudflare and everyone is told. A start still waiting on
+ * Cloudflare is overtaken even when voice is already off — otherwise it would turn voice back on.
+ */
+export const stopVoice = (sessionId: string) => {
+	const room = rooms.get(sessionId);
+
+	if (!room) {
+		return;
+	}
+
+	room.voiceGeneration += 1;
+
+	if (room.voice === 'off') {
+		return;
+	}
+
+	if (room.voiceTrack) {
+		void closeTrack(room.voiceTrack);
+	}
+
+	room.voice = 'off';
+	room.voiceTrack = null;
+	forgetListeners(room);
+	broadcast(room, { t: 'voice', voice: 'off' });
+};
+
+/**
+ * Remembers a listener's Cloudflare session against its person, so `PUT …/voice/listen` can check
+ * whose it is. False if, while it was made, voice went off, the reader started again (the session
+ * pulls a track that is gone) or the listener left the room.
+ */
+export const addVoiceListener = (
+	sessionId: string,
+	userId: string,
+	listenerSessionId: string,
+	track: VoiceTrack
+): boolean => {
+	const room = rooms.get(sessionId);
+
+	if (!room || room.voiceTrack !== track || !isFollowerHere(room, userId)) {
+		return false;
+	}
+
+	room.listeners.set(listenerSessionId, { answered: false, createdAt: Date.now(), userId });
+
+	return true;
+};
+
 /** Where the reader is now, for the preview a joiner sees before the socket opens. */
 export const roomPosition = (sessionId: string): LivePosition | null => rooms.get(sessionId)?.pos ?? null;
 
@@ -478,11 +800,28 @@ export const followerCount = (sessionId: string) => {
 	return room ? new Set([...room.followers].map(client => client.userId)).size : 0;
 };
 
-/** Shutdown: the sockets are closed by the socket server; this only stops the timers. */
-export const stopAllRooms = () => {
+/**
+ * Shutdown: the sockets are closed by the socket server; this stops the timers and closes every
+ * reader's track at Cloudflare — best effort, for at most `VOICE_SHUTDOWN_MS`, so a slow
+ * Cloudflare cannot hold the exit. Starts still waiting on Cloudflare find no room and close their own.
+ */
+export const stopAllRooms = async (): Promise<void> => {
+	const closing: Promise<void>[] = [];
+
 	for (const room of rooms.values()) {
 		stopTimers(room);
+
+		if (room.voiceTrack) {
+			closing.push(closeTrack(room.voiceTrack));
+		}
 	}
 
 	rooms.clear();
+
+	if (closing.length > 0) {
+		await Promise.race([
+			Promise.all(closing),
+			new Promise(resolve => setTimeout(resolve, VOICE_SHUTDOWN_MS).unref())
+		]);
+	}
 };

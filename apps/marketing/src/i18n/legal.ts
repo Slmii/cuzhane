@@ -72,7 +72,8 @@ const privacyTr: LegalPage = {
 			bullets: [
 				'Clerk — hesap ve oturum yönetimi.',
 				'DigitalOcean — sunucunun ve veritabanının barındırıldığı yer (Avrupa).',
-				'Expo — yalnızca bildirim gönderimi için; bildirimin metni ve cihaz anahtarı iletilir.'
+				'Expo — yalnızca bildirim gönderimi için; bildirimin metni ve cihaz anahtarı iletilir.',
+				'Cloudflare — yalnızca birlikte okumada okuyucu sesini açtığında; ses, takip edenlere ulaşmak için canlı olarak Cloudflare üzerinden geçer ve kaydedilmez.'
 			]
 		},
 		{
@@ -80,7 +81,8 @@ const privacyTr: LegalPage = {
 			paragraphs: [
 				'Serbest Cevşen’de ya da Mushaf’ta birlikte okurken okuyucunun yeri — hangi bab ya da sayfada olduğu, sayfanın neresinde olduğu ve dokunduğu satır — sunucumuz üzerinden takip edenlere canlı olarak gider. Bu yer kaydedilmez: sunucu onu yalnızca oturum sürerken bellekte tutar.',
 				'Oturum sürerken sunucuda küçük bir kayıt durur: katılma kodu, oturumu başlatan kişi ve okunan şey (Cevşen ya da Kuran). Oturum bittiğinde bu kayıt silinir — okuyucu bitirdiğinde, okuyucu bir dakika içinde dönmediğinde, on dakika okunmadığında ya da en geç dört saat sonra.',
-				'Bir oturumdaki herkes okuyucunun ve diğer takip edenlerin adını görür; burada grup olmadığı için isimler gizlenemez. Kodu kiminle paylaşacağına sen karar verirsin. Birlikte okuma hiçbir şeyi okundu olarak işaretlemez ve kimsenin ilerlemesini değiştirmez.'
+				'Bir oturumdaki herkes okuyucunun ve diğer takip edenlerin adını görür; burada grup olmadığı için isimler gizlenemez. Kodu kiminle paylaşacağına sen karar verirsin. Birlikte okuma hiçbir şeyi okundu olarak işaretlemez ve kimsenin ilerlemesini değiştirmez.',
+				'Okuyucu isterse sesini açabilir; o zaman sesi, oturumdakilerden dinlemeyi seçenlere canlı olarak gider. Ses sunucumuzdan geçmez: Cloudflare’in sunucuları onu takip edenlere iletir. Ses ne bizim tarafımızdan ne de Cloudflare tarafından kaydedilir veya saklanır. Mikrofon yalnızca okuyucu sesini açtığında ve açık kaldığı sürece kullanılır; ilk açışta telefonun izin istenir.'
 			]
 		},
 		{
@@ -152,7 +154,8 @@ const privacyEn: LegalPage = {
 			bullets: [
 				'Clerk — accounts and sessions.',
 				'DigitalOcean — where the server and database are hosted (Europe).',
-				'Expo — for delivering notifications only; the notification text and the device key are passed to it.'
+				'Expo — for delivering notifications only; the notification text and the device key are passed to it.',
+				'Cloudflare — only when the reader turns on their voice while reading together; the voice passes live through Cloudflare to reach the people following, and is not recorded.'
 			]
 		},
 		{
@@ -160,7 +163,8 @@ const privacyEn: LegalPage = {
 			paragraphs: [
 				'When you read together in the free Cevşen or Mushaf, the reader’s place — which bab or page they are on, how far down it, and the line they tap — goes through our server to the people following, live. That place is not saved: the server holds it in memory only while the session runs.',
 				'While a session runs, the server keeps a small record of it: the join code, who started it and what is being read (Cevşen or Quran). The record is deleted when the session ends — when the reader ends it, when the reader does not come back within a minute, after ten minutes without reading, or after four hours at most.',
-				'Everyone in a session sees the names of the reader and of the others following; there is no group here, so names cannot be hidden. You decide who you share the code with. Reading together marks nothing as read and changes nobody’s progress.'
+				'Everyone in a session sees the names of the reader and of the others following; there is no group here, so names cannot be hidden. You decide who you share the code with. Reading together marks nothing as read and changes nobody’s progress.',
+				'The reader can choose to turn on their voice; it then goes live to the people in the session who choose to listen. The voice does not pass through our server: Cloudflare’s servers carry it to the people following. It is not recorded or stored, by us or by Cloudflare. The microphone is used only when the reader turns their voice on, and only while it stays on; the phone asks for permission the first time.'
 			]
 		},
 		{
@@ -232,7 +236,8 @@ const privacyNl: LegalPage = {
 			bullets: [
 				'Clerk — accounts en sessies.',
 				'DigitalOcean — waar de server en de database draaien (Europa).',
-				'Expo — uitsluitend voor het bezorgen van meldingen; de tekst van de melding en de apparaatsleutel gaan daarheen.'
+				'Expo — uitsluitend voor het bezorgen van meldingen; de tekst van de melding en de apparaatsleutel gaan daarheen.',
+				'Cloudflare — alleen als de lezer bij samen lezen het geluid aanzet; de stem gaat live via Cloudflare naar wie meeleest en wordt niet opgenomen.'
 			]
 		},
 		{
@@ -240,7 +245,8 @@ const privacyNl: LegalPage = {
 			paragraphs: [
 				'Lees je samen in de vrije Cevşen of Mushaf, dan gaat de plek van de lezer — op welke bab of pagina, hoe ver naar beneden en de regel waarop die tikt — via onze server live naar wie meeleest. Die plek wordt niet opgeslagen: de server houdt hem alleen in het geheugen zolang het samen lezen duurt.',
 				'Zolang het duurt, bewaart de server een klein gegeven: de deelnamecode, wie begon en wat er gelezen wordt (Cevşen of Koran). Dat wordt gewist als het samen lezen stopt — als de lezer stopt, als de lezer niet binnen een minuut terugkomt, na tien minuten zonder lezen of uiterlijk na vier uur.',
-				'Iedereen die meedoet, ziet de naam van de lezer en van de andere meelezers; er is hier geen groep, dus namen kunnen niet verborgen worden. Jij bepaalt met wie je de code deelt. Samen lezen markeert niets als gelezen en verandert niemands voortgang.'
+				'Iedereen die meedoet, ziet de naam van de lezer en van de andere meelezers; er is hier geen groep, dus namen kunnen niet verborgen worden. Jij bepaalt met wie je de code deelt. Samen lezen markeert niets als gelezen en verandert niemands voortgang.',
+				'De lezer kan ervoor kiezen het geluid aan te zetten; de stem gaat dan live naar wie meedoet en ervoor kiest te luisteren. De stem gaat niet via onze server: de servers van Cloudflare brengen hem naar wie meeleest. Hij wordt niet opgenomen of bewaard, niet door ons en niet door Cloudflare. De microfoon wordt alleen gebruikt als de lezer het geluid aanzet, en alleen zolang het aan blijft; de eerste keer vraagt de telefoon om toestemming.'
 			]
 		},
 		{
