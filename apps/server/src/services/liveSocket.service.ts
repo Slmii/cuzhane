@@ -6,9 +6,12 @@ import {
 	CLOSE,
 	ClientFrameSchema,
 	FRAMES_PER_SECOND,
+	JOINS_PER_MINUTE,
 	LIVE_SOCKET_PATH,
 	MAX_DROPPED_FRAMES,
 	MAX_FRAME_BYTES,
+	MAX_PENDING_SOCKETS,
+	MAX_PENDING_SOCKETS_PER_ADDRESS,
 	MAX_SOCKETS_PER_USER,
 	PING_INTERVAL_MS
 } from '@schemas/live.schema';
@@ -41,9 +44,32 @@ import { WebSocketServer, type RawData, type WebSocket } from 'ws';
  *   socket stays signed in for `AUTH_LIFETIME_MS` and the app refreshes it with `reauth`.
  * - Frames are capped at `MAX_FRAME_BYTES` by `ws` itself, parsed with Zod, and metered per socket
  *   (a token bucket); a socket that keeps flooding is closed. One person may hold
- *   `MAX_SOCKETS_PER_USER` sockets at once.
+ *   `MAX_SOCKETS_PER_USER` sockets at once; before sign-in, sockets are capped in all and per address
+ *   (`MAX_PENDING_SOCKETS*`), since no per-user limit can apply yet.
+ * - Joining by code is metered per person (`JOINS_PER_MINUTE`), across reconnects — the socket's
+ *   share of the wall the REST lookup has against guessing codes.
  * - Pings every `PING_INTERVAL_MS` find sockets whose phone vanished without closing them.
  */
+
+/**
+ * Closes a person's live sockets wherever they are — account deletion, so a deleted reader leaves
+ * the people list at once rather than when their sign-in runs out. One closer per attached server.
+ */
+const userClosers = new Set<(userId: string) => void>();
+
+export const closeLiveSocketsOf = (userId: string) => {
+	for (const closeUser of userClosers) {
+		closeUser(normalizeUserId(userId));
+	}
+};
+
+/** The client's address as Caddy saw it — its first `X-Forwarded-For` entry — or the socket's own. */
+const addressOf = (request: IncomingMessage) => {
+	const forwarded = request.headers['x-forwarded-for'];
+	const first = (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(',')[0]?.trim();
+
+	return first || request.socket.remoteAddress || 'unknown';
+};
 
 type SocketState = LiveClient & {
 	/** Null until the first `auth` frame verifies. */
@@ -54,6 +80,9 @@ type SocketState = LiveClient & {
 	refilledAt: number;
 	dropped: number;
 	isAlive: boolean;
+	/** Counted against the pending caps until it signs in or closes. */
+	address: string;
+	isPending: boolean;
 };
 
 const tokenUser = async (token: string): Promise<string | null> => {
@@ -85,12 +114,67 @@ export const attachLiveSockets = (server: Server) => {
 	const wss = new WebSocketServer({ maxPayload: MAX_FRAME_BYTES, noServer: true });
 	const states = new Map<WebSocket, SocketState>();
 	const socketsByUser = new Map<string, Set<WebSocket>>();
+	const pendingByAddress = new Map<string, number>();
+	let pendingCount = 0;
+	/** Code lookups per person in the current minute — kept across sockets, so reconnecting resets nothing. */
+	const joinsByUser = new Map<string, { count: number; windowStart: number }>();
+
+	const takeJoin = (userId: string) => {
+		const now = Date.now();
+		const current = joinsByUser.get(userId);
+
+		if (!current || now - current.windowStart >= 60_000) {
+			joinsByUser.set(userId, { count: 1, windowStart: now });
+			return true;
+		}
+
+		current.count += 1;
+
+		return current.count <= JOINS_PER_MINUTE;
+	};
+
+	const settlePending = (state: SocketState) => {
+		if (!state.isPending) {
+			return;
+		}
+
+		state.isPending = false;
+		pendingCount -= 1;
+
+		const left = (pendingByAddress.get(state.address) ?? 1) - 1;
+
+		if (left <= 0) {
+			pendingByAddress.delete(state.address);
+		} else {
+			pendingByAddress.set(state.address, left);
+		}
+	};
+
+	const closeUser = (userId: string) => {
+		for (const ws of socketsByUser.get(userId) ?? []) {
+			ws.close(CLOSE.unauthorized, 'account deleted');
+		}
+	};
+
+	userClosers.add(closeUser);
 
 	const onUpgrade = (request: IncomingMessage, socket: Duplex, head: Buffer) => {
 		const path = new URL(request.url ?? '/', 'http://localhost').pathname;
 
 		// Not ours: nothing else in the API speaks WebSocket, so any other upgrade is refused.
 		if (path !== LIVE_SOCKET_PATH) {
+			socket.destroy();
+			return;
+		}
+
+		// Too many sockets nobody has signed in on yet — in all, or from this address.
+		const address = addressOf(request);
+
+		if (
+			pendingCount >= MAX_PENDING_SOCKETS ||
+			(pendingByAddress.get(address) ?? 0) >= MAX_PENDING_SOCKETS_PER_ADDRESS
+		) {
+			socket.write('HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n');
 			socket.destroy();
 			return;
 		}
@@ -147,6 +231,7 @@ export const attachLiveSockets = (server: Server) => {
 
 		state.signedInAs = userId;
 		state.userId = userId;
+		settlePending(state);
 		send(state, { t: 'ready' });
 	};
 
@@ -185,6 +270,13 @@ export const attachLiveSockets = (server: Server) => {
 		if (message.t === 'join') {
 			leaveRoom(state);
 
+			// Final for the app (4429): it stops trying rather than guessing on.
+			if (!takeJoin(state.signedInAs)) {
+				send(state, { code: 'too-many', t: 'error' });
+				state.ws.close(CLOSE.tooMany, 'too many joins');
+				return;
+			}
+
 			const session = await findLiveSessionByCode(message.code);
 
 			if (!isOpen(state)) {
@@ -213,12 +305,15 @@ export const attachLiveSockets = (server: Server) => {
 		publishPosition(state, message.seq, message.pos);
 	};
 
-	wss.on('connection', ws => {
+	wss.on('connection', (ws, request: IncomingMessage) => {
+		const address = addressOf(request);
 		const state: SocketState = {
+			address,
 			authTimer: null,
 			authUntil: 0,
 			dropped: 0,
 			isAlive: true,
+			isPending: true,
 			lastSeq: -1,
 			refilledAt: Date.now(),
 			sessionId: null,
@@ -229,6 +324,8 @@ export const attachLiveSockets = (server: Server) => {
 		};
 
 		states.set(ws, state);
+		pendingCount += 1;
+		pendingByAddress.set(address, (pendingByAddress.get(address) ?? 0) + 1);
 		state.authTimer = setTimeout(() => {
 			if (state.signedInAs === null) {
 				ws.close(CLOSE.unauthorized, 'auth timeout');
@@ -271,6 +368,7 @@ export const attachLiveSockets = (server: Server) => {
 
 			leaveRoom(state);
 			states.delete(ws);
+			settlePending(state);
 
 			if (state.signedInAs) {
 				const sockets = socketsByUser.get(state.signedInAs);
@@ -286,6 +384,13 @@ export const attachLiveSockets = (server: Server) => {
 
 	const sweep = setInterval(() => {
 		const now = Date.now();
+
+		// A minute's join counts are spent once their minute is over.
+		for (const [userId, joins] of joinsByUser) {
+			if (now - joins.windowStart >= 60_000) {
+				joinsByUser.delete(userId);
+			}
+		}
 
 		for (const state of states.values()) {
 			if (!state.isAlive) {
@@ -312,6 +417,7 @@ export const attachLiveSockets = (server: Server) => {
 		close: async () => {
 			clearInterval(sweep);
 			server.off('upgrade', onUpgrade);
+			userClosers.delete(closeUser);
 
 			const rooms = stopAllRooms();
 

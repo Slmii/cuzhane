@@ -366,9 +366,8 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 		? // The babs marked read — never the place the arrows have moved to.
 		  bookPortionsRead.length
 		: Math.min(today.bookmark + 1, pageCount);
-	// The Hizb's book buttons; a Cevşen reads in the app, and a Kur'an day opens its cüz to mark.
-	const readTitle: StringKey =
-		group.kind === 'HATIM' ? (isStarted ? 'hpContinue' : 'hbReadInApp') : isStarted ? 'hpContinue' : 'hbReadInApp';
+	// "Devam" once begun, else "Uygulamada oku" — the same words for every book.
+	const readTitle: StringKey = isStarted ? 'hpContinue' : 'hbReadInApp';
 	const round = data.currentRound;
 	const bannerMuted = toAlphaColor(theme.colors.onHeaderSurface, 0.62);
 	// The missed day's own round — the server counts rounds across a leave and a rejoin.

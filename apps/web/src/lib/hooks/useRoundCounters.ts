@@ -72,7 +72,18 @@ export const setRoundCountersOptions = (queryClient: QueryClient) => ({
 export const useRoundCounters = (
 	groupId: string,
 	roundIndex: number | null,
-	{ isEnabled, isOpenRound }: { isEnabled: boolean; isOpenRound: boolean }
+	{
+		isEnabled,
+		isOpenRound,
+		onWriteError,
+		onWriteSuccess
+	}: {
+		isEnabled: boolean;
+		isOpenRound: boolean;
+		/** A write refused — the screen says why; a 409 is the round having moved on at midnight. */
+		onWriteError?: (error: Error) => void;
+		onWriteSuccess?: () => void;
+	}
 ): {
 	delailProgress: DelailProgress;
 	istighfarProgress: IstighfarProgress;
@@ -93,7 +104,13 @@ export const useRoundCounters = (
 
 	const write = (patch: Pick<SetRoundCountersInput, 'delailCount' | 'istighfarCount' | 'istighfarTarget'>) => {
 		if (roundIndex !== null) {
-			mutate({ groupId, isOpenRound, roundIndex, ...patch });
+			mutate(
+				{ groupId, isOpenRound, roundIndex, ...patch },
+				{
+					...(onWriteError ? { onError: onWriteError } : {}),
+					...(onWriteSuccess ? { onSuccess: onWriteSuccess } : {})
+				}
+			);
 		}
 	};
 

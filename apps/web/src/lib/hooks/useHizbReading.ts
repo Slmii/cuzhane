@@ -19,9 +19,12 @@ export const hizbAssignmentKey = (groupId: string, id: string) =>
 	[...hizbReadingKey(groupId), 'assignment', id] as const;
 /**
  * `isEnabled` off for a screen that serves every kind and only reads this for a Hizb group.
+ * `isPolling` off for a reader, which needs the state once — how far ahead is read — and not the
+ * group screen's live refresh.
  */
-export const useHizbReading = (groupId: string, isEnabled = true) => {
-	const refetchInterval = useLiveRefetchInterval();
+export const useHizbReading = (groupId: string, isEnabled = true, { isPolling = true } = {}) => {
+	const liveInterval = useLiveRefetchInterval();
+	const refetchInterval = isPolling ? liveInterval : false;
 
 	return useInfiniteQuery({
 		enabled: isEnabled,

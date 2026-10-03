@@ -79,8 +79,9 @@ const DayReader = ({
 	const tabBarOffset = useContext(TabBarOffsetContext);
 	const query = useHizbAssignment(groupId, id);
 	const update = useUpdateHizbAssignment(groupId, id);
-	// The group screen's state, from the cache only: how far ahead is read, for whether undo is open.
-	const stateQuery = useHizbReading(groupId, false);
+	// The group's state, fetched once and never polled from here — a reader opened straight from
+	// Ana sayfa or a notification has no cache: how far ahead is read, for whether undo is open.
+	const stateQuery = useHizbReading(groupId, true, { isPolling: false });
 	// The strip under the title, as the group reader's: a drag or a tap anywhere along it opens
 	// that bab. `scrubRatio` carries the finger on the UI thread; the title catches up.
 	const scrubRatio = useSharedValue(-1);
@@ -281,7 +282,9 @@ const DayReader = ({
 		update.mutate({ bookPortions: next, ...(isTurning ? { bookmark: cursor + 1 } : {}) });
 	};
 	// Undo goes from the end: today, or a day read ahead, stays read while a later day is read.
-	const isUndoLocked = a.completedAt !== null && !canUndoHizbDay(a.date, stateQuery.data?.pages[0]);
+	// Locked until the state says otherwise: offering "Geri al" the server then refuses is worse.
+	const aheadState = stateQuery.data?.pages[0];
+	const isUndoLocked = a.completedAt !== null && (!aheadState || !canUndoHizbDay(a.date, aheadState));
 
 	return (
 		<SafeAreaView

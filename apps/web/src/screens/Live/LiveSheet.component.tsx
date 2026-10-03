@@ -16,7 +16,7 @@ import type { useFreeReaderLive } from '@/screens/Live/useFreeReaderLive';
 import { LiveVoiceRow } from '@/screens/Live/LiveVoiceRow.component';
 import * as Clipboard from 'expo-clipboard';
 import { useState } from 'react';
-import { FlatList, Pressable, Share, StyleSheet, View } from 'react-native';
+import { FlatList, Share, StyleSheet, View } from 'react-native';
 
 type Props = { live: ReturnType<typeof useFreeReaderLive> };
 
@@ -156,11 +156,7 @@ export const LiveSheet = ({ live }: Props) => {
 	/** A quiet red action with a line under it — ending or leaving is not the sheet's main thing. */
 	const quietAction = (label: string, note: string, onPress: () => void) => (
 		<View style={styles.quiet}>
-			<Pressable accessibilityRole='button' onPress={onPress} style={styles.quietButton}>
-				<Typography color={theme.colors.missed} style={styles.quietLabel} weight='semibold'>
-					{label}
-				</Typography>
-			</Pressable>
+			<AppButton fullWidth={false} onPress={onPress} size='sm' title={label} variant='danger' />
 			<CaptionText color={toAlphaColor(theme.colors.text, 0.5)} style={styles.quietNote}>
 				{note}
 			</CaptionText>
@@ -380,12 +376,6 @@ const styles = StyleSheet.create({
 	quiet: {
 		alignItems: 'center',
 		gap: 2
-	},
-	quietButton: {
-		padding: 10
-	},
-	quietLabel: {
-		fontSize: 13.5
 	},
 	quietNote: {
 		fontSize: 11.5,

@@ -5,6 +5,7 @@ import {
 	liveListenRateLimit,
 	liveLookupRateLimit,
 	liveStartRateLimit,
+	liveTurnRateLimit,
 	liveVoiceRateLimit
 } from '@middleware/rateLimit.middleware';
 import { validateData } from '@middleware/validate.middleware';
@@ -104,6 +105,7 @@ liveRouter.delete(
 liveRouter.post(
 	'/:sessionId/voice',
 	liveVoiceRateLimit,
+	liveTurnRateLimit,
 	validateData(StartLiveVoiceBodySchema, 'body'),
 	async (
 		req: Request,
@@ -138,6 +140,7 @@ liveRouter.delete(
 liveRouter.post(
 	'/:sessionId/voice/listen',
 	liveListenRateLimit,
+	liveTurnRateLimit,
 	async (req: Request, res: Response<ListeningVoice, AuthLocals>, next: NextFunction) => {
 		try {
 			const { sessionId } = LiveSessionIdParamsSchema.parse(req.params);

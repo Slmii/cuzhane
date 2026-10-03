@@ -370,12 +370,20 @@ const CuzReaderBody = ({ navigation, route }: Props) => {
 	const isGroupCuzRead = babsQuery.data?.find(bab => bab.number === cuzNumber)?.readAt != null;
 	const isCuzEnd = isLastPage && (assignmentId !== undefined || isGroupCuzMine);
 	const isCuzMarked = assignmentId !== undefined ? planMarked.includes(cuzNumber) : isGroupCuzRead;
-	const isMarkingCuz = planUpdate.isPending || setBabRead.isPending;
+	// A mark in flight — not a page's bookmark, which saves on every turn and must not grey "Okudum".
+	const isMarkingCuz =
+		(planUpdate.isPending &&
+			(planUpdate.variables?.read !== undefined || planUpdate.variables?.bookPortions !== undefined)) ||
+		setBabRead.isPending;
+	// Done with the cüz: back where the reader came from — or, opened first (a link, a notification),
+	// on to the group's screen, since there is nothing to go back to.
+	const leaveReader = () =>
+		navigation.canGoBack() ? navigation.goBack() : navigation.replace('GroupDetail', { groupId });
 	const markGroupCuz = () =>
 		setBabRead.mutate(
 			{ babNumber: cuzNumber, groupId, read: true },
 			{
-				onSuccess: () => (nextHeldCuz !== undefined ? crossInto(nextHeldCuz, 1, 'next') : navigation.goBack())
+				onSuccess: () => (nextHeldCuz !== undefined ? crossInto(nextHeldCuz, 1, 'next') : leaveReader())
 			}
 		);
 	const markPlanCuz = () => {
@@ -383,7 +391,7 @@ const CuzReaderBody = ({ navigation, route }: Props) => {
 		const remaining = heldCuz.filter(number => number !== cuzNumber && !planMarked.includes(number));
 
 		if (remaining.length === 0) {
-			planUpdate.mutate({ read: true, version }, { onSuccess: () => navigation.goBack() });
+			planUpdate.mutate({ read: true, version }, { onSuccess: leaveReader });
 
 			return;
 		}

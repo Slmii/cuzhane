@@ -537,7 +537,7 @@ const sharedTabScreens = ({ isProfileRoot = false }: { isProfileRoot?: boolean }
 			component={CevsenPlanReader}
 			options={{ ...nativeBackScreenOptions, headerRight: () => <ReaderToolbar /> }}
 		/>
-		{/* A Şahsi Kur'an day: its cüz to mark, each opening the cüz reader. */}
+		{/* A personal plan's own screens: its missed days, history, readers and the group's days. */}
 		<TabStack.Screen name='HizbMissed' component={HizbMissedScreen} options={nativeBackScreenOptions} />
 		<TabStack.Screen name='HizbPlanHistory' component={HizbPlanHistoryScreen} options={nativeBackScreenOptions} />
 		<TabStack.Screen name='HizbReaders' component={HizbReadersScreen} options={nativeBackScreenOptions} />

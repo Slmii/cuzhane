@@ -34,8 +34,8 @@ const RING_SIZE = 48;
 const RING_STROKE = 2.5;
 
 /**
- * The session whose strip has already risen into view. The strip remounts with every tab
- * (each tab carries its own), and only its **first** appearance rises — a tab switch is not one.
+ * The session whose strip has already risen into view: only its **first** appearance rises. Kept
+ * at module scope so a remount of the strip — after the app reloads it — does not rise again.
  */
 let risenForCode: string | null = null;
 
@@ -186,23 +186,29 @@ export const LiveReturnStrip = ({ bottom, onDismiss, onHeightChange, onReturn, s
 	 */
 	const voiceButton = voice?.button ?? null;
 
-	// Hidden from the screen reader: the strip is the one element, and its action is the button's.
-	const button = (
-		<View
-			accessibilityElementsHidden
-			importantForAccessibility='no-hide-descendants'
-			style={isStacked ? null : styles.buttonBox}
-		>
-			<AppButton
-				fullWidth={isStacked}
-				onPress={look.isEnded ? onDismiss : onReturn}
-				size='md'
-				title={look.isEnded ? t('liveTeachOk') : t('liveReturnGo')}
-				variant={look.isEnded ? 'surface' : 'primary'}
-				{...(look.isEnded ? {} : { icon: 'chevronRight' as const, iconPosition: 'trailing' as const })}
-			/>
-		</View>
-	);
+	/*
+	 * **One button, always mounted, in one place** — a native glass button made on the spot draws
+	 * its first frame unplaced. Voice's own action when voice speaks; otherwise "Okumaya dön", or
+	 * "Tamam" once the session has ended. Voice with nothing to offer lifts it out of the row.
+	 */
+	const buttonProps = voice
+		? voiceButton
+			? {
+					...(voiceButton.icon === undefined ? {} : { icon: voiceButton.icon }),
+					onPress: () => onVoiceAction(voiceButton.action),
+					title: voiceButton.label,
+					variant: voiceButton.isPrimary ? ('primary' as const) : ('surface' as const)
+			  }
+			: null
+		: look.isEnded
+		? { onPress: onDismiss, title: t('liveTeachOk'), variant: 'surface' as const }
+		: {
+				icon: 'chevronRight' as const,
+				iconPosition: 'trailing' as const,
+				onPress: onReturn,
+				title: t('liveReturnGo'),
+				variant: 'primary' as const
+		  };
 
 	return (
 		<Animated.View
@@ -227,8 +233,8 @@ export const LiveReturnStrip = ({ bottom, onDismiss, onHeightChange, onReturn, s
 					: {})
 			}}
 		>
-			{voice ? (
-				<View style={[styles.voiceLayout, isStacked ? styles.stacked : styles.row]}>
+			<View style={[styles.voiceLayout, isStacked ? styles.stacked : styles.row]}>
+				{voice ? (
 					<Pressable
 						accessibilityHint={t('liveReturnHint')}
 						accessibilityLabel={`${title}, ${sub}`}
@@ -239,48 +245,44 @@ export const LiveReturnStrip = ({ bottom, onDismiss, onHeightChange, onReturn, s
 						{lead}
 						{copy}
 					</Pressable>
-					{voiceButton ? (
-						<View style={isStacked ? null : styles.buttonBox}>
-							<AppButton
-								fullWidth={isStacked}
-								icon={voiceButton.icon}
-								onPress={() => onVoiceAction(voiceButton.action)}
-								size='md'
-								title={voiceButton.label}
-								variant={voiceButton.isPrimary ? 'primary' : 'surface'}
-							/>
-						</View>
-					) : null}
-				</View>
-			) : (
-				<Pressable
-					accessibilityActions={[{ name: 'activate' }]}
-					accessibilityHint={look.isEnded ? t('liveReturnDismissHint') : t('liveReturnHint')}
-					accessibilityLabel={`${look.title}, ${announcement !== null ? announcement : look.sub}`}
-					accessibilityRole='button'
-					accessible
-					onAccessibilityAction={handleAccessibilityAction}
-					// Ended, a tap on the strip does nothing; only "Tamam" puts it away.
-					{...(look.isEnded ? {} : { onPress: onReturn })}
-					style={[styles.press, isStacked ? styles.stacked : styles.row]}
+				) : (
+					<Pressable
+						accessibilityActions={[{ name: 'activate' }]}
+						accessibilityHint={look.isEnded ? t('liveReturnDismissHint') : t('liveReturnHint')}
+						accessibilityLabel={`${look.title}, ${announcement !== null ? announcement : look.sub}`}
+						accessibilityRole='button'
+						accessible
+						onAccessibilityAction={handleAccessibilityAction}
+						// Ended, a tap on the strip does nothing; only "Tamam" puts it away.
+						{...(look.isEnded ? {} : { onPress: onReturn })}
+						style={[styles.row, styles.voicePress]}
+					>
+						{lead}
+						{copy}
+					</Pressable>
+				)}
+				{/* Outside voice the strip is the one element for a screen reader, and this its action. */}
+				<View
+					accessibilityElementsHidden={!voice || !buttonProps}
+					importantForAccessibility={voice && buttonProps ? 'auto' : 'no-hide-descendants'}
+					pointerEvents={buttonProps ? 'auto' : 'none'}
+					style={buttonProps ? (isStacked ? null : styles.buttonBox) : styles.buttonHidden}
 				>
-					{isStacked ? (
-						<>
-							<View style={styles.row}>
-								{lead}
-								{copy}
-							</View>
-							{button}
-						</>
-					) : (
-						<>
-							{lead}
-							{copy}
-							{button}
-						</>
-					)}
-				</Pressable>
-			)}
+					<AppButton
+						fullWidth={isStacked}
+						onPress={buttonProps?.onPress ?? onReturn}
+						size='md'
+						title={buttonProps?.title ?? t('liveReturnGo')}
+						variant={buttonProps?.variant ?? 'primary'}
+						{...(buttonProps && 'icon' in buttonProps && buttonProps.icon !== undefined
+							? { icon: buttonProps.icon }
+							: {})}
+						{...(buttonProps && 'iconPosition' in buttonProps
+							? { iconPosition: buttonProps.iconPosition }
+							: {})}
+					/>
+				</View>
+			</View>
 		</Animated.View>
 	);
 };
@@ -289,6 +291,11 @@ export const LiveReturnStrip = ({ bottom, onDismiss, onHeightChange, onReturn, s
 const styles = StyleSheet.create({
 	buttonBox: {
 		flexShrink: 0
+	},
+	// Kept mounted while there is nothing to offer — out of the row, unseen and untouchable.
+	buttonHidden: {
+		opacity: 0,
+		position: 'absolute'
 	},
 	copy: {
 		flex: 1,
@@ -310,13 +317,6 @@ const styles = StyleSheet.create({
 		flexShrink: 0,
 		height: LEAD_SIZE,
 		width: LEAD_SIZE
-	},
-	// The padding is the press's, so the whole strip is the target.
-	press: {
-		paddingBottom: 10,
-		paddingLeft: 12,
-		paddingRight: 10,
-		paddingTop: 10
 	},
 	ring: {
 		left: (LEAD_SIZE - RING_SIZE) / 2,

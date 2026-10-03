@@ -69,6 +69,21 @@ export const liveVoiceRateLimit = rateLimit({
 	handler: tooManyRequestsHandler
 });
 
+/**
+ * Cloudflare relay credentials handed out — the reader starting voice and a follower starting to
+ * listen, counted together per person per hour. Each is good for a session's four hours and billed
+ * when used, so this is the wall against minting them as a relay; real starts, listens and a few
+ * reconnects stay well inside it.
+ */
+export const liveTurnRateLimit = rateLimit({
+	windowMs: 60 * 60 * 1000,
+	limit: 20,
+	standardHeaders: 'draft-7',
+	legacyHeaders: false,
+	keyGenerator: userKey,
+	handler: tooManyRequestsHandler
+});
+
 /** A follower starting to listen and answering Cloudflare's offer — two calls per listen, all to Cloudflare. */
 export const liveListenRateLimit = rateLimit({
 	windowMs: 60 * 1000,

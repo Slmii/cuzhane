@@ -15,7 +15,7 @@ import { formatLivePlace } from '@/screens/Live/liveFormat';
 import { useIsFocused } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type Props = NativeStackScreenProps<TabStackParamList, 'LiveJoin'>;
@@ -160,23 +160,19 @@ export const LiveJoinScreen = ({ navigation, route }: Props) => {
 					{t('liveJoiningSub')}
 				</CaptionText>
 			)}
-			<Pressable accessibilityRole='button' onPress={() => navigation.goBack()} style={styles.cancel}>
-				<Typography color={toAlphaColor(theme.colors.text, 0.55)} style={styles.cancelLabel} weight='semibold'>
-					{t('cancel')}
-				</Typography>
-			</Pressable>
+			<AppButton
+				fullWidth={false}
+				onPress={() => navigation.goBack()}
+				size='sm'
+				title={t('cancel')}
+				variant='ghost'
+			/>
 		</SafeAreaView>
 	);
 };
 
 /* The design's measures (Birlikte oku, C2). */
 const styles = StyleSheet.create({
-	cancel: {
-		padding: 8
-	},
-	cancelLabel: {
-		fontSize: 13
-	},
 	card: {
 		alignItems: 'center',
 		alignSelf: 'stretch',

@@ -1,6 +1,7 @@
 import prisma from '@db/prisma';
 import { closeHizbEnrollment } from '@services/hizbReading.service';
 import { endLiveSessionsOf } from '@services/liveSession.service';
+import { closeLiveSocketsOf } from '@services/liveSocket.service';
 import { normalizeUserId } from '@utils/normalizeUserId';
 
 export const deleteAccountForUser = async (userId: string): Promise<{ success: true }> => {
@@ -106,6 +107,8 @@ export const deleteAccountForUser = async (userId: string): Promise<{ success: t
 	// After the commit, as the rest of the account is gone: a live reading they lead ends too, and
 	// its followers are told so.
 	await endLiveSessionsOf(normalizedUserId);
+	// And out of any session they follow — their name leaves the people list now, not when their sign-in runs out.
+	closeLiveSocketsOf(normalizedUserId);
 
 	return { success: true };
 };

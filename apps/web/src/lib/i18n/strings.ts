@@ -1178,7 +1178,6 @@ const tr = {
 	allBabs: 'Tüm bablar',
 	abFree: 'serbest okuma',
 	// Birlikte oku — the free readers' live reading. The design's own copy (Birlikte Oku v1).
-	liveTogether: 'Birlikte',
 	liveTitle: 'Birlikte oku',
 	liveIntroSub: 'Sen okursun, davet ettiklerin kendi telefonlarında seni takip eder.',
 	livePoint1: 'Sayfayı yalnızca sen çevirirsin. Herkesin ekranı seninle aynı yere gelir.',
@@ -2908,7 +2907,6 @@ const en: Strings = {
 	allBabs: 'All babs',
 	abFree: 'free reading',
 	// Read together — the free readers' live reading. The design's own copy (Birlikte Oku v1).
-	liveTogether: 'Together',
 	liveTitle: 'Read together',
 	liveIntroSub: 'You read, and the people you invite follow along on their own phones.',
 	livePoint1: 'Only you turn the page. Everyone’s screen moves to the same place.',
@@ -4535,7 +4533,6 @@ const nl: Strings = {
 	allBabs: 'Alle babs',
 	abFree: 'vrij lezen',
 	// Samen lezen — de live lezing van de vrije lezers. De eigen tekst van het ontwerp (Birlikte Oku v1).
-	liveTogether: 'Samen',
 	liveTitle: 'Samen lezen',
 	liveIntroSub: 'Jij leest, en wie je uitnodigt leest mee op de eigen telefoon.',
 	livePoint1: 'Alleen jij slaat de pagina om. Ieders scherm gaat naar dezelfde plek.',

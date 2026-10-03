@@ -194,14 +194,18 @@ export const HizbPortionReader = ({ navigation, params }: Props) => {
 	// reader who closes the app comes back to where they had counted, not to zero.
 	const kept = useRoundCounters(groupId, shownRoundIndex, {
 		isEnabled: areCountersKept,
-		isOpenRound: !isCovering
+		isOpenRound: !isCovering,
+		// Refused as Sekine's count is: a round moved on at midnight reloads the group and says so.
+		onWriteError: error => failWith('count', partNumber)(error),
+		onWriteSuccess: () => clearFailureFor(partNumber)()
 	});
 	// Where nothing is kept — a group gathering or ended — the counters still count, for this visit.
 	const sessionDelail = useDelailSession(`${groupId}:${shownRoundIndex}`);
 	const sessionIstighfar = useIstighfarSession(`${groupId}:${shownRoundIndex}`);
 	const delailProgress = areCountersKept ? kept.delailProgress : sessionDelail;
 	const istighfarProgress = areCountersKept ? kept.istighfarProgress : sessionIstighfar;
-	const areCountersLoaded = kept.isLoaded;
+	// Only kept counts lock a page: a group's old cached counts say nothing about this visit's.
+	const areCountersLoaded = areCountersKept && kept.isLoaded;
 	const countersQuery = kept.query;
 
 	/** Mine, pool and read, for the round shown — null until both halves of that round are in. */

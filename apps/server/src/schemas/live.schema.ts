@@ -130,7 +130,7 @@ export type ServerFrame =
 	| { t: 'voice'; voice: LiveVoice }
 	| { t: 'people'; people: LivePerson[] }
 	| { t: 'ended'; reason: LiveEndReason }
-	| { t: 'error'; code: 'bad-frame' | 'not-found' | 'not-joined' | 'not-leader' | 'wrong-kind' };
+	| { t: 'error'; code: 'bad-frame' | 'not-found' | 'not-joined' | 'not-leader' | 'too-many' | 'wrong-kind' };
 
 /*
  * Close codes. 4xxx are the application's own (RFC 6455 leaves 4000–4999 to it); the app reads
@@ -162,6 +162,15 @@ export const MAX_SESSION_MS = 4 * 60 * 60_000;
 /** How long the reader may stay on one place — no scroll, no turn — before the session ends. */
 export const IDLE_AFTER_MS = 10 * 60_000;
 export const MAX_SOCKETS_PER_USER = 4;
+/**
+ * Sockets not yet signed in — each holds memory and a file descriptor for up to `AUTH_TIMEOUT_MS`
+ * before anyone is known. Capped in all and per address, since no per-user limit applies yet.
+ */
+export const MAX_PENDING_SOCKETS = 1000;
+/** Generous: a mosque's Wi-Fi or a carrier's NAT puts a whole group behind one address. */
+export const MAX_PENDING_SOCKETS_PER_ADDRESS = 100;
+/** Codes looked up per person per minute over the socket — the REST lookup's own wall against guessing. */
+export const JOINS_PER_MINUTE = 20;
 /** A token bucket per socket: this many frames a second, bursts up to the same. */
 export const FRAMES_PER_SECOND = 12;
 /** Dropped frames a socket may accumulate before it is closed. */

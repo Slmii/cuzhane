@@ -693,7 +693,7 @@ export type LiveServerFrame =
 	| { t: 'voice'; voice: LiveVoice }
 	| { t: 'people'; people: LivePerson[] }
 	| { t: 'ended'; reason: LiveEndReason }
-	| { t: 'error'; code: 'bad-frame' | 'not-found' | 'not-joined' | 'not-leader' | 'wrong-kind' };
+	| { t: 'error'; code: 'bad-frame' | 'not-found' | 'not-joined' | 'not-leader' | 'too-many' | 'wrong-kind' };
 
 /**
  * Live voice's requests (`/api/live/:sessionId/voice…`) — mirrors the server's

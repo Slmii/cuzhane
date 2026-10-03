@@ -434,12 +434,6 @@ const GLYPHS: Record<IconName, Glyph> = {
 		]
 	},
 	/*
-	 * The same button while a live reading runs — the sheet's "canlıyken dolu": the book tinted,
-	 * the dot grown to r1.9 and a second, fainter pair of waves outside the first. Its SF Symbol
-	 * (`birlikte-oku-live-session-live`) is monochrome: the native image takes no rendering mode,
-	 * so it has no tint and draws the outer waves at full strength.
-	 */
-	/*
 	 * "Göster"'s first-session hint (Birlikte oku v2, R3): a dot inside a faint ring — the line the
 	 * reader points at. Drawn inline in the design rather than taken from the Icon Set sheet.
 	 */
@@ -447,6 +441,12 @@ const GLYPHS: Record<IconName, Glyph> = {
 	// "Takip et" while detached: which way the reader's line went (Birlikte oku v2, R2).
 	arrowDown: { paths: ['M12 5v14', 'M6 13l6 6 6-6'] },
 	arrowUp: { paths: ['M12 19V5', 'M6 11l6-6 6 6'] },
+	/*
+	 * The same button while a live reading runs — the sheet's "canlıyken dolu": the book tinted,
+	 * the dot grown to r1.9 and a second, fainter pair of waves outside the first. Its SF Symbol
+	 * (`birlikte-oku-live-session-live`) is monochrome: the native image takes no rendering mode,
+	 * so it has no tint and draws the outer waves at full strength.
+	 */
 	liveSessionLive: {
 		wash: {
 			paths: [

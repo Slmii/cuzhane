@@ -176,6 +176,8 @@ export const LiveBar = ({ followDirection = 'down', live, onOpenSheet }: Props) 
 	const hasVoiceToggle =
 		isLiveLeader && voice.isSupported && voice.role === 'reader' && voice.state !== 'unavailable';
 	const isVoiceOn = voice.state === 'connecting' || voice.state === 'listening' || voice.state === 'paused';
+	// A follower in a live session: "Takip et" / "Takip ediliyor" beside the bar.
+	const isFollowShown = state.gone === null && live.isFollower && state.status === 'live';
 	/*
 	 * While the reader's voice is on, the live dot gives way to the voice's own mark (Birlikte Oku
 	 * Ses): the level meter in the accent, or — paused — the paused microphone in sand, never
@@ -238,16 +240,21 @@ export const LiveBar = ({ followDirection = 'down', live, onOpenSheet }: Props) 
 				 * control, which does not take the touch away from a Pressable around it: inside the
 				 * tap area, muting also opened the sheet.
 				 */}
-				{hasVoiceToggle ? (
+				{/* Kept mounted, lifted out of the row while unused: a native button made on the spot draws unplaced. */}
+				<View
+					pointerEvents={hasVoiceToggle ? 'auto' : 'none'}
+					style={hasVoiceToggle ? null : styles.hiddenSlot}
+				>
 					<AppButton
 						accessibilityLabel={isVoiceOn ? t('liveVoiceTurnOff') : t('liveVoiceRowTitle')}
+						disabled={!hasVoiceToggle}
 						fullWidth={false}
 						icon={isVoiceOn ? 'mic' : 'micOff'}
 						onPress={toggleVoice}
 						size='sm'
 						variant={isVoiceOn ? 'accent' : 'surface'}
 					/>
-				) : null}
+				</View>
 
 				<Pressable
 					accessibilityElementsHidden
@@ -296,11 +303,23 @@ export const LiveBar = ({ followDirection = 'down', live, onOpenSheet }: Props) 
 					) : null}
 				</Pressable>
 
-				{state.gone !== null ? (
-					<AppButton fullWidth={false} onPress={live.leave} size='sm' title={t('close')} variant='surface' />
-				) : live.isFollower && state.status === 'live' ? (
+				{/* Both kept mounted, each lifted out of the row while it is not the one shown. */}
+				<View
+					pointerEvents={state.gone !== null ? 'auto' : 'none'}
+					style={state.gone !== null ? null : styles.hiddenSlot}
+				>
 					<AppButton
-						disabled={!state.isDetached}
+						disabled={state.gone === null}
+						fullWidth={false}
+						onPress={live.leave}
+						size='sm'
+						title={t('close')}
+						variant='surface'
+					/>
+				</View>
+				<View pointerEvents={isFollowShown ? 'auto' : 'none'} style={isFollowShown ? null : styles.hiddenSlot}>
+					<AppButton
+						disabled={!isFollowShown || !state.isDetached}
 						fullWidth={false}
 						// Following: a tick. Detached: which way the reader's line went (v2, R2).
 						icon={state.isDetached ? (followDirection === 'up' ? 'arrowUp' : 'arrowDown') : 'check'}
@@ -310,7 +329,7 @@ export const LiveBar = ({ followDirection = 'down', live, onOpenSheet }: Props) 
 						title={state.isDetached ? t('liveFollow') : t('liveFollowing')}
 						variant={state.isDetached ? 'accent' : 'accentOutline'}
 					/>
-				) : null}
+				</View>
 			</View>
 			{/* "Göster"'s hint for the reader — the first reading together only. */}
 			{isLiveLeader ? <LiveTeachRow store={live.markStore} /> : null}
@@ -361,6 +380,11 @@ const styles = StyleSheet.create({
 	},
 	followButton: {
 		minWidth: 140
+	},
+	// A button kept mounted while it is not shown: out of the row, unseen and untouchable.
+	hiddenSlot: {
+		opacity: 0,
+		position: 'absolute'
 	},
 	markBox: {
 		alignItems: 'center',

@@ -64,9 +64,10 @@ const AssignmentReader = ({
 	const tabBarOffset = useContext(TabBarOffsetContext);
 	const query = useHizbAssignment(groupId, id);
 	const update = useUpdateHizbAssignment(groupId, id);
-	// The group screen's state, from the cache only — never fetched or polled from here. It says
-	// how far the reader has read ahead, which decides whether this day can still be undone.
-	const stateQuery = useHizbReading(groupId, false);
+	// The group's state, fetched once and never polled from here — a reader opened straight from
+	// Ana sayfa or a notification has no cache. It says how far ahead is read, which decides
+	// whether this day can still be undone.
+	const stateQuery = useHizbReading(groupId, true, { isPolling: false });
 	const settingsQuery = useGetUserSettings();
 	const updateSettings = useUpdateUserSettings();
 	const scroll = useRef<ScrollView>(null);
@@ -106,7 +107,9 @@ const AssignmentReader = ({
 	 */
 	const isMarking = update.isPending && update.variables?.read !== undefined;
 	// Undo goes from the end: today, or a day read ahead, stays read while a later day is read.
-	const isUndoLocked = a.completedAt !== null && !canUndoHizbDay(a.date, stateQuery.data?.pages[0]);
+	// Locked until the state says otherwise: offering "Geri al" the server then refuses is worse.
+	const aheadState = stateQuery.data?.pages[0];
+	const isUndoLocked = a.completedAt !== null && (!aheadState || !canUndoHizbDay(a.date, aheadState));
 	const istighfarLeft = Math.max(0, a.istighfarTarget - a.istighfarRepetitions);
 	// The istighfar's page, before the day is read and with a page after it to turn to (T1d).
 	const isIstighfarGate =

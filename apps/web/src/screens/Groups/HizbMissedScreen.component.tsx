@@ -36,7 +36,8 @@ export const HizbMissedScreen = ({ navigation, route }: Props) => {
 	const { theme } = useThemeContext();
 	// The group's book, from the screen it was opened from — a Şahsi Cevşen or Kur'an reads here too.
 	// Until the group is known, its book is too: Hizb labels on a Cevşen or Kur'an day would throw.
-	const groupKind = useGetGroupById(groupId).data?.kind;
+	const groupQuery = useGetGroupById(groupId);
+	const groupKind = groupQuery.data?.kind;
 	const kind = groupKind ?? 'HIZB';
 	const text = useHizbPlanText(kind);
 	const query = useHizbReading(groupId);
@@ -48,8 +49,9 @@ export const HizbMissedScreen = ({ navigation, route }: Props) => {
 		[groupId, kind, navigation]
 	);
 
-	if (query.isError) {
-		return <ErrorState queries={[query]} />;
+	// Either failing is the screen's failure: the skeleton waits for both, and must not wait forever.
+	if (query.isError || (groupQuery.isError && !groupKind)) {
+		return <ErrorState queries={[query, groupQuery]} />;
 	}
 
 	if (!data || !groupKind) {

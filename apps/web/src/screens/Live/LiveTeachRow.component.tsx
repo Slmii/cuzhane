@@ -57,14 +57,24 @@ export const LiveTeachRow = ({ store }: Props) => {
 		return () => clearTimeout(timer);
 	}, [phase]);
 
-	if (phase !== 'show' && phase !== 'done') {
+	if (phase === 'gone') {
 		return null;
 	}
 
 	const isDone = phase === 'done';
+	// Drawn unseen while the phone is asked whether the hint was seen, so "Tamam" — a native button —
+	// is already in place when the row shows rather than made on the spot.
+	const isChecking = phase === 'checking';
 
 	return (
-		<View style={[styles.row, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.divider }]}>
+		<View
+			pointerEvents={isChecking ? 'none' : 'auto'}
+			style={[
+				styles.row,
+				{ backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.divider },
+				isChecking ? styles.checking : null
+			]}
+		>
 			<View style={[styles.well, { backgroundColor: theme.colors.accentSoft }]}>
 				{isDone ? (
 					<Icon color={theme.colors.accent} name='check' size={16} strokeWidth={2} />
@@ -93,6 +103,13 @@ export const LiveTeachRow = ({ store }: Props) => {
 
 /* The design's measures (Birlikte oku v2, R3). */
 const styles = StyleSheet.create({
+	// Out of the column and unseen until the answer comes.
+	checking: {
+		left: 0,
+		opacity: 0,
+		position: 'absolute',
+		right: 0
+	},
 	row: {
 		alignItems: 'center',
 		borderBottomWidth: StyleSheet.hairlineWidth,

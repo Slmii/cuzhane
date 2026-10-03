@@ -460,6 +460,63 @@ describe('live reading socket', () => {
 		expect(await prisma.liveSession.count()).toBe(0);
 	});
 
+	it('takes a follower out of the session with their account', async () => {
+		const { code } = await start('host-of-gone');
+		const gone = await joinAs('gone-follower', code);
+
+		await deleteAccountForUser('gone-follower');
+
+		expect(await gone.closed).toBe(4401);
+	});
+
+	it('meters code guesses per person, across reconnects', async () => {
+		// A refused code closes the socket; a guesser reconnects and tries the next one.
+		for (let guess = 0; guess < 20; guess++) {
+			const socket = await connect();
+
+			socket.send({ t: 'auth', token: 'guesser' });
+			await socket.next('ready');
+			socket.send({ t: 'join', code: 'ZZZZZZZZ' });
+			expect(await socket.closed).toBe(4404);
+		}
+
+		const socket = await connect();
+
+		socket.send({ t: 'auth', token: 'guesser' });
+		await socket.next('ready');
+		socket.send({ t: 'join', code: 'ZZZZZZZZ' });
+
+		expect(await socket.next('error')).toMatchObject({ code: 'too-many' });
+		expect(await socket.closed).toBe(4429);
+	});
+
+	it('caps sockets that have not signed in from one address', async () => {
+		const address = { headers: { 'x-forwarded-for': '203.0.113.7' } };
+		const open = () =>
+			new Promise<{ status: number; ws: WebSocket }>(resolve => {
+				const ws = new WebSocket(socketUrl, address);
+
+				ws.on('unexpected-response', (_request, response) => resolve({ status: response.statusCode ?? 0, ws }));
+				ws.on('error', () => undefined);
+				ws.on('open', () => resolve({ status: 101, ws }));
+			});
+		const waiting = await Promise.all(Array.from({ length: 100 }, open));
+
+		expect(waiting.every(socket => socket.status === 101)).toBe(true);
+		expect((await open()).status).toBe(503);
+
+		// Another address is not held to this one's count.
+		const elsewhere = await connect();
+
+		elsewhere.send({ t: 'auth', token: 'from-elsewhere' });
+		expect(await elsewhere.next('ready')).toMatchObject({ t: 'ready' });
+		elsewhere.ws.close();
+
+		// Once they sign in or time out, the address may open sockets again.
+		await Promise.all(waiting.map(socket => new Promise(resolve => socket.ws.once('close', resolve))));
+		expect((await open()).status).toBe(101);
+	});
+
 	it('closes a socket that sends an oversized frame', async () => {
 		const socket = await connect();
 
@@ -988,16 +1045,30 @@ describe('live voice', () => {
 		expect(statuses.slice(0, 20).every(status => status === 404)).toBe(true);
 		expect(statuses[20]).toBe(429);
 
+		// Listening hands out relay credentials: twenty an hour, counted with starting voice — a
+		// person fresh to the minute's voice limit is refused voice once listening has used them up.
+		const minter = `voice-turn-flood-${people}`;
 		const listens = [];
 
-		for (let attempt = 0; attempt < 31; attempt++) {
-			listens.push((await listen(flooder, 'no-such-session')).status);
+		for (let attempt = 0; attempt < 21; attempt++) {
+			listens.push((await listen(minter, 'no-such-session')).status);
 		}
 
-		expect(listens.slice(0, 30).every(status => status === 404)).toBe(true);
-		expect(listens[30]).toBe(429);
-		expect((await answer(flooder, 'no-such-session', 'cf-1')).status).toBe(429);
-		expect((await stopListening(flooder, 'no-such-session', 'cf-1')).status).toBe(429);
+		expect(listens.slice(0, 20).every(status => status === 404)).toBe(true);
+		expect(listens[20]).toBe(429);
+		expect((await call('POST', '/api/live/no-such-session/voice', { user: minter })).status).toBe(429);
+
+		// The listening calls that hand out nothing still have the minute's own limit.
+		const answerer = `voice-answer-flood-${people}`;
+		const answers = [];
+
+		for (let attempt = 0; attempt < 31; attempt++) {
+			answers.push((await answer(answerer, 'no-such-session', 'cf-1')).status);
+		}
+
+		expect(answers.slice(0, 30).every(status => status !== 429)).toBe(true);
+		expect(answers[30]).toBe(429);
+		expect((await stopListening(answerer, 'no-such-session', 'cf-1')).status).toBe(429);
 	});
 
 	describe('who is listening', () => {
@@ -1394,7 +1465,8 @@ describe('live reading at full size', () => {
 
 	/** A follower that keeps only what the test measures — 500 full mailboxes would be the test's own load. */
 	const lean = async (user: string, code: string, sentAt: Map<number, number>) => {
-		const ws = new WebSocket(socketUrl);
+		// Each follower from an address of its own, as 500 phones would be — not one address's flood.
+		const ws = new WebSocket(socketUrl, { headers: { 'x-forwarded-for': `10.0.${user.length}.${user}` } });
 		const state = { closedWith: 0, latencies: [] as number[], lastF: -1, peopleCount: 0, joined: false };
 		let onJoined = () => {};
 		const joined = new Promise<void>(resolve => (onJoined = resolve));
