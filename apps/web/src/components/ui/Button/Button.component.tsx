@@ -40,7 +40,7 @@ const sizeStyleMap: Record<ButtonSize, ViewStyle> = {
  * explicit `undefined` there would otherwise erase the one set here.
  */
 /**
- * **A glyph on its own is the navigation bar's disc, whatever `size` says** — 44pt, the box iOS
+ * **A glyph on its own is the navigation bar's disc, whatever `size` says** (`sm` aside, below) — 44pt, the box iOS
  * gives its back chevron, with the glyph at 20pt and the set's active stroke, which is how that
  * chevron is set. Mirrored by `ICON_ONLY_GLYPH_SIZE` in `GlassButton.tsx`, where SwiftUI's
  * `large` control in a circle is the same disc — change both together.
@@ -48,17 +48,28 @@ const sizeStyleMap: Record<ButtonSize, ViewStyle> = {
 const ICON_ONLY_SIZE = 44;
 const ICON_ONLY_GLYPH_SIZE = 20;
 const ICON_ONLY_STROKE_WIDTH = 2.1;
-const iconOnlyStyle: ViewStyle = {
-	borderRadius: ICON_ONLY_SIZE / 2,
-	height: ICON_ONLY_SIZE,
+/**
+ * **`sm` is the one size an icon-only button takes**: a smaller disc for a control inside a row
+ * rather than in a bar — the live bar's mic beside the invite code. SwiftUI's `regular` control
+ * in a circle on the glass path (`GlassButton`), the same 38 here; the touch target stays 44
+ * through `hitSlop`.
+ */
+const ICON_ONLY_SM_SIZE = 38;
+const ICON_ONLY_SM_GLYPH_SIZE = 16;
+const ICON_ONLY_SM_HIT_SLOP = (ICON_ONLY_SIZE - ICON_ONLY_SM_SIZE) / 2;
+const iconOnlyStyleOf = (side: number): ViewStyle => ({
+	borderRadius: side / 2,
+	height: side,
 	// The size map's `minHeight` (54 at `lg`) and vertical padding outrank a bare `height`, and
 	// the disc came out an oval on the drawn path — 44 wide, 54 tall. Every vertical measure is
 	// pinned here so the circle is one number.
-	minHeight: ICON_ONLY_SIZE,
+	minHeight: side,
 	paddingHorizontal: 0,
 	paddingVertical: 0,
-	width: ICON_ONLY_SIZE
-};
+	width: side
+});
+const iconOnlyStyle = iconOnlyStyleOf(ICON_ONLY_SIZE);
+const iconOnlySmStyle = iconOnlyStyleOf(ICON_ONLY_SM_SIZE);
 
 /**
  * **Mirrored as `LABEL_SIZE_BY_SIZE` in `GlassButton.tsx` — change both together.** A SwiftUI
@@ -203,7 +214,12 @@ export const AppButton = ({
 	   ordinary box: there is nothing to centre in a disc, and it is a caller's mistake rather
 	   than a shape to design for. */
 	const isIconOnly = title === undefined && (imageIcon !== undefined || icon !== undefined);
-	const glyphSize = isIconOnly ? ICON_ONLY_GLYPH_SIZE : iconSizeMap[size];
+	const isSmallIconOnly = isIconOnly && size === 'sm';
+	const glyphSize = isIconOnly
+		? isSmallIconOnly
+			? ICON_ONLY_SM_GLYPH_SIZE
+			: ICON_ONLY_GLYPH_SIZE
+		: iconSizeMap[size];
 
 	const drawnGlyph =
 		imageIcon !== undefined ? (
@@ -214,7 +230,7 @@ export const AppButton = ({
 				color={toneByVariant.textColor}
 				name={icon}
 				size={glyphSize}
-				strokeWidth={isIconOnly ? ICON_ONLY_STROKE_WIDTH : 1.9}
+				strokeWidth={isIconOnly && !isSmallIconOnly ? ICON_ONLY_STROKE_WIDTH : 1.9}
 			/>
 		) : null;
 
@@ -223,6 +239,7 @@ export const AppButton = ({
 			accessibilityLabel={accessibilityLabel ?? title}
 			accessibilityRole='button'
 			disabled={disabled || isLoading}
+			{...(isSmallIconOnly ? { hitSlop: ICON_ONLY_SM_HIT_SLOP } : {})}
 			onPress={onPress}
 			style={({ pressed }) => [
 				styles.button,
@@ -236,7 +253,7 @@ export const AppButton = ({
 					width: fullWidth ? '100%' : undefined
 				},
 				// After the block above, which writes `width` — see the note on the map.
-				isIconOnly ? iconOnlyStyle : null,
+				isIconOnly ? (isSmallIconOnly ? iconOnlySmStyle : iconOnlyStyle) : null,
 				style
 			]}
 		>

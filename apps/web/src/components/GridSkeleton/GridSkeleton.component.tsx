@@ -22,6 +22,9 @@ const PULSE_MIN_OPACITY = 0.72;
 /** The lattice's own metrics, so the placeholder occupies the height the grid will. */
 const CELL_GAP = 3;
 const CELL_RADIUS = 4;
+/** `BabGrid`'s — `CellGrid` with 4 apart and radius 6 — for a bare board. */
+const BARE_CELL_GAP = 4;
+const BARE_CELL_RADIUS = 6;
 
 /**
  * The loading stand-in for a bab lattice: the card, a chip-and-bars header, the cells, and
@@ -41,6 +44,7 @@ export const GridSkeleton = ({
 	cellCount,
 	columns = 10,
 	hasHeader = true,
+	isBare = false,
 	legendCount = 3,
 	style
 }: GridSkeletonProps) => {
@@ -73,6 +77,50 @@ export const GridSkeleton = ({
 		{ backgroundColor: theme.colors.secondary },
 		extra
 	];
+
+	const lattice = (
+		<View style={isBare ? styles.bareLattice : null}>
+			{Array.from({ length: Math.ceil(cellCount / columns) }, (_, rowIndex) => {
+				const cellsInRow = Math.min(columns, cellCount - rowIndex * columns);
+
+				return (
+					<View key={rowIndex} style={styles.row}>
+						{Array.from({ length: cellsInRow }, (_, cellIndex) => (
+							<View key={cellIndex} style={isBare ? styles.bareCellSlot : styles.cellSlot}>
+								<View style={bone(isBare ? styles.bareCell : styles.cell)} />
+							</View>
+						))}
+						{/* A short last row keeps its cells the width of a full one. */}
+						{Array.from({ length: columns - cellsInRow }, (_, spacerIndex) => (
+							<View
+								key={`spacer-${spacerIndex}`}
+								style={isBare ? styles.bareCellSlot : styles.cellSlot}
+							/>
+						))}
+					</View>
+				);
+			})}
+		</View>
+	);
+
+	// Bare: the lattice and `BabLegend`'s keys only, 12 apart as the section body spaces them.
+	if (isBare) {
+		return (
+			<Animated.View style={[pulseStyle, styles.bare, style]}>
+				{lattice}
+				{legendCount > 0 ? (
+					<View style={styles.bareLegend}>
+						{Array.from({ length: legendCount }, (_, index) => (
+							<View key={index} style={styles.bareLegendItem}>
+								<View style={bone(styles.bareLegendSwatch)} />
+								<View style={bone(styles.legendBar)} />
+							</View>
+						))}
+					</View>
+				) : null}
+			</Animated.View>
+		);
+	}
 
 	return (
 		<CardSurface style={[styles.card, style]}>
@@ -126,6 +174,16 @@ export const GridSkeleton = ({
 };
 
 const styles = StyleSheet.create({
+	bare: { gap: 12 },
+	// Each slot padded by half the gap and the lattice drawn back by the same half: cells sized as
+	// the measured `CellGrid` sizes them, flush with the card's body.
+	bareLattice: { margin: -BARE_CELL_GAP / 2 },
+	bareCellSlot: { flex: 1, flexDirection: 'row', padding: BARE_CELL_GAP / 2 },
+	bareCell: { aspectRatio: 1, borderRadius: BARE_CELL_RADIUS, width: '100%' },
+	// `BabLegend`: 14 across, 6 between lines, an 11pt swatch on the 17pt caption line.
+	bareLegend: { columnGap: 14, flexDirection: 'row', flexWrap: 'wrap', rowGap: 6 },
+	bareLegendItem: { alignItems: 'center', flexDirection: 'row', gap: 6, height: 17 },
+	bareLegendSwatch: { borderRadius: 3, height: 11, width: 11 },
 	bone: {
 		borderRadius: 5
 	},

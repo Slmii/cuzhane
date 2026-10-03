@@ -2,7 +2,7 @@
 	"expo": {
 		"name": "Cüzhane",
 		"slug": "cuzhane",
-		"version": "1.4.0",
+		"version": "1.5.0",
 		"scheme": "cuzhane",
 		"icon": "./src/assets/icon.png",
 		"orientation": "portrait",
@@ -17,8 +17,15 @@
 			"infoPlist": {
 				"ITSAppUsesNonExemptEncryption": false,
 				"NSCameraUsageDescription": "Use your camera to upload a profile photo.",
-				"NSPhotoLibraryUsageDescription": "Allow access to your photos to set a profile picture."
+				"NSPhotoLibraryUsageDescription": "Allow access to your photos to set a profile picture.",
+				"CFBundleAllowMixedLocalizations": true,
+				"UIBackgroundModes": ["audio"]
 			}
+		},
+		"locales": {
+			"tr": "./locales/tr.json",
+			"en": "./locales/en.json",
+			"nl": "./locales/nl.json"
 		},
 		"android": {
 			"package": "com.cuzhaneapp.app",
@@ -27,7 +34,13 @@
 				"foregroundImage": "./src/assets/icon-android.png",
 				"backgroundColor": "#3E6B5C"
 			},
-			"blockedPermissions": ["android.permission.RECORD_AUDIO"]
+			"permissions": [
+				"android.permission.RECORD_AUDIO",
+				"android.permission.FOREGROUND_SERVICE",
+				"android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+				"android.permission.FOREGROUND_SERVICE_MICROPHONE"
+			],
+			"blockedPermissions": ["android.permission.SYSTEM_ALERT_WINDOW"]
 		},
 		"plugins": [
 			"expo-asset",
@@ -58,6 +71,12 @@
 			],
 			"expo-status-bar",
 			"expo-web-browser",
+			[
+				"@config-plugins/react-native-webrtc",
+				{
+					"microphonePermission": "Birlikte okurken seni takip edenler sesini canlı duyabilsin. Ses kaydedilmez."
+				}
+			],
 			"./plugins/withCustomSymbols",
 			"./plugins/withQuotedBundleScript"
 		],
@@ -67,7 +86,9 @@
 			}
 		},
 		"owner": "devsc05",
-		"runtimeVersion": "1.0.0",
+		"runtimeVersion": {
+			"policy": "appVersion"
+		},
 		"updates": {
 			"url": "https://u.expo.dev/134b5179-d281-4abb-bce5-fdca471acdee"
 		}

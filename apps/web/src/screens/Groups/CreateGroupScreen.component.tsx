@@ -30,18 +30,31 @@ import {
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { GroupKind } from '@/lib/types/domain';
 import { babsPerPerson, formatBabRange } from '@/lib/utils/babs';
-import { CREATE_DEFAULTS_FOR_KIND, partCountFor, SPOTS_FOR_KIND } from '@/lib/utils/groupKinds';
+import { CREATE_DEFAULTS_FOR_KIND, partCountFor, PERSONAL_PLAN_MAX_DAYS, SPOTS_FOR_KIND } from '@/lib/utils/groupKinds';
 import { cycleLabelKey, cycleOptionsFor, hizbPartsLabel } from '@/lib/utils/groups';
 import { boardPortionsOf } from '@/lib/utils/hizbPlanBoard';
 import { hizbPlanDescriptionKey } from '@/lib/utils/hizbPlanLabels';
+import {
+	CUSTOM_PLAN_DAYS,
+	isPersonalPlanKind,
+	PLAN_DAY_PRESETS,
+	planDayValues,
+	planSplit
+} from '@/lib/utils/personalPlan';
 import { roundEndPreview } from '@/lib/utils/roundReset';
 import { deviceTimeZone } from '@/lib/utils/timezone';
+import { unitLabelKey } from '@/lib/utils/units';
 import { RootStackParamList } from '@/navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { CreateGroupDurationCard } from './CreateGroupDurationCard.component';
-import { CreateGroupStep, CreateGroupStepHeader, LAST_STEP_BY_KIND } from './CreateGroupStepHeader.component';
+import {
+	CreateGroupStep,
+	CreateGroupStepHeader,
+	LAST_STEP_BY_KIND,
+	lastStepFor
+} from './CreateGroupStepHeader.component';
 import { CreatingGroupStep } from './CreatingGroupStep.component';
 
 type CreateGroupScreenProps = NativeStackScreenProps<RootStackParamList, 'CreateGroup'>;
@@ -85,6 +98,16 @@ const FIELDS_BY_STEP: Record<GroupKind, Record<CreateGroupStep, (keyof GroupForm
 		// Unreachable — a Hizb group ends at step 4.
 		5: []
 	}
+};
+
+/** A Şahsi Cevşen or Kur'an reading's three steps: the book, its name, and how many days. */
+const PERSONAL_FIELDS_BY_STEP: Record<CreateGroupStep, (keyof GroupForm)[]> = {
+	1: ['kind', 'hizbIndividual'],
+	2: ['name', 'dedication'],
+	3: ['planDays'],
+	// Unreachable — see `lastStepFor`.
+	4: [],
+	5: []
 };
 
 /**
@@ -206,6 +229,8 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 	 * grid has nowhere to render.
 	 */
 	const [selectedCuz, setSelectedCuz] = useState<number[]>([]);
+	// "Başka süre" chosen: it stays open while its stepper passes 10, 15 or 30.
+	const [isCustomPlanChosen, setIsCustomPlanChosen] = useState(false);
 
 	const toggleCuz = (cuzNumber: number) =>
 		setSelectedCuz(previous =>
@@ -236,7 +261,9 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 	};
 
 	const handleCreate = (values: GroupForm) => {
-		const isFlexible = values.splitMode === 'FLEXIBLE';
+		const kind = values.kind;
+		const isPersonal = isPersonalPlanKind(kind) && values.hizbIndividual;
+		const isFlexible = !isPersonal && values.splitMode === 'FLEXIBLE';
 		const common = {
 			dedication: values.dedication.trim() || undefined,
 			name: values.name.trim(),
@@ -253,8 +280,9 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 			// every member wherever they are. Not a form field — asking someone to pick a
 			// time zone to start a hatim would be absurd.
 			timezone: deviceTimeZone(),
-			// A flexible group is open by definition — step 2 does not offer it "Özel".
-			visibility: isFlexible ? ('OPEN' as const) : values.visibility
+			// A flexible group is open by definition — step 2 does not offer it "Özel". A Şahsi
+			// reading is one person's, so private.
+			visibility: isPersonal ? ('PRIVATE' as const) : isFlexible ? ('OPEN' as const) : values.visibility
 		};
 
 		createGroup.mutate(
@@ -264,7 +292,9 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 			 * screen ever set — cannot reach the server and become immutable columns on a group
 			 * nobody configured that way.
 			 */
-			values.kind === 'HATIM'
+			isPersonal
+				? { ...common, kind, planDays: values.planDays }
+				: values.kind === 'HATIM'
 				? {
 						...common,
 						boundaryPolicy: values.boundaryPolicy,
@@ -309,13 +339,14 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 					// there's no separate `goBack` to fire an unhandled action.
 					//
 					// A hatim goes straight to its lobby: it always starts out gathering, so the
-					// group board would only redirect there anyway. Any other group opens on itself:
-					// "how the group works" (O1–O5) is for joiners — the creator has just set it up.
+					// group board would only redirect there anyway. Any other group — a Şahsi Kur'an
+					// reading too, which runs from the start — opens on itself: "how the group works"
+					// (O1–O5) is for joiners — the creator has just set it up.
 					// Inside the Groups tab, so it keeps the bottom bar and a sensible back stack.
 					navigation.popTo('Tabs', {
 						screen: 'Groups',
 						params:
-							created.kind === 'HATIM'
+							created.kind === 'HATIM' && created.planDays == null
 								? { screen: 'Lobby' as const, params: { groupId: created.id } }
 								: { screen: 'GroupDetail' as const, params: { groupId: created.id } }
 					})
@@ -351,6 +382,7 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 					kind: 'CEVSEN',
 					maxPerMember: 3,
 					name: '',
+					planDays: 30,
 					roundDays: 30,
 					visibility: 'OPEN'
 				}}
@@ -364,7 +396,45 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 					// "Özel" is every length that is not one of the two presets.
 					const isCustomRoundLength = !ROUND_DAYS_PRESETS.includes(roundDays);
 					const individual = kind === 'HIZB' && watch('hizbIndividual');
-					const isFlexible = kind !== 'HATIM' && watch('splitMode') === 'FLEXIBLE';
+					// A Şahsi Cevşen or Kur'an reading: three steps, the last asking only how many days.
+					const isPersonal = isPersonalPlanKind(kind) && watch('hizbIndividual');
+					const planDays = watch('planDays');
+					// "Başka süre" once tapped — or any length that is not one of the cards.
+					const isCustomPlanLength =
+						isCustomPlanChosen || !PLAN_DAY_PRESETS.some(preset => preset === planDays);
+					const lastStep = lastStepFor(kind, isPersonal);
+					const isFlexible = !isPersonal && kind !== 'HATIM' && watch('splitMode') === 'FLEXIBLE';
+					// What a plan length comes to a day, in plain words: "Günde 7 bab · son 5 gün 6".
+					const splitLine = (days: number) => {
+						if (!isPersonalPlanKind(kind)) {
+							return '';
+						}
+
+						const split = planSplit(kind, days);
+						const unit = t(unitLabelKey(kind));
+
+						return split.lastDays > 0
+							? t('spSplitUneven', {
+									count: split.perDay,
+									days: split.lastDays,
+									last: split.lastPerDay,
+									unit
+							  })
+							: t('spSplitEven', { count: split.perDay, unit });
+					};
+					// A card's own line is short: "Günde 6–7 bab".
+					const splitHint = (days: number) => {
+						if (!isPersonalPlanKind(kind)) {
+							return '';
+						}
+
+						const split = planSplit(kind, days);
+
+						return t('spSplitEven', {
+							count: split.lastDays > 0 ? `${split.lastPerDay}–${split.perDay}` : split.perDay,
+							unit: t(unitLabelKey(kind))
+						});
+					};
 					const perPart = babsPerPerson(spots, partCountFor(kind));
 					// The Hizb's line names its own unit, and "1 portion" and a lone seat are lines of
 					// their own — see `perPersonHizbOne` / `perPersonHizbSolo`. The Cevşen's is the
@@ -392,6 +462,13 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 						setValue('spots', defaults.spots);
 						setValue('splitMode', defaults.splitMode);
 						setValue('cycle', defaults.cycle);
+
+						// "Şahsi okuma" stays as it was; a length past the new book's range comes down to it.
+						if (isPersonalPlanKind(next)) {
+							setValue('planDays', Math.min(watch('planDays'), PERSONAL_PLAN_MAX_DAYS[next]));
+						} else if (watch('hizbIndividual') && watch('hizbPlan') === '0') {
+							setValue('hizbPlan', '33');
+						}
 					};
 
 					/*
@@ -402,7 +479,7 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 					 * `formState.errors`, and the bound `Field`s render their own messages.
 					 */
 					const handleNext = async () => {
-						if (await trigger(FIELDS_BY_STEP[kind][step])) {
+						if (await trigger((isPersonal ? PERSONAL_FIELDS_BY_STEP : FIELDS_BY_STEP[kind])[step])) {
 							setStep(previous => (previous + 1) as CreateGroupStep);
 						}
 					};
@@ -442,19 +519,24 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 									 * courtesy rather than the rule.
 									 */
 									isNextDisabled={
-										kind === 'HATIM' && step === LAST_STEP_BY_KIND.HATIM && selectedCuz.length === 0
+										kind === 'HATIM' &&
+										!isPersonal &&
+										step === LAST_STEP_BY_KIND.HATIM &&
+										selectedCuz.length === 0
 									}
+									isPersonal={isPersonal}
 									kind={kind}
 									onBack={handleBack}
-									onNext={
-										step === LAST_STEP_BY_KIND[kind]
-											? handleSubmit(handleCreate)
-											: () => void handleNext()
-									}
+									onNext={step === lastStep ? handleSubmit(handleCreate) : () => void handleNext()}
 									step={step}
 									titleKey={
-										// A personal Hizb plan's fourth step asks where it starts, not about idle members.
-										kind === 'HIZB' && step === 4 && individual ? 'hpStartPortion' : undefined
+										// A personal Hizb plan's fourth step asks where it starts, not about idle members;
+										// a Şahsi reading's third, how many days.
+										kind === 'HIZB' && step === 4 && individual
+											? 'hpStartPortion'
+											: isPersonal && step === 3
+											? 'hpPlan'
+											: undefined
 									}
 								/>
 							)}
@@ -478,25 +560,26 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 											style={styles.kindCards}
 										/>
 										{/*
-										 * Under the Hizb: the personal-plan switch and the note on how its
-										 * portions come. Under the others, Q1's note on how a Kur'an group
-										 * differs. Both sit below the cards, so appearing moves nothing above.
+										 * The "Şahsi okuma" switch under every book: read alone, a day at a
+										 * time. Then, under the Hizb, the note on how its portions come; under
+										 * the others, Q1's note on how a Kur'an group differs. All sit below
+										 * the cards, so appearing moves nothing above.
 										 */}
+										<CardSurface isFlush>
+											<ToggleRow
+												hint={t('hpIndividualHint')}
+												onValueChange={next => {
+													setValue('hizbIndividual', next);
+													if (next && kind === 'HIZB' && watch('hizbPlan') === '0') {
+														setValue('hizbPlan', '33');
+													}
+												}}
+												title={t('hpIndividual')}
+												value={watch('hizbIndividual')}
+											/>
+										</CardSurface>
 										{kind === 'HIZB' ? (
 											<>
-												<CardSurface isFlush>
-													<ToggleRow
-														hint={t('hpIndividualHint')}
-														onValueChange={next => {
-															setValue('hizbIndividual', next);
-															if (next && watch('hizbPlan') === '0') {
-																setValue('hizbPlan', '33');
-															}
-														}}
-														title={t('hpIndividual')}
-														value={watch('hizbIndividual')}
-													/>
-												</CardSurface>
 												<CardSurface style={styles.kindNoteCard}>
 													<View style={styles.kindNote}>
 														<Icon
@@ -515,9 +598,10 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 													</View>
 												</CardSurface>
 											</>
-										) : (
+										) : kind === 'HATIM' && !isPersonal ? (
+											// A Kur'an group's cüz-taking; nothing a Cevşen or a Şahsi reading does.
 											<NoteCard text={t('qTypeNote')} />
-										)}
+										) : null}
 									</>
 								) : null}
 
@@ -534,7 +618,7 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 											name='dedication'
 											placeholder={t('dedicationHint')}
 										/>
-										{!individual ? (
+										{!individual && !isPersonal ? (
 											<>
 												<FieldLabelText style={styles.fieldLabel}>
 													{t('visibility')}
@@ -593,7 +677,73 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 								) : null}
 
 								{/* QC2 — how a hatim's thirty cüz are handed out, and how many one person may hold. */}
-								{!createGroup.isPending && step === 3 && kind === 'HATIM' ? (
+								{/*
+								 * A Şahsi reading's length — the Kur'an's "Tek seferlik" cards and stepper, for a plan
+								 * that comes round again. What it comes to a day is said under them.
+								 */}
+								{!createGroup.isPending && step === 3 && isPersonal && isPersonalPlanKind(kind) ? (
+									<>
+										<CaptionText color={theme.colors.subtext}>{t('spPlanHint')}</CaptionText>
+										<View style={styles.durationRow}>
+											{PLAN_DAY_PRESETS.map(preset => (
+												<CreateGroupDurationCard
+													hint={splitHint(preset)}
+													isSelected={!isCustomPlanLength && planDays === preset}
+													key={preset}
+													onPress={() => {
+														setIsCustomPlanChosen(false);
+														setValue('planDays', preset, { shouldValidate: true });
+													}}
+													style={styles.durationCard}
+													title={t('hpDays', { days: preset })}
+												/>
+											))}
+										</View>
+										<CreateGroupDurationCard
+											hint={t('qCustomHint')}
+											isSelected={isCustomPlanLength}
+											onPress={() => {
+												if (!isCustomPlanLength) {
+													setValue('planDays', CUSTOM_PLAN_DAYS, { shouldValidate: true });
+												}
+												setIsCustomPlanChosen(true);
+											}}
+											title={t('spCustom')}
+										>
+											<Collapsible isOpen={isCustomPlanLength}>
+												<View
+													style={[
+														styles.capDivider,
+														{ backgroundColor: theme.colors.divider }
+													]}
+												/>
+												<View style={styles.capBody}>
+													<FormStepper
+														caption={t(pluralKey(language, planDays, 'qDaysOne', 'qDays'))}
+														name='planDays'
+														values={planDayValues(kind)}
+													/>
+													<CaptionText color={theme.colors.faintText}>
+														{t('spRepeatNote')}
+													</CaptionText>
+												</View>
+											</Collapsible>
+										</CreateGroupDurationCard>
+										<CardSurface hasGlassSurface={false} style={styles.roundEndRow}>
+											<Icon
+												color={theme.colors.faintText}
+												name='calendar'
+												size={15}
+												strokeWidth={1.7}
+											/>
+											<CaptionText style={styles.roundEndValue} weight='semibold'>
+												{splitLine(planDays)}
+											</CaptionText>
+										</CardSurface>
+									</>
+								) : null}
+
+								{!createGroup.isPending && step === 3 && kind === 'HATIM' && !isPersonal ? (
 									<>
 										<FieldLabelText style={styles.fieldLabel}>{t('qDistHow')}</FieldLabelText>
 										{/*
@@ -678,7 +828,7 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 									</>
 								) : null}
 
-								{!createGroup.isPending && step === 3 && kind === 'CEVSEN' ? (
+								{!createGroup.isPending && step === 3 && kind === 'CEVSEN' && !isPersonal ? (
 									<>
 										{/* Flexible has no seats to size, so the seat card goes with it. */}
 										{isFlexible ? null : (

@@ -1,3 +1,4 @@
+import { getLiveSession } from '@/api/live.api';
 import { AssignmentBanner } from '@/components/AssignmentBanner/AssignmentBanner.component';
 import { AppBottomSheet } from '@/components/ui/BottomSheet/BottomSheet.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
@@ -59,7 +60,7 @@ const normalizeCode = (input: string) =>
  * are, and it either finds the group or it doesn't. Keeping it as one surface also keeps
  * the typed code alive across "Geri", which a popped screen could not.
  */
-export const JoinByCodeSheet = ({ initialCode, isVisible, onClose }: JoinByCodeSheetProps) => {
+export const JoinByCodeSheet = ({ initialCode, isLiveOnly = false, isVisible, onClose }: JoinByCodeSheetProps) => {
 	const { theme } = useThemeContext();
 	const { t } = useTranslation();
 	const navigation = useNavigation<NativeStackNavigationProp<TabStackParamList>>();
@@ -120,6 +121,26 @@ export const JoinByCodeSheet = ({ initialCode, isVisible, onClose }: JoinByCodeS
 				setStep(found.isFull ? 'full' : 'preview');
 			} catch {
 				if (lookupId !== lookupIdRef.current) {
+					return;
+				}
+
+				/*
+				 * **Not a group — perhaps a live reading.** Its code is the same eight characters, and
+				 * whoever shared one was told to type it here, so the sheet tries it before giving up.
+				 * `LiveJoin` opens the reader it is read in.
+				 */
+				const liveSession = await getLiveSession(candidate).catch(() => null);
+
+				if (lookupId !== lookupIdRef.current) {
+					return;
+				}
+
+				if (liveSession) {
+					lookedUpInitialCodeRef.current = null;
+					lookupIdRef.current += 1;
+					onClose();
+					navigation.navigate('LiveJoin', { code: liveSession.code });
+
 					return;
 				}
 
@@ -220,6 +241,16 @@ export const JoinByCodeSheet = ({ initialCode, isVisible, onClose }: JoinByCodeS
 			return;
 		}
 
+		// Live mode: the joining screen looks the code up and says so if it finds nothing.
+		if (isLiveOnly) {
+			const liveCode = code;
+
+			handleClose();
+			navigation.navigate('LiveJoin', { code: liveCode });
+
+			return;
+		}
+
 		await findGroup(code);
 	};
 
@@ -290,13 +321,19 @@ export const JoinByCodeSheet = ({ initialCode, isVisible, onClose }: JoinByCodeS
 		<AppBottomSheet isVisible={isVisible} onClose={handleClose}>
 			<View>
 				<Header2 style={styles.title}>
-					{step === 'full' ? t('groupFull') : step === 'notfound' ? t('notFoundTitle') : t('joinTitle')}
+					{step === 'full'
+						? t('groupFull')
+						: step === 'notfound'
+						? t('notFoundTitle')
+						: isLiveOnly
+						? t('liveJoinMenu')
+						: t('joinTitle')}
 				</Header2>
 
 				{step === 'code' ? (
 					<View>
 						<CaptionText color={theme.colors.subtext} style={styles.intro}>
-							{t('joinSub')}
+							{isLiveOnly ? t('liveJoinSub') : t('joinSub')}
 						</CaptionText>
 						<View style={styles.codeWrap}>
 							<CodeInput onPress={() => inputRef.current?.focus()} value={code} />
@@ -322,7 +359,7 @@ export const JoinByCodeSheet = ({ initialCode, isVisible, onClose }: JoinByCodeS
 							isLoading={lookup.isPending}
 							onPress={() => void handleFindGroup()}
 							style={styles.primary}
-							title={t('findGroup')}
+							title={isLiveOnly ? t('liveJoinButton') : t('findGroup')}
 							icon='chevronRight'
 							iconPosition='trailing'
 						/>

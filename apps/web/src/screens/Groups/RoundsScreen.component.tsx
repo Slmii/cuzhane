@@ -1,3 +1,4 @@
+import { useHintScreen } from '@/components/Hints/useHintScreen';
 import { RoundCard } from '@/components/RoundCard/RoundCard.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { PullToRefresh } from '@/components/ui/PullToRefresh/PullToRefresh.component';
@@ -56,6 +57,8 @@ const roundPercent = (round: RoundSummary) =>
  */
 export const RoundsScreen = ({ navigation, route }: Props) => {
 	const { groupId } = route.params;
+	// One card that says what this page is for.
+	useHintScreen('rounds');
 	const { theme } = useThemeContext();
 	const { language, t } = useTranslation();
 

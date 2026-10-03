@@ -98,6 +98,48 @@ it('validates updates and allows current mixed members to choose a plan after ad
 	expect(invalid.status).toBe(400);
 });
 
+it('opens the next day to read ahead once today is read, and takes it only in order', async () => {
+	const group = await create();
+	const url = base + `/groups/${group.id}/reading`;
+	type Day = { id: string; day: number; date: string; version: number; boardPortions: number[] };
+	const ahead = (reader = 'owner') =>
+		fetch(url + '/ahead', { headers: { ...headers, 'x-reader': reader }, method: 'POST' });
+	const patch = (id: string, body: object) =>
+		fetch(`${url}/assignments/${id}`, { headers, method: 'PATCH', body: JSON.stringify(body) });
+	expect((await ahead()).status).toBe(409);
+	expect((await ahead('outsider')).status).toBe(403);
+	const { today } = (await (await fetch(url, { headers })).json()) as { today: Day };
+	expect((await patch(today.id, { version: 0, bookPortions: today.boardPortions })).status).toBe(200);
+
+	const opened = await ahead();
+	expect(opened.status).toBe(200);
+	const next = (await opened.json()) as Day;
+	expect(next).toMatchObject({ day: today.day + 1, portion: 2, round: 1, completedAt: null });
+	expect(((await (await ahead()).json()) as Day).id).toBe(next.id);
+	const state = (await (await fetch(url, { headers })).json()) as { ahead: unknown; aheadThrough: unknown };
+	expect(state.ahead).toEqual({ day: next.day, date: next.date, portion: 2, assignmentId: next.id });
+	expect(state.aheadThrough).toBeNull();
+
+	// Today undone, the day after it waits.
+	expect((await patch(today.id, { version: 1, read: false })).status).toBe(200);
+	expect((await patch(next.id, { version: 0, bookPortions: next.boardPortions })).status).toBe(409);
+});
+
+it('limits opening days ahead per reader', async () => {
+	const group = await create();
+	const open = () =>
+		fetch(base + `/groups/${group.id}/reading/ahead`, {
+			headers: { ...headers, 'x-reader': 'flooder' },
+			method: 'POST'
+		});
+	const statuses: number[] = [];
+	for (let i = 0; i < 31; i++) {
+		statuses.push((await open()).status);
+	}
+	expect(statuses.slice(0, 30).every(status => status === 403)).toBe(true);
+	expect(statuses[30]).toBe(429);
+});
+
 it('validates and saves the independent Delail counter through the assignment endpoint', async () => {
 	const created = await fetch(base + '/groups', {
 		method: 'POST',

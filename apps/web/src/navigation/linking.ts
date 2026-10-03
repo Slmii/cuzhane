@@ -33,6 +33,8 @@ const detailPaths: PathConfigMap<TabDetailParamList> = {
 	},
 	// No path. B7 keeps its bab in screen state rather than params — there is nothing to
 	// address, and a bare `babs` route would only ever land on bab 1.
+	// A live reading's link (`liveLink`): the screen looks the code up and opens its reader.
+	LiveJoin: 'live/:code',
 	Rounds: 'groups/:groupId/rounds',
 	MyProgress: 'groups/:groupId/progress',
 	RoundDetail: {

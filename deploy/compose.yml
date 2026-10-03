@@ -80,6 +80,12 @@ services:
             # and only the meal answers 503 — see `quranTranslation.service.ts`.
             QURAN_CLIENT_ID: ${QURAN_CLIENT_ID:-}
             QURAN_CLIENT_SECRET: ${QURAN_CLIENT_SECRET:-}
+            # A live reader's voice, carried by Cloudflare Realtime. Unset, the API still boots
+            # and only voice answers 503 — see `liveVoice.service.ts`.
+            CLOUDFLARE_REALTIME_APP_ID: ${CLOUDFLARE_REALTIME_APP_ID:-}
+            CLOUDFLARE_REALTIME_APP_TOKEN: ${CLOUDFLARE_REALTIME_APP_TOKEN:-}
+            CLOUDFLARE_TURN_KEY_ID: ${CLOUDFLARE_TURN_KEY_ID:-}
+            CLOUDFLARE_TURN_KEY_TOKEN: ${CLOUDFLARE_TURN_KEY_TOKEN:-}
         volumes:
             - ./mushaf:/app/apps/server/mushaf:ro
         networks:

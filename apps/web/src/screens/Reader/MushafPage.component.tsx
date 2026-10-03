@@ -19,8 +19,8 @@ import { suraInfo } from '@/lib/content/sura';
 import { fitsOnLines, flowRows, type RowAlignment, rowBands } from '@/screens/Reader/mushafLayout';
 import { isDivineName, readerFaces } from '@/screens/Reader/ReaderBody.component';
 import { SuraHeader } from '@/screens/Reader/SuraHeader.component';
-import { useEffect, useRef, useState } from 'react';
-import { type LayoutChangeEvent, StyleSheet, View } from 'react-native';
+import { type RefObject, useEffect, useRef, useState } from 'react';
+import { type LayoutChangeEvent, Platform, StyleSheet, View } from 'react-native';
 
 type Faces = ReturnType<typeof readerFaces>;
 
@@ -41,7 +41,39 @@ type MushafPageProps = {
 	 */
 	targetVerseKey?: string | null;
 	onTargetLayout?: (y: number) => void;
+	/** A short tap on a verse — the live reader pointing at the line they read ("Göster"). */
+	onPressVerse?: (verseKey: string) => void;
+	/** Where the page's verses are, for the live band — filled once the page has laid out. */
+	geometryRef?: RefObject<MushafPageGeometry | null>;
+	/** The page's rows have moved: the band asks `geometryRef` again. At most once a frame. */
+	onGeometryChange?: () => void;
 };
+
+/** A verse's place on the page, in points from the page's own top-left. */
+export type MushafPageGeometry = {
+	/** One band piece per row the verse is on, top to bottom. */
+	rectsFor: (verseKey: string) => { x: number; y: number; w: number; h: number; r: number }[];
+};
+
+/** A row as the band sees it: where it is, and what it holds. */
+type RowGeometry = {
+	stamp: string;
+	x: number;
+	y: number;
+	h: number;
+	items: Placed[];
+	widths: number[];
+	alignment: RowAlignment;
+};
+
+/*
+ * The band's measures on a typeset page (Birlikte oku v2, "Bant ölçüleri"): a piece per row, 8pt
+ * apart — so each stands 4pt in from its row's top and bottom — reaching 5pt past its words, with
+ * corners of 10.
+ */
+const LIVE_BAND_INSET = 4;
+const LIVE_BAND_REACH = 5;
+const LIVE_BAND_RADIUS = 10;
 
 /**
  * A word or ayah mark, addressed by its line and place in it — the key its width is kept under —
@@ -69,6 +101,10 @@ const MEASURE_WIDTH = 10000;
  * fraction of a point, and a row filled to the last hair could come out a hair wider on screen.
  */
 const ROUNDING_SLACK = 1;
+/** Android only — how far a word's ink may reach past its measured width, each side (`inkRoomFor`). */
+const INK_ROOM_EM = 0.5;
+/** Android only — the text's own margin over its measured width, so rounding never shortens it. */
+const INK_SLACK = 2;
 
 /**
  * **The basmala, from the text itself.** It is Al-Fātiḥa's first ayah, and the mushaf sets it
@@ -123,7 +159,10 @@ export const MushafPage = ({
 	faces,
 	font,
 	numerals,
+	geometryRef,
+	onGeometryChange,
 	onLongPressVerse,
+	onPressVerse,
 	onTargetLayout,
 	page,
 	selectedVerseKey,
@@ -137,6 +176,12 @@ export const MushafPage = ({
 	const targetRowRef = useRef<View>(null);
 	const [measured, setMeasured] = useState<{ key: string; widths: Map<string, number> } | null>(null);
 	const widthsRef = useRef<{ key: string; widths: Map<string, number> }>({ key: '', widths: new Map() });
+	// The rows as laid out, for the live band; stamped so a re-flowed page's old rows are ignored.
+	const rowsRef = useRef(new Map<string, RowGeometry>());
+	const rowNodesRef = useRef(new Map<string, View>());
+	// Each row's own measuring, kept so a live reading started on a laid-out page can measure it now.
+	const rowMeasuresRef = useRef(new Map<string, () => void>());
+	const geometryFrameRef = useRef(0);
 
 	const key = `${page.page}|${font}|${faces.arabicFontSize}`;
 	const isCentred = CENTRED_PAGES.has(page.page);
@@ -156,6 +201,60 @@ export const MushafPage = ({
 		: undefined;
 
 	const isLaidOut = measured?.key === key && width > 0;
+
+	/*
+	 * The page's answer to "where is this verse" and "which verse is here", for the live band —
+	 * reading only rows laid out for this page, face, size and width.
+	 */
+	useEffect(() => {
+		if (!geometryRef) {
+			return undefined;
+		}
+
+		const stamp = `${key}|${width}`;
+		const rowsNow = () =>
+			[...rowsRef.current.values()].filter(row => row.stamp === stamp).sort((a, b) => a.y - b.y);
+
+		geometryRef.current = {
+			rectsFor: verseKey =>
+				rowsNow().flatMap(row => {
+					const flags = row.items.map(item => item.verseKey === verseKey);
+
+					if (!flags.includes(true)) {
+						return [];
+					}
+
+					return rowBands(row.widths, flags, width, gap, row.alignment, LIVE_BAND_REACH).map(band => ({
+						h: row.h - LIVE_BAND_INSET * 2,
+						r: LIVE_BAND_RADIUS,
+						w: band.right - band.left,
+						x: row.x + band.left,
+						y: row.y + LIVE_BAND_INSET
+					}));
+				})
+		};
+
+		return () => {
+			geometryRef.current = null;
+		};
+	}, [gap, geometryRef, key, width]);
+
+	/*
+	 * **A live reading started on a page already laid out.** Its rows report themselves only when
+	 * they lay out, which they have already done — so they are measured once now, or the reader's
+	 * first tap would find no row to mark.
+	 */
+	const isCollecting = geometryRef !== undefined;
+
+	useEffect(() => {
+		if (!isCollecting || !isLaidOut) {
+			return undefined;
+		}
+
+		const frame = requestAnimationFrame(() => rowMeasuresRef.current.forEach(measure => measure()));
+
+		return () => cancelAnimationFrame(frame);
+	}, [isCollecting, isLaidOut, key, width]);
 
 	/*
 	 * Measured after the rows commit, and again whenever the target, the page or its size changes
@@ -252,9 +351,42 @@ export const MushafPage = ({
 	 * layer, and not the basmala over a sura, which is 1:1's words set as a heading, not a verse
 	 * of this sura. `suppressHighlighting` keeps iOS from greying a word while it is held.
 	 */
-	const renderWord = (word: QuranWord, reactKey: string, isSajdah = false, onLongPress?: () => void) => {
+	/*
+	 * **Room for the ink on Android, without moving a word.** Android draws a text only inside its
+	 * own box, and this face's marks reach past a word's advance on both sides: the pause sign over
+	 * its own space (67:3's طِبَاقٗا ۖ lost it), a shadda-and-kasra lam at a word's start (67:5's
+	 * لِّلشَّيَٰطِينِ lost its first lam). `overflow: 'visible'` does not reach past the text's own
+	 * box. So a word on the page is made wider than its measured width on both sides and pulled
+	 * back by as much — the row lays out exactly as measured — and the text gets its measured width
+	 * plus `INK_SLACK`: given the bare measured width, a padded one-line text came a hair short
+	 * after rounding and Android cut it with "…" (67:2's ٱلْعَزِيزُ). The measuring pass has none of
+	 * this — it is what measures the width. iOS draws past a box and is left as it was.
+	 */
+	const inkRoomFor = (measuredWidth: number) => {
+		if (Platform.OS !== 'android') {
+			return {};
+		}
+
+		const room = faces.arabicFontSize * INK_ROOM_EM;
+
+		return {
+			marginHorizontal: -(room + INK_SLACK / 2),
+			paddingHorizontal: room,
+			width: measuredWidth + room * 2 + INK_SLACK
+		};
+	};
+
+	const renderWord = (
+		word: QuranWord,
+		reactKey: string,
+		isSajdah = false,
+		onLongPress?: () => void,
+		onPress?: () => void,
+		/** The word's width from the measuring pass — on the page only, for `inkRoomFor`. */
+		measuredWidth?: number
+	) => {
 		if (isVerseEnd(word)) {
-			return renderVerseEnd(word, reactKey, isSajdah, onLongPress);
+			return renderVerseEnd(word, reactKey, isSajdah, onLongPress, onPress);
 		}
 
 		const { color, content } = wordContent(word, isSajdah);
@@ -263,13 +395,23 @@ export const MushafPage = ({
 			<Typography
 				{...(color ? { color } : {})}
 				{...(onLongPress ? { onLongPress, suppressHighlighting: true } : {})}
+				{...(onPress ? { onPress, suppressHighlighting: true } : {})}
 				key={reactKey}
 				numberOfLines={1}
+				/*
+				 * **`overflow: 'visible'` lets a mark hang past its word.** A mark over a word's last
+				 * letter — the madda on 36:6's مَّآ — reaches beyond the word's advance, and Android
+				 * clips a text to its own box by default, cutting it to a stub (iOS draws past it).
+				 * Not padding: padding a one-line text on Android ellipsised other words (36:10's
+				 * ٱلذِّكْرَ) even with its box exactly the measured width.
+				 */
 				style={{
 					fontFamily: faces.arabicFont,
 					fontSize: faces.arabicFontSize,
 					lineHeight: faces.baseFontSize * 2,
-					writingDirection: 'rtl'
+					overflow: 'visible',
+					writingDirection: 'rtl',
+					...(measuredWidth === undefined ? {} : inkRoomFor(measuredWidth))
 				}}
 			>
 				{content}
@@ -278,10 +420,17 @@ export const MushafPage = ({
 	};
 
 	// A sajdah verse's mark in the darker gilt of its band; every other in the page's sage.
-	const renderVerseEnd = (word: QuranVerseEnd, reactKey: string, isSajdah: boolean, onLongPress?: () => void) => (
+	const renderVerseEnd = (
+		word: QuranVerseEnd,
+		reactKey: string,
+		isSajdah: boolean,
+		onLongPress?: () => void,
+		onPress?: () => void
+	) => (
 		<Typography
 			color={isSajdah ? theme.colors.gilt : theme.colors.accent}
 			{...(onLongPress ? { onLongPress, suppressHighlighting: true } : {})}
+			{...(onPress ? { onPress, suppressHighlighting: true } : {})}
 			key={reactKey}
 			numberOfLines={1}
 			// The words' own line height. The Cevşen reader's mark inherits it from the verse it
@@ -312,6 +461,27 @@ export const MushafPage = ({
 	);
 
 	/*
+	 * **The live band's geometry** ("Göster"). A row reports where it is once laid out — measured
+	 * against the page, since rows sit inside heading groups — with what it holds and how it is
+	 * aligned, so a verse's pieces come from `rowBands`, the arithmetic its gilt band already uses.
+	 * Only while the screen asks (`geometryRef`), and announced at most once a frame.
+	 */
+	const measureRow = (rowId: string, stamp: string, items: Placed[], widths: number[], alignment: RowAlignment) => {
+		const node = rowNodesRef.current.get(rowId);
+		const root = rootRef.current;
+
+		if (!node || !root) {
+			return;
+		}
+
+		node.measureLayout(root, (x, y, _w, h) => {
+			rowsRef.current.set(rowId, { alignment, h, items, stamp, widths, x, y });
+			cancelAnimationFrame(geometryFrameRef.current);
+			geometryFrameRef.current = requestAnimationFrame(() => onGeometryChange?.());
+		});
+	};
+
+	/*
 	 * A row, and behind any stretch of a sajdah verse on it the design's gilt band. The band is
 	 * placed by `rowBands` from the measured widths and the row's alignment — the same rules the
 	 * row lays itself out by — so it sits under exactly those words, drawn first so it is behind.
@@ -338,11 +508,32 @@ export const MushafPage = ({
 
 		// Only the row the target begins on is measured; the rest of the verse follows it down.
 		const isTargetRow = targetFirstItem !== undefined && items.some(item => item.key === targetFirstItem);
+		// A row is known by its first word, which no other row of this layout holds.
+		const rowId = items[0]?.key ?? reactKey;
+		const stamp = `${key}|${width}`;
 
 		return (
 			<View
+				collapsable={false}
 				key={reactKey}
-				{...(isTargetRow ? { collapsable: false, ref: targetRowRef } : {})}
+				onLayout={
+					geometryRef ? () => measureRow(rowId, stamp, items, items.map(widthOf), alignment) : undefined
+				}
+				ref={node => {
+					if (node) {
+						rowNodesRef.current.set(rowId, node);
+						rowMeasuresRef.current.set(rowId, () =>
+							measureRow(rowId, stamp, items, items.map(widthOf), alignment)
+						);
+					} else {
+						rowNodesRef.current.delete(rowId);
+						rowMeasuresRef.current.delete(rowId);
+					}
+
+					if (isTargetRow) {
+						targetRowRef.current = node;
+					}
+				}}
 				style={[styles.row, ALIGNMENT_STYLES[alignment], { gap }]}
 			>
 				{bandsFor(item => item.isSajdah, theme.colors.giltSoft, 'sajdah')}
@@ -358,7 +549,9 @@ export const MushafPage = ({
 						item.word,
 						item.key,
 						item.isSajdah,
-						onLongPressVerse && item.verseKey ? () => onLongPressVerse(item.verseKey) : undefined
+						onLongPressVerse && item.verseKey ? () => onLongPressVerse(item.verseKey) : undefined,
+						onPressVerse && item.verseKey ? () => onPressVerse(item.verseKey) : undefined,
+						widthOf(item)
 					)
 				)}
 			</View>

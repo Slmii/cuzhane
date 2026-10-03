@@ -52,7 +52,21 @@ export type TabDetailParamList = {
 	 * Q5 — reading a cüz page by page. `page` is 1-based within the cüz and only seeds where it
 	 * opens; the screen owns it from there. `shouldOpenTextSize` as on `BabReader`.
 	 */
-	CuzReader: { groupId: string; cuzNumber: number; page?: number; shouldOpenTextSize?: boolean };
+	CuzReader: {
+		groupId: string;
+		/** Absent only with `assignmentId`: a Şahsi day opens on its first cüz not yet marked. */
+		cuzNumber?: number;
+		/** A Şahsi Kur'an day's reading: the reader loads its cüz, and marks the day read at its end. */
+		assignmentId?: string;
+		page?: number;
+		shouldOpenTextSize?: boolean;
+		/**
+		 * Opened from a Şahsi Kur'an day: the day's cüz, which the arrows walk instead of the cüz held
+		 * in a round, and the reading's day number, which the marked place is kept under in place of
+		 * a round (a day reads each of its cüz once).
+		 */
+		plan?: { cuzNumbers: number[]; day: number };
+	};
 	JoinedWelcome: { groupId: string };
 	/**
 	 * `sheet` asks the screen to open one of its sheets on arrival. It exists so the bar's
@@ -107,12 +121,29 @@ export type TabDetailParamList = {
 	 * the one exception to "no params": search lands here on a bab it found, and that is a
 	 * place you are sent to. It only seeds the cursor; the screen owns it from there.
 	 */
-	AllBabs: { shouldOpenTextSize?: boolean; babNumber?: number } | undefined;
+	/*
+	 * A live reading is the app's (`lib/live/liveSession`), not the route's: the reader attaches to
+	 * it while focused. `shouldOpenLive` opens its sheet from the bar, as `shouldOpenTextSize` does;
+	 * `liveNotFoundCode` is the join screen's one-shot "that code found nothing" (E5).
+	 */
+	AllBabs:
+		| { shouldOpenTextSize?: boolean; babNumber?: number; shouldOpenLive?: boolean; liveNotFoundCode?: string }
+		| undefined;
 	/**
 	 * The free Mushaf — the Kur'an read outside any group, as `AllBabs` is the Cevşen. The same
 	 * "no params" rule: the cüz and page are screen state, and `cuzNumber` only seeds the cursor.
 	 */
-	Mushaf: { shouldOpenTextSize?: boolean; cuzNumber?: number; page?: number; verseKey?: string } | undefined;
+	Mushaf:
+		| {
+				shouldOpenTextSize?: boolean;
+				cuzNumber?: number;
+				page?: number;
+				verseKey?: string;
+				shouldOpenLive?: boolean;
+		  }
+		| undefined;
+	/** A live reading's code, from a link or from "Davet kodum var": looked up, then its reader opened. */
+	LiveJoin: { code: string };
 	/**
 	 * The account screen lost its tab to search (K2) and is pushed from the avatar at the right
 	 * end of every tab root's bar — inside that tab, so back returns to where it was opened.
@@ -135,12 +166,12 @@ export type TabDetailParamList = {
 	 * `BabReader`, in either shape.
 	 */
 	HizbPlanReader: { groupId: string; assignmentId: string; shouldOpenTextSize?: boolean };
+	/** A Şahsi Cevşen reading's day: its babs in order, marked read at the end. */
+	CevsenPlanReader: { groupId: string; assignmentId: string; shouldOpenTextSize?: boolean };
 	/** A personal-plan group's missed days, newest first — opened from "Senin ilerlemen" (T2). */
 	HizbMissed: { groupId: string };
 	/** A personal-plan group's history: every reading of the viewer's, newest first — from the rounds card (T3). */
 	HizbPlanHistory: { groupId: string };
-	/** A personal-plan group's day in full: today's 33, yesterday, the last 30 days (T4). */
-	HizbGroupProgress: { groupId: string };
 	/** A personal-plan group's readers today (T5), or on `day` (a group day number) from "Tüm geçmiş". */
 	HizbReaders: { groupId: string; day?: number };
 	/** A shared plan's "Tüm geçmiş": the group's days, newest first, each opening its readers. */
@@ -154,7 +185,9 @@ export type TabDetailParamList = {
 };
 
 /** `inviteCode` arrives from the QR's link (`groups/join/:inviteCode`) and opens the join sheet on that code. */
-export type GroupsScreenParams = { shouldOpenJoinSheet?: boolean; inviteCode?: string } | undefined;
+export type GroupsScreenParams =
+	| { shouldOpenJoinSheet?: boolean; inviteCode?: string; shouldOpenLiveJoinSheet?: boolean }
+	| undefined;
 
 /** The sheets the group screen's bar can ask for. Not a route — each is `ui/BottomSheet`. */
 export type GroupDetailSheet = 'manage' | 'members' | 'share';

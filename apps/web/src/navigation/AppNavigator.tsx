@@ -1,11 +1,16 @@
 import { HizbPlanReader } from '@/screens/Hizb/HizbPlanReader.component';
-import { HizbGroupProgressScreen } from '@/screens/Groups/HizbGroupProgressScreen.component';
 import { HizbMissedScreen } from '@/screens/Groups/HizbMissedScreen.component';
 import { HizbGroupHistoryScreen } from '@/screens/Groups/HizbGroupHistoryScreen.component';
 import { HizbPlanHistoryScreen } from '@/screens/Groups/HizbPlanHistoryScreen.component';
+import { CevsenPlanReader } from '@/screens/Reader/CevsenPlanReader.component';
 import { HizbReadersScreen } from '@/screens/Groups/HizbReadersScreen.component';
 import { GroupHowItWorksScreen } from '@/screens/Groups/GroupHowItWorksScreen.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
+import { LiveReturnStripHost } from '@/components/LiveReturnStrip/LiveReturnStripHost.component';
+import { LiveReturnAccessory } from '@/components/LiveReturnStrip/LiveReturnAccessory.component';
+import { LiveReturnStripOverlay } from '@/components/LiveReturnStrip/LiveReturnStripOverlay.component';
+import { isStripNativeAccessory, liveReturnSlot } from '@/components/LiveReturnStrip/liveReturnSlot';
+import { useLiveStripEndedDismissal } from '@/components/LiveReturnStrip/useLiveStripEndedDismissal';
 import { SplashScreen as AnimatedSplash } from '@/screens/Splash/SplashScreen.component';
 import { userSettingsQueryKeys } from '@/lib/hooks/queryKeys';
 import { useGetUserSettings } from '@/lib/hooks/useUserSettings';
@@ -56,6 +61,7 @@ import { useUnreadNotificationCount } from '@/lib/hooks/useNotifications';
 import { ReleaseNotesScreen } from '@/screens/WhatsNew/ReleaseNotesScreen.component';
 import { HizbReaderScreen } from '@/screens/Hizb/HizbReaderScreen.component';
 import { HizbSectionsScreen } from '@/screens/Hizb/HizbSectionsScreen.component';
+import { LiveJoinScreen } from '@/screens/Live/LiveJoinScreen.component';
 import { AllBabsScreen } from '@/screens/Reader/AllBabsScreen.component';
 import { BabReaderScreen } from '@/screens/Reader/BabReaderScreen.component';
 import { ReaderToolbar } from '@/screens/Reader/ReaderToolbar.component';
@@ -67,13 +73,14 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
 	StackActions,
 	useNavigationState,
+	useRoute,
 	type NavigationState,
 	type PartialState,
 	type RouteProp
 } from '@react-navigation/native';
 import { createNativeStackNavigator, NativeStackNavigationOptions } from '@react-navigation/native-stack';
-import { useEffect, useRef, useState, type ComponentType } from 'react';
-import { Platform, type ImageSourcePropType } from 'react-native';
+import { useEffect, useRef, useState, useSyncExternalStore, type ComponentType } from 'react';
+import { Platform, StyleSheet, View, type ImageSourcePropType } from 'react-native';
 import { useBottomTabBarHeight, type AppleIcon } from 'react-native-bottom-tabs';
 
 /**
@@ -110,6 +117,25 @@ export const focusedRouteName = (state: AnyNavigationState | undefined): string 
 	}
 
 	return name;
+};
+
+/** The same walk as `focusedRouteName`, for the visible screen's key — one instance, not one name. */
+const focusedRouteKey = (state: AnyNavigationState | undefined): string | undefined => {
+	let current: AnyNavigationState | undefined = state;
+	let key: string | undefined;
+
+	while (current) {
+		const route = current.routes[current.index ?? current.routes.length - 1];
+
+		if (!route) {
+			break;
+		}
+
+		key = route.key ?? route.name;
+		current = route.state;
+	}
+
+	return key;
 };
 
 /**
@@ -427,7 +453,7 @@ const sharedTabScreens = ({ isProfileRoot = false }: { isProfileRoot?: boolean }
 		<TabStack.Screen
 			name='AllBabs'
 			component={AllBabsScreen}
-			options={{ ...nativeBackScreenOptions, headerRight: () => <ReaderToolbar /> }}
+			options={{ ...nativeBackScreenOptions, headerRight: () => <ReaderToolbar liveKind='CEVSEN' /> }}
 		/>
 		<TabStack.Screen name='Lobby' component={LobbyScreen} options={pushedScreenOptions} />
 		<TabStack.Screen name='Pool' component={PoolScreen} options={pushedScreenOptions} />
@@ -444,6 +470,8 @@ const sharedTabScreens = ({ isProfileRoot = false }: { isProfileRoot?: boolean }
 		 * the only place it goes and the chevron already says so.
 		 */}
 		<TabStack.Screen name='InvitePreview' component={InvitePreviewScreen} options={pushedScreenOptions} />
+		{/* A live reading's code — looked up, then replaced by the reader it is read in. */}
+		<TabStack.Screen name='LiveJoin' component={LiveJoinScreen} options={pushedScreenOptions} />
 		{/* QJ3, pushed from that preview — back returns to it with the choice abandoned, which
 		    is the right outcome: nothing is taken until the join lands. */}
 		<TabStack.Screen name='PickCuz' component={PickCuzScreen} options={nativeBackScreenOptions} />
@@ -468,7 +496,7 @@ const sharedTabScreens = ({ isProfileRoot = false }: { isProfileRoot?: boolean }
 		<TabStack.Screen
 			name='Mushaf'
 			component={MushafScreen}
-			options={{ ...nativeBackScreenOptions, headerRight: () => <ReaderToolbar /> }}
+			options={{ ...nativeBackScreenOptions, headerRight: () => <ReaderToolbar liveKind='QURAN' /> }}
 		/>
 		{/*
 		 * **It needs the back button like any other pushed screen.** Gruplarım navigates here for
@@ -503,13 +531,15 @@ const sharedTabScreens = ({ isProfileRoot = false }: { isProfileRoot?: boolean }
 			component={HizbPlanReader}
 			options={{ ...nativeBackScreenOptions, headerRight: () => <ReaderToolbar /> }}
 		/>
+		{/* A Şahsi Cevşen day's reader, with the same bar and text-size control as the others. */}
+		<TabStack.Screen
+			name='CevsenPlanReader'
+			component={CevsenPlanReader}
+			options={{ ...nativeBackScreenOptions, headerRight: () => <ReaderToolbar /> }}
+		/>
+		{/* A personal plan's own screens: its missed days, history, readers and the group's days. */}
 		<TabStack.Screen name='HizbMissed' component={HizbMissedScreen} options={nativeBackScreenOptions} />
 		<TabStack.Screen name='HizbPlanHistory' component={HizbPlanHistoryScreen} options={nativeBackScreenOptions} />
-		<TabStack.Screen
-			name='HizbGroupProgress'
-			component={HizbGroupProgressScreen}
-			options={nativeBackScreenOptions}
-		/>
 		<TabStack.Screen name='HizbReaders' component={HizbReadersScreen} options={nativeBackScreenOptions} />
 		<TabStack.Screen name='HizbGroupHistory' component={HizbGroupHistoryScreen} options={nativeBackScreenOptions} />
 		{/* O1–O5, after joining any group: its own "Atla" and buttons are the way on, so no bar. */}
@@ -549,12 +579,23 @@ const withTabBarOffset = (Screen: ComponentType) => {
 	const Wrapped = () => {
 		const height = useBottomTabBarHeight();
 		const coveredHeight = Platform.OS === 'ios' ? height : 0;
+		const route = useRoute();
+		// The screen on top of this tab's own stack — where the return strip decides whether to show.
+		const screenName = useNavigationState(state =>
+			focusedRouteName(state.routes.find(entry => entry.key === route.key)?.state)
+		);
+		const isForcedHidden = useForcedTabBarHidden();
+		const isBarHidden = isForcedHidden || (screenName !== undefined && TAB_BAR_HIDDEN_ROUTES.has(screenName));
 
+		/*
+		 * The offset itself is provided by `LiveReturnStripHost`: the bar's height, raised by the
+		 * Birlikte oku return strip's room while one is due on this tab.
+		 */
 		return (
 			<HasTabBarContext.Provider value>
-				<TabBarOffsetContext.Provider value={coveredHeight}>
+				<LiveReturnStripHost coveredHeight={coveredHeight} isBarHidden={isBarHidden} screenName={screenName}>
 					<Screen />
-				</TabBarOffsetContext.Provider>
+				</LiveReturnStripHost>
 			</HasTabBarContext.Provider>
 		);
 	};
@@ -734,9 +775,16 @@ const TabsNavigator = () => {
 		return name !== undefined && TAB_BAR_HIDDEN_ROUTES.has(name);
 	});
 	const isSettledHidden = useSettledTabBarHidden(shouldHideBar);
+	// The return strip's "Bitti" goes with the first screen change — any screen, in any tab.
+	const focusedScreenKey = useNavigationState(focusedRouteKey);
+	const focusedScreenName = useNavigationState(focusedRouteName);
+
+	useLiveStripEndedDismissal(focusedScreenKey, focusedScreenName);
 	// Raised by the search screen as a pop starts revealing it — see `tabBarVisibility`.
 	const isForcedHidden = useForcedTabBarHidden();
 	const isBarHidden = isSettledHidden || isForcedHidden;
+	// iOS 26: the return strip is the bar's own accessory, shown while the focused tab says it is due.
+	const isAccessoryDue = useSyncExternalStore(liveReturnSlot.subscribe, () => liveReturnSlot.get().isDue);
 
 	/*
 	 * The floor, for anything rendered outside a tab scene. Every tab's own component is
@@ -744,90 +792,102 @@ const TabsNavigator = () => {
 	 */
 	return (
 		<TabBarOffsetContext.Provider value={0}>
-			<Tab.Navigator
-				/*
-				 * "Back" on a tab means the tab you came from, which is what Kapat on the search
-				 * screen does: it leaves search and lands where you were, bar restored.
-				 */
-				backBehavior='history'
-				/*
-				 * Translucent, which is what lets the system draw it in glass — opaque would
-				 * flatten it back into a plain bar and there would be nothing to look at.
-				 */
-				translucent
-				/*
-				 * **The bar stays whole.** iOS 26 offers to shrink it to a single circular button
-				 * on scroll-down, and it was tried — but this app's bar is the only way between
-				 * five sections, and collapsed it says nothing about the other four. The design's
-				 * rule that the bar stays visible on every screen is about being *available*, not
-				 * merely present.
-				 */
-				minimizeBehavior='never'
-				hapticFeedbackEnabled
-				/*
-				 * The design's own label: Manrope medium at 10, where the native bar defaults to the
-				 * system face at ~12. That is also what buys the **spacing between items** — a native
-				 * bar divides its width evenly and sizes the selected pill to its label, so with long
-				 * Dutch words ("Ontdekken", "Herinnering") at 12pt the pill grew until it touched its
-				 * neighbour's text. There is no item-spacing knob to reach for; the type is the lever.
-				 */
-				tabLabelStyle={{ fontFamily: appFonts.medium, fontSize: 10 }}
-				tabBarActiveTintColor={theme.colors.accent}
-				tabBarInactiveTintColor={theme.colors.subtext}
-				// Hidden natively rather than by a zero-height sibling — there is no custom bar
-				// left to collapse. Search mode is the one thing that hides it.
-				tabBarHidden={isBarHidden}
-				// Without it the scene wrapper does not fill, so a ScrollView inside grows to
-				// its content height and has nothing left to scroll.
-				screenOptions={{ lazy: false, sceneStyle: { flex: 1 } }}
-			>
-				<Tab.Screen name='Home' component={HomeTab} listeners={resetTabStack} options={tabOptions('Home')} />
-				<Tab.Screen
-					name='Groups'
-					component={GroupsTab}
-					listeners={resetTabStack}
-					options={tabOptions('Groups')}
-				/>
-				<Tab.Screen
-					name='Discover'
-					component={DiscoverTab}
-					listeners={resetTabStack}
-					options={tabOptions('Discover')}
-				/>
-				<Tab.Screen
-					name='Notifications'
-					component={NotificationsTab}
-					listeners={resetTabStack}
-					options={notificationsTabOptions}
-				/>
-				{/*
-				 * **The search tab is iOS 26's own detached search button** — `role: 'search'` is
-				 * the slot Apple Music puts search in, a circle beside the capsule, icon-only. K2
-				 * gave it the fifth slot in place of Profil, which moved to Ana sayfa's header.
-				 * The label still goes in for Android, which draws it as an ordinary fifth tab.
-				 */}
-				{Platform.OS === 'ios' ? (
-					<Tab.Screen
-						name='Search'
-						component={SearchTab}
-						listeners={resetTabStack}
-						options={{ ...tabOptions('Search'), role: 'search' }}
-					/>
-				) : (
+			<View style={styles.tabsRoot}>
+				<Tab.Navigator
 					/*
-					 * Material keeps the navigation bar for destinations and puts search in the
-					 * top bar, so Android swaps the two: Profil is the fifth tab here and search is
-					 * `TrailingCornerAction` at the right end of every bar, pushing `Search`
-					 * inside the current tab.
+					 * "Back" on a tab means the tab you came from, which is what Kapat on the search
+					 * screen does: it leaves search and lands where you were, bar restored.
 					 */
+					backBehavior='history'
+					/*
+					 * Translucent, which is what lets the system draw it in glass — opaque would
+					 * flatten it back into a plain bar and there would be nothing to look at.
+					 */
+					translucent
+					/*
+					 * **The bar stays whole.** iOS 26 offers to shrink it to a single circular button
+					 * on scroll-down, and it was tried — but this app's bar is the only way between
+					 * five sections, and collapsed it says nothing about the other four. The design's
+					 * rule that the bar stays visible on every screen is about being *available*, not
+					 * merely present.
+					 */
+					minimizeBehavior='never'
+					{...(isStripNativeAccessory && isAccessoryDue
+						? { renderBottomAccessoryView: () => <LiveReturnAccessory /> }
+						: {})}
+					hapticFeedbackEnabled
+					/*
+					 * The design's own label: Manrope medium at 10, where the native bar defaults to the
+					 * system face at ~12. That is also what buys the **spacing between items** — a native
+					 * bar divides its width evenly and sizes the selected pill to its label, so with long
+					 * Dutch words ("Ontdekken", "Herinnering") at 12pt the pill grew until it touched its
+					 * neighbour's text. There is no item-spacing knob to reach for; the type is the lever.
+					 */
+					tabLabelStyle={{ fontFamily: appFonts.medium, fontSize: 10 }}
+					tabBarActiveTintColor={theme.colors.accent}
+					tabBarInactiveTintColor={theme.colors.subtext}
+					// Hidden natively rather than by a zero-height sibling — there is no custom bar
+					// left to collapse. Search mode is the one thing that hides it.
+					tabBarHidden={isBarHidden}
+					// Without it the scene wrapper does not fill, so a ScrollView inside grows to
+					// its content height and has nothing left to scroll.
+					screenOptions={{ lazy: false, sceneStyle: { flex: 1 } }}
+				>
 					<Tab.Screen
-						name='Profile'
-						component={ProfileTab}
+						name='Home'
+						component={HomeTab}
 						listeners={resetTabStack}
-						options={tabOptions('Profile')}
+						options={tabOptions('Home')}
 					/>
-				)}
-			</Tab.Navigator>
+					<Tab.Screen
+						name='Groups'
+						component={GroupsTab}
+						listeners={resetTabStack}
+						options={tabOptions('Groups')}
+					/>
+					<Tab.Screen
+						name='Discover'
+						component={DiscoverTab}
+						listeners={resetTabStack}
+						options={tabOptions('Discover')}
+					/>
+					<Tab.Screen
+						name='Notifications'
+						component={NotificationsTab}
+						listeners={resetTabStack}
+						options={notificationsTabOptions}
+					/>
+					{/*
+					 * **The search tab is iOS 26's own detached search button** — `role: 'search'` is
+					 * the slot Apple Music puts search in, a circle beside the capsule, icon-only. K2
+					 * gave it the fifth slot in place of Profil, which moved to Ana sayfa's header.
+					 * The label still goes in for Android, which draws it as an ordinary fifth tab.
+					 */}
+					{Platform.OS === 'ios' ? (
+						<Tab.Screen
+							name='Search'
+							component={SearchTab}
+							listeners={resetTabStack}
+							options={{ ...tabOptions('Search'), role: 'search' }}
+						/>
+					) : (
+						/*
+						 * Material keeps the navigation bar for destinations and puts search in the
+						 * top bar, so Android swaps the two: Profil is the fifth tab here and search is
+						 * `TrailingCornerAction` at the right end of every bar, pushing `Search`
+						 * inside the current tab.
+						 */
+						<Tab.Screen
+							name='Profile'
+							component={ProfileTab}
+							listeners={resetTabStack}
+							options={tabOptions('Profile')}
+						/>
+					)}
+				</Tab.Navigator>
+				{/* Birlikte oku's return card, once above every tab — see the overlay. */}
+				<LiveReturnStripOverlay />
+			</View>
 		</TabBarOffsetContext.Provider>
 	);
 };
@@ -985,3 +1045,10 @@ export const AppNavigator = () => {
 		</Stack.Navigator>
 	);
 };
+
+const styles = StyleSheet.create({
+	// The tabs and, over them, the return card that stays put through tab switches.
+	tabsRoot: {
+		flex: 1
+	}
+});

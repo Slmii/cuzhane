@@ -65,7 +65,11 @@
 	}
 
 	handle {
-		reverse_proxy api-preview:3001
+		# A config reload would otherwise close every live-reading socket at once (checked with
+		# caddy:2.11); with a delay they stay open and the old config lets go when they close.
+		reverse_proxy api-preview:3001 {
+			stream_close_delay 5m
+		}
 	}
 }
 
@@ -94,6 +98,10 @@
 	}
 
 	handle {
-		reverse_proxy api:3001
+		# A config reload would otherwise close every live-reading socket at once (checked with
+		# caddy:2.11); with a delay they stay open and the old config lets go when they close.
+		reverse_proxy api:3001 {
+			stream_close_delay 5m
+		}
 	}
 }

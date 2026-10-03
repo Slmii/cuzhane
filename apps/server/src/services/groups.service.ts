@@ -2,7 +2,7 @@ import { enrollHizbInTransaction, hizbSummary, expireHizb } from './hizbReading.
 import { BAD_REQUEST, INTERNAL_SERVER_ERROR } from '@config/httpCodes';
 import { HttpError } from '@config/httpError';
 import prisma from '@db/prisma';
-import { partCountFor } from '@utils/groupKinds';
+import { isPersonalPlan, PERSONAL_PLAN_MAX_DAYS, partCountFor } from '@utils/groupKinds';
 import { formatInviteCode, generateInviteCode } from '@utils/inviteCode';
 import { normalizeUserId } from '@utils/normalizeUserId';
 import { civilDayNumber, ROUND_DAYS, roundEndsAt, roundLengthFor } from '@utils/rounds';
@@ -52,6 +52,8 @@ export type CreateGroupInput =
 			 */
 			cycle: Exclude<GroupCycle, 'MONTHLY' | 'CUSTOM'>;
 			spots: number;
+			/** A Şahsi reading's length in days; the seat settings above are then unused. */
+			planDays?: number | undefined;
 	  })
 	| (CreateGroupCommon & {
 			kind: 'HIZB';
@@ -75,8 +77,10 @@ export type CreateGroupInput =
 			boundaryPolicy: CuzBoundaryPolicy;
 			/** The round's length in days, straight from QC3 — 7, 30, or whatever was typed. */
 			roundDays: number;
-			/** The cüz the creator takes (QC4). At least one — see the body schema. */
-			cuzNumbers: number[];
+			/** The cüz the creator takes (QC4). At least one unless Şahsi — see the body schema. */
+			cuzNumbers?: number[] | undefined;
+			/** A Şahsi reading's length in days; the sharing settings above are then unused. */
+			planDays?: number | undefined;
 	  });
 
 /**
@@ -93,9 +97,23 @@ export type CreateGroupInput =
  * A seat-based kind (Cevşen, Hizb) takes its length from the cadence preset. A personal Hizb
  * plan runs by the day and has no seats, and neither has a flexible group, so both are sized
  * to the whole book. A Hizb MONTHLY stores thirty days too, though the calendar reads it as a
- * calendar month (`roundLengthFor`).
+ * calendar month (`roundLengthFor`). A Şahsi Cevşen or Kur'an reading is shaped as a personal Hizb
+ * plan is, with none of the hatim's sharing rules.
  */
 const planColumnsFor = (input: CreateGroupInput, { flexible, personal }: { flexible: boolean; personal: boolean }) => {
+	if (input.kind !== 'HIZB' && input.planDays !== undefined) {
+		return {
+			boundaryPolicy: null,
+			cycle: 'DAILY' as GroupCycle,
+			distribution: null,
+			kind: input.kind,
+			maxPerMember: null,
+			roundDays: ROUND_DAYS.DAILY,
+			splitMode: 'FLEXIBLE' as GroupSplitMode,
+			spots: partCountFor(input.kind)
+		};
+	}
+
 	if (input.kind === 'HATIM') {
 		return {
 			boundaryPolicy: input.boundaryPolicy,
@@ -234,7 +252,7 @@ export const listGroupsForUser = async (userId: string): Promise<GroupSummary[]>
 				skippedGroupIds.has(group.id)
 			),
 			// A personal Hizb plan's share is the member's own assignment, not a seat's block.
-			...(group.hizbPlan !== null ? await hizbSummary(group.id, normalizedUserId) : {})
+			...(isPersonalPlan(group) ? await hizbSummary(group.id, normalizedUserId) : {})
 		}))
 	);
 };
@@ -271,7 +289,7 @@ export const getGroupDetailForUser = async (userId: string, groupId: string): Pr
 		holdings,
 		group.roundSkips.map(skip => skip.roundIndex)
 	);
-	return group.hizbPlan !== null ? { ...detail, ...(await hizbSummary(group.id, normalizedUserId)) } : detail;
+	return isPersonalPlan(group) ? { ...detail, ...(await hizbSummary(group.id, normalizedUserId)) } : detail;
 };
 
 export const createGroupForUser = async (
@@ -283,17 +301,28 @@ export const createGroupForUser = async (
 	const startsAt = new Date();
 	// The Hizb's plan settings, or none for the other kinds (the body schema refuses them there).
 	const hizb = input.kind === 'HIZB' ? input : null;
-	const personal = hizb?.hizbPlan !== undefined;
-	const individual = hizb?.hizbIndividual ?? false;
+	// A Şahsi Cevşen or Kur'an reading: one person's plan, always from the first part.
+	const planDays = input.kind === 'HIZB' ? null : input.planDays ?? null;
+	const personal = hizb?.hizbPlan !== undefined || planDays !== null;
+	const individual = (hizb?.hizbIndividual ?? false) || planDays !== null;
 	const startPortion = hizb?.hizbStartPortion ?? 1;
 	if (
 		!Number.isInteger(startPortion) ||
 		startPortion < 1 ||
-		(individual ? !personal || !hizb?.hizbPlan || startPortion > hizb.hizbPlan : startPortion !== 1)
+		(hizb && individual ? !personal || !hizb.hizbPlan || startPortion > hizb.hizbPlan : startPortion !== 1)
 	) {
 		throw new HttpError(BAD_REQUEST, 'Invalid individual reading start');
 	}
 	if (hizb?.hizbPlan !== undefined && ![0, 7, 15, 33].includes(hizb.hizbPlan)) {
+		throw new HttpError(BAD_REQUEST, 'Invalid personal plan');
+	}
+	if (
+		planDays !== null &&
+		(input.kind === 'HIZB' ||
+			!Number.isInteger(planDays) ||
+			planDays < 1 ||
+			planDays > PERSONAL_PLAN_MAX_DAYS[input.kind])
+	) {
 		throw new HttpError(BAD_REQUEST, 'Invalid personal plan');
 	}
 	const flexible = personal || (input.kind !== 'HATIM' && input.splitMode === 'FLEXIBLE');
@@ -327,6 +356,7 @@ export const createGroupForUser = async (
 				...plan,
 				hizbPlan: hizb?.hizbPlan ?? null,
 				hizbIndividual: individual,
+				planDays,
 				hizbStartPortion: startPortion,
 				openToJoin: !individual,
 				inactivityDays: personal && !individual ? hizb?.inactivityDays ?? null : null,
@@ -351,7 +381,7 @@ export const createGroupForUser = async (
 		// One row per unit — a hundred babs, thirty cüz or 33 Hizb portions (`unitCountFor`) —
 		// with nothing but its number. Ownership isn't stored: who reads which block falls out
 		// of the seat and the round (or, for a hatim, `CuzHolding`), and `assignedUserId` is
-		// reserved for pool volunteering. A personal Hizb plan has no shared board.
+		// reserved for pool volunteering. A personal plan has no shared board.
 		if (!personal) {
 			await tx.groupBab.createMany({
 				data: Array.from({ length: unitCountFor(group) }, (_, index) => ({
@@ -371,11 +401,12 @@ export const createGroupForUser = async (
 		 *
 		 * De-duplicated: the picker cannot select a cüz twice, but the unique key would abort
 		 * the whole transaction if a client ever sent one, and refusing to create a group over
-		 * a repeated number is a worse answer than taking it once.
+		 * a repeated number is a worse answer than taking it once. A Şahsi reading holds none: its
+		 * plan reads every cüz in turn.
 		 */
-		if (input.kind === 'HATIM') {
+		if (input.kind === 'HATIM' && !personal) {
 			await tx.cuzHolding.createMany({
-				data: [...new Set(input.cuzNumbers)].map(cuzNumber => ({
+				data: [...new Set(input.cuzNumbers ?? [])].map(cuzNumber => ({
 					cuzNumber,
 					groupId: group.id,
 					roundIndex: 0,
@@ -424,7 +455,7 @@ export const updateGroupForUser = async (
 		throw new HttpError(BAD_REQUEST, 'Individual reading stays private with no inactivity removal');
 	}
 	if (
-		existing.hizbPlan === null &&
+		!isPersonalPlan(existing) &&
 		existing.splitMode === 'FLEXIBLE' &&
 		(input.visibility === 'PRIVATE' || input.openToJoin === false || input.autoStartWhenFull === true)
 	) {
@@ -703,7 +734,7 @@ export const discoverGroups = async (userId: string, query: DiscoverGroupsQuery)
 				normalizedUserId,
 				holdingsByGroupId.get(group.id) ?? []
 			),
-			...(group.hizbPlan !== null ? await hizbSummary(group.id, normalizedUserId) : {})
+			...(isPersonalPlan(group) ? await hizbSummary(group.id, normalizedUserId) : {})
 		}))
 	);
 };

@@ -63,4 +63,14 @@ describe('Turkish case endings', () => {
 			['Talebe Hizbi', 'Cuma Halkası', 'Aile Grubu', 'Ailece Hizb', 'Talebe', 'Cuma'].map(turkishNameDativeSuffix)
 		).toEqual(['ne', 'na', 'na', 'e', 'ye', 'ya']);
 	});
+
+	it('dative of a date, as "kadar" wants it: 4 Ekim’e, 3 Ocak’a, 9 Mayıs’a, 2 Temmuz’a, 8 Eylül’e', () => {
+		expect(['4 Ekim', '3 Ocak', '9 Mayıs', '2 Temmuz', '8 Eylül'].map(turkishNameDativeSuffix)).toEqual([
+			'e',
+			'a',
+			'a',
+			'a',
+			'e'
+		]);
+	});
 });

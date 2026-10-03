@@ -1,5 +1,7 @@
 import { ShelfEmptyState } from '@/components/ShelfEmptyState/ShelfEmptyState.component';
-import { useTourAutoStart } from '@/components/Tour/useTourAutoStart';
+import { HintScrollProvider } from '@/components/Hints/HintScroll.context';
+import { HintTarget } from '@/components/Hints/HintTarget.component';
+import { useHintScreen } from '@/components/Hints/useHintScreen';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
@@ -19,6 +21,7 @@ import { pluralKey } from '@/lib/i18n/plural';
 import type { StringKey } from '@/lib/i18n/strings';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { hizbPartsLabel, partLabelKey } from '@/lib/utils/groups';
+import { planReadingRoute } from '@/lib/utils/personalPlan';
 import {
 	buildHomeTasks,
 	homeStateFor,
@@ -39,7 +42,7 @@ import { WhatsNewSheet } from '@/screens/WhatsNew/WhatsNewSheet.component';
 import { useUser } from '@clerk/expo';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { HomeAllReadCard } from './HomeAllReadCard.component';
 import { HomeDoneCard } from './HomeDoneCard.component';
@@ -135,7 +138,7 @@ export const HomeScreen = () => {
 
 	const now = new Date();
 	// The memos below follow the minute rather than the render, so the arrays keep their identity
-	// between ticks — `tourSubject` and the bookmark keys hang off them.
+	// between ticks — the bookmark keys hang off them.
 	const minute = Math.floor(now.getTime() / MINUTE_MS);
 	const tasks = useMemo(() => buildHomeTasks(groups ?? [], new Date(minute * MINUTE_MS)), [groups, minute]);
 	const { finishedCount, pending, readToday } = tasks;
@@ -151,6 +154,8 @@ export const HomeScreen = () => {
 	 */
 	const nextBoundary = useMemo(() => nextBoundaryAfter(groups ?? [], dataUpdatedAt), [dataUpdatedAt, groups]);
 	const askedBoundaryRef = useRef<number | null>(null);
+	const scroll = useRef<ScrollView>(null);
+	const scrollContent = useRef<View>(null);
 
 	useEffect(() => {
 		if (
@@ -173,26 +178,15 @@ export const HomeScreen = () => {
 				.map(task => ({
 					cuzNumber: task.nextNumber ?? 0,
 					groupId: task.groupId,
+					isPlan: task.isPlan,
 					roundIndex: task.roundIndex ?? 0
 				})),
 		[pending]
 	);
 	const pagesRead = useCuzPagesRead(userId, cuzKeys, isHusrev ? 'husrev' : 'text');
 
-	/*
-	 * The group the first-use tour walks through, and the unit it opens: "Sıradaki", whose card the
-	 * tour points at. Null while there is nothing owed; the tour then walks its own stand-in.
-	 */
-	const tourSubject = useMemo(() => {
-		const first = pending[0];
-
-		return first?.nextNumber === undefined || first.nextNumber === null
-			? null
-			: { babNumber: first.nextNumber, groupId: first.groupId };
-	}, [pending]);
-
-	// Opens the tour on a first launch, and tells it which group to walk through.
-	useTourAutoStart({ subject: tourSubject });
+	// The welcome on a first launch, then Ana sayfa's own hints.
+	useHintScreen('home');
 	const whatsNew = useWhatsNew();
 
 	const clock = useMemo(
@@ -211,6 +205,8 @@ export const HomeScreen = () => {
 	const stats = statsQuery.data;
 	const next = pending[0];
 	const later = pending.slice(1);
+	const [firstLater, ...restLater] = later;
+	const [firstRead, ...restRead] = readToday;
 
 	/** A later row itself: the group's screen. Its button is `openTask`, straight into the reading. */
 	const openGroup = (task: HomeTask) => navigation.navigate('GroupDetail', { groupId: task.groupId });
@@ -227,9 +223,12 @@ export const HomeScreen = () => {
 			return;
 		}
 
-		// A plan's owed day opens its own reading, as a Cevşen share opens its bab.
+		// A plan's owed day opens its own reading, as a Cevşen share opens its bab — in its own book's reader.
 		if (task.planAssignmentId !== null) {
-			navigation.navigate('HizbPlanReader', { assignmentId: task.planAssignmentId, groupId: task.groupId });
+			navigation.navigate(planReadingRoute(task.kind), {
+				assignmentId: task.planAssignmentId,
+				groupId: task.groupId
+			});
 
 			return;
 		}
@@ -293,7 +292,9 @@ export const HomeScreen = () => {
 		return { page: Math.min(read, total), total };
 	};
 
-	const isBegun = (task: HomeTask) => (task.kind === 'HATIM' ? pagesOf(task).page > 0 : task.done > 0);
+	// A Şahsi Kur'an day counts its marked cüz on its own screen, not a held cüz's pages.
+	const isBegun = (task: HomeTask) =>
+		task.kind === 'HATIM' && !task.isPlan ? pagesOf(task).page > 0 : task.done > 0;
 
 	const nextCard = next
 		? (() => {
@@ -335,7 +336,7 @@ export const HomeScreen = () => {
 					);
 				}
 
-				const pages = next.kind === 'HATIM' ? pagesOf(next) : null;
+				const pages = next.kind === 'HATIM' && !next.isPlan ? pagesOf(next) : null;
 				const place =
 					next.kind === 'HATIM'
 						? t('homeCuzRange', { range: next.nextNumber ?? '' })
@@ -367,6 +368,24 @@ export const HomeScreen = () => {
 										),
 										{ count: next.isPlan ? next.unitNumbers.length : next.total }
 								  )
+								: next.isPlan
+								? // A Şahsi day counts its babs or cüz, as its heading names them.
+								  t(
+										next.kind === 'HATIM'
+											? pluralKey(
+													language,
+													next.unitNumbers.length,
+													'countCuzOne',
+													'countCuzOther'
+											  )
+											: pluralKey(
+													language,
+													next.unitNumbers.length,
+													'countBabsOne',
+													'countBabsOther'
+											  ),
+										{ count: next.unitNumbers.length }
+								  )
 								: t(pluralKey(language, next.total, 'countBabsOne', 'countBabsOther'), {
 										count: next.total
 								  })
@@ -393,6 +412,70 @@ export const HomeScreen = () => {
 			title={`${task.groupName} · ${headingOf(task)}`}
 		/>
 	);
+
+	/** A row of "Sonra": what is still to come, by its deadline. */
+	const laterRow = (task: HomeTask) => {
+		const deadline = timeLeftUntil(task.roundEndsAt, now);
+
+		if (task.mustChoose !== null) {
+			return (
+				<HomeGroupRow
+					actionLabel={t('homePick')}
+					fraction={0}
+					heading={t(chooseKey(task))}
+					key={task.groupId}
+					kind={task.kind}
+					meta={deadline ? timeLeftLabel(deadline) : ''}
+					moreCount={0}
+					name={task.groupName}
+					onOpenGroup={() => openGroup(task)}
+					onPress={() => openTask(task)}
+				/>
+			);
+		}
+
+		if (task.mustPick) {
+			return (
+				<HomeGroupRow
+					actionLabel={t('homePick')}
+					fraction={0}
+					heading={t('homePickCuz')}
+					key={task.groupId}
+					kind={task.kind}
+					meta={deadline ? timeLeftLabel(deadline) : ''}
+					moreCount={0}
+					name={task.groupName}
+					onOpenGroup={() => openGroup(task)}
+					onPress={() => openTask(task)}
+				/>
+			);
+		}
+
+		const pages = task.kind === 'HATIM' && !task.isPlan ? pagesOf(task) : null;
+
+		return (
+			<HomeGroupRow
+				actionLabel={isBegun(task) ? t('homeContinue') : t('read')}
+				heading={task.kind === 'CEVSEN' ? task.range : headingOf(task)}
+				key={task.groupId}
+				kind={task.kind}
+				meta={
+					pages
+						? [t('homePagesOf', pages), deadline ? timeLeftLabel(deadline) : null]
+								.filter(Boolean)
+								.join(' · ')
+						: `${task.done}/${task.total}`
+				}
+				moreCount={task.moreCount}
+				name={task.groupName}
+				onOpenGroup={() => openGroup(task)}
+				onPress={() => openTask(task)}
+				{...(pages
+					? { fraction: pages.total === 0 ? 0 : pages.page / pages.total }
+					: { segments: { filled: task.done, total: task.total } })}
+			/>
+		);
+	};
 
 	const sectionHead = (title: string, caption: string | null, isSpaced = false) => (
 		<View style={[styles.sectionHead, isSpaced && styles.sectionHeadSpaced]}>
@@ -465,71 +548,14 @@ export const HomeScreen = () => {
 			/>
 		) : (
 			<>
-				{later.length > 0 ? (
+				{firstLater ? (
 					<>
-						{sectionHead(t('homeLater'), t('homeByDeadline'))}
-						{later.map(task => {
-							const deadline = timeLeftUntil(task.roundEndsAt, now);
-
-							if (task.mustChoose !== null) {
-								return (
-									<HomeGroupRow
-										actionLabel={t('homePick')}
-										fraction={0}
-										heading={t(chooseKey(task))}
-										key={task.groupId}
-										kind={task.kind}
-										meta={deadline ? timeLeftLabel(deadline) : ''}
-										moreCount={0}
-										name={task.groupName}
-										onOpenGroup={() => openGroup(task)}
-										onPress={() => openTask(task)}
-									/>
-								);
-							}
-
-							if (task.mustPick) {
-								return (
-									<HomeGroupRow
-										actionLabel={t('homePick')}
-										fraction={0}
-										heading={t('homePickCuz')}
-										key={task.groupId}
-										kind={task.kind}
-										meta={deadline ? timeLeftLabel(deadline) : ''}
-										moreCount={0}
-										name={task.groupName}
-										onOpenGroup={() => openGroup(task)}
-										onPress={() => openTask(task)}
-									/>
-								);
-							}
-
-							const pages = task.kind === 'HATIM' ? pagesOf(task) : null;
-
-							return (
-								<HomeGroupRow
-									actionLabel={isBegun(task) ? t('homeContinue') : t('read')}
-									heading={task.kind === 'CEVSEN' ? task.range : headingOf(task)}
-									key={task.groupId}
-									kind={task.kind}
-									meta={
-										pages
-											? [t('homePagesOf', pages), deadline ? timeLeftLabel(deadline) : null]
-													.filter(Boolean)
-													.join(' · ')
-											: `${task.done}/${task.total}`
-									}
-									moreCount={task.moreCount}
-									name={task.groupName}
-									onOpenGroup={() => openGroup(task)}
-									onPress={() => openTask(task)}
-									{...(pages
-										? { fraction: pages.total === 0 ? 0 : pages.page / pages.total }
-										: { segments: { filled: task.done, total: task.total } })}
-								/>
-							);
-						})}
+						{/* Its hint frames the heading and the first row — the section, not the whole list. */}
+						<HintTarget id='homeLater' style={styles.hintSection}>
+							{sectionHead(t('homeLater'), t('homeByDeadline'))}
+							{laterRow(firstLater)}
+						</HintTarget>
+						{restLater.map(laterRow)}
 					</>
 				) : null}
 
@@ -549,10 +575,16 @@ export const HomeScreen = () => {
 				) : null}
 
 				{/* What is already read, under what is still to come (B8c). */}
-				{readToday.length > 0 ? (
+				{firstRead ? (
 					<>
-						{sectionHead(t('homeReadToday'), String(readToday.length), later.length > 0)}
-						{readToday.map(task => readRow(task))}
+						<HintTarget
+							id='homeReadToday'
+							style={state === 'dayDone' ? styles.hintSectionTight : styles.hintSection}
+						>
+							{sectionHead(t('homeReadToday'), String(readToday.length), later.length > 0)}
+							{readRow(firstRead)}
+						</HintTarget>
+						{restRead.map(task => readRow(task))}
 					</>
 				) : null}
 			</>
@@ -562,10 +594,10 @@ export const HomeScreen = () => {
 		<View style={[styles.screen, { backgroundColor: theme.colors.headerSurface }]}>
 			<JoinByCodeSheet isVisible={isJoinSheetOpen} onClose={() => setIsJoinSheetOpen(false)} />
 			{/*
-			 * P1, and it opens from Ana sayfa for the same reason the tour does: this is the screen
+			 * P1, and it opens from Ana sayfa for the same reason the welcome does: this is the screen
 			 * the app lands on, so it is the only place a notice can reliably catch an update. It
-			 * never collides with the tour — `useWhatsNew` says nothing on an install that has no
-			 * stored version, which is every install the tour opens for.
+			 * never collides with a hint — `useWhatsNew` waits while the welcome is still to come or
+			 * a hint's card is up, and a hint waits while this sheet is open.
 			 */}
 			<WhatsNewSheet
 				isVisible={whatsNew.isVisible}
@@ -613,31 +645,37 @@ export const HomeScreen = () => {
 			 */}
 			<ScrollView
 				contentContainerStyle={[styles.page, { backgroundColor: theme.colors.headerSurface }]}
+				// React Native types this ref as never null, which a React 19 ref is until it mounts.
+				innerViewRef={scrollContent as RefObject<View>}
+				ref={scroll}
 				showsVerticalScrollIndicator={false}
 				style={{ backgroundColor: theme.colors.background }}
 			>
-				<View style={[styles.bandOverscroll, { backgroundColor: theme.colors.headerSurface }]} />
-				{topCard ? <View style={styles.topCard}>{topCard}</View> : null}
+				{/* The hints for "Sonra" and "Bugün okunanlar" bring their sections up when they come. */}
+				<HintScrollProvider innerRef={scrollContent} scrollRef={scroll}>
+					<View style={[styles.bandOverscroll, { backgroundColor: theme.colors.headerSurface }]} />
+					{topCard ? <View style={styles.topCard}>{topCard}</View> : null}
 
-				{/* The paper layer. The error state lives *in* here rather than replacing the screen, so
+					{/* The paper layer. The error state lives *in* here rather than replacing the screen, so
 			    the coloured layer stays — `AppStatusBar` reads the route, and a light bar over
 			    `ErrorState`'s pale page would be unreadable. */}
-				<View style={[styles.sheet, { backgroundColor: theme.colors.background }]}>
-					{isFailed ? (
-						<ErrorState queries={[groupsQuery, statsQuery]} />
-					) : (
-						<View
-							style={[
-								styles.sheetContent,
-								state === 'dayDone' && styles.sheetContentTight,
-								{ paddingBottom: tabBarHeight + 22 }
-							]}
-						>
-							{sheetContent}
-							<HomeFooterLinks />
-						</View>
-					)}
-				</View>
+					<View style={[styles.sheet, { backgroundColor: theme.colors.background }]}>
+						{isFailed ? (
+							<ErrorState queries={[groupsQuery, statsQuery]} />
+						) : (
+							<View
+								style={[
+									styles.sheetContent,
+									state === 'dayDone' && styles.sheetContentTight,
+									{ paddingBottom: tabBarHeight + 22 }
+								]}
+							>
+								{sheetContent}
+								<HomeFooterLinks />
+							</View>
+						)}
+					</View>
+				</HintScrollProvider>
 			</ScrollView>
 		</View>
 	);
@@ -724,6 +762,13 @@ const styles = StyleSheet.create({
 		justifyContent: 'space-between',
 		paddingBottom: 1,
 		paddingHorizontal: 3
+	},
+	// A hint's frame around a heading and its first row keeps the sheet's own gap between them.
+	hintSection: {
+		gap: 9
+	},
+	hintSectionTight: {
+		gap: 8
 	},
 	sectionHeadSpaced: {
 		paddingTop: 12

@@ -91,7 +91,12 @@ model Group {
     boundaryPolicy    CuzBoundaryPolicy?
     /// Hizb only. Null for legacy groups; 0 lets members choose, otherwise 7/15/33 days.
     hizbPlan           Int?
+    /// One person's private reading, whatever the kind: a Hizb individual plan, or a Cevşen/Kur'an
+    /// group with `planDays`.
     hizbIndividual     Boolean            @default(false)
+    /// Cevşen/Kur'an only: a Şahsi reading's length in days — the book split over it, one day's
+    /// share a day. Null on every other group. Immutable.
+    planDays           Int?
     hizbStartPortion   Int                @default(1)
     inactivityDays     Int?
     hizbNext7          Int                @default(0)
@@ -130,6 +135,8 @@ model Group {
     roundNotices  RoundCompleteNotice[]
     notifications Notification[]
     repetitions   GroupPartRepetition[]
+    roundCounters GroupRoundCounter[]
+    readingPlaces ReadingPlace[]
 
     @@index([ownerUserId])
     @@index([visibility, openToJoin, createdAt])

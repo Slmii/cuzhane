@@ -1,3 +1,4 @@
+import { useHintScreen } from '@/components/Hints/useHintScreen';
 import { useRequireRoundCuz } from '@/lib/hooks/useHatimRoundGate';
 import { GridSkeleton } from '@/components/GridSkeleton/GridSkeleton.component';
 import { FlexibleReadingPanel } from '@/components/FlexibleReadingPanel/FlexibleReadingPanel.component';
@@ -410,6 +411,8 @@ const CevsenPoolScreen = ({ route }: Props) => {
  */
 export const PoolScreen = (props: Props) => {
 	const { groupId, kind: kindHint } = props.route.params;
+	// One card that says what this page is for.
+	useHintScreen('pool');
 	// Holding no cüz this round means QR1 comes first, however this screen was reached.
 	useRequireRoundCuz(groupId, props.navigation);
 	const group = useGetGroupById(groupId);

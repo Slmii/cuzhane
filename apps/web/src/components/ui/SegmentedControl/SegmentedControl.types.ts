@@ -23,6 +23,7 @@ export interface SegmentProps {
 	label: string;
 	icon?: IconName;
 	isWide?: boolean;
+	fitsContent?: boolean;
 	isSelected: boolean;
 	onPress: () => void;
 }
@@ -31,5 +32,11 @@ export interface SegmentedControlProps {
 	options: SegmentedControlOption[];
 	value: string;
 	onChange: (value: string) => void;
+	/**
+	 * Each segment as wide as its label, the control hugging them — for a control beside a label
+	 * in a row. Growing segments fill whatever room the row offers and run past its edge. The
+	 * drawn control only; the native one is given a width.
+	 */
+	fitsContent?: boolean;
 	style?: StyleProp<ViewStyle>;
 }

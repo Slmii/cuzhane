@@ -1,4 +1,3 @@
-import { useIsTourDemo } from '@/components/Tour/Tour.context';
 import { useCurrentUserId } from '@/lib/hooks/useCurrentUserId';
 import { useGetGroupById } from '@/lib/hooks/useGroup';
 import { useGetRounds } from '@/lib/hooks/useRounds';
@@ -12,9 +11,6 @@ import { useEffect, useRef, useState } from 'react';
 
 type Navigation = NativeStackNavigationProp<TabStackParamList>;
 type Seen = { complete: boolean; previousComplete: boolean; carried: boolean };
-
-/** The tour's answer, one object so the send effect's dependencies hold still. */
-const OPEN: RoundGateDecision = { kind: 'open' };
 
 /**
  * The group screen's front door for a hatim: whether it opens on the group, on Q7, or on QR1 —
@@ -39,15 +35,9 @@ export const useHatimRoundGate = (groupId: string, navigation: Navigation): { is
 	const isFocused = useIsFocused();
 	const groupQuery = useGetGroupById(groupId);
 	const roundsQuery = useGetRounds(groupId);
-	/*
-	 * **The tour's demo hatim just opens.** It sits past its first round with its cüz kept, so the
-	 * gate would send the carried-over note — over a screen the tour is pointing at, with a demo
-	 * group the round screens know nothing about.
-	 */
-	const isDemo = useIsTourDemo();
 
 	const detail = groupQuery.data;
-	const isHatimRunning = !isDemo && detail?.kind === 'HATIM' && detail.status === 'RUNNING';
+	const isHatimRunning = detail?.kind === 'HATIM' && detail.status === 'RUNNING';
 	const roundIndex = detail?.roundIndex ?? 0;
 	const seenKey = `${userId ?? ''}|${groupId}|${roundIndex}`;
 
@@ -99,23 +89,22 @@ export const useHatimRoundGate = (groupId: string, navigation: Navigation): { is
 		(roundsQuery.data !== undefined && (previousRound?.isOpen === false || !roundsQuery.isFetching));
 	const isReady = detail !== undefined && (!isHatimRunning || (seen?.key === seenKey && isHistoryReady));
 
-	const decision: RoundGateDecision | null = isDemo
-		? OPEN
-		: detail === undefined || !isReady
-		? null
-		: decideRoundGate({
-				boundaryPolicy: detail.boundaryPolicy,
-				hasSkippedRound: detail.hasSkippedRound,
-				holdsCuz: detail.myBabNumbers.length > 0,
-				isComplete: detail.completedAt !== null,
-				isHatim: detail.kind === 'HATIM',
-				isRunning: detail.status === 'RUNNING',
-				previousRoundComplete: (previousRound?.readCount ?? 0) >= CUZ_COUNT,
-				roundIndex,
-				seen: seen?.value ?? { carried: false, complete: false, previousComplete: false },
-				wasInPreviousRound:
-					me !== undefined && roundStartedAt !== null && new Date(me.joinedAt) < roundStartedAt
-		  });
+	const decision: RoundGateDecision | null =
+		detail === undefined || !isReady
+			? null
+			: decideRoundGate({
+					boundaryPolicy: detail.boundaryPolicy,
+					hasSkippedRound: detail.hasSkippedRound,
+					holdsCuz: detail.myBabNumbers.length > 0,
+					isComplete: detail.completedAt !== null,
+					isHatim: detail.kind === 'HATIM',
+					isRunning: detail.status === 'RUNNING',
+					previousRoundComplete: (previousRound?.readCount ?? 0) >= CUZ_COUNT,
+					roundIndex,
+					seen: seen?.value ?? { carried: false, complete: false, previousComplete: false },
+					wasInPreviousRound:
+						me !== undefined && roundStartedAt !== null && new Date(me.joinedAt) < roundStartedAt
+			  });
 
 	const signature = decision ? `${seenKey}|${JSON.stringify(decision)}` : null;
 
@@ -178,12 +167,15 @@ export const useHatimRoundGate = (groupId: string, navigation: Navigation): { is
  *
  * Only while focused: `replace` acts on the top of the stack, so from under a pushed screen it
  * would take that screen's place instead — see `RoundStartScreen`.
+ *
+ * A Şahsi Kur'an reading holds no cüz — its plan reads them all in turn — so it never picks.
  */
 export const useRequireRoundCuz = (groupId: string, navigation: Navigation): void => {
 	const isFocused = useIsFocused();
 	const detail = useGetGroupById(groupId).data;
 	const mustPick =
 		detail?.kind === 'HATIM' &&
+		detail.planDays == null &&
 		detail.status === 'RUNNING' &&
 		detail.myBabNumbers.length === 0 &&
 		!detail.hasSkippedRound;

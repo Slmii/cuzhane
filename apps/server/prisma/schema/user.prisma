@@ -27,6 +27,11 @@ model UserSettings {
     language             AppLanguage      @default(en)
     reminderEnabled      Boolean          @default(false)
     reminderTime         String           @default("21:30")
+    /// The daily reminder for the Hizbü'l-Hakaik's groups — its own switch and its own time;
+    /// `reminderEnabled` and `reminderTime` are the Cevşen's. On for a new account; every account
+    /// that existed when it arrived kept what its one daily reminder was (`hizb_reminder_follows_daily`).
+    hizbReminderEnabled  Boolean          @default(true)
+    hizbReminderTime     String           @default("21:30")
     /// Three notifications are **per reading type**, because they describe different work:
     /// "someone finished their share" is a bab range in one and a cüz in the other, and a
     /// reader in both wants to hear about them separately.
@@ -56,6 +61,11 @@ model UserSettings {
     nudgeEnabled         Boolean          @default(true)
     hasSeenOnboarding    Boolean          @default(false)
     hasSeenTour          Boolean          @default(false)
+    /// Per-screen hints (which replaced the guided tour): whether they show at all.
+    hintsEnabled         Boolean          @default(true)
+    /// Set once the account marks any hint seen. Old builds read `hasSeenTour` as this OR the
+    /// column, so they stop auto-starting the demo tour for an account that uses hints.
+    hasUsedHints         Boolean          @default(false)
     /// "Grubun nasıl çalışır?" after joining, one switch per kind: "bir daha gösterme" on one kind
     /// leaves the others showing. Shown after joining a Cevşen group.
     cevsenIntroEnabled   Boolean          @default(true)
@@ -100,6 +110,18 @@ model Notification {
 
     @@index([userId, createdAt])
     @@index([userId, readAt])
+}
+
+/// One per-screen hint this user has seen. `hintId` is the app's own name for the hint; the
+/// server accepts any well-formed one, so a new hint needs no server change.
+model HintSeen {
+    id     String   @id @default(cuid())
+    userId String
+    hintId String   @db.VarChar(64)
+    seenAt DateTime @default(now())
+
+    @@unique([userId, hintId])
+    @@index([userId])
 }
 
 model PushToken {

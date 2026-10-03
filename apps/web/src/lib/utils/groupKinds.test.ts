@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
 	CREATE_DEFAULTS_FOR_KIND,
 	CYCLES_FOR_KIND,
+	isPersonalPlan,
 	PART_COUNT,
+	PERSONAL_PLAN_MAX_DAYS,
 	partCountFor,
 	requiredRepetitions,
 	SPOTS_FOR_KIND
@@ -38,6 +40,16 @@ describe('groupKinds mirrors the server', () => {
 			HATIM: ['DAILY', 'WEEKLY', 'MONTHLY', 'CUSTOM'],
 			HIZB: ['DAILY', 'WEEKLY', 'MONTHLY']
 		});
+	});
+
+	it('splits a Şahsi Cevşen over up to ninety days and a Kur’an over up to thirty', () => {
+		expect(PERSONAL_PLAN_MAX_DAYS).toEqual({ CEVSEN: 90, HATIM: 30 });
+	});
+
+	it('reads a group by plans when it has a Hizb plan or a plan length', () => {
+		expect(isPersonalPlan({ hizbPlan: 0, planDays: null })).toBe(true);
+		expect(isPersonalPlan({ hizbPlan: null, planDays: 10 })).toBe(true);
+		expect(isPersonalPlan({ hizbPlan: null, planDays: null })).toBe(false);
 	});
 });
 

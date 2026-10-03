@@ -1,6 +1,8 @@
 import { Icon } from '@/components/ui/Icon/Icon.component';
+import { Ripple } from '@/components/ui/Ripple/Ripple.component';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { useReducedMotion } from 'react-native-reanimated';
 import type { GlassCornerActionProps } from './GlassCornerAction.types';
 
 /**
@@ -42,17 +44,24 @@ const OWN_GLASS_GLYPH_SIZE = 20;
 /** The touch target the glyph sits in, on both paths — Apple's minimum, and a toolbar's rhythm. */
 const TARGET_SIZE = 44;
 
+/** The live ripple's rings: 28pt growing to 42pt, inside the 44pt button so the bar never clips them. */
+const RIPPLE_SIZE = 28;
+const RIPPLE_MAX_SCALE = 1.5;
+
 export const GlassCornerAction = ({
 	accessibilityLabel: label,
 	assetName,
 	hasOwnGlass = false,
 	icon,
 	isOnHeaderSurface = false,
+	isPulsing = false,
 	onPress,
 	systemIcon,
 	tone = 'accent'
 }: GlassCornerActionProps) => {
 	const { theme } = useThemeContext();
+	const isReducedMotion = useReducedMotion();
+	const shouldPulse = isPulsing && !isReducedMotion;
 	// Over H1's coloured layer the theme's own text colour is the wrong question: that layer is
 	// dark in light mode too, so the glyph follows the surface it is on rather than the mode.
 	const glyphColor = isOnHeaderSurface
@@ -85,13 +94,15 @@ export const GlassCornerAction = ({
 					{ opacity: pressed ? 0.6 : 1 }
 				]}
 			>
+				{shouldPulse ? <Ripple color={glyphColor} maxScale={RIPPLE_MAX_SCALE} size={RIPPLE_SIZE} /> : null}
 				<Icon color={glyphColor} name={icon} size={GLYPH_SIZE} strokeWidth={1.9} />
 			</Pressable>
 		);
 	}
 
 	const { Button, Host, Image } = swiftUi;
-	const { accessibilityLabel, buttonBorderShape, buttonStyle, controlSize, font, frame, tint } = swiftUiModifiers;
+	const { accessibilityLabel, buttonBorderShape, buttonStyle, controlSize, font, foregroundStyle, frame, tint } =
+		swiftUiModifiers;
 
 	return (
 		/*
@@ -106,6 +117,8 @@ export const GlassCornerAction = ({
 		 * known on the first frame and skips the round trip entirely.
 		 */
 		<View style={styles.host}>
+			{/* Behind the native glyph, which draws no background of its own. */}
+			{shouldPulse ? <Ripple color={glyphColor} maxScale={RIPPLE_MAX_SCALE} size={RIPPLE_SIZE} /> : null}
 			{/*
 			 * A SwiftUI host dodges the keyboard by itself, so the search field's × — already
 			 * lifted by the sticky row it sits in — climbed a second time and sat above the
@@ -148,12 +161,20 @@ export const GlassCornerAction = ({
 				>
 					{/* Ours if we have converted it, Apple's if we have not — see the types. */}
 					<Image
-						// The bar sets its back chevron smaller and semibold; a disc of our own
-						// matches that through the font modifier (which replaces `size`), the
-						// bar's own items keep the 26.
-						{...(hasOwnGlass
-							? { modifiers: [font({ size: OWN_GLASS_GLYPH_SIZE, weight: 'semibold' })] }
-							: { size: GLYPH_SIZE })}
+						/*
+						 * The bar sets its back chevron smaller and semibold; a disc of our own
+						 * matches that through the font modifier (which replaces `size`), the
+						 * bar's own items keep the 26.
+						 *
+						 * **Coloured on the image, not only through `tint`.** A `plain` button
+						 * draws its label in the primary colour and ignores the tint, so an
+						 * accent glyph in the bar came out black.
+						 */
+						modifiers={[
+							...(hasOwnGlass ? [font({ size: OWN_GLASS_GLYPH_SIZE, weight: 'semibold' })] : []),
+							foregroundStyle(glyphColor)
+						]}
+						{...(hasOwnGlass ? {} : { size: GLYPH_SIZE })}
 						{...(assetName === undefined ? { systemName: systemIcon } : { assetName })}
 					/>
 				</Button>

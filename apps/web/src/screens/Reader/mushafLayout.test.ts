@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { flowRows, fitsOnLines, rowBands } from './mushafLayout';
+import { flowRows, fitsOnLines, husrevGrid, husrevLineAt, husrevLineSlot, rowBands } from './mushafLayout';
 
 type Item = { id: string; width: number; isEnd?: boolean };
 
@@ -82,5 +82,57 @@ describe('rowBands', () => {
 	it('makes one band per unbroken stretch, and none when nothing is flagged', () => {
 		expect(rowBands(widths, [true, false, true], 100, 5, 'spread')).toHaveLength(2);
 		expect(rowBands(widths, [false, false, false], 100, 5, 'spread')).toEqual([]);
+	});
+});
+
+describe('rowBands reach', () => {
+	it("reaches the given distance past its words instead of the sajdah band's own", () => {
+		// One word filling a spread row of one: the band reaches 5 past both of its sides.
+		expect(rowBands([80], [true], 100, 10, 'spread', 5)).toEqual([{ left: 15, right: 105 }]);
+	});
+});
+
+describe('Hüsrev lines', () => {
+	it("places the fifteen lines on the pages' own grid", () => {
+		const first = husrevLineSlot(1);
+		const last = husrevLineSlot(15);
+
+		expect(first.top).toBeCloseTo(0.0103, 3);
+		expect(last.top + last.height).toBeCloseTo(0.9913, 3);
+		expect(first.height).toBeCloseTo(0.0654, 4);
+	});
+
+	it('finds the line under a height on the page, and keeps to the fifteen', () => {
+		expect(husrevLineAt(0.043)).toBe(1);
+		expect(husrevLineAt(husrevLineSlot(8).top + 0.001)).toBe(8);
+		expect(husrevLineAt(-0.2)).toBe(1);
+		expect(husrevLineAt(1.3)).toBe(15);
+	});
+});
+
+describe('Hüsrev opening pages', () => {
+	it('gives the two framed opening pages their own seven lines, inside the frame', () => {
+		const fatiha = husrevGrid(0);
+
+		expect(fatiha.lines).toBe(7);
+		expect(husrevGrid(1)).toEqual(fatiha);
+		expect(fatiha.left).toBeCloseTo(0.18, 2);
+		expect(fatiha.right).toBeCloseTo(0.82, 2);
+		// Line 1, the basmala, is centred at 22.8 % of the page; line 7 at 68.2 %.
+		expect(husrevLineSlot(1, fatiha).top + fatiha.pitch / 2).toBeCloseTo(0.228, 3);
+		expect(husrevLineSlot(7, fatiha).top + fatiha.pitch / 2).toBeCloseTo(0.6816, 3);
+	});
+
+	it('keeps a tap on an opening page to its seven lines', () => {
+		const fatiha = husrevGrid(0);
+
+		expect(husrevLineAt(0.05, fatiha)).toBe(1);
+		expect(husrevLineAt(0.45, fatiha)).toBe(4);
+		expect(husrevLineAt(0.95, fatiha)).toBe(7);
+	});
+
+	it('uses the fifteen-line grid everywhere else', () => {
+		expect(husrevGrid(2).lines).toBe(15);
+		expect(husrevGrid(603).lines).toBe(15);
 	});
 });

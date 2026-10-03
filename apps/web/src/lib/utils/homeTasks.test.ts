@@ -176,6 +176,43 @@ describe('buildHomeTasks — the audit’s cases', () => {
 		expect(done.finishedCount).toBe(1);
 	});
 
+	it('reads a Şahsi Cevşen or Kur’an day by its babs or cüz, from its first', () => {
+		const { pending } = buildHomeTasks(
+			[
+				group({
+					hizbPlan: null,
+					hizbToday: {
+						assignmentId: 'cevsen-5',
+						completed: false,
+						planDays: 10,
+						portion: 5,
+						units: [41, 42, 43]
+					},
+					id: 'cevsen',
+					kind: 'CEVSEN',
+					myBabNumbers: [],
+					planDays: 10,
+					splitMode: 'FLEXIBLE'
+				}),
+				group({
+					hizbPlan: null,
+					hizbToday: { assignmentId: 'quran-2', completed: false, planDays: 15, portion: 2, units: [3, 4] },
+					id: 'quran',
+					kind: 'HATIM',
+					myBabNumbers: [],
+					planDays: 15
+				})
+			],
+			now
+		);
+
+		expect(pending.map(task => [task.groupId, task.range, task.nextNumber, task.planAssignmentId])).toEqual([
+			['cevsen', '41–43', 41, 'cevsen-5'],
+			['quran', '3–4', 3, 'quran-2']
+		]);
+		expect(pending.every(task => task.isPlan && task.mustChoose === null)).toBe(true);
+	});
+
 	it('lists a completed Hizb plan day under read today', () => {
 		const { readToday } = buildHomeTasks(
 			[

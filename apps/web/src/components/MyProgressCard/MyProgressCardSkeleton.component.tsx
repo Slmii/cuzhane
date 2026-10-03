@@ -27,6 +27,7 @@ export const MyProgressCardSkeleton = () => {
 			{/* The title, then the run of numbers, then the chevron's slot. */}
 			<View style={[styles.title, { backgroundColor: ink }]} />
 			<View style={[styles.stats, { backgroundColor: ink }]} />
+			<View style={styles.chevron} />
 		</CardSurface>
 	);
 };
@@ -37,9 +38,13 @@ const styles = StyleSheet.create({
 		flexDirection: 'row',
 		// The real banner's own numbers.
 		gap: 10,
+		// The banner's 17pt caption line between its 13s — the bones alone came out 6 short.
+		minHeight: 43,
 		paddingHorizontal: 16,
 		paddingVertical: 13
 	},
+	// The chevron's 15pt slot, so the run of numbers ends where the real one does.
+	chevron: { height: 15, width: 15 },
 	stats: {
 		borderRadius: 5,
 		flex: 1,

@@ -263,6 +263,26 @@ const spanOfLine = (
 export const portionBlocks = (number: number): HizbBlockRef[] =>
 	sliceHizbBlocks(portion(number).start, HIZB_PORTIONS[number]?.start);
 
+const pageCounts = new Map<number, number>();
+
+/**
+ * How many pages the portion reader turns through in a portion — its blocks, counted once:
+ * `portionBlocks` walks the whole text, and a group screen asks for every portion of a share.
+ */
+export const portionPageCount = (number: number): number => {
+	const cached = pageCounts.get(number);
+
+	if (cached !== undefined) {
+		return cached;
+	}
+
+	const count = portionBlocks(number).length;
+
+	pageCounts.set(number, count);
+
+	return count;
+};
+
 export const sliceHizbBlocks = (from: HizbAnchor, until?: HizbAnchor): HizbBlockRef[] => {
 	const start = positionOf(from);
 	const end = until ? positionOf(until) : undefined;

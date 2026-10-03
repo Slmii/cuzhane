@@ -6,6 +6,8 @@ export type UpdateUserSettingsInput = Partial<
 		UserSettings,
 		| 'language'
 		| 'reminderEnabled'
+		| 'hizbReminderEnabled'
+		| 'hizbReminderTime'
 		| 'reminderTime'
 		| 'cevsenGroupReadsEnabled'
 		| 'cevsenRoundCompleteEnabled'
@@ -17,7 +19,7 @@ export type UpdateUserSettingsInput = Partial<
 		| 'memberJoinedEnabled'
 		| 'memberLeftEnabled'
 		| 'hasSeenOnboarding'
-		| 'hasSeenTour'
+		| 'hintsEnabled'
 		| 'cevsenIntroEnabled'
 		| 'hatimIntroEnabled'
 		| 'hizbIntroEnabled'

@@ -1,6 +1,7 @@
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
-import { TourTarget } from '@/components/Tour/TourTarget.component';
+import { HintTarget } from '@/components/Hints/HintTarget.component';
+import { useHintScreen } from '@/components/Hints/useHintScreen';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Chip } from '@/components/ui/Chip/Chip.component';
@@ -68,6 +69,7 @@ export const CuzDetailScreen = ({ navigation, route }: Props) => {
 	useRequireRoundCuz(groupId, navigation);
 	const { language, t } = useTranslation();
 	const { theme } = useThemeContext();
+	useHintScreen('cuz');
 
 	const group = useGetGroupById(groupId);
 	const babs = useGetBabs(groupId);
@@ -133,98 +135,106 @@ export const CuzDetailScreen = ({ navigation, route }: Props) => {
 				titleTrailing={isMine ? <Chip label={t('qMine')} tone='accent' /> : null}
 			/>
 
-			{/* The tour's cüz-page stop (K2) spotlights both ways through a cüz: mark it, or read it here.
-			    The wrapper keeps the column's own gap, so the page lays out as it did without it. */}
-			<TourTarget id='cuzActions' style={styles.tourActions}>
+			{/* The cüz page's hints go top to bottom: the state and its mark, reading it here, its suras. */}
+			<View style={styles.actions}>
 				{/* The state, and the one action that changes it. */}
-				<CardSurface style={styles.statusCard}>
-					<View style={styles.statusRow}>
-						<View
-							style={[
-								styles.ring,
-								{ backgroundColor: isRead ? theme.colors.accentSoft : theme.colors.segmentTrack }
-							]}
-						>
-							<View style={[styles.disc, { backgroundColor: theme.colors.surface }]}>
-								<Icon
-									color={theme.colors.accent}
-									name={isRead ? 'check' : 'book'}
-									size={20}
-									strokeWidth={2.2}
-								/>
+				<HintTarget id='cuzStatus'>
+					<CardSurface style={styles.statusCard}>
+						<View style={styles.statusRow}>
+							<View
+								style={[
+									styles.ring,
+									{ backgroundColor: isRead ? theme.colors.accentSoft : theme.colors.segmentTrack }
+								]}
+							>
+								<View style={[styles.disc, { backgroundColor: theme.colors.surface }]}>
+									<Icon
+										color={theme.colors.accent}
+										name={isRead ? 'check' : 'book'}
+										size={20}
+										strokeWidth={2.2}
+									/>
+								</View>
+							</View>
+							<View style={styles.statusText}>
+								<BodyStrongText>{t(isRead ? 'qCuzDone' : 'qCuzTodo')}</BodyStrongText>
+								<CaptionText color={theme.colors.subtext} style={styles.statusSub}>
+									{isReadByOthers
+										? bab?.readByDisplayName
+											? t('readBeforeYoursBy', { name: bab.readByDisplayName })
+											: t('readBeforeYours')
+										: statusSub}
+								</CaptionText>
 							</View>
 						</View>
-						<View style={styles.statusText}>
-							<BodyStrongText>{t(isRead ? 'qCuzDone' : 'qCuzTodo')}</BodyStrongText>
-							<CaptionText color={theme.colors.subtext} style={styles.statusSub}>
-								{isReadByOthers
-									? bab?.readByDisplayName
-										? t('readBeforeYoursBy', { name: bab.readByDisplayName })
-										: t('readBeforeYours')
-									: statusSub}
-							</CaptionText>
-						</View>
-					</View>
-					{/*
-					 * Only the holder marks it, and only the reader undoes it — the same two rules
-					 * the group screen's row follows. For anyone else the state above is the whole
-					 * of what this card says.
-					 */}
-					{isMine ? (
-						<AppButton
-							isLoading={setBabRead.isPending}
-							onPress={handleToggle}
-							title={t(isRead ? 'markUnread' : 'markRead')}
-							variant={isRead ? 'surface' : 'primary'}
-						/>
-					) : null}
-				</CardSurface>
+						{/*
+						 * Only the holder marks it, and only the reader undoes it — the same two rules
+						 * the group screen's row follows. For anyone else the state above is the whole
+						 * of what this card says.
+						 */}
+						{isMine ? (
+							<AppButton
+								isLoading={setBabRead.isPending}
+								onPress={handleToggle}
+								title={t(isRead ? 'markUnread' : 'markRead')}
+								variant={isRead ? 'surface' : 'primary'}
+							/>
+						) : null}
+					</CardSurface>
+				</HintTarget>
 
 				{/*
 				 * The frame's second row, down to its first half: read it here (Q5). Its "Devret" is
 				 * removed for now — what handing a cüz over *means* (back to the havuz, or to a named
 				 * member) is undecided, and neither has a server path.
 				 */}
-				<AppButton
-					icon='readInApp'
-					onPress={() => navigation.push('CuzReader', { cuzNumber, groupId })}
-					style={styles.action}
-					title={t('qReadInApp')}
-					variant='accent'
-				/>
-			</TourTarget>
+				<HintTarget id='cuzReadInApp' style={styles.action}>
+					<AppButton
+						icon='readInApp'
+						onPress={() => navigation.push('CuzReader', { cuzNumber, groupId })}
+						title={t('qReadInApp')}
+						variant='accent'
+					/>
+				</HintTarget>
+			</View>
 
 			{/* Which suras, and how much of each — the metadata the app bundles for this. */}
-			<FieldLabelText style={styles.contentsLabel}>{t('qCuzContents')}</FieldLabelText>
-			<CardSurface isFlush>
-				{(entry?.suras ?? []).map((sura, index, suras) => (
-					<View
-						key={sura.chapterId}
-						style={[
-							styles.suraRow,
-							index < suras.length - 1
-								? {
-										borderBottomColor: theme.colors.divider,
-										borderBottomWidth: StyleSheet.hairlineWidth
-								  }
-								: null
-						]}
-					>
-						<MonoText color={theme.colors.faintText} style={styles.suraNumber}>
-							{sura.chapterId}
-						</MonoText>
-						<BodyStrongText style={styles.suraName}>{sura.name[language]}</BodyStrongText>
-						<CaptionText color={theme.colors.subtext}>{`${sura.firstAyah} – ${sura.lastAyah}`}</CaptionText>
-					</View>
-				))}
-			</CardSurface>
+			<HintTarget id='cuzContents' style={styles.contents}>
+				<FieldLabelText>{t('qCuzContents')}</FieldLabelText>
+				<CardSurface isFlush>
+					{(entry?.suras ?? []).map((sura, index, suras) => (
+						<View
+							key={sura.chapterId}
+							style={[
+								styles.suraRow,
+								index < suras.length - 1
+									? {
+											borderBottomColor: theme.colors.divider,
+											borderBottomWidth: StyleSheet.hairlineWidth
+									  }
+									: null
+							]}
+						>
+							<MonoText color={theme.colors.faintText} style={styles.suraNumber}>
+								{sura.chapterId}
+							</MonoText>
+							<BodyStrongText style={styles.suraName}>{sura.name[language]}</BodyStrongText>
+							<CaptionText
+								color={theme.colors.subtext}
+							>{`${sura.firstAyah} – ${sura.lastAyah}`}</CaptionText>
+						</View>
+					))}
+				</CardSurface>
+			</HintTarget>
 			<CaptionText color={theme.colors.faintText}>{t('qTrackNote')}</CaptionText>
 		</ScreenContainer>
 	);
 };
 
 const styles = StyleSheet.create({
-	contentsLabel: {
+	// The label over its list, at the column's gap — and 20 above it, the frame's section break.
+	contents: {
+		gap: 12,
 		marginTop: 20
 	},
 	disc: {
@@ -250,7 +260,8 @@ const styles = StyleSheet.create({
 		paddingHorizontal: 16,
 		paddingVertical: 18
 	},
-	tourActions: {
+	// The column's own gap, kept for the two the hints frame one by one.
+	actions: {
 		gap: 12
 	},
 	statusRow: {

@@ -20,6 +20,8 @@ type Props = {
 	isPending: boolean;
 	onClose: () => void;
 	onConfirm: (portions: number[], readsFromBook: boolean) => void;
+	/** A Şahsi Kur'an day ticks its cüz ("1. Cüz") rather than the Hizb's portions. */
+	unit?: 'portion' | 'cuz';
 };
 
 /** R2's boxes: 22 with radius 7 for a portion, 18 with radius 5 for "hep kitaptan". */
@@ -66,7 +68,8 @@ const SheetBody = ({
 	isPending,
 	onConfirm,
 	portions,
-	readsFromBook
+	readsFromBook,
+	unit = 'portion'
 }: Omit<Props, 'isVisible' | 'onClose'>) => {
 	const { t, language } = useTranslation();
 	const { theme } = useThemeContext();
@@ -110,7 +113,9 @@ const SheetBody = ({
 						>
 							<Box isChecked={isChecked} isLarge isMuted={isLocked} />
 							<CaptionText style={styles.rowLabel} weight='semibold'>
-								{hizbPortionLabel(String(portion), t)}
+								{unit === 'cuz'
+									? t('cuzOrdinal', { n: portion })
+									: hizbPortionLabel(String(portion), t)}
 							</CaptionText>
 						</Pressable>
 					);
@@ -136,9 +141,12 @@ const SheetBody = ({
 						isAlways
 					)
 				}
-				title={t(pluralKey(language, ticked.length, 'hbConfirmOne', 'hbConfirmOther'), {
-					count: ticked.length
-				})}
+				title={t(
+					unit === 'cuz'
+						? pluralKey(language, ticked.length, 'hbConfirmCuzOne', 'hbConfirmCuzOther')
+						: pluralKey(language, ticked.length, 'hbConfirmOne', 'hbConfirmOther'),
+					{ count: ticked.length }
+				)}
 				size='lg'
 				variant='primary'
 			/>

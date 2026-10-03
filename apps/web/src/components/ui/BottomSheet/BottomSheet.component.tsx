@@ -1,5 +1,6 @@
 import { Header2, Typography } from '@/components/ui/Typography/Typography.component';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
+import { useRegisterOpenOverlay } from '@/lib/utils/openOverlays';
 import { BottomSheet, BottomSheetView } from '@expo/ui/community/bottom-sheet';
 import { useEffect, useState } from 'react';
 import { Keyboard, Platform, StyleSheet, useWindowDimensions } from 'react-native';
@@ -119,6 +120,9 @@ export const AppBottomSheet = ({
 	if (isVisible && !isMounted) {
 		setIsMounted(true);
 	}
+
+	// A hint never puts its card over a sheet, nor over one still animating away.
+	useRegisterOpenOverlay(isMounted);
 
 	/**
 	 * A close is announced only if the *user* performed it.

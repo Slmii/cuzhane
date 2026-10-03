@@ -1,6 +1,3 @@
-import { useIsTourDemo } from '@/components/Tour/Tour.context';
-import { tourDemoBabs } from '@/components/Tour/tourDemoData';
-import { tourDemoQueryKeys } from '@/lib/hooks/queryKeys';
 import { useCurrentUserId } from '@/lib/hooks/useCurrentUserId';
 import { getBabs, setBabRead, type SetBabReadInput } from '@/api/babs.api';
 import { GroupBab } from '@/lib/types/domain';
@@ -8,16 +5,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLiveRefetchInterval } from './useLiveRefetchInterval';
 import { groupQueryKeys, profileQueryKeys } from './queryKeys';
 
-export const useGetBabs = (groupId: string) => {
+export const useGetBabs = (groupId: string, isEnabled = true) => {
 	const refetchInterval = useLiveRefetchInterval();
-	const isDemo = useIsTourDemo();
 
-	// See `useGetGroups` for why the tour answers its own queries.
 	return useQuery({
-		queryKey: isDemo ? tourDemoQueryKeys.babs(groupId) : groupQueryKeys.babs(groupId),
-		queryFn: isDemo ? async () => tourDemoBabs(groupId) : () => getBabs(groupId),
-		enabled: !!groupId,
-		...(isDemo ? { initialData: () => tourDemoBabs(groupId), staleTime: Infinity } : { refetchInterval })
+		queryKey: groupQueryKeys.babs(groupId),
+		queryFn: () => getBabs(groupId),
+		enabled: !!groupId && isEnabled,
+		refetchInterval
 	});
 };
 

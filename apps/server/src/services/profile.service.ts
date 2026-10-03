@@ -50,7 +50,7 @@ export const getProfileStatsForUser = async (
 	const [personalReads, memberships, userReads] = await Promise.all([
 		prisma.hizbAssignment.findMany({
 			where: { enrollment: { userId: normalizedUserId }, completedAt: { not: null } },
-			include: { enrollment: true }
+			include: { enrollment: { include: { group: { select: { kind: true, timezone: true } } } } }
 		}),
 		prisma.groupMember.findMany({
 			where: { userId: normalizedUserId },
@@ -113,9 +113,25 @@ export const getProfileStatsForUser = async (
 		return kind !== undefined && round._count._all === unitCountFor({ kind });
 	}).length;
 
+	/*
+	 * A Hizb plan's round is a day on which the group's readings covered the whole text. A Şahsi
+	 * Cevşen or Kur'an plan's is one pass through its days, every one read — a day read ahead
+	 * counting once its day comes, as on the group screen. Their days still count in the streak and
+	 * the heatmap below, but never as babs: `babsRead` is the shared board's.
+	 */
+	const hizbReads = personalReads.filter(a => a.enrollment.group.kind === 'HIZB');
+	const passes = new Map<string, { read: number; days: number }>();
+	for (const a of personalReads) {
+		if (a.enrollment.group.kind !== 'HIZB' && a.day <= civilDayNumber(new Date(), a.enrollment.group.timezone)) {
+			const key = `${a.enrollmentId}:${a.traversal}`;
+			passes.set(key, { read: (passes.get(key)?.read ?? 0) + 1, days: a.enrollment.planDays });
+		}
+	}
+	roundsCompleted += [...passes.values()].filter(pass => pass.read === pass.days).length;
+
 	const contributed = [
 		...new Map(
-			personalReads.map(a => [
+			hizbReads.map(a => [
 				`${a.enrollment.groupId}:${a.day}`,
 				{ day: a.day, enrollment: { groupId: a.enrollment.groupId } }
 			])

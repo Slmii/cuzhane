@@ -1,5 +1,6 @@
 import type { IconName } from '@/components/ui/Icon/Icon.types';
 import type { StringKey } from '@/lib/i18n/strings';
+import type { GroupKind } from '@/lib/types/domain';
 import { APP_VERSION } from '@/lib/utils/appVersion';
 
 /**
@@ -15,6 +16,8 @@ export type ReleaseNoteEntry = {
 	bodyKey: StringKey;
 	/** Wears the "YENİ" tag, and only in the full list — the sheet shows no tags. */
 	isNew: boolean;
+	/** The books it is for, as chips beside the title — none when it is for every group. */
+	kinds?: GroupKind[];
 };
 
 export type Release = {
@@ -74,6 +77,42 @@ export type Release = {
  */
 export const RELEASES: Release[] = [
 	{
+		id: '2026-10-sahsi',
+		entries: [
+			{
+				bodyKey: 'rn150LiveBody',
+				icon: 'mic',
+				isNew: true,
+				kinds: ['CEVSEN', 'HATIM'],
+				titleKey: 'rn150LiveTitle'
+			},
+			{
+				bodyKey: 'rn150SahsiBody',
+				icon: 'book',
+				isNew: true,
+				kinds: ['CEVSEN', 'HATIM'],
+				titleKey: 'rn150SahsiTitle'
+			},
+			{ bodyKey: 'rn150AheadBody', icon: 'calendar', isNew: true, titleKey: 'rn150AheadTitle' },
+			{
+				bodyKey: 'rn150ReadersBody',
+				icon: 'members',
+				isNew: true,
+				kinds: ['HIZB'],
+				titleKey: 'rn150ReadersTitle'
+			},
+			{
+				bodyKey: 'rn150PlaceBody',
+				icon: 'bookmark',
+				isNew: true,
+				kinds: ['HATIM', 'HIZB'],
+				titleKey: 'rn150PlaceTitle'
+			}
+		],
+		releasedOn: '2026-10-02',
+		version: APP_VERSION
+	},
+	{
 		id: '2026-09-hizb',
 		entries: [
 			{ bodyKey: 'rn140HizbBody', icon: 'book', isNew: true, titleKey: 'rn140HizbTitle' },
@@ -82,7 +121,7 @@ export const RELEASES: Release[] = [
 			{ bodyKey: 'rn140PrivacyBody', icon: 'eyeOff', isNew: true, titleKey: 'rn140PrivacyTitle' }
 		],
 		releasedOn: '2026-09-29',
-		version: APP_VERSION
+		version: '1.4.0'
 	},
 	{
 		id: '2026-09-quran',
