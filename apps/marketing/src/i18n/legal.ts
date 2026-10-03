@@ -88,7 +88,7 @@ const privacyTr: LegalPage = {
 		{
 			heading: 'Bildirimler',
 			paragraphs: [
-				'Günlük hatırlatma cihazında kurulur ve sunucuya çıkmaz. Ayrıca sunucu altı durumda bildirim gönderir: havuzdan üstlendiğin bir bab başkasına geçtiğinde, grubundaki biri payını tamamladığında, grubun turu bitirdiğinde, biri ortak havuzdan bab üstlendiğinde, gruba biri katıldığında ve gruptan biri ayrıldığında. İlki dışındakileri Bildirimler ekranındaki ayarlardan ayrı ayrı açıp kapatabilirsin. Tek istisna: okuma sorumluları seçilmiş bir Hizbü’l-Hakaik grubunda “okudu” bildirimini yalnızca bu sorumlular alır, kendi ayarları ne olursa olsun; diğer üyeler almaz.'
+				'Günlük hatırlatmalar (Cevşen ve Hizbü’l-Hakaik için ayrı) cihazında kurulur ve sunucuya çıkmaz. Ayrıca sunucu altı durumda bildirim gönderir: havuzdan üstlendiğin bir bab başkasına geçtiğinde, grubundaki biri payını tamamladığında, grubun turu bitirdiğinde, biri ortak havuzdan bab üstlendiğinde, gruba biri katıldığında ve gruptan biri ayrıldığında. İlki dışındakileri Bildirimler ekranındaki ayarlardan ayrı ayrı açıp kapatabilirsin. Tek istisna: okuma sorumluları seçilmiş bir Hizbü’l-Hakaik grubunda “okudu” bildirimini yalnızca bu sorumlular alır, kendi ayarları ne olursa olsun; diğer üyeler almaz.'
 			]
 		},
 		{
@@ -170,7 +170,7 @@ const privacyEn: LegalPage = {
 		{
 			heading: 'Notifications',
 			paragraphs: [
-				'The daily reminder is scheduled on your device and never leaves it. Separately, the server sends a notification in six cases: when a bab you claimed from the pool passes to somebody else, when someone in your group finishes their share, when your group completes a round, when someone takes babs from the shared pool, when someone joins one of your groups, and when someone leaves one. All but the first can each be turned off from the notification settings. One exception: in a Hizbü’l-Hakaik group with responsible members, only they get the “has read” notification, whatever their own settings; the other members don’t.'
+				'The daily reminders (one for the Cevşen, one for the Hizbü’l-Hakaik) are scheduled on your device and never leave it. Separately, the server sends a notification in six cases: when a bab you claimed from the pool passes to somebody else, when someone in your group finishes their share, when your group completes a round, when someone takes babs from the shared pool, when someone joins one of your groups, and when someone leaves one. All but the first can each be turned off from the notification settings. One exception: in a Hizbü’l-Hakaik group with responsible members, only they get the “has read” notification, whatever their own settings; the other members don’t.'
 			]
 		},
 		{
@@ -252,7 +252,7 @@ const privacyNl: LegalPage = {
 		{
 			heading: 'Meldingen',
 			paragraphs: [
-				'De dagelijkse herinnering wordt op je toestel ingepland en verlaat het niet. Daarnaast stuurt de server in zes gevallen een melding: wanneer een bab die je uit de pool nam naar iemand anders gaat, wanneer iemand in je groep het eigen deel afrondt, wanneer je groep een ronde voltooit, wanneer iemand babs uit de gedeelde pool neemt, wanneer iemand lid wordt van een groep van jou en wanneer iemand er een verlaat. Alles behalve de eerste kun je afzonderlijk uitzetten bij de meldingsinstellingen. Eén uitzondering: in een Hizbü’l-Hakaik-groep met verantwoordelijken krijgen alleen zij de melding “heeft gelezen”, ongeacht hun eigen instellingen; de andere leden krijgen hem niet.'
+				'De dagelijkse herinneringen (één voor de Cevşen, één voor de Hizbü’l-Hakaik) worden op je toestel ingepland en verlaten het niet. Daarnaast stuurt de server in zes gevallen een melding: wanneer een bab die je uit de pool nam naar iemand anders gaat, wanneer iemand in je groep het eigen deel afrondt, wanneer je groep een ronde voltooit, wanneer iemand babs uit de gedeelde pool neemt, wanneer iemand lid wordt van een groep van jou en wanneer iemand er een verlaat. Alles behalve de eerste kun je afzonderlijk uitzetten bij de meldingsinstellingen. Eén uitzondering: in een Hizbü’l-Hakaik-groep met verantwoordelijken krijgen alleen zij de melding “heeft gelezen”, ongeacht hun eigen instellingen; de andere leden krijgen hem niet.'
 			]
 		},
 		{

@@ -2,6 +2,7 @@
 	"name": "@cuzhane/web",
 	"version": "1.0.0",
 	"private": true,
+	"license": "UNLICENSED",
 	"main": "index.ts",
 	"scripts": {
 		"start": "expo start --dev-client",
