@@ -13,8 +13,6 @@ import { StyleSheet, View } from 'react-native';
 
 /** `BabLegend`'s four keys for a hatim board — the same count the screen's own stand-in uses. */
 const CUZ_LEGEND_COUNT = 4;
-/** A share of two cüz — what the badge's width ("7 · 22") is drawn for too. */
-const CUZ_ROW_COUNT = 2;
 
 /**
  * Q2l · Hatim grubu yükleniyor — a Kur'an group before it arrives.
@@ -108,18 +106,20 @@ export const HatimGroupSkeleton = () => {
 						</View>
 
 						{/*
-						 * "Cüzlerin", open, as the screen opens it: the sage header over the share's rows.
-						 * The badge is wider than the Cevşen's square because it holds the cüz themselves
-						 * ("7 · 22"), and there is no slice chip beside it — a hatim's share is whole in
-						 * the badge.
+						 * "Cüzlerin", closed, as the screen opens it: the sage header alone, the card in its
+						 * colour and without glass. The badge is wider than the Cevşen's square because it
+						 * holds the cüz themselves ("7 · 22"), and there is no slice chip beside it — a
+						 * hatim's share is whole in the badge.
 						 */}
-						<CardSurface isFlush style={[styles.assignedPanel, { borderColor: theme.colors.accent }]}>
-							<View
-								style={[
-									styles.assignedHeader,
-									{ backgroundColor: theme.colors.accentSoft, borderBottomColor: divider }
-								]}
-							>
+						<CardSurface
+							hasGlassSurface={false}
+							isFlush
+							style={[
+								styles.assignedPanel,
+								{ backgroundColor: theme.colors.accentSoft, borderColor: theme.colors.accent }
+							]}
+						>
+							<View style={[styles.assignedHeader, { backgroundColor: theme.colors.accentSoft }]}>
 								<View
 									style={[
 										styles.assignedBadge,
@@ -136,17 +136,6 @@ export const HatimGroupSkeleton = () => {
 									</View>
 								</View>
 							</View>
-							{/* `BabRow`: the box, the cüz and its suras, and "Oku". */}
-							{Array.from({ length: CUZ_ROW_COUNT }, (_, index) => (
-								<View key={index} style={[styles.cuzRow, { borderBottomColor: divider }]}>
-									<Bone height={26} radius={9} width={26} />
-									<View style={styles.cuzRowCopy}>
-										<Bone height={10} radius={5} width='38%' />
-										<Bone height={8} radius={4} tone='soft' width='72%' />
-									</View>
-									<Bone height={36} radius={11} tone='soft' width={52} />
-								</View>
-							))}
 						</CardSurface>
 
 						{/* Under the share, as on the screen. */}
@@ -205,7 +194,6 @@ const styles = StyleSheet.create({
 	},
 	assignedHeader: {
 		alignItems: 'center',
-		borderBottomWidth: StyleSheet.hairlineWidth,
 		flexDirection: 'row',
 		gap: 13,
 		paddingHorizontal: 16,
@@ -225,7 +213,7 @@ const styles = StyleSheet.create({
 	assignedPanel: {
 		borderWidth: 2
 	},
-	// The chevron, open, points up: its footprint lies on its side in the 15pt icon box.
+	// The chevron, closed, points down: its footprint lies on its side in the 15pt icon box.
 	chevron: {
 		borderRadius: 3,
 		height: 8,
@@ -238,22 +226,6 @@ const styles = StyleSheet.create({
 		width: 15
 	},
 	// `BabRow`'s insets: 13 above and below, 16 at the sides, and its hairline under every row.
-	cuzRow: {
-		alignItems: 'center',
-		borderBottomWidth: StyleSheet.hairlineWidth,
-		flexDirection: 'row',
-		gap: 13,
-		paddingHorizontal: 16,
-		paddingVertical: 13
-	},
-	// The 18pt title and the 17pt sura line under it, 2 apart: 37 tall, the row's tallest part.
-	cuzRowCopy: {
-		flex: 1,
-		gap: 8,
-		height: 37,
-		justifyContent: 'center',
-		minWidth: 0
-	},
 	/*
 	 * Clear of the navigator's back button, as `ScreenHeader` is on the real screen, and its
 	 * 18 of air underneath — with the column's 12 below that, the countdown card starts where

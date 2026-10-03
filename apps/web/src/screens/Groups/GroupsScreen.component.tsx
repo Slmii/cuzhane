@@ -1,4 +1,5 @@
 import { GroupCard } from '@/components/GroupCard/GroupCard.component';
+import { useHintScreen } from '@/components/Hints/useHintScreen';
 import { RoundResetRow } from '@/components/RoundResetRow/RoundResetRow.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { PullToRefresh } from '@/components/ui/PullToRefresh/PullToRefresh.component';
@@ -46,6 +47,7 @@ type GroupsNavigationProp = NativeStackNavigationProp<TabStackParamList>;
 const CARD_LAYOUT = LinearTransition.springify().damping(20).stiffness(180).mass(0.7);
 export const GroupsScreen = () => {
 	const navigation = useNavigation<GroupsNavigationProp>();
+	useHintScreen('groups');
 
 	const { theme } = useThemeContext();
 	const { language, t } = useTranslation();

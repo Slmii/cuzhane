@@ -1,25 +1,30 @@
-export type ReminderSchedule = {
-	/** `HH:mm`, the reader's local wall clock. */
-	time: string;
-	isEnabled: boolean;
-};
+import type { ReminderBook } from '@/lib/utils/reminder';
 
-export type ReminderContent = {
+/** One dated reminder as it is handed to the OS: its book, when, and what it says. */
+export type ReminderNotice = {
+	book: ReminderBook;
+	at: Date;
 	title: string;
 	body: string;
 };
 
 /**
- * What the OS was asked for. Compared against what is actually scheduled so an app launch
- * only rebuilds a notification whose *trigger* changed — rescheduling on every launch
- * would leave a window with nothing scheduled, and an app opened at the moment the
- * reminder was due would silently lose that day's notification.
+ * What one scheduled reminder is — book, moment and wording in one string, stamped into it. The
+ * reconciler compares the set it wants against the set the OS holds by these, so an app launch
+ * that finds them the same leaves everything alone, and any change — a read bab, a new time, a
+ * switch, a new day — rebuilds the set from one known state.
  */
-export const buildTriggerSignature = ({ isEnabled, time }: ReminderSchedule) => JSON.stringify({ isEnabled, time });
+export const buildReminderKey = ({ at, body, book, title }: ReminderNotice) =>
+	JSON.stringify({ at: at.toISOString(), body, book, title });
 
-/**
- * What it will say. Separate from the trigger because the wording changes far more often
- * than the time does — every bab read moves the count — and a content change can be
- * replaced without touching the schedule's identity.
- */
-export const buildContentSignature = ({ body, title }: ReminderContent) => JSON.stringify({ body, title });
+/** Whether the OS already holds exactly the reminders wanted — no more, no fewer, no other. */
+export const isSameReminderSet = (scheduledKeys: (string | null)[], wanted: ReminderNotice[]) => {
+	if (scheduledKeys.length !== wanted.length) {
+		return false;
+	}
+
+	const held = [...scheduledKeys].sort();
+	const asked = wanted.map(buildReminderKey).sort();
+
+	return held.every((key, index) => key === asked[index]);
+};

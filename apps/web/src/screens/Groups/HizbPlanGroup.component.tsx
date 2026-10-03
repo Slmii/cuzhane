@@ -1,7 +1,8 @@
 import type { HizbAssignment } from '@/api/hizbReading.api';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
-import { TourTarget } from '@/components/Tour/TourTarget.component';
+import { HintTarget } from '@/components/Hints/HintTarget.component';
+import { useHintScreen } from '@/components/Hints/useHintScreen';
 import { AppBottomSheet } from '@/components/ui/BottomSheet/BottomSheet.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
@@ -107,6 +108,9 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 	const pullToRefresh = usePullToRefresh(query);
 	const closeSheet = () => navigation.setParams({ sheet: undefined });
 	const data = query.data?.pages[0];
+	// The plan's hints are for a member reading on a chosen plan — never while one is still to be
+	// picked, or after being taken out of the order.
+	useHintScreen(group.isMember && data?.enrollment?.endDay === null ? 'hizbGroup' : null);
 	const today = data?.today ?? null;
 	// Today's reading, written from this screen: undo, and marking it read from the book (R1, R2, R4).
 	const todayUpdate = useUpdateHizbAssignment(group.id, today?.id ?? '');
@@ -489,7 +493,7 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 	// group's only — an individual reading draws its own round card. Shown from the first day, as the
 	// Cevşen's and Kur'an's are.
 	const roundsCard = data.enrollment ? (
-		<CardSurface isFlush onPress={openGroupHistory} style={styles.sectionEnd}>
+		<CardSurface isFlush onPress={openGroupHistory}>
 			<View style={styles.statsRow}>
 				<View style={[styles.statCell, styles.statCellDivided, { borderRightColor: theme.colors.divider }]}>
 					<Typography style={styles.statNumber} variant='numeric'>
@@ -773,43 +777,45 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 					{/* The groups' stats card: how long until the next day, and when it comes. A shared plan
 					    adds its people and says the group's zone beside the reader's; a Şahsi reading is
 					    the reader's own clock alone. */}
-					<CardSurface isFlush style={styles.cardGap}>
-						<View style={styles.clockRow}>
-							{isShared ? (
-								<View
-									style={[
-										styles.clockCell,
-										styles.clockCellDivided,
-										{ borderRightColor: theme.colors.divider }
-									]}
-								>
-									<NumericText>{String(group.memberCount)}</NumericText>
+					<HintTarget id='planClock' style={styles.cardGap}>
+						<CardSurface isFlush>
+							<View style={styles.clockRow}>
+								{isShared ? (
+									<View
+										style={[
+											styles.clockCell,
+											styles.clockCellDivided,
+											{ borderRightColor: theme.colors.divider }
+										]}
+									>
+										<NumericText>{String(group.memberCount)}</NumericText>
+										<StatText color={theme.colors.faintText} style={styles.clockLabel}>
+											{t('members')}
+										</StatText>
+									</View>
+								) : null}
+								<View style={styles.clockCell}>
+									<NumericText>{t('hoursLeft', timeUntilReset(data.nextDayAt))}</NumericText>
 									<StatText color={theme.colors.faintText} style={styles.clockLabel}>
-										{t('members')}
+										{t('spUntilNext')}
 									</StatText>
 								</View>
-							) : null}
-							<View style={styles.clockCell}>
-								<NumericText>{t('hoursLeft', timeUntilReset(data.nextDayAt))}</NumericText>
-								<StatText color={theme.colors.faintText} style={styles.clockLabel}>
-									{t('spUntilNext')}
-								</StatText>
 							</View>
-						</View>
-						<RoundResetRow
-							groupLabel={
-								isShared
-									? t('hdEveryDayAt', {
-											time: timeIn(resetInstant, language, group.timezone),
-											zone: zoneAbbreviation(resetInstant, language, group.timezone)
-									  })
-									: t('spEveryDayAt', { time: timeIn(resetInstant, language) })
-							}
-							localLabel={isShared ? localTime : ''}
-							style={[styles.clockReset, { borderTopColor: theme.colors.divider }]}
-							variant='panel'
-						/>
-					</CardSurface>
+							<RoundResetRow
+								groupLabel={
+									isShared
+										? t('hdEveryDayAt', {
+												time: timeIn(resetInstant, language, group.timezone),
+												zone: zoneAbbreviation(resetInstant, language, group.timezone)
+										  })
+										: t('spEveryDayAt', { time: timeIn(resetInstant, language) })
+								}
+								localLabel={isShared ? localTime : ''}
+								style={[styles.clockReset, { borderTopColor: theme.colors.divider }]}
+								variant='panel'
+							/>
+						</CardSurface>
+					</HintTarget>
 
 					{/* "Benim ilerlemem": one headed card around the reader's own rows, as on the Cevşen's. */}
 					<SectionCard
@@ -818,10 +824,10 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 						// An individual reading's round card follows at the cards' own gap, not a section's.
 						style={removed ? styles.removedEyebrow : !isShared ? styles.cardGap : undefined}
 					>
-						{/* W1/W4: today's reading, the one dark button. H1 of the first-use tour — the wrapper
+						{/* W1/W4: today's reading, the one dark button. A hint points here — the wrapper
 					    carries the card's gap, so the spotlight is the card alone. */}
 						{today && !isTodayDone ? (
-							<TourTarget id='hizbToday' style={styles.cardGap}>
+							<HintTarget id='hizbToday' style={styles.cardGap}>
 								{/* No card of its own: it is the section card's first row, edge to edge. */}
 								<View style={styles.todayBlock}>
 									{/* The card ends on its buttons — when the next day comes is the clock card's, on
@@ -992,7 +998,7 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 										)}
 									</View>
 								</View>
-							</TourTarget>
+							</HintTarget>
 						) : null}
 
 						{/*
@@ -1055,142 +1061,161 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 						{/* The next day, once today's is read: one at a time, in order, in the same reader —
 						    and, in the same section, how far ahead, opening the list of days read ahead. */}
 						{offer || through ? (
-							<View style={[styles.aheadSection, { backgroundColor: theme.colors.background }]}>
-								<Typography
-									color={theme.colors.subtext}
-									style={[styles.cardEyebrow, styles.aheadEyebrow]}
-									variant='stat'
-									weight='medium'
-								>
-									{t('hpAheadEyebrow')}
-								</Typography>
-								{offer ? (
-									<View style={styles.aheadOfferRow}>
-										<View style={[styles.doneCheck, { backgroundColor: theme.colors.accentMuted }]}>
-											<Icon
-												color={theme.colors.accent}
-												name='calendar'
-												size={16}
-												strokeWidth={1.8}
+							<HintTarget id='planAhead' style={styles.cardGap}>
+								<View style={[styles.aheadSection, { backgroundColor: theme.colors.background }]}>
+									<Typography
+										color={theme.colors.subtext}
+										style={[styles.cardEyebrow, styles.aheadEyebrow]}
+										variant='stat'
+										weight='medium'
+									>
+										{t('hpAheadEyebrow')}
+									</Typography>
+									{offer ? (
+										<View style={styles.aheadOfferRow}>
+											<View
+												style={[
+													styles.doneCheck,
+													{ backgroundColor: theme.colors.accentMuted }
+												]}
+											>
+												<Icon
+													color={theme.colors.accent}
+													name='calendar'
+													size={16}
+													strokeWidth={1.8}
+												/>
+											</View>
+											<View style={styles.flex}>
+												<CaptionText style={styles.rowTitle} weight='semibold'>
+													{`${offerWhen} · ${workTitle(offer)}`}
+												</CaptionText>
+												<CaptionText color={theme.colors.subtext} style={styles.rowSub}>
+													{contextOf(offer)}
+												</CaptionText>
+												{createAhead.isError ? (
+													<CaptionText color={theme.colors.danger} style={styles.rowSub}>
+														{t('hpError')}
+													</CaptionText>
+												) : null}
+											</View>
+											<AppButton
+												disabled={createAhead.isPending}
+												fullWidth={false}
+												onPress={openAhead}
+												size='sm'
+												title={t('hpReadAction')}
+												variant='primary'
 											/>
 										</View>
-										<View style={styles.flex}>
-											<CaptionText style={styles.rowTitle} weight='semibold'>
-												{`${offerWhen} · ${workTitle(offer)}`}
-											</CaptionText>
-											<CaptionText color={theme.colors.subtext} style={styles.rowSub}>
-												{contextOf(offer)}
-											</CaptionText>
-											{createAhead.isError ? (
-												<CaptionText color={theme.colors.danger} style={styles.rowSub}>
-													{t('hpError')}
-												</CaptionText>
-											) : null}
-										</View>
-										<AppButton
-											disabled={createAhead.isPending}
-											fullWidth={false}
-											onPress={openAhead}
-											size='sm'
-											title={t('hpReadAction')}
-											variant='primary'
+									) : null}
+									{/* How far ahead — no undo for a day read ahead; the chevron opens the days themselves. */}
+									{through ? (
+										<NavRow
+											label={t(
+												pluralKey(language, through.days, 'hpAheadDaysOne', 'hpAheadDaysOther'),
+												{
+													count: through.days
+												}
+											)}
+											meta={throughDate}
+											onPress={() => setIsAheadOpen(true)}
+											style={[
+												styles.aheadNavRow,
+												offer
+													? {
+															borderTopColor: theme.colors.divider,
+															borderTopWidth: StyleSheet.hairlineWidth
+													  }
+													: null
+											]}
 										/>
-									</View>
-								) : null}
-								{/* How far ahead — no undo for a day read ahead; the chevron opens the days themselves. */}
-								{through ? (
-									<NavRow
-										label={t(
-											pluralKey(language, through.days, 'hpAheadDaysOne', 'hpAheadDaysOther'),
-											{
-												count: through.days
-											}
-										)}
-										meta={throughDate}
-										onPress={() => setIsAheadOpen(true)}
-										style={[
-											styles.aheadNavRow,
-											offer
-												? {
-														borderTopColor: theme.colors.divider,
-														borderTopWidth: StyleSheet.hairlineWidth
-												  }
-												: null
-										]}
-									/>
-								) : null}
-							</View>
+									) : null}
+								</View>
+							</HintTarget>
 						) : null}
 
 						{/* W2: with today read, the dark button moves to the newest missed day. */}
 						{today && isTodayDone && newestMissed ? (
-							<CardSurface
-								style={[
-									styles.catchupCard,
-									styles.cardGap,
-									{ borderColor: theme.colors.missed, borderWidth: 2 }
-								]}
-							>
-								<View style={styles.spread}>
-									<Typography
-										color={theme.colors.missed}
-										style={styles.cardEyebrow}
-										variant='stat'
-										weight='medium'
-									>
-										{t('hpNextCatchup', { date: monthDay(newestMissed.date, 'long') })}
-									</Typography>
-									<View style={[styles.tag, { backgroundColor: theme.colors.missedSurface }]}>
+							<HintTarget id='planCatchup' style={styles.cardGap}>
+								<CardSurface
+									style={[styles.catchupCard, { borderColor: theme.colors.missed, borderWidth: 2 }]}
+								>
+									<View style={styles.spread}>
 										<Typography
 											color={theme.colors.missed}
-											style={styles.tagLabel}
+											style={styles.cardEyebrow}
 											variant='stat'
+											weight='medium'
+										>
+											{t('hpNextCatchup', { date: monthDay(newestMissed.date, 'long') })}
+										</Typography>
+										<View style={[styles.tag, { backgroundColor: theme.colors.missedSurface }]}>
+											<Typography
+												color={theme.colors.missed}
+												style={styles.tagLabel}
+												variant='stat'
+												weight='semibold'
+											>
+												{`1 / ${data.missedCount}`}
+											</Typography>
+										</View>
+									</View>
+									<TitleText style={styles.readingTitle}>{workTitle(newestMissed)}</TitleText>
+									<CaptionText color={theme.colors.subtext} style={styles.readingDesc}>
+										{[contextOf(newestMissed), portionDesc(newestMissed)]
+											.filter(Boolean)
+											.join(' · ')}
+									</CaptionText>
+									<AppButton
+										onPress={() => open(newestMissed.id)}
+										size='lg'
+										style={styles.darkButton}
+										title={t('hpCatchupAction')}
+										variant='primary'
+									/>
+									<Pressable
+										accessibilityRole='button'
+										onPress={openMissed}
+										style={styles.centerLink}
+									>
+										<CaptionText
+											color={theme.colors.subtext}
+											style={styles.linkLabel}
 											weight='semibold'
 										>
-											{`1 / ${data.missedCount}`}
-										</Typography>
-									</View>
-								</View>
-								<TitleText style={styles.readingTitle}>{workTitle(newestMissed)}</TitleText>
-								<CaptionText color={theme.colors.subtext} style={styles.readingDesc}>
-									{[contextOf(newestMissed), portionDesc(newestMissed)].filter(Boolean).join(' · ')}
-								</CaptionText>
-								<AppButton
-									onPress={() => open(newestMissed.id)}
-									size='lg'
-									style={styles.darkButton}
-									title={t('hpCatchupAction')}
-									variant='primary'
-								/>
-								<Pressable accessibilityRole='button' onPress={openMissed} style={styles.centerLink}>
-									<CaptionText
-										color={theme.colors.subtext}
-										style={styles.linkLabel}
-										weight='semibold'
-									>
-										{t('hpAllMissed', { count: data.missedCount })}
-									</CaptionText>
-								</Pressable>
-								{/* The Hizb's note on the group's 33; a Şahsi Cevşen or Kur'an has no such board. */}
-								{missedRound !== null && isHizb ? (
-									<View style={[styles.noteRow, { borderTopColor: theme.colors.divider }]}>
-										<Icon color={theme.colors.accent} name='clock' size={14} strokeWidth={1.8} />
-										<CaptionText color={theme.colors.subtext} style={[styles.flex, styles.note]}>
-											{(() => {
-												const date = monthDay(newestMissed.date, 'long');
-
-												return t('hpCatchupNote', {
-													covered: readCount,
-													date,
-													dateSuffix: trSuffix(turkishGenitiveSuffix(date)),
-													n: missedRound,
-													roundSuffix: trSuffix(turkishDativeSuffix(missedRound))
-												});
-											})()}
+											{t('hpAllMissed', { count: data.missedCount })}
 										</CaptionText>
-									</View>
-								) : null}
-							</CardSurface>
+									</Pressable>
+									{/* The Hizb's note on the group's 33; a Şahsi Cevşen or Kur'an has no such board. */}
+									{missedRound !== null && isHizb ? (
+										<View style={[styles.noteRow, { borderTopColor: theme.colors.divider }]}>
+											<Icon
+												color={theme.colors.accent}
+												name='clock'
+												size={14}
+												strokeWidth={1.8}
+											/>
+											<CaptionText
+												color={theme.colors.subtext}
+												style={[styles.flex, styles.note]}
+											>
+												{(() => {
+													const date = monthDay(newestMissed.date, 'long');
+
+													return t('hpCatchupNote', {
+														covered: readCount,
+														date,
+														dateSuffix: trSuffix(turkishGenitiveSuffix(date)),
+														n: missedRound,
+														roundSuffix: trSuffix(turkishDativeSuffix(missedRound))
+													});
+												})()}
+											</CaptionText>
+										</View>
+									) : null}
+								</CardSurface>
+							</HintTarget>
 						) : null}
 
 						{/*
@@ -1198,35 +1223,38 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 						 * missed-days row: the days owed (red) and the newest of them. It opens them (T2).
 						 */}
 						{data.enrollment ? (
-							<CardSurface
-								hasGlassSurface={false}
-								onPress={openMissed}
-								style={[
-									styles.banner,
-									isShared && !isJoinedLate ? styles.sectionEnd : styles.cardGap,
-									{ backgroundColor: theme.colors.headerSurface }
-								]}
+							<HintTarget
+								id='planBanner'
+								style={isShared && !isJoinedLate ? styles.sectionEnd : styles.cardGap}
 							>
-								<CaptionText color={theme.colors.onHeaderSurface} weight='semibold'>
-									{t('myProgress')}
-								</CaptionText>
-								<View style={[styles.bannerDivider, { backgroundColor: bannerMuted }]} />
-								<CaptionText color={bannerMuted} numberOfLines={1} style={styles.bannerStats}>
-									<CaptionText color={theme.colors.onHeaderSurfaceMissed} weight='semibold'>
-										{data.missedCount}
+								<CardSurface
+									hasGlassSurface={false}
+									onPress={openMissed}
+									style={[styles.banner, { backgroundColor: theme.colors.headerSurface }]}
+								>
+									<CaptionText color={theme.colors.onHeaderSurface} weight='semibold'>
+										{t('myProgress')}
 									</CaptionText>
-									{` ${t('mpMissed')}`}
-									{newestMissed
-										? ` · ${t('hpBannerNewest', { date: monthDay(newestMissed.date, 'short') })}`
-										: ''}
-								</CaptionText>
-								<Icon
-									color={theme.colors.onHeaderSurface}
-									name='chevronRight'
-									size={15}
-									strokeWidth={1.8}
-								/>
-							</CardSurface>
+									<View style={[styles.bannerDivider, { backgroundColor: bannerMuted }]} />
+									<CaptionText color={bannerMuted} numberOfLines={1} style={styles.bannerStats}>
+										<CaptionText color={theme.colors.onHeaderSurfaceMissed} weight='semibold'>
+											{data.missedCount}
+										</CaptionText>
+										{` ${t('mpMissed')}`}
+										{newestMissed
+											? ` · ${t('hpBannerNewest', {
+													date: monthDay(newestMissed.date, 'short')
+											  })}`
+											: ''}
+									</CaptionText>
+									<Icon
+										color={theme.colors.onHeaderSurface}
+										name='chevronRight'
+										size={15}
+										strokeWidth={1.8}
+									/>
+								</CardSurface>
+							</HintTarget>
 						) : null}
 
 						{/* S7: joined after the group began — counting starts on the join day. */}
@@ -1244,109 +1272,120 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 
 					{/* S6: an individual reading — its round on the 33, a short history, and delete. */}
 					{!isShared && individualRound && round ? (
-						<CardSurface style={[styles.roundCard, styles.cardGap]}>
-							<View style={styles.roundHead}>
-								<Typography style={styles.roundTitle} variant='title' weight='medium'>
-									{t('hpRoundLabel', { n: round.number })}
-								</Typography>
-								{roundWrap ? (
-									<CaptionText color={theme.colors.faintText} style={styles.linkHint}>
-										{roundWrap}
-									</CaptionText>
-								) : null}
-							</View>
-							<CellGrid
-								borderWidth={1.5}
-								columns={ROUND_COLUMNS[group.kind]}
-								gap={4}
-								items={individualRound.items}
-								radius={6}
-							/>
-							<View style={styles.legend}>
-								<LegendKey color={theme.colors.accent} label={t('hpLegendRead')} />
-								<LegendKey color={theme.colors.missed} label={t('hpLegendMissed')} />
-								<LegendKey
-									color={theme.colors.accentMuted}
-									label={t('hpLegendToday')}
-									ring={theme.colors.text}
+						<HintTarget id='planRound' style={styles.cardGap}>
+							<CardSurface style={styles.roundCard}>
+								<View style={styles.roundHead}>
+									<Typography style={styles.roundTitle} variant='title' weight='medium'>
+										{t('hpRoundLabel', { n: round.number })}
+									</Typography>
+									{roundWrap ? (
+										<CaptionText color={theme.colors.faintText} style={styles.linkHint}>
+											{roundWrap}
+										</CaptionText>
+									) : null}
+								</View>
+								<CellGrid
+									borderWidth={1.5}
+									columns={ROUND_COLUMNS[group.kind]}
+									gap={4}
+									items={individualRound.items}
+									radius={6}
 								/>
-							</View>
-						</CardSurface>
+								<View style={styles.legend}>
+									<LegendKey color={theme.colors.accent} label={t('hpLegendRead')} />
+									<LegendKey color={theme.colors.missed} label={t('hpLegendMissed')} />
+									<LegendKey
+										color={theme.colors.accentMuted}
+										label={t('hpLegendToday')}
+										ring={theme.colors.text}
+									/>
+								</View>
+							</CardSurface>
+						</HintTarget>
 					) : null}
 					{!isShared ? (
-						<CardSurface isFlush>
-							<View style={[styles.historyHead, { borderBottomColor: theme.colors.divider }]}>
-								<Typography style={styles.roundTitle} variant='title' weight='medium'>
-									{t('hpHistoryTitle')}
-								</Typography>
-								{joinedDate ? (
-									<CaptionText color={theme.colors.faintText} style={styles.linkHint}>
-										{t('hpHistorySince', {
-											date: monthDay(joinedDate, 'short'),
-											suffix: trSuffix(turkishWordAblativeSuffix(monthDay(joinedDate, 'short')))
-										})}
-									</CaptionText>
-								) : null}
-							</View>
-							{recentReadings.map(reading => (
+						<HintTarget id='planHistory'>
+							<CardSurface isFlush>
+								<View style={[styles.historyHead, { borderBottomColor: theme.colors.divider }]}>
+									<Typography style={styles.roundTitle} variant='title' weight='medium'>
+										{t('hpHistoryTitle')}
+									</Typography>
+									{joinedDate ? (
+										<CaptionText color={theme.colors.faintText} style={styles.linkHint}>
+											{t('hpHistorySince', {
+												date: monthDay(joinedDate, 'short'),
+												suffix: trSuffix(
+													turkishWordAblativeSuffix(monthDay(joinedDate, 'short'))
+												)
+											})}
+										</CaptionText>
+									) : null}
+								</View>
+								{recentReadings.map(reading => (
+									<Pressable
+										accessibilityRole='button'
+										key={reading.id}
+										onPress={() => open(reading.id)}
+										style={[styles.historyItem, { borderTopColor: theme.colors.divider }]}
+									>
+										<Typography
+											color={theme.colors.faintText}
+											style={styles.historyDate}
+											variant='mono'
+											weight='medium'
+										>
+											{monthDay(reading.date, 'short')}
+										</Typography>
+										<CaptionText numberOfLines={1} style={styles.historyTitle} weight='semibold'>
+											{text.partsLabel(reading)}
+											<CaptionText color={theme.colors.faintText} style={styles.historyTitle}>
+												{` · ${text.partsAside(reading)}`}
+											</CaptionText>
+										</CaptionText>
+										{reading.completedAt ? (
+											<View
+												style={[
+													styles.statusChip,
+													{ backgroundColor: theme.colors.accentSoft }
+												]}
+											>
+												<Icon
+													color={theme.colors.accent}
+													name='check'
+													size={14}
+													strokeWidth={2.2}
+												/>
+												<CaptionText
+													color={theme.colors.accent}
+													style={styles.statusLabel}
+													weight='semibold'
+												>
+													{t('hpStatusRead')}
+												</CaptionText>
+											</View>
+										) : (
+											<AppButton
+												fullWidth={false}
+												onPress={() => open(reading.id)}
+												size='sm'
+												title={t('hpReadAction')}
+												variant='primary'
+											/>
+										)}
+									</Pressable>
+								))}
 								<Pressable
 									accessibilityRole='button'
-									key={reading.id}
-									onPress={() => open(reading.id)}
-									style={[styles.historyItem, { borderTopColor: theme.colors.divider }]}
+									onPress={openHistory}
+									style={[styles.historyRow, { borderTopColor: theme.colors.divider }]}
 								>
-									<Typography
-										color={theme.colors.faintText}
-										style={styles.historyDate}
-										variant='mono'
-										weight='medium'
-									>
-										{monthDay(reading.date, 'short')}
-									</Typography>
-									<CaptionText numberOfLines={1} style={styles.historyTitle} weight='semibold'>
-										{text.partsLabel(reading)}
-										<CaptionText color={theme.colors.faintText} style={styles.historyTitle}>
-											{` · ${text.partsAside(reading)}`}
-										</CaptionText>
+									<CaptionText color={theme.colors.accent} style={styles.footLabel} weight='semibold'>
+										{t('hpAllHistory')}
 									</CaptionText>
-									{reading.completedAt ? (
-										<View style={[styles.statusChip, { backgroundColor: theme.colors.accentSoft }]}>
-											<Icon
-												color={theme.colors.accent}
-												name='check'
-												size={14}
-												strokeWidth={2.2}
-											/>
-											<CaptionText
-												color={theme.colors.accent}
-												style={styles.statusLabel}
-												weight='semibold'
-											>
-												{t('hpStatusRead')}
-											</CaptionText>
-										</View>
-									) : (
-										<AppButton
-											fullWidth={false}
-											onPress={() => open(reading.id)}
-											size='sm'
-											title={t('hpReadAction')}
-											variant='primary'
-										/>
-									)}
+									<Icon color={theme.colors.accent} name='chevronRight' size={15} strokeWidth={1.8} />
 								</Pressable>
-							))}
-							<Pressable
-								accessibilityRole='button'
-								onPress={openHistory}
-								style={[styles.historyRow, { borderTopColor: theme.colors.divider }]}
-							>
-								<CaptionText color={theme.colors.accent} style={styles.footLabel} weight='semibold'>
-									{t('hpAllHistory')}
-								</CaptionText>
-								<Icon color={theme.colors.accent} name='chevronRight' size={15} strokeWidth={1.8} />
-							</Pressable>
-						</CardSurface>
+							</CardSurface>
+						</HintTarget>
 					) : null}
 					{/* An individual reading can't be left, only deleted by its owner (S6b). */}
 					{!isShared && group.isOwner ? (
@@ -1362,108 +1401,184 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 
 					{isShared ? (
 						<>
-							<CardSurface isFlush>
-								<SectionHeading
-									count={`${readers.read} / ${readers.total}`}
-									label={t('hpGroupProgress')}
-								/>
-								{/* Today's readers, for a group of three or of five hundred: how many read, then a
+							<HintTarget id='planReaders'>
+								<CardSurface isFlush>
+									<SectionHeading
+										count={`${readers.read} / ${readers.total}`}
+										label={t('hpGroupProgress')}
+									/>
+									{/* Today's readers, for a group of three or of five hundred: how many read, then a
 								    few of them — you first — and the whole list a tap away. */}
-								<View style={styles.coverageBody}>
-									{readers.isAllRead && !isGroupDone ? (
-										<View style={[styles.allReadBand, { backgroundColor: theme.colors.accent }]}>
+									<View style={styles.coverageBody}>
+										{readers.isAllRead && !isGroupDone ? (
 											<View
-												style={[
-													styles.allReadDisc,
-													{ backgroundColor: toAlphaColor(theme.colors.onAccent, 0.18) }
-												]}
+												style={[styles.allReadBand, { backgroundColor: theme.colors.accent }]}
 											>
-												<Icon
-													color={theme.colors.onAccent}
-													name='check'
-													size={18}
-													strokeWidth={2.2}
-												/>
-											</View>
-											<View style={styles.flex}>
-												<TitleText color={theme.colors.onAccent} style={styles.allReadTitle}>
-													{t('hpAllReadToday')}
-												</TitleText>
-												<CaptionText
-													color={toAlphaColor(theme.colors.onAccent, 0.8)}
-													style={styles.rowSub}
+												<View
+													style={[
+														styles.allReadDisc,
+														{ backgroundColor: toAlphaColor(theme.colors.onAccent, 0.18) }
+													]}
 												>
-													{t('hpReadersToday', { read: readers.read, total: readers.total })}
-												</CaptionText>
+													<Icon
+														color={theme.colors.onAccent}
+														name='check'
+														size={18}
+														strokeWidth={2.2}
+													/>
+												</View>
+												<View style={styles.flex}>
+													<TitleText
+														color={theme.colors.onAccent}
+														style={styles.allReadTitle}
+													>
+														{t('hpAllReadToday')}
+													</TitleText>
+													<CaptionText
+														color={toAlphaColor(theme.colors.onAccent, 0.8)}
+														style={styles.rowSub}
+													>
+														{t('hpReadersToday', {
+															read: readers.read,
+															total: readers.total
+														})}
+													</CaptionText>
+												</View>
 											</View>
-										</View>
-									) : (
-										<>
-											<View style={styles.coverageHead}>
-												<View>
-													<Typography style={styles.coverageNumber} variant='numeric'>
-														{`${readers.read} `}
+										) : (
+											<>
+												<View style={styles.coverageHead}>
+													<View>
+														<Typography style={styles.coverageNumber} variant='numeric'>
+															{`${readers.read} `}
+															<Typography
+																color={theme.colors.faintText}
+																style={styles.coverageTotal}
+																variant='numeric'
+															>
+																{`/ ${readers.total}`}
+															</Typography>
+														</Typography>
 														<Typography
 															color={theme.colors.faintText}
-															style={styles.coverageTotal}
-															variant='numeric'
+															style={styles.statLabel}
+															variant='stat'
+															weight='medium'
 														>
-															{`/ ${readers.total}`}
+															{t('hpReadersReadToday')}
 														</Typography>
-													</Typography>
-													<Typography
-														color={theme.colors.faintText}
-														style={styles.statLabel}
-														variant='stat'
-														weight='medium'
+													</View>
+													<CaptionText
+														color={theme.colors.subtext}
+														style={styles.leftCount}
+														weight='semibold'
 													>
-														{t('hpReadersReadToday')}
-													</Typography>
+														{t('hpPercent', { percent: readersPercent })}
+													</CaptionText>
 												</View>
-												<CaptionText
-													color={theme.colors.subtext}
-													style={styles.leftCount}
-													weight='semibold'
-												>
-													{t('hpPercent', { percent: readersPercent })}
-												</CaptionText>
-											</View>
-											<ProgressBar
-												fillColor={theme.colors.accent}
-												height={6}
-												percent={readersPercent}
-											/>
-										</>
-									)}
-								</View>
-								{readers.rows.map(reader => {
-									const isAnonymous = !reader.isMe && reader.displayName === null;
-									const name = reader.isMe
-										? t('hpYou')
-										: reader.displayName ?? t('hpAnonymousReader');
-									const chip = reader.completed
-										? {
-												background: theme.colors.accentSoft,
-												foreground: theme.colors.accent,
-												label: reader.completedAt
-													? timeIn(new Date(reader.completedAt), language)
-													: t('hpStatusDone')
-										  }
-										: reader.started
-										? {
-												background: theme.colors.sand,
-												foreground: theme.colors.sandText,
-												label: t('hpStatusStarted')
-										  }
-										: {
-												background: theme.colors.segmentTrack,
-												foreground: theme.colors.faintText,
-												label: t('hpStatusWaiting')
-										  };
+												<ProgressBar
+													fillColor={theme.colors.accent}
+													height={6}
+													percent={readersPercent}
+												/>
+											</>
+										)}
+									</View>
+									{readers.rows.map(reader => {
+										const isAnonymous = !reader.isMe && reader.displayName === null;
+										const name = reader.isMe
+											? t('hpYou')
+											: reader.displayName ?? t('hpAnonymousReader');
+										const chip = reader.completed
+											? {
+													background: theme.colors.accentSoft,
+													foreground: theme.colors.accent,
+													label: reader.completedAt
+														? timeIn(new Date(reader.completedAt), language)
+														: t('hpStatusDone')
+											  }
+											: reader.started
+											? {
+													background: theme.colors.sand,
+													foreground: theme.colors.sandText,
+													label: t('hpStatusStarted')
+											  }
+											: {
+													background: theme.colors.segmentTrack,
+													foreground: theme.colors.faintText,
+													label: t('hpStatusWaiting')
+											  };
 
-									return (
+										return (
+											<View
+												key={reader.id}
+												style={[
+													styles.linkRow,
+													{
+														borderTopColor: theme.colors.divider,
+														borderTopWidth: StyleSheet.hairlineWidth
+													}
+												]}
+											>
+												<View
+													style={[
+														styles.readerAvatar,
+														{
+															backgroundColor: reader.isMe
+																? theme.colors.accent
+																: isAnonymous
+																? theme.colors.segmentTrack
+																: theme.colors.accentSoft
+														}
+													]}
+												>
+													{isAnonymous ? (
+														<Icon
+															color={theme.colors.faintText}
+															name='lock'
+															size={13}
+															strokeWidth={1.8}
+														/>
+													) : (
+														<CaptionText
+															color={
+																reader.isMe
+																	? theme.colors.onAccent
+																	: theme.colors.accent
+															}
+															style={styles.avatarLabel}
+															weight='semibold'
+														>
+															{name.charAt(0).toLocaleUpperCase(language)}
+														</CaptionText>
+													)}
+												</View>
+												<View style={styles.flex}>
+													<CaptionText style={styles.rowTitle} weight='semibold'>
+														{name}
+													</CaptionText>
+													<CaptionText color={theme.colors.faintText} style={styles.rowSub}>
+														{t('hpReaderLine', {
+															day: reader.portion,
+															portions: text.portionsLabel(reader)
+														})}
+													</CaptionText>
+												</View>
+												<View style={[styles.readerChip, { backgroundColor: chip.background }]}>
+													<CaptionText
+														color={chip.foreground}
+														style={styles.smallStrong}
+														weight='semibold'
+													>
+														{chip.label}
+													</CaptionText>
+												</View>
+											</View>
+										);
+									})}
+									{/* Names hidden from you: rows of "Bir üye" would say nothing, so the rest is a count. */}
+									{namesHidden && readers.othersRead > 0 ? (
 										<View
-											key={reader.id}
 											style={[
 												styles.linkRow,
 												{
@@ -1475,182 +1590,126 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 											<View
 												style={[
 													styles.readerAvatar,
-													{
-														backgroundColor: reader.isMe
-															? theme.colors.accent
-															: isAnonymous
-															? theme.colors.segmentTrack
-															: theme.colors.accentSoft
-													}
+													{ backgroundColor: theme.colors.segmentTrack }
 												]}
 											>
-												{isAnonymous ? (
-													<Icon
-														color={theme.colors.faintText}
-														name='lock'
-														size={13}
-														strokeWidth={1.8}
-													/>
-												) : (
-													<CaptionText
-														color={
-															reader.isMe ? theme.colors.onAccent : theme.colors.accent
-														}
-														style={styles.avatarLabel}
-														weight='semibold'
-													>
-														{name.charAt(0).toLocaleUpperCase(language)}
-													</CaptionText>
-												)}
+												<Icon
+													color={theme.colors.faintText}
+													name='lock'
+													size={13}
+													strokeWidth={1.8}
+												/>
 											</View>
 											<View style={styles.flex}>
 												<CaptionText style={styles.rowTitle} weight='semibold'>
-													{name}
+													{t(
+														// "3 üye daha okudu" under your own row; without one (no plan yet), "3 üye okudu".
+														readers.rows.length > 0
+															? pluralKey(
+																	language,
+																	readers.othersRead,
+																	'hpOthersReadOne',
+																	'hpOthersReadOther'
+															  )
+															: pluralKey(
+																	language,
+																	readers.othersRead,
+																	'hpMembersReadOne',
+																	'hpMembersReadOther'
+															  ),
+														{
+															count: readers.othersRead
+														}
+													)}
 												</CaptionText>
 												<CaptionText color={theme.colors.faintText} style={styles.rowSub}>
-													{t('hpReaderLine', {
-														day: reader.portion,
-														portions: text.portionsLabel(reader)
-													})}
-												</CaptionText>
-											</View>
-											<View style={[styles.readerChip, { backgroundColor: chip.background }]}>
-												<CaptionText
-													color={chip.foreground}
-													style={styles.smallStrong}
-													weight='semibold'
-												>
-													{chip.label}
+													{t('hpNamesHiddenShort')}
 												</CaptionText>
 											</View>
 										</View>
-									);
-								})}
-								{/* Names hidden from you: rows of "Bir üye" would say nothing, so the rest is a count. */}
-								{namesHidden && readers.othersRead > 0 ? (
-									<View
-										style={[
-											styles.linkRow,
-											{
+									) : null}
+									{readers.hasMore && !isPicking ? (
+										<NavRow
+											label={t('hpSeeAll')}
+											meta={
+												readers.waiting > 0
+													? t('hpFilterWaiting', { count: readers.waiting })
+													: undefined
+											}
+											onPress={openReaders}
+											style={{
 												borderTopColor: theme.colors.divider,
 												borderTopWidth: StyleSheet.hairlineWidth
-											}
-										]}
-									>
+											}}
+										/>
+									) : null}
+									{/* S5: the first day has no yesterday yet. */}
+									{isFirstDay && !isGroupDone ? (
 										<View
 											style={[
-												styles.readerAvatar,
-												{ backgroundColor: theme.colors.segmentTrack }
+												styles.linkRow,
+												{
+													borderTopColor: theme.colors.divider,
+													borderTopWidth: StyleSheet.hairlineWidth
+												}
 											]}
 										>
-											<Icon
-												color={theme.colors.faintText}
-												name='lock'
-												size={13}
-												strokeWidth={1.8}
-											/>
-										</View>
-										<View style={styles.flex}>
-											<CaptionText style={styles.rowTitle} weight='semibold'>
-												{t(
-													// "3 üye daha okudu" under your own row; without one (no plan yet), "3 üye okudu".
-													readers.rows.length > 0
-														? pluralKey(
-																language,
-																readers.othersRead,
-																'hpOthersReadOne',
-																'hpOthersReadOther'
-														  )
-														: pluralKey(
-																language,
-																readers.othersRead,
-																'hpMembersReadOne',
-																'hpMembersReadOther'
-														  ),
-													{
-														count: readers.othersRead
-													}
-												)}
-											</CaptionText>
-											<CaptionText color={theme.colors.faintText} style={styles.rowSub}>
-												{t('hpNamesHiddenShort')}
-											</CaptionText>
-										</View>
-									</View>
-								) : null}
-								{readers.hasMore && !isPicking ? (
-									<NavRow
-										label={t('hpSeeAll')}
-										meta={
-											readers.waiting > 0
-												? t('hpFilterWaiting', { count: readers.waiting })
-												: undefined
-										}
-										onPress={openReaders}
-										style={{
-											borderTopColor: theme.colors.divider,
-											borderTopWidth: StyleSheet.hairlineWidth
-										}}
-									/>
-								) : null}
-								{/* S5: the first day has no yesterday yet. */}
-								{isFirstDay && !isGroupDone ? (
-									<View
-										style={[
-											styles.linkRow,
-											{
-												borderTopColor: theme.colors.divider,
-												borderTopWidth: StyleSheet.hairlineWidth
-											}
-										]}
-									>
-										<View
-											style={[styles.smallBadge, { backgroundColor: theme.colors.segmentTrack }]}
-										>
-											<Icon
-												color={theme.colors.faintText}
-												name='minus'
-												size={14}
-												strokeWidth={1.8}
-											/>
-										</View>
-										<CaptionText
-											color={theme.colors.subtext}
-											style={[styles.flex, styles.smallStrong]}
-										>
-											{t('hpFirstDayNote')}
-										</CaptionText>
-									</View>
-								) : null}
-								{/* Not while choosing a plan (S1) or out of the order (S3): yesterday is a member's view. */}
-								{data.previousDay && !isPicking && !removed ? (
-									<View
-										style={[
-											styles.linkRow,
-											{
-												borderTopColor: theme.colors.divider,
-												borderTopWidth: StyleSheet.hairlineWidth
-											}
-										]}
-									>
-										<View
-											style={[styles.smallBadge, { backgroundColor: theme.colors.missedSurface }]}
-										>
-											<Typography
-												color={theme.colors.missed}
-												style={styles.smallBadgeLabel}
-												variant='title'
+											<View
+												style={[
+													styles.smallBadge,
+													{ backgroundColor: theme.colors.segmentTrack }
+												]}
 											>
-												{unreadPortionCount(data.previousDay.coveredSpans)}
-											</Typography>
+												<Icon
+													color={theme.colors.faintText}
+													name='minus'
+													size={14}
+													strokeWidth={1.8}
+												/>
+											</View>
+											<CaptionText
+												color={theme.colors.subtext}
+												style={[styles.flex, styles.smallStrong]}
+											>
+												{t('hpFirstDayNote')}
+											</CaptionText>
 										</View>
-										<CaptionText style={[styles.flex, styles.smallStrong]} weight='semibold'>
-											{t('hpYesterdayUnread')}
-										</CaptionText>
-									</View>
-								) : null}
-							</CardSurface>
-							<View style={styles.groupCardGap}>{roundsCard}</View>
+									) : null}
+									{/* Not while choosing a plan (S1) or out of the order (S3): yesterday is a member's view. */}
+									{data.previousDay && !isPicking && !removed ? (
+										<View
+											style={[
+												styles.linkRow,
+												{
+													borderTopColor: theme.colors.divider,
+													borderTopWidth: StyleSheet.hairlineWidth
+												}
+											]}
+										>
+											<View
+												style={[
+													styles.smallBadge,
+													{ backgroundColor: theme.colors.missedSurface }
+												]}
+											>
+												<Typography
+													color={theme.colors.missed}
+													style={styles.smallBadgeLabel}
+													variant='title'
+												>
+													{unreadPortionCount(data.previousDay.coveredSpans)}
+												</Typography>
+											</View>
+											<CaptionText style={[styles.flex, styles.smallStrong]} weight='semibold'>
+												{t('hpYesterdayUnread')}
+											</CaptionText>
+										</View>
+									) : null}
+								</CardSurface>
+							</HintTarget>
+							<HintTarget id='planRounds' style={styles.roundsCardSlot}>
+								{roundsCard}
+							</HintTarget>
 						</>
 					) : group.kind !== 'HATIM' ? (
 						// A Kur'an day's cüz marked from a mushaf count too; the Hizb and the Cevşen count the app's.
@@ -2031,7 +2090,9 @@ const styles = StyleSheet.create({
 	deleteRow: { alignItems: 'center', flexDirection: 'row', gap: 12, paddingHorizontal: 14, paddingVertical: 12 },
 	deleteBadge: { alignItems: 'center', borderRadius: 9, height: 30, justifyContent: 'center', width: 30 },
 	// The rounds card; 10 under the coverage card in "Grup ilerlemesi".
-	groupCardGap: { marginTop: 10 },
+	// The rounds card's slot: 10 under the readers, a section's 22 under itself — on the slot, so a
+	// hint's frame is the card alone.
+	roundsCardSlot: { marginBottom: 22, marginTop: 10 },
 	statsRow: { flexDirection: 'row' },
 	statCell: { flex: 1, paddingHorizontal: 16, paddingVertical: 14 },
 	statCellDivided: { borderRightWidth: StyleSheet.hairlineWidth },
@@ -2064,7 +2125,7 @@ const styles = StyleSheet.create({
 	rowTitle: { fontSize: 12.5 },
 	rowSub: { fontSize: 11, marginTop: 2 },
 	// Reading ahead: the next day and how far ahead, one section like the done row.
-	aheadSection: { borderRadius: 16, marginBottom: 10, overflow: 'hidden' },
+	aheadSection: { borderRadius: 16, overflow: 'hidden' },
 	aheadOfferRow: { alignItems: 'center', flexDirection: 'row', gap: 12, paddingHorizontal: 14, paddingVertical: 12 },
 	aheadEyebrow: { paddingHorizontal: 14, paddingTop: 12 },
 	aheadNavRow: { paddingHorizontal: 14, paddingVertical: 12 },

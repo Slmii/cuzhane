@@ -1,7 +1,7 @@
 import { NotificationOrchestrator } from '@/components/NotificationOrchestrator/NotificationOrchestrator.component';
-import { TourProvider } from '@/components/Tour/Tour.context';
-import { TourBlocker } from '@/components/Tour/TourBlocker.component';
-import { TourOverlay } from '@/components/Tour/TourOverlay.component';
+import { HintBlocker } from '@/components/Hints/HintBlocker.component';
+import { HintOverlay } from '@/components/Hints/HintOverlay.component';
+import { HintsProvider } from '@/components/Hints/Hints.context';
 import { DestructiveDialog } from '@/components/ui/DestructiveDialog/DestructiveDialog.component';
 import { ClerkProvider } from '@/lib/context/ClerkProvider.context';
 import { useAppFocusSync } from '@/lib/hooks/useAppFocusSync';
@@ -132,21 +132,21 @@ const AppContainer = () => {
 			 * each navigator find a context already in place and step aside.
 			 */}
 			<SafeAreaProvider initialMetrics={initialWindowMetrics}>
-				{/* The tour waits for the splash — see `TourProvider`. */}
-				<TourProvider isBlocked={isSplashVisible}>
+				{/* The hints wait for the splash — see `HintsProvider`. */}
+				<HintsProvider isSplashVisible={isSplashVisible}>
 					<KeyboardProvider>
 						<NavigationContainer linking={linking} ref={navigationRef} theme={navigationTheme}>
 							<AppStatusBar isSplashVisible={isSplashVisible} />
-							{/* Inert while the tour is running — see `TourBlocker`. */}
-							<TourBlocker>
+							{/* Inert while a hint's card is up — see `HintBlocker`. */}
+							<HintBlocker>
 								<AppNavigator />
-							</TourBlocker>
+							</HintBlocker>
 							{/* Renders nothing until something calls `confirmDestructive`, and nothing at
 						    all off Android — iOS takes `Alert.alert`. Mounted here because Android
 						    presents it in a window of its own, which is what lets the two callers
 						    that live inside bottom sheets reach it from the root. */}
 							<DestructiveDialog />
-							<TourOverlay />
+							<HintOverlay />
 							<NotificationOrchestrator />
 							{/*
 							 * Over the app rather than in front of it: the navigator mounts and starts
@@ -156,7 +156,7 @@ const AppContainer = () => {
 							{isSplashVisible ? <AnimatedSplash /> : null}
 						</NavigationContainer>
 					</KeyboardProvider>
-				</TourProvider>
+				</HintsProvider>
 			</SafeAreaProvider>
 		</GestureHandlerRootView>
 	);

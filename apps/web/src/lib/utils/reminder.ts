@@ -1,5 +1,5 @@
 import type { StringKey } from '@/lib/i18n/strings';
-import type { GroupSummary } from '@/lib/types/domain';
+import { isRepeatingCycle, type GroupSummary } from '@/lib/types/domain';
 
 export type ReminderTotals = {
 	/**
@@ -21,24 +21,6 @@ export type ReminderTotals = {
 };
 
 /**
- * Whether a `HH:mm` reminder first arrives tomorrow rather than today.
- *
- * The OS repeats a daily reminder by matching hour and minute against the next date
- * *strictly after* now, so a time that has already been reached today is scheduled for
- * tomorrow. Nothing about that is visible — a reader who sets 09:29 at 09:29 sees a
- * reminder that never comes and reasonably calls it broken.
- *
- * Equal counts as tomorrow: the write is debounced and round-trips the server, so by the
- * time the OS is told, the minute has always ticked past.
- */
-export const isNextReminderTomorrow = (time: string, now: Date) => {
-	const [hour, minute] = time.split(':').map(Number);
-	const minutesOfDay = (hour || 0) * 60 + (minute || 0);
-
-	return minutesOfDay <= now.getHours() * 60 + now.getMinutes();
-};
-
-/**
  * What the daily reminder is about: the whole day, not one group.
  *
  * Shared by the scheduler and the Reminders screen's preview, so what the preview shows is
@@ -47,7 +29,11 @@ export const isNextReminderTomorrow = (time: string, now: Date) => {
  *
  * A group with no share today is not "done", it is not participating — it never counts.
  */
-export const reminderTotals = (groups: GroupSummary[] | undefined): ReminderTotals => {
+export const reminderTotals = (
+	groups: GroupSummary[] | undefined,
+	/** Which books' groups the reader is reminded about — each daily reminder has its own switch. */
+	books: { cevsen: boolean; hizb: boolean } = { cevsen: true, hizb: true }
+): ReminderTotals => {
 	/*
 	 * **Hatim groups are deliberately left out.**
 	 *
@@ -68,6 +54,7 @@ export const reminderTotals = (groups: GroupSummary[] | undefined): ReminderTota
 	const running = (groups ?? []).filter(
 		group =>
 			group.kind !== 'HATIM' &&
+			(group.kind === 'HIZB' ? books.hizb : books.cevsen) &&
 			group.status === 'RUNNING' &&
 			(group.myBabNumbers.length > 0 || group.hizbToday != null)
 	);
@@ -128,4 +115,97 @@ export const reminderBody = ({ pendingGroups, unread, unreadBabs, unreadPortions
 	return pendingGroups > 1
 		? { key: 'notifBodyGroups', values: { groups: pendingGroups, unread } }
 		: { key: unread === 1 ? 'notifBodyOne' : 'notifBody', values: { unread } };
+};
+
+/** A daily reminder's book: each has its own switch and its own time. */
+export type ReminderBook = 'cevsen' | 'hizb';
+
+/** One dated reminder, and what it says. */
+export type PlannedReminder = { at: Date; body: ReminderBody };
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * How far ahead reminders are written: the app replaces them every time it opens, so a reader who
+ * stays away this long stops hearing until they come back. Thirty days for two books is 60 pending
+ * notifications — under iOS's limit of 64, and the reminders are the only ones this app schedules.
+ */
+export const REMINDER_DAYS_AHEAD = 30;
+
+/**
+ * The reminders a book should send over the coming days — **only on a day something is unread**.
+ *
+ * A local notification is written in advance and cannot look at the shelf when it fires, so the
+ * days are worked out now, from what each group owes and when its next reading opens (a plan's
+ * `nextDayAt`, a seat group's `roundEndsAt`):
+ *
+ * - Before that moment the group owes what it owes now: nothing, once its share is read.
+ * - From that moment a new reading has opened, which is owed — unless it is a plan day already
+ *   read ahead, a flexible group (which hands out no share of its own), or a one-off that ended.
+ *
+ * A day whose reminder time finds nothing owed is left out. Today's says the actual count; a
+ * later day's does not know it yet and says the share is waiting (`notifBodyIdle`).
+ */
+export const plannedReminders = (
+	groups: GroupSummary[] | undefined,
+	book: ReminderBook,
+	time: string,
+	now: Date,
+	daysAhead = REMINDER_DAYS_AHEAD
+): PlannedReminder[] => {
+	const books = { cevsen: book === 'cevsen', hizb: book === 'hizb' };
+	const participating = (groups ?? []).filter(group => reminderTotals([group], books).participatingGroups > 0);
+
+	if (participating.length === 0) {
+		return [];
+	}
+
+	const [hour = 0, minute = 0] = time.split(':').map(Number);
+	const planned: PlannedReminder[] = [];
+
+	for (let day = 0; day < daysAhead; day++) {
+		const at = new Date(now.getFullYear(), now.getMonth(), now.getDate() + day, hour, minute);
+
+		if (at.getTime() <= now.getTime()) {
+			continue;
+		}
+
+		// Whether each group owes something at `at`, and whether that is still today's known count.
+		const owing = participating.flatMap((group): { group: GroupSummary; isSameReading: boolean }[] => {
+			const nextOpensAt = group.nextDayAt ?? group.roundEndsAt;
+			const isSameReading = nextOpensAt === null || at.getTime() < new Date(nextOpensAt).getTime();
+
+			if (isSameReading) {
+				return reminderTotals([group], books).unread > 0 ? [{ group, isSameReading }] : [];
+			}
+
+			// A plan's next days are owed — except those already read ahead, which follow today in order.
+			if (group.hizbToday != null) {
+				const dayAfterToday = Math.floor((at.getTime() - new Date(nextOpensAt).getTime()) / DAY_MS) + 1;
+
+				return dayAfterToday > (group.hizbAheadDays ?? 0) ? [{ group, isSameReading }] : [];
+			}
+
+			// A repeating group's next round brings a new share. A flexible one hands out none — its
+			// claims go with the round — and a one-off has ended.
+			return group.splitMode !== 'FLEXIBLE' && isRepeatingCycle(group.cycle) ? [{ group, isSameReading }] : [];
+		});
+
+		if (owing.length === 0) {
+			continue;
+		}
+
+		const body = owing.every(entry => entry.isSameReading)
+			? reminderBody(
+					reminderTotals(
+						owing.map(entry => entry.group),
+						books
+					)
+			  )
+			: { key: 'notifBodyIdle' as const };
+
+		planned.push({ at, body });
+	}
+
+	return planned;
 };

@@ -5,17 +5,17 @@
  * not. Four of them, and they hold for every release rather than just the one that introduced
  * the feature:
  *
- * 1. A reader who has not seen the tour gets the tour — `wait`.
- * 2. When that tour ends, the sheet follows it — `show`.
- * 3. A reader who saw the tour long ago gets the sheet straight away — `show`.
- * 4. Somebody opening the app for the first time gets the tour and nothing else — `record`.
+ * 1. A reader whose welcome is still to come gets the welcome first — `wait`.
+ * 2. A hint's card on screen goes first too, and the sheet follows it — `wait`, then `show`.
+ * 3. A reader who saw the welcome long ago gets the sheet straight away — `show`.
+ * 4. Somebody opening the app for the first time gets the welcome and nothing else — `record`.
  *
  * `record` and `show` both store the version; they differ only in whether anything is displayed.
  * That is what keeps a newcomer from being shown the notes for the release they arrived on, while
  * still making them an ordinary reader — told about every release after it — from the next launch.
  */
 export type WhatsNewDecision =
-	/** Not yet: the tour owns the screen, or the answer is not known. Nothing is recorded. */
+	/** Not yet: the welcome or a hint owns the screen, or the answer is not known. Nothing is recorded. */
 	| 'wait'
 	/** Mark this release as seen without showing it. */
 	| 'record'
@@ -23,21 +23,22 @@ export type WhatsNewDecision =
 	| 'show';
 
 export type WhatsNewInput = {
-	/** `undefined` while the settings query is still in flight — not the same as `false`. */
-	hasSeenTour: boolean | undefined;
-	/** The tour is on screen right now, closing card included. */
-	isTourActive: boolean;
 	/**
-	 * Something else owns the screen — today, the animated splash. The tour context's own
-	 * `isBlocked`, and it is in here for the reason that flag exists at all: this sheet is
-	 * presented by UIKit above everything, splash included, so without it the notes appear over
-	 * a screen the reader has not arrived at yet.
+	 * The welcome hint is still to come for this account. `undefined` while the hints are still
+	 * in flight — not the same as `false`.
+	 */
+	isWelcomePending: boolean | undefined;
+	/** A hint's card is on screen right now. */
+	isHintShowing: boolean;
+	/**
+	 * Something else owns the screen — today, the animated splash. It is in here because this
+	 * sheet is presented by UIKit above everything, splash included, so without it the notes
+	 * appear over a screen the reader has not arrived at yet.
 	 */
 	isBlocked: boolean;
 	/**
 	 * Ana sayfa is the screen this is decided on, and **mounted is not the same as looked at**:
-	 * the tabs are not lazy, so Home mounts on launch whatever tab the app opens onto.
-	 * `useTourAutoStart` carries the same guard and its docblock names the case — a scanned
+	 * the tabs are not lazy, so Home mounts on launch whatever tab the app opens onto — a scanned
 	 * invite lands on Gruplarım with the join sheet open, and a second sheet in that frame is
 	 * one iOS refuses to present. The loser vanishes silently, and the version has already been
 	 * recorded, so the notes never come back.
@@ -57,24 +58,24 @@ export type WhatsNewInput = {
 
 export const whatsNewDecision = ({
 	currentReleaseId,
-	hasSeenTour,
 	isBlocked,
 	isFocused,
+	isHintShowing,
 	isNewcomer,
-	isTourActive,
+	isWelcomePending,
 	lastSeenReleaseId
 }: WhatsNewInput): WhatsNewDecision => {
-	if (hasSeenTour === undefined || isBlocked || !isFocused) {
+	if (isWelcomePending === undefined || isBlocked || !isFocused) {
 		return 'wait';
 	}
 
 	/*
-	 * A newcomer is settled before the tour is looked at, and deliberately: theirs is about to
-	 * run and would defer this for the whole of their first session, which is precisely the
-	 * session the sheet must not appear in. Recording now also means the tour finishing does not
+	 * A newcomer is settled before the welcome is looked at, and deliberately: theirs is about to
+	 * show and would defer this for the whole of their first session, which is precisely the
+	 * session the sheet must not appear in. Recording now also means the welcome ending does not
 	 * then spring it on them.
 	 */
-	if (!isNewcomer && (!hasSeenTour || isTourActive)) {
+	if (!isNewcomer && (isWelcomePending || isHintShowing)) {
 		return 'wait';
 	}
 

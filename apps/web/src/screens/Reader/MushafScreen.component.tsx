@@ -1,4 +1,4 @@
-import { useLiveHintAutoStart } from '@/components/Tour/useLiveHintAutoStart';
+import { useHintScreen } from '@/components/Hints/useHintScreen';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
 import { CaptionText, EyebrowText, TitleText } from '@/components/ui/Typography/Typography.component';
@@ -94,8 +94,8 @@ export const MushafScreen = ({ navigation, route }: Props) => {
 	const { theme } = useThemeContext();
 	const tabBarOffset = useContext(TabBarOffsetContext);
 	const settingsQuery = useGetUserSettings();
-	// The first time this phone opens a free reader, a card at "Birlikte oku" — see the hook.
-	useLiveHintAutoStart('QURAN');
+	// The first time this account opens a free reader, a hint at "Birlikte oku".
+	useHintScreen('freeReader');
 	/*
 	 * **A follower reads the reader's edition for the session**, without saving it: a page number
 	 * means the same verses only within one edition, and on Hüsrev's fixed-shape pages the reader's

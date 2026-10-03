@@ -1,5 +1,5 @@
 import { wrapperApi } from '@/api/wrapper.api';
-import { GroupBab, PartRepetitions } from '@/lib/types/domain';
+import { GroupBab, PartRepetitions, RoundCounters } from '@/lib/types/domain';
 
 export type SetBabReadInput = {
 	groupId: string;
@@ -47,3 +47,21 @@ export const setRepetitions = async ({ groupId, babNumber, count, isOpenRound, r
 		method: 'PUT',
 		body: JSON.stringify({ count, isOpenRound, roundIndex })
 	});
+
+export type SetRoundCountersInput = {
+	groupId: string;
+	/** Absolute, like Sekine's count; only the fields given change. */
+	delailCount?: number;
+	istighfarCount?: number;
+	istighfarTarget?: number;
+	/** The round counted in — and, with `isOpenRound`, a 409 once it has closed. */
+	roundIndex: number;
+	isOpenRound?: boolean;
+};
+
+/** The caller's Delâil and istighfar counts in a seat-divided Hizb group, for a named round. */
+export const getRoundCounters = async (groupId: string, roundIndex: number) =>
+	wrapperApi<RoundCounters>(`/babs/${groupId}/counters?roundIndex=${roundIndex}`, { method: 'GET' });
+
+export const setRoundCounters = async ({ groupId, ...body }: SetRoundCountersInput) =>
+	wrapperApi<RoundCounters>(`/babs/${groupId}/counters`, { method: 'PUT', body: JSON.stringify(body) });

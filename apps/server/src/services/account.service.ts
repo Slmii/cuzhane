@@ -79,7 +79,10 @@ export const deleteAccountForUser = async (userId: string): Promise<{ success: t
 		await tx.groupWaitlistEntry.deleteMany({ where: { userId: normalizedUserId } });
 		// Sekine counts in groups they merely joined; those they owned went with the group.
 		await tx.groupPartRepetition.deleteMany({ where: { userId: normalizedUserId } });
+		// And their Delâil and istighfar counts there.
+		await tx.groupRoundCounter.deleteMany({ where: { userId: normalizedUserId } });
 		await tx.pushToken.deleteMany({ where: { userId: normalizedUserId } });
+		await tx.hintSeen.deleteMany({ where: { userId: normalizedUserId } });
 		/*
 		 * The inbox goes too. `Notification` has no foreign key on `userId` — there is no user
 		 * table, the id is Clerk's — and its group relation is `SetNull` so history does not gap

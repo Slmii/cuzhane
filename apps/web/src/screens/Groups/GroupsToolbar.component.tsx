@@ -1,4 +1,4 @@
-import { TourTarget } from '@/components/Tour/TourTarget.component';
+import { HintTarget } from '@/components/Hints/HintTarget.component';
 import { MenuAction } from '@/components/ui/MenuAction/MenuAction.component';
 import { useGetGroups } from '@/lib/hooks/useGroup';
 import { useTranslation } from '@/lib/i18n/I18n.context';
@@ -50,10 +50,10 @@ export const GroupsToolbar = () => {
 			{/* Narrowing first, then adding, then the account at the end — the order the shelf is read in. */}
 			<GroupBrowseMenu />
 			{/*
-			 * T3 of the tour: both ways into a group — a new one, or a private one by its code — are
+			 * Gruplarım's hint: both ways into a group — a new one, or a private one by its code — are
 			 * here. A disc around a disc: the 44pt glyph and the spotlight's 6pt either side.
 			 */}
-			<TourTarget id='newGroup' radius={28}>
+			<HintTarget id='newGroup' radius={28}>
 				<MenuAction
 					accessibilityLabel={t('addGroup')}
 					assetName='yeni-new'
@@ -85,7 +85,7 @@ export const GroupsToolbar = () => {
 					// toolbar glyphs, which are monochrome. A sage + read as a coloured outlier.
 					tone='surface'
 				/>
-			</TourTarget>
+			</HintTarget>
 			<TrailingCornerAction />
 		</View>
 	);

@@ -45,8 +45,8 @@ const privacyTr: LegalPage = {
 			bullets: [
 				'Hesabın: e-posta adresin, adın ve yüklediysen profil fotoğrafın.',
 				'Grupların: kurduğun veya katıldığın grupların adları, niyet metni, üyeliğin ve grup içindeki sıran.',
-				'Okuma ilerlemen: hangi babı hangi turda okuduğun, havuzdan üstlendiğin bablar ve bir grubun cüzünde ya da Hizb bölümünde kaldığın sayfa ile kaç sayfa okuduğun.',
-				'Ayarların: arayüz dili, tema, hatırlatma saati, bildirim tercihlerin ve okuma ekranının yazı tipi ile boyutu.',
+				'Okuma ilerlemen: hangi babı hangi turda okuduğun, havuzdan üstlendiğin bablar, bir grubun cüzünde ya da Hizb bölümünde kaldığın sayfa ile kaç sayfa okuduğun, ve Hizbü’l-Hakaik’te sayarak okunan kısımları (Sekine, Delâil, istiğfar) her turda kaç kez okuduğun.',
+				'Ayarların: arayüz dili, tema, günlük hatırlatmaların saatleri (Cevşen ve Hizbü’l-Hakaik için ayrı), bildirim tercihlerin ve okuma ekranının yazı tipi ile boyutu; ayrıca hangi ipuçlarını zaten gördüğün.',
 				'Bildirim kutun: gruplarında olan bitenin kaydı — olayın türü, grubun adı ve ilgili üyenin görünen adı.',
 				'Bildirim için cihaz anahtarın (push token).',
 				'Uygulamadan geri bildirim gönderdiysen: mesajın, konusu, hesabının e-posta adresi, cihazının platform, sürüm ve dil bilgisi ve bir hatayı bulabilmemiz için uygulamada son açtığın en fazla 30 ekran (ekran adları ve bab numarası gibi sayılar; isim ya da metin yok).'
@@ -127,8 +127,8 @@ const privacyEn: LegalPage = {
 			bullets: [
 				'Your account: email address, name, and a profile photo if you upload one.',
 				'Your groups: the names of groups you create or join, their intention text, your membership and your seat within the group.',
-				'Your reading progress: which bab you read in which round, any babs you claimed from the pool, and in a group’s cüz or Hizb portion the page you stopped on and how many pages you have read.',
-				'Your settings: interface language, theme, reminder time, your notification preferences, and the reader’s typeface and size.',
+				'Your reading progress: which bab you read in which round, any babs you claimed from the pool, in a group’s cüz or Hizb portion the page you stopped on and how many pages you have read, and how many times you have read the counted passages of the Hizbü’l-Hakaik (Sekine, Delâil, istighfar) in each round.',
+				'Your settings: interface language, theme, the times of your daily reminders (one for the Cevşen, one for the Hizbü’l-Hakaik), your notification preferences, and the reader’s typeface and size; also which tips you have already seen.',
 				'Your notification inbox: a record of what happened in your groups — the kind of event, the group’s name, and the display name of the member it concerns.',
 				'A device key for notifications (a push token).',
 				'If you send feedback from the app: your message, its topic, your account email, your device’s platform, version and language, and — so we can trace a bug — the last 30 or fewer screens you opened in the app (screen names and numbers such as a bab’s; no names or text).'
@@ -209,8 +209,8 @@ const privacyNl: LegalPage = {
 			bullets: [
 				'Je account: e-mailadres, naam en een profielfoto als je die uploadt.',
 				'Je groepen: de namen van groepen die je maakt of waaraan je meedoet, de intentietekst, je lidmaatschap en je plaats in de groep.',
-				'Je leesvoortgang: welke bab je in welke ronde las, welke babs je uit de pool nam, en in een cüz of Hizb-deel van een groep de bladzijde waar je bleef en hoeveel bladzijden je las.',
-				'Je instellingen: taal, thema, herinneringstijd, je meldingsvoorkeuren, en het lettertype en de lettergrootte van het leesscherm.',
+				'Je leesvoortgang: welke bab je in welke ronde las, welke babs je uit de pool nam, in een cüz of Hizb-deel van een groep de bladzijde waar je bleef en hoeveel bladzijden je las, en hoe vaak je de getelde passages van de Hizbü’l-Hakaik (Sekine, Delâil, istighfar) per ronde hebt gelezen.',
+				'Je instellingen: taal, thema, de tijden van je dagelijkse herinneringen (één voor de Cevşen, één voor de Hizbü’l-Hakaik), je meldingsvoorkeuren, en het lettertype en de lettergrootte van het leesscherm; ook welke tips je al hebt gezien.',
 				'Je meldingenoverzicht: een verslag van wat er in je groepen gebeurde — het soort gebeurtenis, de naam van de groep en de weergavenaam van het betrokken lid.',
 				'Een apparaatsleutel voor meldingen (push token).',
 				'Als je feedback stuurt vanuit de app: je bericht, het onderwerp, je e-mailadres, het platform, de versie en de taal van je toestel en — zodat we een fout kunnen terugvinden — de laatste hoogstens 30 schermen die je in de app opende (schermnamen en getallen zoals een babnummer; geen namen of tekst).'
@@ -432,7 +432,7 @@ const deleteAccountTr: LegalPage = {
 				'Hesabın: e-posta adresin, adın ve varsa profil fotoğrafın.',
 				'Kurduğun gruplar — üyeleri, panoları ve davet kodlarıyla birlikte.',
 				'Katıldığın gruplardaki üyeliklerin ve üstlendiğin bablar.',
-				'Ayarların: dil, tema, hatırlatma saati.',
+				'Ayarların: dil, tema, hatırlatma saatleri ve hangi ipuçlarını gördüğün.',
 				'Bildirim için saklanan cihaz anahtarların.',
 				'Uygulamadan gönderdiğin geri bildirim mesajları.'
 			]
@@ -490,7 +490,7 @@ const deleteAccountEn: LegalPage = {
 				'Your account: your email address, your name, and your profile photo if you set one.',
 				'Groups you created — along with their members, boards and invite codes.',
 				'Your memberships in groups you joined, and any babs you had claimed.',
-				'Your settings: language, theme, reminder time.',
+				'Your settings: language, theme, reminder times, and which tips you have already seen.',
 				'The device keys stored for notifications.',
 				'Feedback messages you sent from the app.'
 			]
@@ -547,7 +547,7 @@ const deleteAccountNl: LegalPage = {
 				'Je account: je e-mailadres, je naam en je profielfoto als je die hebt ingesteld.',
 				'Groepen die je zelf hebt gemaakt — inclusief hun leden, borden en uitnodigingscodes.',
 				'Je lidmaatschappen in groepen waaraan je deelnam, en babs die je had genomen.',
-				'Je instellingen: taal, thema, herinneringstijd.',
+				'Je instellingen: taal, thema, herinneringstijden en welke tips je al hebt gezien.',
 				'De apparaatsleutels die voor meldingen worden bewaard.',
 				'Feedbackberichten die je vanuit de app hebt gestuurd.'
 			]

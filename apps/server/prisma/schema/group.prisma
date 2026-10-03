@@ -135,6 +135,7 @@ model Group {
     roundNotices  RoundCompleteNotice[]
     notifications Notification[]
     repetitions   GroupPartRepetition[]
+    roundCounters GroupRoundCounter[]
     readingPlaces ReadingPlace[]
 
     @@index([ownerUserId])

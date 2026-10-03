@@ -87,6 +87,8 @@ export type GroupSummary = {
 	hizbReaders?: { read: number; total: number };
 	/** A personal-plan Hizb's next reading day: the next local midnight in the group's zone. */
 	nextDayAt?: string;
+	/** How many days straight after today the viewer has already read ahead on their plan. */
+	hizbAheadDays?: number;
 	/** The viewer was taken out of a personal-plan Hizb's order by the inactivity rule. */
 	hizbRemoved?: boolean;
 	/** The rule's length when it removed the viewer; null unless `hizbRemoved`. */

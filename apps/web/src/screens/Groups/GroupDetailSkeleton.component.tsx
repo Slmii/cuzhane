@@ -21,13 +21,6 @@ const BOARD_CELL_RADIUS = 6;
  * okudun", "senin", "başkaları okudu", "başkasında", "havuz" — so the legend wraps where it will.
  */
 const BAB_LEGEND_LABEL_WIDTHS = [52, 28, 76, 52, 30];
-/**
- * A Cevşen share in a small group is five babs, and the screen caps its open panel at 310 —
- * four and most of a fifth of `BabRow`'s 63. Five rows under the same cap stand in for any share
- * of five or more.
- */
-const CEVSEN_ROW_COUNT = 5;
-const MY_BABS_MAX_HEIGHT = 310;
 /** HZ1's open panel shows a share of two; the bones do the same. */
 const HIZB_ROW_COUNT = 2;
 
@@ -44,7 +37,7 @@ type Props = {
  *
  * What the group screen draws for a running Cevşen group, in its order: the heading with its
  * cadence and kind chips over the dedication, the countdown card, then two headed cards. "Benim
- * ilerlemem" holds the share panel — open, as the screen opens it, ringed in the accent — and the
+ * ilerlemem" holds the share panel — closed, as the screen opens it, ringed in the accent — and the
  * slim "Senin ilerlemen" banner under it. "Grubun ilerlemesi" holds the "Geçen tur" row on the
  * page's own colour and then the hundred, bare inside the card as the screen draws it.
  *
@@ -109,13 +102,29 @@ export const GroupDetailSkeleton = ({ kind = 'CEVSEN' }: Props) => {
 	);
 
 	/*
-	 * The share panel, open: the sage header over its rows, ringed in the accent at 2pt and in
-	 * glass, as the screen draws it open. The header's hairline is the one it draws while open.
+	 * The share panel as the screen first draws it. A Cevşen's starts closed: the sage header alone,
+	 * the whole card in its colour, no glass and no hairline. A Hizb's `HizbSharePanel` is open: the
+	 * header over its rows, ringed in the accent at 2pt and in glass.
 	 */
 	const sharePanel = (
-		<CardSurface isFlush style={{ borderColor: theme.colors.accent, borderWidth: 2 }}>
+		<CardSurface
+			hasGlassSurface={isHizb}
+			isFlush
+			style={{
+				borderColor: theme.colors.accent,
+				borderWidth: 2,
+				...(isHizb ? null : { backgroundColor: theme.colors.accentSoft })
+			}}
+		>
 			<View
-				style={[styles.shareHeader, { backgroundColor: theme.colors.accentSoft, borderBottomColor: divider }]}
+				style={[
+					styles.shareHeader,
+					{
+						backgroundColor: theme.colors.accentSoft,
+						borderBottomColor: divider,
+						...(isHizb ? null : { borderBottomWidth: 0 })
+					}
+				]}
 			>
 				{/* A slice such as "21–25" — wider than the real badge's 38pt minimum, which only "1–5" fits. */}
 				<View style={[styles.shareBadge, accentInk(0.22)]} />
@@ -144,31 +153,31 @@ export const GroupDetailSkeleton = ({ kind = 'CEVSEN' }: Props) => {
 					<View style={[styles.shareChevron, accentInk(0.14)]} />
 				</View>
 			</View>
-			<View style={isHizb ? null : styles.shareBody}>
-				{Array.from({ length: isHizb ? HIZB_ROW_COUNT : CEVSEN_ROW_COUNT }, (_, index) => (
-					// `BabRow`: the checkbox, a title over its line or two, and "Oku".
-					<View key={index} style={[styles.shareRow, { borderBottomColor: divider }]}>
-						<Bone height={26} radius={9} width={26} />
-						<View style={styles.shareRowCopy}>
-							<View style={styles.rowTitleLine}>
-								<Bone height={9} radius={4.5} width={isHizb ? '64%' : 52} />
-							</View>
-							{/* One caption under the title — a Hizb portion's description runs to two lines. */}
-							<View>
-								<View style={styles.captionLine}>
-									<Bone height={8} radius={4} tone='soft' width={isHizb ? '92%' : 54} />
+			{isHizb ? (
+				<View>
+					{Array.from({ length: HIZB_ROW_COUNT }, (_, index) => (
+						// `BabRow`: the checkbox, a title over its line or two, and "Oku".
+						<View key={index} style={[styles.shareRow, { borderBottomColor: divider }]}>
+							<Bone height={26} radius={9} width={26} />
+							<View style={styles.shareRowCopy}>
+								<View style={styles.rowTitleLine}>
+									<Bone height={9} radius={4.5} width='64%' />
 								</View>
-								{isHizb ? (
+								{/* A Hizb portion's description runs to two lines. */}
+								<View>
+									<View style={styles.captionLine}>
+										<Bone height={8} radius={4} tone='soft' width='92%' />
+									</View>
 									<View style={styles.captionLine}>
 										<Bone height={8} radius={4} tone='soft' width='56%' />
 									</View>
-								) : null}
+								</View>
 							</View>
+							<Bone height={36} radius={11} tone='soft' width={52} />
 						</View>
-						<Bone height={36} radius={11} tone='soft' width={52} />
-					</View>
-				))}
-			</View>
+					))}
+				</View>
+			) : null}
 		</CardSurface>
 	);
 
@@ -491,11 +500,6 @@ const styles = StyleSheet.create({
 		borderRadius: 12,
 		height: 38,
 		width: 48
-	},
-	// The open panel's rows, clipped at the screen's cap.
-	shareBody: {
-		height: MY_BABS_MAX_HEIGHT,
-		overflow: 'hidden'
 	},
 	shareChevron: {
 		borderRadius: 3,

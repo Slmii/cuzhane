@@ -129,6 +129,16 @@ export const feedbackRateLimit = rateLimit({
 	handler: tooManyRequestsHandler
 });
 
+/** Marking hints seen and resetting them — a few taps a minute in use, a wall against a loop. */
+export const hintsRateLimit = rateLimit({
+	windowMs: 60 * 1000,
+	limit: 60,
+	standardHeaders: 'draft-7',
+	legacyHeaders: false,
+	keyGenerator: userKey,
+	handler: tooManyRequestsHandler
+});
+
 export const cheerRateLimit = rateLimit({
 	windowMs: 60 * 1000, // 1 minute
 	limit: 30, // 30 requests per minute

@@ -1,3 +1,5 @@
+import { HintTarget } from '@/components/Hints/HintTarget.component';
+import { useHintScreen } from '@/components/Hints/useHintScreen';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { CaptionText, EyebrowText, TitleText } from '@/components/ui/Typography/Typography.component';
@@ -21,7 +23,7 @@ import { TextSizeSheet } from '@/screens/Reader/TextSizeSheet.component';
 import { textSizeSheet } from '@/screens/Reader/textSizeSheet';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useKeepAwake } from 'expo-keep-awake';
-import { useContext, useMemo, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS, useSharedValue } from 'react-native-reanimated';
 import { ScrollView, StyleSheet, View } from 'react-native';
@@ -44,6 +46,8 @@ const NO_BABS: number[] = [];
 export const CevsenPlanReader = ({ navigation, route }: Props) => {
 	// The Aa in the bar (`ReaderToolbar`) opens it through the route, as in the other readers.
 	const textSize = textSizeSheet(navigation, route.params);
+	// The group reader's hints: Aa, the strip, "Okudum".
+	useHintScreen('reader');
 
 	return (
 		<DayReader
@@ -119,6 +123,9 @@ const DayReader = ({
 	const settingsQuery = useGetUserSettings();
 	const updateSettings = useUpdateUserSettings();
 	const scroll = useRef<ScrollView>(null);
+	// Back to the top of a bab: a stable callback, so the strip's gesture — built in render — never
+	// reaches into the ref itself.
+	const scrollToTop = useCallback(() => scroll.current?.scrollTo({ animated: false, y: 0 }), []);
 	/** The invocation whose meaning is open, or null. Held here so the sheet outlives the press. */
 	const [mealInvocation, setMealInvocation] = useState<CevsenInvocation | null>(null);
 	const settings = {
@@ -130,48 +137,45 @@ const DayReader = ({
 	const faces = readerFaces(settings.readerArabicFont, settings.readerFontSize);
 	const a = query.data;
 
-	if (query.isError) {
-		return <ErrorState queries={[query]} />;
-	}
+	/*
+	 * Where a finger lifts off the strip: that bab opens — the day's own at its place, any other to
+	 * read only. Above the early returns, and left to the compiler to memoise, so the strip's gesture
+	 * (built in render) hands the worklet nothing that reaches into a ref.
+	 */
+	const { mutate: saveReading } = update;
+	/*
+	 * A lift off the strip asks for the top of the page through state, not the ref: the callback is
+	 * handed to the gesture during render, and one that reaches a ref fails the compiler's rules.
+	 * Scrolled once the new bab has drawn.
+	 */
+	const [scrollRequest, setScrollRequest] = useState(0);
 
-	if (!a || settingsQuery.isPending) {
-		return (
-			<SafeAreaView style={[styles.screen, { backgroundColor: theme.colors.background }]}>
-				<ReaderSkeleton />
-			</SafeAreaView>
-		);
-	}
+	useEffect(() => {
+		if (scrollRequest > 0) {
+			scrollToTop();
+		}
+	}, [scrollRequest, scrollToTop]);
 
-	const babs = a.units ?? planUnitsOf('CEVSEN', a.planDays, a.portion);
-	const cursor = Math.max(0, Math.min(a.bookmark, babs.length - 1));
-	const dayBab = babs[cursor] ?? 1;
-	// Any of the hundred can be read: the strip and the arrows walk them all. Only the day's own are
-	// marked with "Okudum"; the place kept is always one of them.
-	const babNumber = scrubBab ?? freeBab ?? dayBab;
-	const isInDay = babs.includes(babNumber);
-	const isLast = cursor >= babs.length - 1;
-	// Predicted in the cache (see `useUpdateHizbAssignment`), so the bab is already the new one.
-	const turnTo = (index: number) => {
-		scroll.current?.scrollTo({ animated: false, y: 0 });
-		setFreeBab(null);
-		update.mutate({ bookmark: index });
-	};
-	const goToBab = (target: number) => {
-		const index = babs.indexOf(target);
+	const commitScrub = (target: number) => {
+		setScrubBab(null);
+		setScrollRequest(current => current + 1);
 
-		if (index >= 0) {
-			turnTo(index);
+		const reading = query.data;
 
+		if (!reading) {
 			return;
 		}
 
-		scroll.current?.scrollTo({ animated: false, y: 0 });
-		setFreeBab(target);
+		const index = (reading.units ?? planUnitsOf('CEVSEN', reading.planDays, reading.portion)).indexOf(target);
+
+		if (index >= 0) {
+			setFreeBab(null);
+			saveReading({ bookmark: index });
+		} else {
+			setFreeBab(target);
+		}
 	};
-	const commitScrub = (target: number) => {
-		setScrubBab(null);
-		goToBab(target);
-	};
+
 	const trackScrub = (x: number) => {
 		'worklet';
 
@@ -206,6 +210,45 @@ const DayReader = ({
 				runOnJS(commitScrub)(Math.round(ratio * (BAB_COUNT - 1)) + 1);
 			}
 		});
+
+	if (query.isError) {
+		return <ErrorState queries={[query]} />;
+	}
+
+	if (!a || settingsQuery.isPending) {
+		return (
+			<SafeAreaView style={[styles.screen, { backgroundColor: theme.colors.background }]}>
+				<ReaderSkeleton />
+			</SafeAreaView>
+		);
+	}
+
+	const babs = a.units ?? planUnitsOf('CEVSEN', a.planDays, a.portion);
+	const cursor = Math.max(0, Math.min(a.bookmark, babs.length - 1));
+	const dayBab = babs[cursor] ?? 1;
+	// Any of the hundred can be read: the strip and the arrows walk them all. Only the day's own are
+	// marked with "Okudum"; the place kept is always one of them.
+	const babNumber = scrubBab ?? freeBab ?? dayBab;
+	const isInDay = babs.includes(babNumber);
+	const isLast = cursor >= babs.length - 1;
+	// Predicted in the cache (see `useUpdateHizbAssignment`), so the bab is already the new one.
+	const turnTo = (index: number) => {
+		scrollToTop();
+		setFreeBab(null);
+		update.mutate({ bookmark: index });
+	};
+	const goToBab = (target: number) => {
+		const index = babs.indexOf(target);
+
+		if (index >= 0) {
+			turnTo(index);
+
+			return;
+		}
+
+		scrollToTop();
+		setFreeBab(target);
+	};
 	// Only a second tap on "Okudum" while the first is out is dropped, so it can't undo itself.
 	const isMarking =
 		update.isPending && (update.variables?.read !== undefined || update.variables?.bookPortions !== undefined);
@@ -232,7 +275,7 @@ const DayReader = ({
 		const isTurning = !isBabRead && !isLast;
 
 		if (isTurning) {
-			scroll.current?.scrollTo({ animated: false, y: 0 });
+			scrollToTop();
 		}
 
 		update.mutate({ bookPortions: next, ...(isTurning ? { bookmark: cursor + 1 } : {}) });
@@ -261,7 +304,8 @@ const DayReader = ({
 				</View>
 				<CaptionText>{[text.monthDay(a.date, 'long'), text.dayLabel(a)].join(' · ')}</CaptionText>
 				<TitleText>{t('babOrdinal', { n: babNumber })}</TitleText>
-				{/* The group reader's strip of the hundred: read this round, today's babs, the rest. */}
+				{/* The group reader's strip of the hundred: read this round, today's babs, the rest. A hint
+				    points here, as in the group reader. */}
 				<GestureDetector gesture={railGesture}>
 					<View
 						accessibilityRole='adjustable'
@@ -269,15 +313,17 @@ const DayReader = ({
 						onLayout={event => setRailWidth(event.nativeEvent.layout.width)}
 						style={styles.babMap}
 					>
-						<ReaderBabMap
-							count={BAB_COUNT}
-							currentBab={babNumber}
-							isPlan
-							myBabNumbers={dayBabs}
-							poolBabNumbers={NO_BABS}
-							readBabNumbers={readBabNumbers}
-							scrubRatio={scrubRatio}
-						/>
+						<HintTarget id='readerMap'>
+							<ReaderBabMap
+								count={BAB_COUNT}
+								currentBab={babNumber}
+								isPlan
+								myBabNumbers={dayBabs}
+								poolBabNumbers={NO_BABS}
+								readBabNumbers={readBabNumbers}
+								scrubRatio={scrubRatio}
+							/>
+						</HintTarget>
 					</View>
 				</GestureDetector>
 			</View>
@@ -326,19 +372,20 @@ const DayReader = ({
 							variant='surface'
 						/>
 					) : (
-						<AppButton
-							disabled={a.completedAt !== null && isUndoLocked}
-							onPress={toggleBab}
-							style={styles.fill}
-							title={t(
-								isBabRead
-									? a.completedAt !== null && isUndoLocked
-										? 'hpStatusRead'
-										: 'markUnread'
-									: 'markRead'
-							)}
-							variant={isBabRead ? 'accentOutline' : 'accent'}
-						/>
+						<HintTarget id='readMark' style={styles.fill}>
+							<AppButton
+								disabled={a.completedAt !== null && isUndoLocked}
+								onPress={toggleBab}
+								title={t(
+									isBabRead
+										? a.completedAt !== null && isUndoLocked
+											? 'hpStatusRead'
+											: 'markUnread'
+										: 'markRead'
+								)}
+								variant={isBabRead ? 'accentOutline' : 'accent'}
+							/>
+						</HintTarget>
 					)}
 					<AppButton
 						accessibilityLabel={t('nextBab')}

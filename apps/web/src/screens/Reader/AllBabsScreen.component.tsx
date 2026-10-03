@@ -1,4 +1,4 @@
-import { useLiveHintAutoStart } from '@/components/Tour/useLiveHintAutoStart';
+import { useHintScreen } from '@/components/Hints/useHintScreen';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CaptionText, EyebrowText, Typography } from '@/components/ui/Typography/Typography.component';
 import type { CevsenInvocation } from '@/lib/content/cevsen';
@@ -71,8 +71,8 @@ export const AllBabsScreen = ({ navigation, route }: Props) => {
 	 * shape of "idle" the OS dims for. Released on unmount.
 	 */
 	useKeepAwake();
-	// The first time this phone opens a free reader, a card at "Birlikte oku" — see the hook.
-	useLiveHintAutoStart('CEVSEN');
+	// The first time this account opens a free reader, a hint at "Birlikte oku".
+	useHintScreen('freeReader');
 	const { t } = useTranslation();
 	const { theme } = useThemeContext();
 	const tabBarOffset = useContext(TabBarOffsetContext);

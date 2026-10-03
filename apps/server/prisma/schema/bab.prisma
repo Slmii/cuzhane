@@ -91,6 +91,24 @@ model BabRead {
     @@index([groupId, roundIndex])
 }
 
+/// One reader's Delâil (×3) and istighfar counts in a seat-divided Hizb group, per round — kept so
+/// a reader who closes the app does not count again. Not a gate: only Sekine's count is.
+model GroupRoundCounter {
+    id              String   @id @default(cuid())
+    groupId         String
+    userId          String
+    roundIndex      Int
+    delailCount     Int      @default(0)
+    istighfarCount  Int      @default(0)
+    istighfarTarget Int      @default(11)
+    updatedAt       DateTime @updatedAt
+
+    group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+    @@unique([groupId, userId, roundIndex])
+    @@index([userId])
+}
+
 /** How many times one reader has repeated a part that must be read more than once (Sekine ×19), per round. */
 model GroupPartRepetition {
     id         String   @id @default(cuid())

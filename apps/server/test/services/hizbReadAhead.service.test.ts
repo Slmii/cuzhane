@@ -464,11 +464,14 @@ describe('individual reading', () => {
 		expect(state.ahead).toEqual({ day: wrap.day, date: wrap.date, portion: 1, assignmentId: wrap.id });
 		expect(state.aheadThrough).toMatchObject({ days: 1, date: next.date });
 		expect(notifyHizbRead).not.toHaveBeenCalled();
+		// The list knows it too, so the daily reminder skips the day already read.
+		expect((await getGroupDetailForUser('owner', group.id)).hizbAheadDays).toBe(1);
 
 		vi.setSystemTime(day(1));
 		const detail = await getGroupDetailForUser('owner', group.id);
 		expect(detail.percent).toBe(100);
 		expect(detail.hizbToday).toMatchObject({ portion: 7, completed: true, assignmentId: next.id });
+		expect(detail.hizbAheadDays).toBe(0);
 		expect((await getHizbState('owner', group.id)).missedCount).toBe(0);
 	});
 });

@@ -1,12 +1,15 @@
-import { useDelailSession } from '@/lib/hooks/useDelailSession';
-import { useIstighfarSession } from '@/lib/hooks/useIstighfarSession';
+import { HintScrollProvider } from '@/components/Hints/HintScroll.context';
+import { useHintScreen } from '@/components/Hints/useHintScreen';
 import { WrapperApiError } from '@/api/wrapper.api';
 import { LateReadingNotice } from '@/components/LateReadingNotice/LateReadingNotice.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { PullToRefresh } from '@/components/ui/PullToRefresh/PullToRefresh.component';
 import { CaptionText, EyebrowText, Typography } from '@/components/ui/Typography/Typography.component';
 import { READER_FONT_SIZE_DEFAULT } from '@/lib/content/cevsen';
+import { DELAIL_REPETITIONS, splitDelailRepetition } from '@/lib/content/hizbDelail';
+import { splitIstighfar } from '@/lib/content/hizbIstighfar';
 import { HIZB_PORTION_COUNT, portion, portionBlocks, workOf } from '@/lib/content/hizbPortions';
+import { splitSekine } from '@/lib/content/hizbSekine';
 import { type HizbBlockRef, isCevsenSection, pageRangeOf } from '@/lib/content/hizbulhakaik';
 import { groupQueryKeys } from '@/lib/hooks/queryKeys';
 import { useGetBabs, useSetBabRead } from '@/lib/hooks/useBab';
@@ -15,6 +18,9 @@ import { useGetGroupById, useTakePoolPart } from '@/lib/hooks/useGroup';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useGetReadingPlaces, useSaveReadingPlace } from '@/lib/hooks/useReadingPlaces';
 import { useGetRepetitions, useSetRepetitions } from '@/lib/hooks/useRepetitions';
+import { useRoundCounters } from '@/lib/hooks/useRoundCounters';
+import { useDelailSession } from '@/lib/hooks/useDelailSession';
+import { useIstighfarSession } from '@/lib/hooks/useIstighfarSession';
 import { useCoverBabs, useGetRoundDetail } from '@/lib/hooks/useRounds';
 import { useGetUserSettings, useUpdateUserSettings } from '@/lib/hooks/useUserSettings';
 import { useTranslation } from '@/lib/i18n/I18n.context';
@@ -43,7 +49,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useQueryClient } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import { useKeepAwake } from 'expo-keep-awake';
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { type RefObject, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS, useSharedValue } from 'react-native-reanimated';
@@ -146,6 +152,8 @@ export const HizbPortionReader = ({ navigation, params }: Props) => {
 
 	// Held on for the screen's life, as the Cevşen reader is — a portion is minutes of reading.
 	useKeepAwake();
+	// The counter's hint, as the plan reader's: it scrolls the counter up from under the page.
+	useHintScreen('hizbReader');
 	const { theme } = useThemeContext();
 	const { language, t } = useTranslation();
 	const tabBarOffset = useContext(TabBarOffsetContext);
@@ -181,8 +189,20 @@ export const HizbPortionReader = ({ navigation, params }: Props) => {
 	const round = isCovering ? roundQuery.data : undefined;
 	// The round every count and cover here is about. Null only until the group says, or while it gathers.
 	const shownRoundIndex = coveredRoundIndex ?? openRoundIndex;
-	const delailProgress = useDelailSession(`${groupId}:${shownRoundIndex}`);
-	const istighfarProgress = useIstighfarSession(`${groupId}:${shownRoundIndex}`);
+	const areCountersKept = group?.status === 'RUNNING' && group.kind === 'HIZB' && !isPersonalPlanGroup(group);
+	// The Delâil and istighfar counts, kept on the server for the reader and the round shown — a
+	// reader who closes the app comes back to where they had counted, not to zero.
+	const kept = useRoundCounters(groupId, shownRoundIndex, {
+		isEnabled: areCountersKept,
+		isOpenRound: !isCovering
+	});
+	// Where nothing is kept — a group gathering or ended — the counters still count, for this visit.
+	const sessionDelail = useDelailSession(`${groupId}:${shownRoundIndex}`);
+	const sessionIstighfar = useIstighfarSession(`${groupId}:${shownRoundIndex}`);
+	const delailProgress = areCountersKept ? kept.delailProgress : sessionDelail;
+	const istighfarProgress = areCountersKept ? kept.istighfarProgress : sessionIstighfar;
+	const areCountersLoaded = kept.isLoaded;
+	const countersQuery = kept.query;
 
 	/** Mine, pool and read, for the round shown — null until both halves of that round are in. */
 	const shares = useMemo(() => {
@@ -219,7 +239,8 @@ export const HizbPortionReader = ({ navigation, params }: Props) => {
 	const pullToRefresh = usePullToRefresh(
 		groupQuery,
 		isCovering ? roundQuery : babsQuery,
-		...(isRepetitionsEnabled ? [repetitionsQuery] : [])
+		...(isRepetitionsEnabled ? [repetitionsQuery] : []),
+		...(areCountersKept ? [countersQuery] : [])
 	);
 
 	// The page: the route's portion, and the block of it this screen is on.
@@ -250,6 +271,7 @@ export const HizbPortionReader = ({ navigation, params }: Props) => {
 	 * and again when the new page has been measured and the old offset would be clamped into it.
 	 */
 	const scrollRef = useRef<ScrollView | null>(null);
+	const scrollContent = useRef<View>(null);
 	const isAwaitingTop = useRef(true);
 
 	const scrollToTop = useCallback(() => {
@@ -355,21 +377,6 @@ export const HizbPortionReader = ({ navigation, params }: Props) => {
 	const hasPreviousPage = blockIndex > 0 || partNumber > 1;
 	const hasNextPage = blockIndex < blocks.length - 1 || partNumber < HIZB_PORTION_COUNT;
 
-	// Across to turn the page, as the arrows are laid out — the Cevşen reader's reasoning.
-	const swipe = Gesture.Pan()
-		.activeOffsetX([-SWIPE_ACTIVATE_X, SWIPE_ACTIVATE_X])
-		.failOffsetY([-SWIPE_FAIL_Y, SWIPE_FAIL_Y])
-		.onEnd(event => {
-			const far = Math.abs(event.translationX) > SWIPE_COMMIT_X;
-			const fast = Math.abs(event.velocityX) > SWIPE_COMMIT_VELOCITY;
-
-			if (!far && !fast) {
-				return;
-			}
-
-			runOnJS(turnPage)(event.translationX < 0 ? 1 : -1);
-		});
-
 	// The free reader's typography from the first frame, so the text needn't wait on settings.
 	const readerSettings = {
 		readerArabicFont: settingsQuery.data?.readerArabicFont ?? 'uthman',
@@ -401,6 +408,47 @@ export const HizbPortionReader = ({ navigation, params }: Props) => {
 		group?.status === 'RUNNING' &&
 		// The count is needed only where it gates something.
 		(!isRepeated || count !== undefined || decision.action === 'none');
+	const showsCounter = isRepeated && (decision === null || countsRepetitions(decision, required));
+
+	/*
+	 * **A page with a count on it is finished before the next one** — the plan reader's rule, where
+	 * the count is this reader's to finish: their own portion, the pool's, or a gap they cover, not
+	 * yet read. Another member's portion stays free to browse. And only while its counter can be
+	 * tapped: a count still loading never holds a page shut.
+	 */
+	const isCountingHere =
+		(isCovering || ownership !== 'other') && decision?.action !== 'unread' && decision?.reason !== 'alreadyRead';
+	const delailCut = splitDelailRepetition(current.block);
+	const isPageCountOpen =
+		isCountingHere &&
+		((showsCounter && isReady && count !== undefined && splitSekine(current.block) !== null && count < required) ||
+			(areCountersLoaded && delailCut !== null && delailProgress.count < DELAIL_REPETITIONS) ||
+			(areCountersLoaded &&
+				delailCut === null &&
+				splitIstighfar(current.block) !== null &&
+				istighfarProgress.count < istighfarProgress.target));
+	const turnPageChecked = (direction: 1 | -1) => {
+		if (direction === 1 && isPageCountOpen) {
+			return;
+		}
+
+		turnPage(direction);
+	};
+
+	// Across to turn the page, as the arrows are laid out — the Cevşen reader's reasoning.
+	const swipe = Gesture.Pan()
+		.activeOffsetX([-SWIPE_ACTIVATE_X, SWIPE_ACTIVATE_X])
+		.failOffsetY([-SWIPE_FAIL_Y, SWIPE_FAIL_Y])
+		.onEnd(event => {
+			const far = Math.abs(event.translationX) > SWIPE_COMMIT_X;
+			const fast = Math.abs(event.velocityX) > SWIPE_COMMIT_VELOCITY;
+
+			if (!far && !fast) {
+				return;
+			}
+
+			runOnJS(turnPageChecked)(event.translationX < 0 ? 1 : -1);
+		});
 
 	/*
 	 * **A query that never answered keeps the text and loses only the button.** `ErrorState` is a
@@ -411,7 +459,8 @@ export const HizbPortionReader = ({ navigation, params }: Props) => {
 	const failedQueries = [
 		groupQuery,
 		isCovering ? roundQuery : babsQuery,
-		...(isRepetitionsEnabled ? [repetitionsQuery] : [])
+		...(isRepetitionsEnabled ? [repetitionsQuery] : []),
+		...(areCountersKept ? [countersQuery] : [])
 	].filter(query => query.isError && query.data === undefined);
 	const isRetrying = failedQueries.some(query => query.isFetching);
 
@@ -687,8 +736,6 @@ export const HizbPortionReader = ({ navigation, params }: Props) => {
 		}).format(new Date(round.startedAt));
 	}, [group, language, round]);
 
-	const showsCounter = isRepeated && (decision === null || countsRepetitions(decision, required));
-
 	return (
 		<SafeAreaView
 			// No bottom edge — the tab bar clears the home indicator; inset by its height instead.
@@ -696,115 +743,124 @@ export const HizbPortionReader = ({ navigation, params }: Props) => {
 			style={[styles.safeArea, { backgroundColor: theme.colors.background, paddingBottom: tabBarOffset }]}
 		>
 			{/* The pull refreshes the group and the round it is reading; the text is bundled and never stale. */}
-			<PullToRefresh {...pullToRefresh}>
-				<ScrollView
-					contentContainerStyle={styles.page}
-					onContentSizeChange={handleContentSizeChange}
-					ref={scrollRef}
-					showsVerticalScrollIndicator={false}
-					stickyHeaderIndices={[0]}
-				>
-					<View style={[styles.header, { borderBottomColor: theme.colors.readerRule }]}>
-						<View style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.readerSurface }]} />
-						{/*
-						 * The band the navigator's back control and "Aa" are drawn over, so it holds
-						 * only what is short enough to sit between them: which closed round this is,
-						 * and its day. The open round needs no label — it is simply today's.
-						 */}
-						<View style={styles.headerTopRow}>
-							<View style={styles.headerSide} />
-							<View style={styles.headerCenter}>
-								{coveredRoundIndex !== null ? (
-									<EyebrowText numberOfLines={1}>{`${t('roundN')} ${
-										coveredRoundIndex + 1
-									}`}</EyebrowText>
-								) : null}
-								{coveredRoundDate ? (
-									<Typography color={theme.colors.faintText} style={styles.roundDate} variant='mono'>
-										{coveredRoundDate}
-									</Typography>
-								) : null}
-							</View>
-							<View style={styles.headerSide} />
-						</View>
-						<View style={styles.heading}>
-							<View style={styles.eyebrowRow}>
-								{/* Its place in the book, not in the share — which are yours is the chip's job. */}
-								<EyebrowText numberOfLines={1} style={styles.eyebrow}>
-									{t('hizbReaderEyebrow', {
-										count: HIZB_PORTION_COUNT,
-										n: displayPart,
-										work: t(workOf(displayPart).titleKey)
-									})}
-								</EyebrowText>
-								{chip ? (
-									<View style={[styles.ownershipChip, { backgroundColor: chip.background }]}>
-										<Typography color={chip.foreground} variant='caption' weight='semibold'>
-											{chip.label}
+			{/* Around the pull, not inside the scroll view: its first child is the pinned header. */}
+			<HintScrollProvider innerRef={scrollContent} scrollRef={scrollRef}>
+				<PullToRefresh {...pullToRefresh}>
+					<ScrollView
+						contentContainerStyle={styles.page}
+						// React Native types this ref as never null, which a React 19 ref is until it mounts.
+						innerViewRef={scrollContent as RefObject<View>}
+						onContentSizeChange={handleContentSizeChange}
+						ref={scrollRef}
+						showsVerticalScrollIndicator={false}
+						stickyHeaderIndices={[0]}
+					>
+						<View style={[styles.header, { borderBottomColor: theme.colors.readerRule }]}>
+							<View style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.readerSurface }]} />
+							{/*
+							 * The band the navigator's back control and "Aa" are drawn over, so it holds
+							 * only what is short enough to sit between them: which closed round this is,
+							 * and its day. The open round needs no label — it is simply today's.
+							 */}
+							<View style={styles.headerTopRow}>
+								<View style={styles.headerSide} />
+								<View style={styles.headerCenter}>
+									{coveredRoundIndex !== null ? (
+										<EyebrowText numberOfLines={1}>{`${t('roundN')} ${
+											coveredRoundIndex + 1
+										}`}</EyebrowText>
+									) : null}
+									{coveredRoundDate ? (
+										<Typography
+											color={theme.colors.faintText}
+											style={styles.roundDate}
+											variant='mono'
+										>
+											{coveredRoundDate}
 										</Typography>
-									</View>
-								) : null}
+									) : null}
+								</View>
+								<View style={styles.headerSide} />
 							</View>
-							<Typography variant='title' weight='regular'>
-								{t(portion(displayPart).descriptionKey)}
-							</Typography>
-							<CaptionText color={theme.colors.subtext}>{pageCaption}</CaptionText>
+							<View style={styles.heading}>
+								<View style={styles.eyebrowRow}>
+									{/* Its place in the book, not in the share — which are yours is the chip's job. */}
+									<EyebrowText numberOfLines={1} style={styles.eyebrow}>
+										{t('hizbReaderEyebrow', {
+											count: HIZB_PORTION_COUNT,
+											n: displayPart,
+											work: t(workOf(displayPart).titleKey)
+										})}
+									</EyebrowText>
+									{chip ? (
+										<View style={[styles.ownershipChip, { backgroundColor: chip.background }]}>
+											<Typography color={chip.foreground} variant='caption' weight='semibold'>
+												{chip.label}
+											</Typography>
+										</View>
+									) : null}
+								</View>
+								<Typography variant='title' weight='regular'>
+									{t(portion(displayPart).descriptionKey)}
+								</Typography>
+								<CaptionText color={theme.colors.subtext}>{pageCaption}</CaptionText>
+							</View>
+							{/*
+							 * The thirty-three, one tick each, in the Cevşen reader's colours. No `spots`:
+							 * a Hizb seat's leftovers are claimed portion by portion, so there are no blocks
+							 * in the pool to bracket.
+							 */}
+							<GestureDetector gesture={railGesture}>
+								<View
+									accessibilityRole='adjustable'
+									accessibilityValue={{ max: HIZB_PORTION_COUNT, min: 1, now: partNumber }}
+									onLayout={event => setRailWidth(event.nativeEvent.layout.width)}
+									style={styles.babMapRow}
+								>
+									<ReaderBabMap
+										count={HIZB_PORTION_COUNT}
+										currentBab={displayPart}
+										myBabNumbers={shares?.myBabNumbers ?? NO_NUMBERS}
+										poolBabNumbers={shares?.poolBabNumbers ?? NO_NUMBERS}
+										readBabNumbers={shares?.readBabNumbers ?? NO_NUMBERS}
+										scrubRatio={scrubRatio}
+									/>
+								</View>
+							</GestureDetector>
 						</View>
-						{/*
-						 * The thirty-three, one tick each, in the Cevşen reader's colours. No `spots`:
-						 * a Hizb seat's leftovers are claimed portion by portion, so there are no blocks
-						 * in the pool to bracket.
-						 */}
-						<GestureDetector gesture={railGesture}>
-							<View
-								accessibilityRole='adjustable'
-								accessibilityValue={{ max: HIZB_PORTION_COUNT, min: 1, now: partNumber }}
-								onLayout={event => setRailWidth(event.nativeEvent.layout.width)}
-								style={styles.babMapRow}
-							>
-								<ReaderBabMap
-									count={HIZB_PORTION_COUNT}
-									currentBab={displayPart}
-									myBabNumbers={shares?.myBabNumbers ?? NO_NUMBERS}
-									poolBabNumbers={shares?.poolBabNumbers ?? NO_NUMBERS}
-									readBabNumbers={shares?.readBabNumbers ?? NO_NUMBERS}
-									scrubRatio={scrubRatio}
+
+						<GestureDetector gesture={swipe}>
+							<View style={styles.body}>
+								{/*
+								 * The page exactly as the portion slices it: a portion that begins or ends
+								 * inside a line opens and closes on its own words, with no mark added at the
+								 * cut. Keyed on the portion too — consecutive portions are cut from one block.
+								 */}
+								<HizbBody
+									istighfarProgress={istighfarProgress}
+									delailProgress={delailProgress}
+									// Drawn inert while the round loads, so it is already in place when it wakes.
+									{...(showsCounter
+										? {
+												sekineProgress: {
+													count: count ?? 0,
+													disabled: !isReady || count === undefined,
+													onChange: setCount
+												}
+										  }
+										: {})}
+									block={current.block}
+									font={readerSettings.readerArabicFont}
+									fontSize={readerSettings.readerFontSize}
+									isCevsenBab={isCevsenSection(current.sectionIndex)}
+									key={`${partNumber}-${current.sectionIndex}-${current.blockIndex}`}
+									numerals={readerSettings.readerNumerals}
 								/>
 							</View>
 						</GestureDetector>
-					</View>
-
-					<GestureDetector gesture={swipe}>
-						<View style={styles.body}>
-							{/*
-							 * The page exactly as the portion slices it: a portion that begins or ends
-							 * inside a line opens and closes on its own words, with no mark added at the
-							 * cut. Keyed on the portion too — consecutive portions are cut from one block.
-							 */}
-							<HizbBody
-								istighfarProgress={istighfarProgress}
-								delailProgress={delailProgress}
-								// Drawn inert while the round loads, so it is already in place when it wakes.
-								{...(showsCounter
-									? {
-											sekineProgress: {
-												count: count ?? 0,
-												disabled: !isReady || count === undefined,
-												onChange: setCount
-											}
-									  }
-									: {})}
-								block={current.block}
-								font={readerSettings.readerArabicFont}
-								fontSize={readerSettings.readerFontSize}
-								isCevsenBab={isCevsenSection(current.sectionIndex)}
-								key={`${partNumber}-${current.sectionIndex}-${current.blockIndex}`}
-								numerals={readerSettings.readerNumerals}
-							/>
-						</View>
-					</GestureDetector>
-				</ScrollView>
-			</PullToRefresh>
+					</ScrollView>
+				</PullToRefresh>
+			</HintScrollProvider>
 
 			<View style={[styles.footer, { borderTopColor: theme.colors.readerRule }]}>
 				<View style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.readerSurface }]} />
@@ -848,10 +904,10 @@ export const HizbPortionReader = ({ navigation, params }: Props) => {
 					)}
 					<AppButton
 						accessibilityLabel={t('abNext')}
-						disabled={!hasNextPage}
+						disabled={!hasNextPage || isPageCountOpen}
 						fullWidth={false}
 						icon='chevronRight'
-						onPress={() => turnPage(1)}
+						onPress={() => turnPageChecked(1)}
 						variant='surface'
 					/>
 				</View>

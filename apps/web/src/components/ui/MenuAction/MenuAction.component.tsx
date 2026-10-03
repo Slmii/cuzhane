@@ -2,6 +2,7 @@ import { Icon } from '@/components/ui/Icon/Icon.component';
 import type { IconName } from '@/components/ui/Icon/Icon.types';
 import { EyebrowText, Typography } from '@/components/ui/Typography/Typography.component';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
+import { useRegisterOpenOverlay } from '@/lib/utils/openOverlays';
 import { useCallback, useRef, useState } from 'react';
 import { Modal, Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, { cubicBezier, useReducedMotion } from 'react-native-reanimated';
@@ -287,6 +288,9 @@ const DrawnMenuAction = ({
 	 * new level renders the old one is gone.
 	 */
 	const [isBack, setIsBack] = useState(false);
+
+	// A hint never puts its card over an open menu.
+	useRegisterOpenOverlay(anchor !== null);
 
 	/*
 	 * Measured on every open rather than on layout: the bar this sits in is the navigator's, and

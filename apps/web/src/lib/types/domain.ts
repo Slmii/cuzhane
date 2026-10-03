@@ -86,6 +86,8 @@ export type GroupSummary = {
 	hizbReaders?: { read: number; total: number };
 	/** A personal-plan Hizb's next reading day: the next local midnight in the group's zone. */
 	nextDayAt?: string;
+	/** How many days straight after today the viewer has already read ahead on their plan. */
+	hizbAheadDays?: number;
 	/** The viewer was taken out of a personal-plan Hizb's order by the inactivity rule. */
 	hizbRemoved?: boolean;
 	/** The rule's length when it removed the viewer; null unless `hizbRemoved`. */
@@ -381,6 +383,14 @@ export type PoolSlotPart = {
  */
 export type PartRepetitions = { count: number; required: number; roundIndex: number };
 
+/** A seat-divided Hizb group's Delâil and istighfar counts — the viewer's own, for one round. Mirrors the server's `RoundCounters`. */
+export type RoundCounters = {
+	delailCount: number;
+	istighfarCount: number;
+	istighfarTarget: number;
+	roundIndex: number;
+};
+
 /** What an inbox row is about. Mirrors the server's `NotificationKind` enum. */
 export type NotificationKind =
 	| 'POOL_CLAIM_RELEASED'
@@ -414,6 +424,12 @@ export type AppNotification = {
 	createdAt: string;
 };
 
+/** `GET /api/hints` and both of its writes: the hint ids this account has seen, and the switch. */
+export type HintsState = {
+	seenIds: string[];
+	enabled: boolean;
+};
+
 export type UserSettings = {
 	id: string;
 	userId: string;
@@ -422,6 +438,9 @@ export type UserSettings = {
 	// is the only one the app gives anybody a way to set. See `user.prisma`.
 	reminderEnabled: boolean;
 	reminderTime: string;
+	/** The Hizb groups' daily reminder and its own time; `reminderEnabled` and `reminderTime` are the Cevşen's. */
+	hizbReminderEnabled: boolean;
+	hizbReminderTime: string;
 	/*
 	 * **Three switches, one pair each — Cevşen and Kuran.** They are not the same news in the
 	 * two kinds: a finished share is a range of babs or a cüz, a round is a hundred or thirty,
@@ -458,6 +477,8 @@ export type UserSettings = {
 	memberLeftEnabled: boolean;
 	hasSeenOnboarding: boolean;
 	hasSeenTour: boolean;
+	/** "İpuçlarını göster" — whether the screens' hints play (`components/Hints`). */
+	hintsEnabled: boolean;
 	/**
 	 * "Grubun nasıl çalışır?" after joining, one per kind: "bir daha gösterme" on one kind leaves
 	 * the others showing.

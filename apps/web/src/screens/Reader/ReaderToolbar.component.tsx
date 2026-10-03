@@ -1,4 +1,4 @@
-import { TourTarget } from '@/components/Tour/TourTarget.component';
+import { HintTarget } from '@/components/Hints/HintTarget.component';
 import { GlassCornerAction } from '@/components/ui/CornerAction/GlassCornerAction.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { TrailingCornerAction } from '@/navigation/TrailingCornerAction';
@@ -57,9 +57,9 @@ export const ReaderToolbar = ({ liveKind }: { liveKind?: LiveReadingKind }) => {
 		// No gap, as `GroupDetailToolbar` explains: each item is its own 44pt box.
 		<View style={styles.actions}>
 			{liveKind ? (
-				// The free readers' one-time hint points here (`useLiveHintAutoStart`). A disc around
-				// the 44pt glyph, as T3's +.
-				<TourTarget id='liveButton' radius={28}>
+				// The free readers' hint points here (`freeReader.live`). A disc around the 44pt
+				// glyph, as Gruplarım's +.
+				<HintTarget id='liveButton' radius={28}>
 					<GlassCornerAction
 						accessibilityLabel={t('liveTitle')}
 						// The same element either way: a native control swaps its glyph, it is not remounted.
@@ -69,15 +69,18 @@ export const ReaderToolbar = ({ liveKind }: { liveKind?: LiveReadingKind }) => {
 						onPress={() => navigation.setParams({ shouldOpenLive: true })}
 						// The accent, not the bar's ink: the reader's one way to bring others in.
 					/>
-				</TourTarget>
+				</HintTarget>
 			) : null}
-			<GlassCornerAction
-				accessibilityLabel={t('textSize')}
-				assetName='yazi-boyutu-text-size'
-				icon='textSize'
-				onPress={() => navigation.setParams({ shouldOpenTextSize: true })}
-				tone='surface'
-			/>
+			{/* The Bab reader's first hint points here (`reader.textSize`), a disc as the + is. */}
+			<HintTarget id='textSize' radius={28}>
+				<GlassCornerAction
+					accessibilityLabel={t('textSize')}
+					assetName='yazi-boyutu-text-size'
+					icon='textSize'
+					onPress={() => navigation.setParams({ shouldOpenTextSize: true })}
+					tone='surface'
+				/>
+			</HintTarget>
 			<TrailingCornerAction />
 		</View>
 	);

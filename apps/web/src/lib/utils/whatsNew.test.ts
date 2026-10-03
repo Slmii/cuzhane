@@ -16,18 +16,18 @@ describe('whatsNewStorageKey', () => {
 const decide = (overrides: Partial<WhatsNewInput> = {}) =>
 	whatsNewDecision({
 		currentReleaseId: 'release-2',
-		hasSeenTour: true,
 		isBlocked: false,
 		isFocused: true,
+		isHintShowing: false,
 		isNewcomer: false,
-		isTourActive: false,
+		isWelcomePending: false,
 		lastSeenReleaseId: 'release-1',
 		...overrides
 	});
 
 describe('whatsNewDecision', () => {
-	it('waits while the settings are still unknown', () => {
-		expect(decide({ hasSeenTour: undefined })).toBe('wait');
+	it('waits while the hints are still unknown', () => {
+		expect(decide({ isWelcomePending: undefined })).toBe('wait');
 	});
 
 	it('waits while the splash still owns the screen', () => {
@@ -45,21 +45,25 @@ describe('whatsNewDecision', () => {
 		expect(decide({ isFocused: false, isNewcomer: true })).toBe('wait');
 	});
 
-	describe('an existing reader who has not seen the tour', () => {
-		it('waits while the tour is still ahead of them', () => {
-			expect(decide({ hasSeenTour: false })).toBe('wait');
+	describe('an existing reader who has not seen the welcome', () => {
+		it('waits while the welcome is still ahead of them', () => {
+			expect(decide({ isWelcomePending: true })).toBe('wait');
 		});
 
-		it('still waits while the tour is on screen', () => {
-			expect(decide({ hasSeenTour: true, isTourActive: true })).toBe('wait');
+		it('still waits while a hint is on screen', () => {
+			expect(decide({ isHintShowing: true, isWelcomePending: false })).toBe('wait');
 		});
 
-		it('is shown the notes once the tour is finished and gone', () => {
-			expect(decide({ hasSeenTour: true, isTourActive: false })).toBe('show');
+		it('is shown the notes once the welcome is seen and no hint is up', () => {
+			expect(decide({ isHintShowing: false, isWelcomePending: false })).toBe('show');
 		});
 	});
 
-	describe('an existing reader who saw the tour long ago', () => {
+	describe('an existing reader who saw the welcome long ago', () => {
+		it('waits for a hint’s card to go', () => {
+			expect(decide({ isHintShowing: true })).toBe('wait');
+		});
+
 		it('is shown the notes straight away', () => {
 			expect(decide()).toBe('show');
 		});
@@ -77,17 +81,17 @@ describe('whatsNewDecision', () => {
 
 	describe('a newcomer, in the launch they onboarded in', () => {
 		it('records the release without being shown it', () => {
-			expect(decide({ hasSeenTour: false, isNewcomer: true, lastSeenReleaseId: null })).toBe('record');
+			expect(decide({ isNewcomer: true, isWelcomePending: true, lastSeenReleaseId: null })).toBe('record');
 		});
 
-		it('is not shown it after their tour ends either', () => {
-			expect(decide({ hasSeenTour: true, isNewcomer: true, lastSeenReleaseId: null })).toBe('record');
+		it('is not shown it after their welcome either', () => {
+			expect(decide({ isNewcomer: true, isWelcomePending: false, lastSeenReleaseId: null })).toBe('record');
 		});
 
-		it('is not made to wait by their own tour being on screen', () => {
-			expect(decide({ hasSeenTour: false, isNewcomer: true, isTourActive: true, lastSeenReleaseId: null })).toBe(
-				'record'
-			);
+		it('is not made to wait by their own welcome being on screen', () => {
+			expect(
+				decide({ isHintShowing: true, isNewcomer: true, isWelcomePending: true, lastSeenReleaseId: null })
+			).toBe('record');
 		});
 
 		it('is an ordinary reader by the next release', () => {

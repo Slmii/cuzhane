@@ -227,9 +227,13 @@ sheet; no gorhom, no close button):
 -   Lookups over the mushaf (`lib/content/mushafPlaces.ts`) are cached tables or binary searches, and
     long lists keep exact `getItemLayout` heights.
 
-**Tour** (`components/Tour`) runs only on its own fixtures (`tourDemoData`, separate
-`tourDemoQueryKeys` with `initialData`), keeps the app inert (`TourBlocker`), and its copy `tour1…N`
-is numbered in visit order — inserting a stop renumbers.
+**Hints** (`components/Hints`): the registry is `hints.ts` (`{ id, screen, target, order, … }`),
+the selection is pure (`hintQueue.ts`, tested). Hints point only at **real UI** — no demo data; a
+hint waits until its `HintTarget` is registered and on screen. A focused screen (`useHintScreen`)
+plays all its unseen, visible hints as **one sequence**, never over a sheet, a live reading, the
+keyboard or the splash, with the app inert (`HintBlocker`). Seen is **per account** on the server
+(`/api/hints`), marked as shown. **Never reuse or rename an id** — the server treats the old tour's
+finishers as having seen `LEGACY_TOUR_HINT_IDS`.
 
 **Environment and releases (EAS)**
 

@@ -1,5 +1,5 @@
 import { BabRow } from '@/components/BabRow/BabRow.component';
-import { TourTarget } from '@/components/Tour/TourTarget.component';
+import { HintTarget } from '@/components/Hints/HintTarget.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
 import { BodyText, CaptionText, Typography } from '@/components/ui/Typography/Typography.component';
@@ -117,8 +117,8 @@ export const HizbSharePanel = ({
 				isOpen ? null : { backgroundColor: theme.colors.accentSoft }
 			]}
 		>
-			{/* C1 of the first-use tour frames this row, as it frames the Cevşen's. */}
-			<TourTarget id='assigned'>
+			{/* The group's share hint frames this row, as it frames the Cevşen's. */}
+			<HintTarget id='assigned'>
 				<Pressable
 					accessibilityLabel={`${t('thisRoundPortions')} ${shareLabel}`}
 					accessibilityRole='button'
@@ -156,7 +156,7 @@ export const HizbSharePanel = ({
 						</Animated.View>
 					</View>
 				</Pressable>
-			</TourTarget>
+			</HintTarget>
 			{/* Clipped and inert while closed, for the reasons the Cevşen panel gives. */}
 			<Animated.View
 				accessibilityElementsHidden={!isOpen}

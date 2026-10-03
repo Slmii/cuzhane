@@ -1,6 +1,3 @@
-import { useIsTourDemo } from '@/components/Tour/Tour.context';
-import { TOUR_DEMO_GROUPS, tourDemoGroup } from '@/components/Tour/tourDemoData';
-import { tourDemoQueryKeys } from '@/lib/hooks/queryKeys';
 import {
 	createGroup,
 	type CreateGroupInput,
@@ -38,36 +35,24 @@ import { Alert } from 'react-native';
 import { useLiveRefetchInterval } from './useLiveRefetchInterval';
 import { groupOwnedQueryKeys, groupQueryKeys } from './queryKeys';
 
-/*
- * While the first-use tour is standing in for an account with no group of its own, this answers
- * from `tourDemoData` instead of the network — a different key, so the real one is left exactly
- * as it was and comes back untouched when the tour ends. `staleTime: Infinity` and a `queryFn`
- * that returns at once are not enough on their own: a `queryFn` is a promise however fast it
- * settles, so the first render after mount is still `isPending` and the group screen's gate is
- * exactly that — the skeleton flashed every time the tour navigated. `initialData` is what makes
- * the data there on the very first render, and with an infinite stale time nothing refetches
- * behind it. Given as a function, so the hundred babs are only built when they are wanted.
- */
 export const useGetGroups = () => {
 	const refetchInterval = useLiveRefetchInterval();
-	const isDemo = useIsTourDemo();
 
 	return useQuery({
-		queryKey: isDemo ? tourDemoQueryKeys.groups() : groupQueryKeys.groups(),
-		queryFn: isDemo ? async () => TOUR_DEMO_GROUPS : getGroups,
-		...(isDemo ? { initialData: () => TOUR_DEMO_GROUPS, staleTime: Infinity } : { refetchInterval })
+		queryKey: groupQueryKeys.groups(),
+		queryFn: getGroups,
+		refetchInterval
 	});
 };
 
 export const useGetGroupById = (groupId: string) => {
 	const refetchInterval = useLiveRefetchInterval();
-	const isDemo = useIsTourDemo();
 
 	return useQuery({
-		queryKey: isDemo ? tourDemoQueryKeys.groupById(groupId) : groupQueryKeys.groupById(groupId),
-		queryFn: isDemo ? async () => tourDemoGroup(groupId) : () => getGroupById(groupId),
+		queryKey: groupQueryKeys.groupById(groupId),
+		queryFn: () => getGroupById(groupId),
 		enabled: !!groupId,
-		...(isDemo ? { initialData: () => tourDemoGroup(groupId), staleTime: Infinity } : { refetchInterval })
+		refetchInterval
 	});
 };
 
@@ -202,14 +187,12 @@ export const useGetPoolSlots = (
 	{ isEnabled = true }: { isEnabled?: boolean } = {}
 ) => {
 	const refetchInterval = useLiveRefetchInterval();
-	// The tour's Cevşen reader asks for these too; its stand-in group has no seat slots on offer.
-	const isDemo = useIsTourDemo();
 
 	return useQuery({
-		queryKey: isDemo ? tourDemoQueryKeys.pool(groupId) : groupQueryKeys.pool(groupId),
-		queryFn: isDemo ? async (): Promise<PoolSlot[]> => [] : () => getPoolSlots(groupId),
+		queryKey: groupQueryKeys.pool(groupId),
+		queryFn: () => getPoolSlots(groupId),
 		enabled: !!groupId && isEnabled,
-		...(isDemo ? { initialData: [], staleTime: Infinity } : { refetchInterval })
+		refetchInterval
 	});
 };
 

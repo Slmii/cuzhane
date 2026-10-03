@@ -3,7 +3,8 @@ import { CuzMap, CuzMapLegend } from '@/components/CuzMap/CuzMap.component';
 import type { CuzCellState } from '@/components/CuzMap/CuzMap.types';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
-import { TourTarget } from '@/components/Tour/TourTarget.component';
+import { HintTarget } from '@/components/Hints/HintTarget.component';
+import { useHintScreen } from '@/components/Hints/useHintScreen';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
@@ -42,6 +43,7 @@ export const PickCuzScreen = ({ navigation, route }: Props) => {
 	const { groupId, inviteCode, isRoundPick = false } = route.params;
 	const { language, t } = useTranslation();
 	const { theme } = useThemeContext();
+	useHintScreen('pickCuz');
 
 	/*
 	 * **Two readers of one map.** A joiner reads the invite preview; a member choosing again at
@@ -163,8 +165,8 @@ export const PickCuzScreen = ({ navigation, route }: Props) => {
 					title={t('qPickTitle')}
 				/>
 
-				{/* K1 of the first-use tour points at the map: choosing is tapping it. */}
-				<TourTarget id='cuzGrid'>
+				{/* A hint points at the map: choosing is tapping it. */}
+				<HintTarget id='cuzGrid'>
 					<CardSurface style={styles.mapCard}>
 						{/*
 						 * How far into the choice you are, above the thing you are choosing with.
@@ -200,7 +202,7 @@ export const PickCuzScreen = ({ navigation, route }: Props) => {
 					    rather than a pool being pointed at. Every other board keeps "havuz". */}
 						<CuzMapLegend freeLabel={t('qFree')} mineLabel={t('qSelected')} />
 					</CardSurface>
-				</TourTarget>
+				</HintTarget>
 
 				{/*
 				 * What each chosen number actually is. A cüz is a span of the Kuran, not a

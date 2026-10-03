@@ -14,7 +14,8 @@ import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.co
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
 import { isRepeatingCycle } from '@/lib/types/domain';
 import { SliceChip } from '@/components/SliceChip/SliceChip.component';
-import { TourTarget } from '@/components/Tour/TourTarget.component';
+import { HintTarget } from '@/components/Hints/HintTarget.component';
+import { useHintScreen } from '@/components/Hints/useHintScreen';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Chip } from '@/components/ui/Chip/Chip.component';
@@ -170,8 +171,8 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 	};
 	// Declared up here with the other hooks: the loading and error branches below return
 	// early, and a hook that only runs on the happy path would change order between renders.
-	// Open to begin with, as the Hizb's panel: your share is what you came to the group for.
-	const [isMyBabsOpen, setIsMyBabsOpen] = useState(true);
+	// Closed to begin with: the card's header already says how far along the share is.
+	const [isMyBabsOpen, setIsMyBabsOpen] = useState(false);
 	// The base `chevron` glyph points right, so down is +90° and up is -90°. Closed points
 	// down at the content it will reveal; open points up at the content it will hide. One
 	// glyph rotated through half a turn, rather than swapping in a second icon.
@@ -270,6 +271,12 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 	);
 	// A hatim may open on Q7 or QR1 instead — and a member holding no cüz never sees this screen.
 	const roundGate = useHatimRoundGate(groupId, navigation);
+	/*
+	 * The group's hints are for a member's running group — not a lobby, not one only looked at.
+	 * Not on the round gate: it closes for a moment on every refetch, and a screen that stops saying
+	 * it is in front drops its sequence mid-way. A required cüz pick leaves this screen on its own.
+	 */
+	useHintScreen(groupQuery.data?.isMember && groupQuery.data.status === 'RUNNING' ? 'group' : null);
 
 	/*
 	 * The two boards' cells, and the tap that opens one, memoised up here with the other
@@ -616,107 +623,110 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 				 * finished round turns the count sage rather than taking the countdown's place: the
 				 * count already reads "33 / 33", and when the next one starts is still worth knowing.
 				 */}
-				{isHizb ? (
-					<CardSurface isFlush>
-						<View style={styles.statsRow}>
-							<View
-								style={[
-									styles.statCell,
-									styles.statCellDivided,
-									{ borderRightColor: theme.colors.divider }
-								]}
-							>
-								<NumericText color={isRoundComplete ? theme.colors.accent : theme.colors.text}>
-									{`${detail.readCount} `}
-									<Typography
-										color={theme.colors.faintText}
-										style={styles.statTotal}
-										variant='numeric'
-									>
-										{`/ ${detail.partCount}`}
-									</Typography>
-								</NumericText>
-								<StatText
-									color={isRoundComplete ? theme.colors.accent : theme.colors.faintText}
-									style={styles.statLabel}
+				{/* A hint explains this card: the round's clock. */}
+				<HintTarget id='groupStats'>
+					{isHizb ? (
+						<CardSurface isFlush>
+							<View style={styles.statsRow}>
+								<View
+									style={[
+										styles.statCell,
+										styles.statCellDivided,
+										{ borderRightColor: theme.colors.divider }
+									]}
 								>
-									{t(isRoundComplete ? 'roundCompleted' : 'portionsReadStat')}
-								</StatText>
+									<NumericText color={isRoundComplete ? theme.colors.accent : theme.colors.text}>
+										{`${detail.readCount} `}
+										<Typography
+											color={theme.colors.faintText}
+											style={styles.statTotal}
+											variant='numeric'
+										>
+											{`/ ${detail.partCount}`}
+										</Typography>
+									</NumericText>
+									<StatText
+										color={isRoundComplete ? theme.colors.accent : theme.colors.faintText}
+										style={styles.statLabel}
+									>
+										{t(isRoundComplete ? 'roundCompleted' : 'portionsReadStat')}
+									</StatText>
+								</View>
+								<View style={styles.statCell}>
+									<NumericText>{leftValue}</NumericText>
+									<StatText color={theme.colors.faintText} style={styles.statLabel}>
+										{t('untilRoundEnd')}
+									</StatText>
+								</View>
 							</View>
-							<View style={styles.statCell}>
-								<NumericText>{leftValue}</NumericText>
-								<StatText color={theme.colors.faintText} style={styles.statLabel}>
-									{t('untilRoundEnd')}
-								</StatText>
+							{reset ? (
+								<RoundResetRow
+									groupLabel={reset.group}
+									localLabel={reset.local}
+									style={[styles.statsReset, { borderTopColor: theme.colors.divider }]}
+									variant='panel'
+								/>
+							) : null}
+						</CardSurface>
+					) : (
+						<CardSurface isFlush>
+							<View style={styles.statsRow}>
+								<View
+									style={[
+										styles.statCell,
+										styles.statCellDivided,
+										{ borderRightColor: theme.colors.divider }
+									]}
+								>
+									<NumericText>{`${detail.memberCount} / ${detail.spots}`}</NumericText>
+									<StatText color={theme.colors.faintText} style={styles.statLabel}>
+										{t('members')}
+									</StatText>
+								</View>
+								{/*
+								 * **The round closing is shown here rather than in a banner of its own.**
+								 * This is the card whose whole job is "where is this round", so the
+								 * answer "it is finished" belongs in it — and it needs no new furniture
+								 * to design, space and then take away again when the round rolls.
+								 *
+								 * The countdown is what it replaces, deliberately: once the hundred is
+								 * closed, how long is left has stopped being the interesting number.
+								 * `RoundResetRow` below still says when it starts again, so nothing is
+								 * lost. The state clears itself — `ensureCurrentRound` wipes
+								 * `completedAt` at the boundary along with the board.
+								 */}
+								<View style={styles.statCell}>
+									{isRoundComplete ? (
+										<>
+											<NumericText color={theme.colors.accent}>
+												{`${unitCount} / ${unitCount}`}
+											</NumericText>
+											<StatText color={theme.colors.accent} style={styles.statLabel}>
+												{t('roundCompleted')}
+											</StatText>
+										</>
+									) : (
+										<>
+											<NumericText>{leftValue}</NumericText>
+											<StatText color={theme.colors.faintText} style={styles.statLabel}>
+												{/* A DAILY round counts down in hours — "1 gün" would say nothing. */}
+												{isDaily ? t('untilMidnight') : t('left')}
+											</StatText>
+										</>
+									)}
+								</View>
 							</View>
-						</View>
-						{reset ? (
-							<RoundResetRow
-								groupLabel={reset.group}
-								localLabel={reset.local}
-								style={[styles.statsReset, { borderTopColor: theme.colors.divider }]}
-								variant='panel'
-							/>
-						) : null}
-					</CardSurface>
-				) : (
-					<CardSurface isFlush>
-						<View style={styles.statsRow}>
-							<View
-								style={[
-									styles.statCell,
-									styles.statCellDivided,
-									{ borderRightColor: theme.colors.divider }
-								]}
-							>
-								<NumericText>{`${detail.memberCount} / ${detail.spots}`}</NumericText>
-								<StatText color={theme.colors.faintText} style={styles.statLabel}>
-									{t('members')}
-								</StatText>
-							</View>
-							{/*
-							 * **The round closing is shown here rather than in a banner of its own.**
-							 * This is the card whose whole job is "where is this round", so the
-							 * answer "it is finished" belongs in it — and it needs no new furniture
-							 * to design, space and then take away again when the round rolls.
-							 *
-							 * The countdown is what it replaces, deliberately: once the hundred is
-							 * closed, how long is left has stopped being the interesting number.
-							 * `RoundResetRow` below still says when it starts again, so nothing is
-							 * lost. The state clears itself — `ensureCurrentRound` wipes
-							 * `completedAt` at the boundary along with the board.
-							 */}
-							<View style={styles.statCell}>
-								{isRoundComplete ? (
-									<>
-										<NumericText color={theme.colors.accent}>
-											{`${unitCount} / ${unitCount}`}
-										</NumericText>
-										<StatText color={theme.colors.accent} style={styles.statLabel}>
-											{t('roundCompleted')}
-										</StatText>
-									</>
-								) : (
-									<>
-										<NumericText>{leftValue}</NumericText>
-										<StatText color={theme.colors.faintText} style={styles.statLabel}>
-											{/* A DAILY round counts down in hours — "1 gün" would say nothing. */}
-											{isDaily ? t('untilMidnight') : t('left')}
-										</StatText>
-									</>
-								)}
-							</View>
-						</View>
-						{reset ? (
-							<RoundResetRow
-								groupLabel={reset.group}
-								localLabel={reset.local}
-								style={[styles.statsReset, { borderTopColor: theme.colors.divider }]}
-								variant='panel'
-							/>
-						) : null}
-					</CardSurface>
-				)}
+							{reset ? (
+								<RoundResetRow
+									groupLabel={reset.group}
+									localLabel={reset.local}
+									style={[styles.statsReset, { borderTopColor: theme.colors.divider }]}
+									variant='panel'
+								/>
+							) : null}
+						</CardSurface>
+					)}
+				</HintTarget>
 
 				{/*
 				 * Its own stand-in while it loads, like the board and the pool card below —
@@ -765,8 +775,8 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 							/>
 						</>
 					) : (
-						// C1 of the first-use tour frames your share as you see it: "Başladı", then the panel.
-						<TourTarget id='assigned' style={styles.shareStack}>
+						// A hint frames your share as you see it: "Başladı", then the panel.
+						<HintTarget id='assigned' style={styles.shareStack}>
 							{shareStarted ? (
 								<StartedProgress label={shareStarted.label} percent={shareStarted.percent} />
 							) : null}
@@ -779,7 +789,7 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 									isMyBabsOpen ? null : { backgroundColor: theme.colors.accentSoft }
 								]}
 							>
-								{/* C1 of the first-use tour frames this row, closed or open. */}
+								{/* The hint frames this row, closed or open. */}
 								<Pressable
 									// The eyebrow and the sentence are gone from the row, so the label they carried
 									// has to come from here or it announces nothing but its numbers.
@@ -962,16 +972,18 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 									</ScrollView>
 								</Animated.View>
 							</CardSurface>
-						</TourTarget>
+						</HintTarget>
 					)}
 					{/* Under your share: the share first, then how you are doing across the rounds. */}
 					{myProgressQuery.isLoading ? <MyProgressCardSkeleton /> : null}
 					{myProgress ? (
-						<MyProgressCard
-							isHatim={isHatim}
-							onPress={() => navigation.navigate('MyProgress', { groupId })}
-							progress={myProgress}
-						/>
+						<HintTarget id='myProgressBanner'>
+							<MyProgressCard
+								isHatim={isHatim}
+								onPress={() => navigation.navigate('MyProgress', { groupId })}
+								progress={myProgress}
+							/>
+						</HintTarget>
 					) : null}
 				</ProgressSection>
 
@@ -994,41 +1006,45 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 					label={t('groupProgress')}
 				>
 					{lastClosedRound ? (
-						<CardSurface
-							onPress={() => navigation.navigate('Rounds', { groupId })}
-							hasGlassSurface={!isSectionCard}
-							style={[styles.lastRoundCard, nestedRowStyle]}
-						>
-							<View
-								style={[
-									styles.lastRoundBadge,
-									{
-										backgroundColor: lastClosedRound.missedCount
-											? theme.colors.missedSurface
-											: theme.colors.accentSoft
-									}
-								]}
+						<HintTarget id='lastRound'>
+							<CardSurface
+								onPress={() => navigation.navigate('Rounds', { groupId })}
+								hasGlassSurface={!isSectionCard}
+								style={[styles.lastRoundCard, nestedRowStyle]}
 							>
-								<Typography
-									color={lastClosedRound.missedCount ? theme.colors.missed : theme.colors.accent}
-									style={styles.lastRoundBadgeLabel}
-									variant='title'
+								<View
+									style={[
+										styles.lastRoundBadge,
+										{
+											backgroundColor: lastClosedRound.missedCount
+												? theme.colors.missedSurface
+												: theme.colors.accentSoft
+										}
+									]}
 								>
-									{lastClosedRound.missedCount}
-								</Typography>
-							</View>
-							<View style={styles.lastRoundCopy}>
-								<CaptionText weight='semibold'>
-									{`${t('lastRound')} · ${t('roundN')} ${lastClosedRound.roundIndex + 1}`}
-								</CaptionText>
-								<CaptionText color={theme.colors.subtext} style={styles.lastRoundSub}>
-									{isHizb
-										? hizbMissedLine(lastClosedRound.missedCount)
-										: `${lastClosedRound.missedCount} ${t(isHatim ? 'missedCuz' : 'missedBabs')}`}
-								</CaptionText>
-							</View>
-							<Icon color={theme.colors.faintText} name='chevronRight' size={15} strokeWidth={1.8} />
-						</CardSurface>
+									<Typography
+										color={lastClosedRound.missedCount ? theme.colors.missed : theme.colors.accent}
+										style={styles.lastRoundBadgeLabel}
+										variant='title'
+									>
+										{lastClosedRound.missedCount}
+									</Typography>
+								</View>
+								<View style={styles.lastRoundCopy}>
+									<CaptionText weight='semibold'>
+										{`${t('lastRound')} · ${t('roundN')} ${lastClosedRound.roundIndex + 1}`}
+									</CaptionText>
+									<CaptionText color={theme.colors.subtext} style={styles.lastRoundSub}>
+										{isHizb
+											? hizbMissedLine(lastClosedRound.missedCount)
+											: `${lastClosedRound.missedCount} ${t(
+													isHatim ? 'missedCuz' : 'missedBabs'
+											  )}`}
+									</CaptionText>
+								</View>
+								<Icon color={theme.colors.faintText} name='chevronRight' size={15} strokeWidth={1.8} />
+							</CardSurface>
+						</HintTarget>
 					) : null}
 
 					{/*
@@ -1076,30 +1092,32 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 					 * it. The count comes from the group, so nothing here waits on the board.
 					 */}
 					{detail.poolAllBabNumbers.length > 0 ? (
-						<CardSurface
-							onPress={() => navigation.navigate('Pool', { groupId, kind: detail.kind })}
-							hasGlassSurface={!isSectionCard}
-							style={[styles.lastRoundCard, nestedRowStyle]}
-						>
-							<View style={[styles.lastRoundBadge, { backgroundColor: theme.colors.sand }]}>
-								<Typography
-									color={theme.colors.sandText}
-									style={styles.lastRoundBadgeLabel}
-									variant='title'
-								>
-									{isHizb ? hizbPoolCount : detail.poolAllBabNumbers.length}
-								</Typography>
-							</View>
-							<View style={styles.lastRoundCopy}>
-								<CaptionText weight='semibold'>{t('pool')}</CaptionText>
-								<CaptionText color={theme.colors.subtext} style={styles.lastRoundSub}>
-									{isHizb
-										? hizbPoolLine()
-										: `${detail.poolAllBabNumbers.length} ${t(unitLabelKey(detail.kind))}`}
-								</CaptionText>
-							</View>
-							<Icon color={theme.colors.faintText} name='chevronRight' size={15} strokeWidth={1.8} />
-						</CardSurface>
+						<HintTarget id='poolRow'>
+							<CardSurface
+								onPress={() => navigation.navigate('Pool', { groupId, kind: detail.kind })}
+								hasGlassSurface={!isSectionCard}
+								style={[styles.lastRoundCard, nestedRowStyle]}
+							>
+								<View style={[styles.lastRoundBadge, { backgroundColor: theme.colors.sand }]}>
+									<Typography
+										color={theme.colors.sandText}
+										style={styles.lastRoundBadgeLabel}
+										variant='title'
+									>
+										{isHizb ? hizbPoolCount : detail.poolAllBabNumbers.length}
+									</Typography>
+								</View>
+								<View style={styles.lastRoundCopy}>
+									<CaptionText weight='semibold'>{t('pool')}</CaptionText>
+									<CaptionText color={theme.colors.subtext} style={styles.lastRoundSub}>
+										{isHizb
+											? hizbPoolLine()
+											: `${detail.poolAllBabNumbers.length} ${t(unitLabelKey(detail.kind))}`}
+									</CaptionText>
+								</View>
+								<Icon color={theme.colors.faintText} name='chevronRight' size={15} strokeWidth={1.8} />
+							</CardSurface>
+						</HintTarget>
 					) : null}
 
 					{/*
@@ -1138,7 +1156,9 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 						babsQuery.isPending ? (
 							<HizbBoardSkeleton />
 						) : (
-							<HizbBoard cells={hizbCells} onPressIndex={handleOpenHizbIndex} />
+							<HintTarget id='groupBoard'>
+								<HizbBoard cells={hizbCells} onPressIndex={handleOpenHizbIndex} />
+							</HintTarget>
 						)
 					) : babsQuery.isPending ? (
 						/*
@@ -1155,10 +1175,10 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 						/>
 					) : isSectionCard ? (
 						// Already inside the section's card, which carries the heading and the count.
-						<View style={styles.bareBoard}>
+						<HintTarget id='groupBoard' style={styles.bareBoard}>
 							<BabGrid cells={babCells} kind={detail.kind} onPressBab={handlePressBab} />
 							<BabLegend kind={detail.kind} />
-						</View>
+						</HintTarget>
 					) : (
 						<CardSurface isFlush>
 							<View style={[styles.sectionHeader, { borderBottomColor: theme.colors.divider }]}>
@@ -1246,7 +1266,7 @@ const ProgressSection = ({
 };
 
 const styles = StyleSheet.create({
-	// The share as the tour frames it: "Başladı" and the panel, at the section's own gap.
+	// The share as its hint frames it: "Başladı" and the panel, at the section's own gap.
 	shareStack: { gap: 12 },
 	bareBoard: {
 		gap: 12

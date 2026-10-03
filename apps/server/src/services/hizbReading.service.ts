@@ -1204,7 +1204,9 @@ export async function hizbSummary(groupId: string, viewerUserId: string) {
 			hizbRemovalDays: latest?.reason === 'INACTIVITY' ? latest.removalDays : null,
 			// "41. gün" on the card: the group's own day, counted from 1 on the day it began.
 			hizbDay: today - civilDayNumber(group.startedAt ?? group.startsAt, group.timezone) + 1,
-			hizbToday: mine ? todayOf(group, mine, today, own) : null
+			hizbToday: mine ? todayOf(group, mine, today, own) : null,
+			// The days straight after today already read ahead — the daily reminder skips them.
+			hizbAheadDays: mine ? (await aheadOf(tx, mine.id, today)).read : 0
 		};
 	});
 }

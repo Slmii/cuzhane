@@ -1,3 +1,5 @@
+import { HintTarget } from '@/components/Hints/HintTarget.component';
+import { useHintScreen } from '@/components/Hints/useHintScreen';
 import { useGetGroupById } from '@/lib/hooks/useGroup';
 import { useRequireRoundCuz } from '@/lib/hooks/useHatimRoundGate';
 import { useHizbAssignment, useUpdateHizbAssignment } from '@/lib/hooks/useHizbReading';
@@ -123,6 +125,8 @@ const CuzReaderBody = ({ navigation, route }: Props) => {
 	const babsQuery = useGetBabs(groupId, assignmentId === undefined);
 	const setBabRead = useSetBabRead();
 	const { language, t } = useTranslation();
+	// One hint: the bookmark under the page.
+	useHintScreen('cuzReader');
 	const { theme } = useThemeContext();
 	const tabBarOffset = useContext(TabBarOffsetContext);
 	const userId = useCurrentUserId();
@@ -613,16 +617,17 @@ const CuzReaderBody = ({ navigation, route }: Props) => {
 						variant={isCuzMarked ? 'surface' : 'primary'}
 					/>
 				) : (
-					<AppButton
-						disabled={isPlaceMarked}
-						// The set's own bookmark, converted to an SF Symbol (`kaldigin-yer-bookmark`) so the
-						// glass button can draw it on iOS, and drawn by `ui/Icon` on Android — one glyph on both.
-						icon={isPlaceMarked ? 'check' : 'bookmark'}
-						onPress={handleMarkPlace}
-						style={styles.markButtonSlot}
-						title={t(isPlaceMarked ? 'qPlaceMarked' : 'qMarkPlace')}
-						variant={isPlaceMarked ? 'surface' : 'accent'}
-					/>
+					<HintTarget id='bookmark' style={styles.markButtonSlot}>
+						<AppButton
+							disabled={isPlaceMarked}
+							// The set's own bookmark, converted to an SF Symbol (`kaldigin-yer-bookmark`) so the
+							// glass button can draw it on iOS, and drawn by `ui/Icon` on Android — one glyph on both.
+							icon={isPlaceMarked ? 'check' : 'bookmark'}
+							onPress={handleMarkPlace}
+							title={t(isPlaceMarked ? 'qPlaceMarked' : 'qMarkPlace')}
+							variant={isPlaceMarked ? 'surface' : 'accent'}
+						/>
+					</HintTarget>
 				)}
 				<AppButton
 					accessibilityLabel={t('nextPage')}

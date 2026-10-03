@@ -1,3 +1,4 @@
+import { useHintScreen } from '@/components/Hints/useHintScreen';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
@@ -32,6 +33,8 @@ type Props = NativeStackScreenProps<TabStackParamList, 'HizbPlanHistory'>;
  */
 export const HizbPlanHistoryScreen = ({ navigation, route }: Props) => {
 	const { groupId } = route.params;
+	// One card that says what this page is for.
+	useHintScreen('planHistory');
 	const { t } = useTranslation();
 	const { theme } = useThemeContext();
 	// The group's book, from the screen it was opened from — a Şahsi Cevşen or Kur'an reads here too.

@@ -1,6 +1,7 @@
 import { WrapperApiError } from '@/api/wrapper.api';
 import { LateReadingNotice } from '@/components/LateReadingNotice/LateReadingNotice.component';
-import { TourTarget } from '@/components/Tour/TourTarget.component';
+import { HintTarget } from '@/components/Hints/HintTarget.component';
+import { useHintScreen } from '@/components/Hints/useHintScreen';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { PullToRefresh } from '@/components/ui/PullToRefresh/PullToRefresh.component';
@@ -70,6 +71,7 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 	 * so leaving the reader gives the display back without anything else having to remember to.
 	 */
 	useKeepAwake();
+	useHintScreen('reader');
 	const { theme } = useThemeContext();
 	const { language, t } = useTranslation();
 	const tabBarOffset = useContext(TabBarOffsetContext);
@@ -771,8 +773,8 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 						 * Drag or tap anywhere along it to jump — the arrows step one bab, which is
 						 * ninety-nine taps end to end.
 						 */}
-						{/* C6 of the first-use tour — the strip, and that it can be slid along. */}
-						<TourTarget id='readerMap' style={styles.babMapRow}>
+						{/* A hint points here: the strip, and that it can be slid along. */}
+						<HintTarget id='readerMap' style={styles.babMapRow}>
 							<GestureDetector gesture={railGesture}>
 								<View
 									accessibilityRole='adjustable'
@@ -793,7 +795,7 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 									/>
 								</View>
 							</GestureDetector>
-						</TourTarget>
+						</HintTarget>
 					</View>
 
 					<GestureDetector gesture={swipe}>
@@ -877,8 +879,8 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 					 * block; `AppButton` expresses disabled as a 0.45 dim, which is closer to the
 					 * muting the design rejected than to the solid "not yours today" it had.
 					 */}
-					{/* C5 of the first-use tour: "Okudum" on its own, the slot around it. */}
-					<TourTarget id='readMark' style={styles.markButtonSlot}>
+					{/* A hint points here: "Okudum" on its own, the slot around it. */}
+					<HintTarget id='readMark' style={styles.markButtonSlot}>
 						<AppButton
 							disabled={
 								!canMark ||
@@ -935,7 +937,7 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 							}
 							variant={isRead ? 'accentOutline' : 'accent'}
 						/>
-					</TourTarget>
+					</HintTarget>
 					<AppButton
 						accessibilityLabel={t('nextBab')}
 						disabled={nextBabNumber === undefined}

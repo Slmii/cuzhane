@@ -1,3 +1,4 @@
+import { useHintScreen } from '@/components/Hints/useHintScreen';
 import { LateReadingNotice } from '@/components/LateReadingNotice/LateReadingNotice.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
@@ -101,6 +102,8 @@ const appearanceFor = (state: RoundCellState, theme: AppTheme) => {
 // `navigation` only for the Hizb's Sekine, which opens the reader; going back is the navigator's own header button.
 export const RoundDetailScreen = ({ navigation, route }: Props) => {
 	const { groupId, roundIndex } = route.params;
+	// One card that says what this page is for.
+	useHintScreen('roundDetail');
 	const { theme } = useThemeContext();
 	const { t } = useTranslation();
 	const viewerUserId = useCurrentUserId();

@@ -104,7 +104,17 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 	// The settings object rather than a boolean, so the row's clock is narrowed to a string
 	// by the same check that decides to show the row — read separately, a drift between the
 	// two would put the word "undefined" where the time goes.
-	const activeReminder = userSettings.data?.reminderEnabled === true ? userSettings.data : null;
+	// This group's book's own reminder — the Hizb's has its own switch and time.
+	const settingsData = userSettings.data;
+	const activeReminder = settingsData
+		? isHizb
+			? settingsData.hizbReminderEnabled
+				? { time: settingsData.hizbReminderTime }
+				: null
+			: settingsData.reminderEnabled
+			? { time: settingsData.reminderTime }
+			: null
+		: null;
 
 	const handleStartReading = () => {
 		navigation.replace('GroupDetail', { groupId });
@@ -370,8 +380,8 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 					<>
 						<AppButton onPress={handleStartReading} title={t('startReading')} />
 						{/*
-						 * **Nothing about the reminder on a hatim.** The daily reminder counts
-						 * Cevşen groups only — see `reminderTotals` — so offering to set one
+						 * **Nothing about the reminder on a hatim.** The daily reminders are the
+						 * Cevşen's and the Hizb's — see `reminderTotals` — so offering to set one
 						 * here, or reporting one that is already on, would promise this group a
 						 * nudge it is deliberately left out of. Same reason the gathering state
 						 * above dropped "Başladığında bana bildir".
@@ -386,7 +396,7 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 							>
 								<Icon color={theme.colors.accent} name='tabReminders' size={14} strokeWidth={1.8} />
 								<CaptionText color={theme.colors.accent} weight='semibold'>
-									{`${t('reminderOnAt')} · ${activeReminder.reminderTime}`}
+									{`${t('reminderOnAt')} · ${activeReminder.time}`}
 								</CaptionText>
 								<CaptionText color={theme.colors.faintText} weight='semibold'>
 									{t('reminderChange')}

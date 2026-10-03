@@ -27,7 +27,32 @@ export const SetPartRepetitionsBodySchema = z.object({
 	isOpenRound: z.boolean().optional()
 });
 
+/** A seat-divided Hizb group's round counters: which round's. Omitted, the one the group is on. */
+export const RoundCountersQuerySchema = z.object({
+	roundIndex: z.coerce.number().int().min(0).optional()
+});
+
+/**
+ * The Delâil and istighfar counts, absolute; only the fields sent change. The service holds each to
+ * its ceiling. `isOpenRound` is Sekine's precondition: a 409 once the named round has closed.
+ */
+export const SetRoundCountersBodySchema = z
+	.object({
+		delailCount: z.number().int().min(0).optional(),
+		istighfarCount: z.number().int().min(0).optional(),
+		istighfarTarget: z.number().int().min(1).optional(),
+		roundIndex: z.number().int().min(0).optional(),
+		isOpenRound: z.boolean().optional()
+	})
+	.refine(
+		body =>
+			body.delailCount !== undefined || body.istighfarCount !== undefined || body.istighfarTarget !== undefined,
+		{ message: 'Nothing to count' }
+	);
+
 export type BabParams = z.infer<typeof BabParamsSchema>;
 export type SetBabReadBody = z.infer<typeof SetBabReadBodySchema>;
 export type PartRepetitionsQuery = z.infer<typeof PartRepetitionsQuerySchema>;
 export type SetPartRepetitionsBody = z.infer<typeof SetPartRepetitionsBodySchema>;
+export type RoundCountersQuery = z.infer<typeof RoundCountersQuerySchema>;
+export type SetRoundCountersBody = z.infer<typeof SetRoundCountersBodySchema>;
