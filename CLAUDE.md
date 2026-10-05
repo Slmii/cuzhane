@@ -33,7 +33,8 @@ in its `overrides` (`react`/`react-dom` 19.1.0, `@react-navigation/native` 7.2.2
     or it flakes across a group's midnight.
 -   Prisma: `pnpm --filter @cuzhane/server db:migrate|db:generate|db:studio|db:seed`. **Never hand-write
     a migration**: `db:migrate --name …`, then `db:generate`. A data backfill goes into a migration made
-    with `--create-only`, then applied. **Never run `prisma format`** — the schema files are 4-space
+    with `--create-only`, then applied. A migration already applied (even locally) is never edited —
+    correct it with a new one. **Never run `prisma format`** — the schema files are 4-space
     indented and it rewrites them to 2; check with `prisma validate`. `db:seed` rebuilds the dev data.
 -   Server build: `tsc` + `tsc-alias --resolve-full-paths` (path aliases are rewritten at build time).
 -   The Hüsrev page images in `apps/server/mushaf/` are gitignored and not in the repository — nothing
@@ -83,7 +84,9 @@ Three kinds: the **Cevşen** (`CEVSEN`, 100 babs), the **Kur'an** (`HATIM`, 30 c
 -   A Hizb group with a personal plan (`hizbPlan != null`) has no `GroupBab` rows; its reading lives in
     `hizbReading.service.ts`. Never compact or reuse its sequence/ordinal counters.
 -   **Repetition gates** (Sekine, istighfar, Delâil) are each reader's own: counts are set absolutely,
-    never incremented, and `assertRepetitionsMet` gates every path that marks a portion read.
+    never incremented. In a seat-divided group only Sekine gates on the server (`assertRepetitionsMet`,
+    on every path that marks a portion read); Delâil/istighfar are kept per round (`GroupRoundCounter`)
+    and lock only the reader's next page.
 -   **Old builds never see a kind they cannot draw.** Clients send `X-Cuzhane-Kinds` (`CLIENT_KINDS`);
     a request without it is taken to know CEVSEN and HATIM. A new kind goes into `CLIENT_KINDS` once
     the build can draw it.
@@ -121,6 +124,11 @@ Three kinds: the **Cevşen** (`CEVSEN`, 100 babs), the **Kur'an** (`HATIM`, 30 c
     → `clerkMiddleware()` → routers.
 -   **Public: `/health` only.** Everything else is under `/api` behind `requireAuthApi` +
     `populateAuthLocals`, including the mushaf page images.
+-   **Live reading's socket (`/api/live-socket`, `liveSocket.service.ts`) bypasses Express** — an
+    upgrade never reaches the middleware. It does its own auth (a Clerk token in the first frame,
+    never the URL), Zod parsing, frame cap and rate limits; keep every check there. Session state is
+    in memory (one API process per environment); only `LiveSession` rows persist. A `ws` socket
+    must always have an `error` listener, or one bad frame throws and takes the process down.
 -   **Every server change ships with tests** in `test/` (Vitest, against `cuzhane_test`): a new route or
     service path gets tests for its happy path, its refusals and its privacy rules; a bug fix starts with
     a test that reproduces it. Run `pnpm --filter @cuzhane/server test` before calling it done.
@@ -177,12 +185,14 @@ Three kinds: the **Cevşen** (`CEVSEN`, 100 babs), the **Kur'an** (`HATIM`, 30 c
     if nothing fits, extend the shared component rather than adding a look-alike.
 -   **Icons** only via `components/ui/Icon` (stroke only, ≥14px). **Never a typographic character as an
     icon**, not even inside a string. Beside a glass control use `ui/Icon/SymbolIcon`. An icon-only
-    `AppButton` is the 44pt disc; it goes glass only for icons in `GLYPH_BY_ICON`, and needs
+    `AppButton` is the 44pt disc (`size='sm'`: a 38pt one, still a 44pt target); it goes glass only for icons in `GLYPH_BY_ICON`, and needs
     `fullWidth={false}` in a row. `ICON_ONLY_GLYPH_SIZE` is mirrored in `Button.component.tsx` and
     `GlassButton.tsx`.
 -   Native glass controls (`AppButton`, `SegmentedControl`) are created once and hidden/shown, never
     mounted on the spot — a fresh one draws its first frame unplaced.
 -   Every SwiftUI `Host` carries `ignoreSafeArea='keyboard'` on the host itself.
+-   A gesture built in render (`Gesture.Pan()…runOnJS(fn)`) must not reach a ref through `fn`, or
+    `react-hooks/refs` fails lint — ask for ref work through state and an effect.
 -   Headings: `components/ScreenTitle` (pushed screens via `ScreenHeader`); never hand-roll one.
 -   Forms: `components/ui/Form` + bound controls; schemas are factories taking `t` (`createXSchema(t)`,
     memoised on `t`).
@@ -222,9 +232,15 @@ sheet; no gorhom, no close button):
 -   Lookups over the mushaf (`lib/content/mushafPlaces.ts`) are cached tables or binary searches, and
     long lists keep exact `getItemLayout` heights.
 
-**Tour** (`components/Tour`) runs only on its own fixtures (`tourDemoData`, separate
-`tourDemoQueryKeys` with `initialData`), keeps the app inert (`TourBlocker`), and its copy `tour1…N`
-is numbered in visit order — inserting a stop renumbers.
+**Hints** (`components/Hints`): the registry is `hints.ts` (`{ id, screen, target, order, … }`),
+the selection is pure (`hintQueue.ts`, tested). Hints point only at **real UI** — no demo data; a
+hint waits until its `HintTarget` is registered and on screen. A focused screen (`useHintScreen`)
+plays all its unseen, visible hints as **one sequence**, never over a sheet, a live reading, the
+keyboard or the splash, with the app inert (`HintBlocker`). Seen is **per account** on the server
+(`/api/hints`), marked as shown. **Never reuse or rename an id** — the server treats the old tour's
+finishers as having seen `LEGACY_TOUR_HINT_IDS`. A target below the fold needs its screen's
+`HintScrollProvider` (`ScreenContainer` has one) — **around** a ScrollView, never inside it:
+`stickyHeaderIndices` and `PullToRefresh`'s clone break otherwise.
 
 **Environment and releases (EAS)**
 
@@ -239,17 +255,20 @@ is numbered in visit order — inserting a stop renumbers.
 
 ## Notifications
 
--   The local reminder reconciler (`useReminderNotificationSync`) serialises runs, compares signatures
-    rather than rescheduling, never requests permission itself, and declares the Android channel right
-    before scheduling. `setNotificationHandler` at module scope.
+-   Daily reminders are per book — the Cevşen's (`reminderEnabled`/`reminderTime`) and the Hizb's
+    (`hizbReminder*`) — written as dated local notifications for 30 days (`plannedReminders`), only on
+    days something is unread; iOS holds at most 64 pending. `useReminderNotificationSync` serialises runs,
+    compares the key set rather than rescheduling, and never requests permission itself.
+    `setNotificationHandler` at module scope.
 -   Push delivery needs the APNs key and, on Android, `google-services.json` + the FCM V1 key in EAS.
     The simulator never receives a real push — test on a device. A ticket is not a delivery.
 
 ## Content sources — never generate, transliterate or approximate religious text
 
 -   **Cevşen** (`cevsen.data.json`), **Kur'an** (Quran Foundation, via `scripts/fetch-quran-text.ts`)
-    and **Hizbü'l-Hakaik** (`hizbulhakaik.data.json`, built from `scripts/hizbulhakaik.txt` by
-    `node scripts/build-hizbulhakaik.mts` — edit the source and re-run, never hand-edit the JSON).
+    and **Hizbü'l-Hakaik** (`hizbulhakaik.data.json`, built from `apps/web/scripts/hizbulhakaik.txt` by
+    `node scripts/build-hizbulhakaik.mts` run from `apps/web`, Node 22.18+ — edit the source and re-run,
+    never hand-edit the JSON).
 -   Keep the sources' Ottoman/Turkish orthography; the long î is written `U+0656` — don't "fix" it.
 -   Where a passage is cut or repeated, it is cut on the source's own text (exact anchors), with a test
     that pins it. Tests compare against the source's lines, never Arabic typed into the test.

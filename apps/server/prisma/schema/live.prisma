@@ -1,0 +1,25 @@
+// A live reading ("Birlikte oku"): one person reads the free Cevşen or the free Mushaf and the
+// people who joined with the code follow their place. See
+// docs/plans/2026-09-30-live-reading-sessions-design.md.
+//
+// Only the session's existence is stored — the code, who leads it, what it reads. Where the
+// reader is and who is watching live in the API's memory (`src/live/`); a row outlives a deploy
+// so the code keeps working across one. The row is deleted when the session ends: no history.
+
+enum LiveReadingKind {
+    CEVSEN
+    QURAN
+}
+
+model LiveSession {
+    id           String          @id @default(cuid())
+    /// What people type or open to join — the invite-code alphabet and length.
+    code         String          @unique
+    /// One live session per person: starting another replaces it.
+    leaderUserId String          @unique
+    kind         LiveReadingKind
+    startedAt    DateTime        @default(now())
+    /// Refreshed while the reader is connected. A row whose heartbeat is older than the grace
+    /// window is treated as ended and removed on the next read, the way rounds roll over lazily.
+    heartbeatAt  DateTime        @default(now())
+}

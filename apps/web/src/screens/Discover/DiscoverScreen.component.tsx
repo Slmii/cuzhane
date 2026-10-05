@@ -17,7 +17,7 @@ import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { GroupCycle } from '@/lib/types/domain';
 import { applyGroupBrowse, emptyGroupBrowseState, isGroupBrowseNarrowed } from '@/lib/utils/groupBrowse';
-import { cycleLabelKey, splitModeLabelKey } from '@/lib/utils/groups';
+import { cycleLabelKey, showsSplitMode, splitModeLabelKey } from '@/lib/utils/groups';
 import { TabStackParamList } from '@/navigation/types';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -109,7 +109,7 @@ export const DiscoverScreen = () => {
 			 * it animates a row that *moves*, which is still exactly the filter/sort case.
 			 */
 			<Animated.View layout={cardLayout}>
-				{/* A Hizb plan group has its own card (section 5): no seats, today's 33 instead. */}
+				{/* A Hizb plan group has its own card (section 5): no seats, today's 32 instead. */}
 				{item.kind === 'HIZB' && item.hizbPlan != null ? (
 					<HizbDiscoverCard
 						group={item}
@@ -136,7 +136,12 @@ export const DiscoverScreen = () => {
 						name={item.name}
 						// Always the read-only preview: joining happens there, not from the row.
 						onPress={() => navigation.navigate('InvitePreview', { groupId: item.id })}
-						subtitle={`${t(cycleLabelKey(item.cycle))} · ${t(splitModeLabelKey(item.splitMode))}`}
+						// A hatim holds its cüz rather than dividing them by seat, so it has no split to name.
+						subtitle={
+							showsSplitMode(item.kind)
+								? `${t(cycleLabelKey(item.cycle))} · ${t(splitModeLabelKey(item.splitMode))}`
+								: t(cycleLabelKey(item.cycle))
+						}
 					/>
 				)}
 			</Animated.View>

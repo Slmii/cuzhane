@@ -1,6 +1,3 @@
-import { useIsTourDemo } from '@/components/Tour/Tour.context';
-import { tourDemoMyProgress, tourDemoRounds } from '@/components/Tour/tourDemoData';
-import { tourDemoQueryKeys } from '@/lib/hooks/queryKeys';
 import { coverBabs, type CoverBabsInput, getMyProgress, getRoundDetail, getRounds } from '@/api/rounds.api';
 import { useCurrentUserId } from '@/lib/hooks/useCurrentUserId';
 import { groupQueryKeys, profileQueryKeys } from '@/lib/hooks/queryKeys';
@@ -8,17 +5,12 @@ import { useLiveRefetchInterval } from '@/lib/hooks/useLiveRefetchInterval';
 import type { RoundDetail } from '@/lib/types/domain';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-// See `useGetGroups` for why the tour answers its own queries.
-export const useGetRounds = (groupId: string) => {
-	const isDemo = useIsTourDemo();
-
-	return useQuery({
-		queryKey: isDemo ? tourDemoQueryKeys.rounds(groupId) : groupQueryKeys.rounds(groupId),
-		queryFn: isDemo ? async () => tourDemoRounds(groupId) : () => getRounds(groupId),
-		enabled: !!groupId,
-		...(isDemo ? { initialData: () => tourDemoRounds(groupId), staleTime: Infinity } : {})
+export const useGetRounds = (groupId: string) =>
+	useQuery({
+		queryKey: groupQueryKeys.rounds(groupId),
+		queryFn: () => getRounds(groupId),
+		enabled: !!groupId
 	});
-};
 
 export const useGetRoundDetail = (groupId: string, roundIndex: number) => {
 	const refetchInterval = useLiveRefetchInterval();
@@ -124,17 +116,11 @@ export const useCoverBabs = () => {
 /**
  * "Senin ilerlemen" — every round this member has been in, for the group-screen banner and the
  * screen it opens.
- *
- * Demo-aware like its neighbours: the card sits between two tour stops on the group screen,
- * so without a fixture the walkthrough would show it spinning against a group id the server
- * has never heard of.
  */
-export const useGetMyProgress = (groupId: string, isRunning = true) => {
-	const isDemo = useIsTourDemo();
-
-	return useQuery({
-		queryKey: isDemo ? tourDemoQueryKeys.myProgress(groupId) : groupQueryKeys.myProgress(groupId),
-		queryFn: isDemo ? async () => tourDemoMyProgress(groupId) : () => getMyProgress(groupId),
+export const useGetMyProgress = (groupId: string, isRunning = true) =>
+	useQuery({
+		queryKey: groupQueryKeys.myProgress(groupId),
+		queryFn: () => getMyProgress(groupId),
 		/*
 		 * **`isRunning`, because a gathering group can only answer 403.** The endpoint refuses
 		 * anything that has not started — there are no rounds to report — and the group screen
@@ -142,7 +128,5 @@ export const useGetMyProgress = (groupId: string, isRunning = true) => {
 		 * that is four refused requests a visit, the client's `retry: 3` included: the same
 		 * waste `groupOwnedQueryKeys` documents for keys dropped on leave.
 		 */
-		enabled: !!groupId && isRunning,
-		...(isDemo ? { initialData: () => tourDemoMyProgress(groupId), staleTime: Infinity } : {})
+		enabled: !!groupId && isRunning
 	});
-};

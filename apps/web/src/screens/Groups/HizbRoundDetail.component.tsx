@@ -26,7 +26,7 @@ import {
 import { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-/** HZ5's lattice at eleven across, so the 33 come out as three full rows — the Havuz's layout. */
+/** HZ5's lattice at eleven across, so the 32 come out as three rows — the Havuz's layout. */
 export const HIZB_ROUND_COLUMNS = 11;
 
 /** What the cover endpoint answers when somebody else read the portion first. */

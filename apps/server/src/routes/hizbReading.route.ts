@@ -1,12 +1,14 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import { z } from 'zod';
 import type { ResponseLocals } from '@interfaces/response.types';
+import { readAheadRateLimit } from '@middleware/rateLimit.middleware';
 import {
 	enrollHizb,
 	getHizbState,
 	getHizbAssignment,
 	getHizbHistoryDay,
 	getHizbHistoryDays,
+	openHizbAhead,
 	setHizbReadsFromBook,
 	updateHizbAssignment
 } from '@services/hizbReading.service';
@@ -21,7 +23,8 @@ const update = z
 		delailRepetitions: z.number().int().min(0).max(3).optional(),
 		repetitions: z.number().int().min(0).max(19).optional(),
 		bookmark: z.number().int().min(0).max(1000).optional(),
-		bookPortions: z.array(z.number().int().min(1).max(33)).min(1).max(33).optional()
+		// The Hizb's 32, a Kur'an day's cüz, or a Cevşen day's babs (up to 100); the service checks the day's own.
+		bookPortions: z.array(z.number().int().min(1).max(100)).min(1).max(100).optional()
 	})
 	.refine(
 		v =>
@@ -61,9 +64,14 @@ router.post(
 		enrollHizb(
 			user,
 			id,
-			z.object({ planDays: z.union([z.literal(7), z.literal(15), z.literal(33)]) }).parse(req.body).planDays
+			z.object({ planDays: z.union([z.literal(7), z.literal(15), z.literal(32)]) }).parse(req.body).planDays
 		)
 	)
+);
+router.post(
+	'/ahead',
+	readAheadRateLimit,
+	handle((_req, user, id) => openHizbAhead(user, id))
 );
 router.patch(
 	'/preferences',

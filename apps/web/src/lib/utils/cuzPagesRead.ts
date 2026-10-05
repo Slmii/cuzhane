@@ -15,7 +15,8 @@ export type CuzPagination = 'text' | 'husrev';
  * seven of Hüsrev's — and Ana sayfa shows the one the reader has chosen. Kept for **one round**,
  * like the bookmark: a group that keeps its cüz hands the same cüz back next round, unread.
  *
- * Device-local, for the same reasons as the bookmark, and best effort both ways.
+ * This is the device's copy, best effort both ways. A group's cüz keeps the count on the server
+ * too (`readingPlaces`), and Ana sayfa shows the higher of the two.
  */
 const STORAGE_KEY_PREFIX = 'cuzPagesRead.';
 

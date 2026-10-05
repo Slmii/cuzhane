@@ -36,7 +36,7 @@ export const cycleLabelKey = (cycle: GroupCycle): StringKey => CYCLE_LABEL_KEYS[
 
 /**
  * The noun a count of parts takes — "20 bab", "30 cüz", "7 bölüm". Lowercase, for after a
- * number: "/ 100 bab", "33 bölüm". A Hizb group divides portions and a hatim cüz, not babs, and
+ * number: "/ 100 bab", "32 bölüm". A Hizb group divides portions and a hatim cüz, not babs, and
  * saying "bab" there would name a unit the book is not cut into. Same as `unitLabelKey`.
  */
 export const partUnitKey = (kind: GroupKind): StringKey => unitLabelKey(kind);
@@ -92,6 +92,49 @@ export const visibilityIcon = (visibility: GroupVisibility): IconName => (visibi
 /** The long form, for a card subtitle: "Sabit paylaşım". */
 export const splitModeLabelKey = (splitMode: GroupSplitMode): StringKey =>
 	splitMode === 'FLEXIBLE' ? 'planFlexible' : splitMode === 'FIXED' ? 'fixedSplit' : 'planRotation';
+
+/** Whether a card names the split mode: a hatim's cüz are held, not divided by seat, so it has none. */
+export const showsSplitMode = (kind: GroupKind) => kind !== 'HATIM';
+
+/**
+ * Turlar's subtitle: what closing a round does. A hatim and a Hizb group have their own lines;
+ * a Cevşen group's depends on how it divides the babs. Seats move on by a whole share in a
+ * ROTATION group (never a fixed number of babs), stay put in a FIXED one, and a FLEXIBLE group's
+ * claims last one round.
+ */
+export const roundsSubtitleKey = (kind: GroupKind, splitMode: GroupSplitMode): StringKey =>
+	kind === 'HIZB'
+		? 'roundsSubHizb'
+		: kind === 'HATIM'
+		? 'roundsSubCuz'
+		: splitMode === 'FIXED'
+		? 'roundsSubFixed'
+		: splitMode === 'FLEXIBLE'
+		? 'roundsSubFlexible'
+		: 'roundsSub';
+
+/**
+ * The create flow's waiting copy, by what is being made. The create flow only makes Hizb plan
+ * groups, which have no portions to divide, and a reading of your own has no invite code.
+ */
+export const creatingCopy = ({
+	isFlexible,
+	isPersonal,
+	kind
+}: {
+	isFlexible: boolean;
+	isPersonal: boolean;
+	kind: GroupKind;
+}): { sub: StringKey; step: StringKey; showsCode: boolean } =>
+	isPersonal
+		? { sub: 'creatingPersonalSub', step: 'creatingStepPlan', showsCode: false }
+		: kind === 'HIZB'
+		? { sub: 'creatingPlanSub', step: 'creatingStepPlan', showsCode: true }
+		: kind === 'HATIM'
+		? { sub: 'creatingCuzSub', step: 'creatingStepCuz', showsCode: true }
+		: isFlexible
+		? { sub: 'creatingFlexibleSub', step: 'creatingFlexibleParts', showsCode: true }
+		: { sub: 'creatingSub', step: 'creatingStepBabs', showsCode: true };
 
 /** The short form used wherever the plan sits inline beside a range. */
 export const planLabelKey = (splitMode: GroupSplitMode): StringKey =>
@@ -422,7 +465,7 @@ const HIZB_SEAT_COLUMNS_MAX = 11;
  * How many columns the Hizb lobby's seat lattice (HC4) lays its seats out in: ten up to ten
  * seats — the Cevşen lobby's row — and past that as few rows as eleven columns allow, evened
  * out across them, but never narrower than eight. HC4 draws sixteen as two rows of eight and
- * the full 33 comes out as three of eleven; the floor is what keeps a cell from ballooning
+ * the full 32 comes out as three of eleven; the floor is what keeps a cell from ballooning
  * where evening out alone would halve the width (twelve seats as two rows of six).
  */
 export const hizbSeatColumns = (spots: number) =>
@@ -432,7 +475,7 @@ export const hizbSeatColumns = (spots: number) =>
  * What `PlanPreview` draws. Under ROTATION, the first `maxRounds` rounds of one seat — never more
  * rounds than there are seats, because after `spots` of them the seat is back where it began.
  * Under FIXED, the one range it holds every round. Percentages of `partCount`, so a bar reads as
- * a position on the whole book, the hundred babs or the Hizb's 33 portions alike.
+ * a position on the whole book, the hundred babs or the Hizb's 32 portions alike.
  */
 export const planPreviewRows = ({
 	maxRounds,

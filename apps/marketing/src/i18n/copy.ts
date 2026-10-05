@@ -73,7 +73,7 @@ const tr = {
 		},
 		{
 			name: "Hizbü'l-Hakaik",
-			unit: 'günlük porsiyon · 33 günlük plan',
+			unit: 'günlük porsiyon · 32 günlük plan',
 			body: 'Her güne bir porsiyon. Tekrarlı dualarda sayacı uygulama tutar.'
 		}
 	],
@@ -99,7 +99,7 @@ const tr = {
 	shotQReader: 'Mushaf okuyucu — Lokman suresi',
 	hEyebrow: "Hizbü'l-Hakaik",
 	hTitle: 'Her güne bir porsiyon; sayıyı uygulama tutar.',
-	hBody: '33 günlük planı tek başına ya da grupla başlat. O günün porsiyonu hazır gelir. Sekîne gibi tekrarlı dualarda metne dokun, sayaç bir artsın. Kitaptan okuduysan tek dokunuşla işaretle.',
+	hBody: '32 günlük planı tek başına ya da grupla başlat. O günün porsiyonu hazır gelir. Sekîne gibi tekrarlı dualarda metne dokun, sayaç bir artsın. Kitaptan okuduysan tek dokunuşla işaretle.',
 	hBullets: [
 		'Sayaç: metne dokun +1, geri al ya da sıfırla; kaç tekrar kaldığını gösterir',
 		'«Kitaptan okudum»: basılı kitaptan okuduğun gün de sayılır',
@@ -228,7 +228,7 @@ const en: typeof tr = {
 		},
 		{
 			name: "Hizbü'l-Hakaik",
-			unit: 'daily portion · 33-day plan',
+			unit: 'daily portion · 32-day plan',
 			body: 'One portion a day. For repeated prayers, the app keeps count for you.'
 		}
 	],
@@ -254,7 +254,7 @@ const en: typeof tr = {
 	shotQReader: 'Mushaf reader — Surah Luqman',
 	hEyebrow: "Hizbü'l-Hakaik",
 	hTitle: 'A portion for every day. The app keeps count.',
-	hBody: "Start the 33-day plan alone or with a group. Each day's portion is ready for you. For repeated prayers like the Sekîne, tap the text to add one to the count. If you read from the book, mark it with one tap.",
+	hBody: "Start the 32-day plan alone or with a group. Each day's portion is ready for you. For repeated prayers like the Sekîne, tap the text to add one to the count. If you read from the book, mark it with one tap.",
 	hBullets: [
 		'Counter: tap the text for +1, undo or reset; it shows how many are left',
 		'“I read it from the book”: days you read from print count too',
@@ -383,7 +383,7 @@ const nl: typeof tr = {
 		},
 		{
 			name: "Hizbü'l-Hakaik",
-			unit: 'dagelijkse portie · plan van 33 dagen',
+			unit: 'dagelijkse portie · plan van 32 dagen',
 			body: 'Elke dag één portie. Bij herhaalde gebeden telt de app voor je mee.'
 		}
 	],
@@ -409,7 +409,7 @@ const nl: typeof tr = {
 	shotQReader: 'Mushaf-lezer — soera Luqman',
 	hEyebrow: "Hizbü'l-Hakaik",
 	hTitle: 'Elke dag een portie. De app houdt de telling bij.',
-	hBody: 'Start het plan van 33 dagen alleen of met een groep. De portie van de dag staat klaar. Bij herhaalde gebeden zoals de Sekîne tik je op de tekst, en de teller gaat één omhoog. Heb je uit het boek gelezen? Markeer het met één tik.',
+	hBody: 'Start het plan van 32 dagen alleen of met een groep. De portie van de dag staat klaar. Bij herhaalde gebeden zoals de Sekîne tik je op de tekst, en de teller gaat één omhoog. Heb je uit het boek gelezen? Markeer het met één tik.',
 	hBullets: [
 		'Teller: tik op de tekst voor +1, zet terug of begin opnieuw; je ziet hoeveel er nog over zijn',
 		'‘Ik heb het uit het boek gelezen’: ook dagen uit een gedrukt boek tellen mee',

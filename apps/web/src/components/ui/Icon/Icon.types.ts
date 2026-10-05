@@ -53,6 +53,12 @@ export type IconName =
 	| 'memberCheck'
 	| 'memberFull'
 	| 'members'
+	| 'liveSession'
+	| 'pointLine'
+	| 'arrowDown'
+	| 'arrowUp'
+	| 'liveSessionLive'
+	| 'liveSessionTinted'
 	| 'lock'
 	| 'eyeOff'
 	| 'globe'
@@ -82,7 +88,16 @@ export type IconName =
 	| 'claimReleased'
 	| 'unclaimed'
 	| 'sun'
-	| 'moon';
+	| 'moon'
+	/* Live voice (Birlikte Oku Ses, lane I): open is a wash, paused is two strokes. */
+	| 'mic'
+	| 'micOn'
+	| 'micPaused'
+	| 'micOff'
+	| 'speaker'
+	| 'speakerOn'
+	| 'speakerPaused'
+	| 'stop';
 
 export interface IconProps {
 	name: IconName;

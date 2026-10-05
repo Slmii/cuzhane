@@ -81,7 +81,7 @@ const create = async (plan: number, options: { inactivityDays?: number } = {}) =
 const reader = (i: number) => `reader${i}`;
 const range = (from: number, count: number) => Array.from({ length: count }, (_, i) => from + i);
 const ascending = (values: readonly number[]) => [...values].sort((a, b) => a - b);
-const counterFor = (plan: number) => (plan === 7 ? 'hizbNext7' : plan === 15 ? 'hizbNext15' : 'hizbNext33');
+const counterFor = (plan: number) => (plan === 7 ? 'hizbNext7' : plan === 15 ? 'hizbNext15' : 'hizbNext32');
 
 /** Joins readers `from`…`from + count - 1` through the service, `BATCH` at a time concurrently. */
 const joinMany = async (groupId: string, from: number, count: number) => {
@@ -173,7 +173,7 @@ describe.each([100, 200, 500])('a Hizb plan group with %i readers', size => {
 	it(
 		'gives concurrent joiners an unbroken reading order and a balanced, fully covered board',
 		async () => {
-			const group = await create(33);
+			const group = await create(32);
 			await joinMany(group.id, 1, size);
 
 			// One active enrollment each; sequences 0…size with no gap or repeat; ordinals unique.
@@ -183,13 +183,13 @@ describe.each([100, 200, 500])('a Hizb plan group with %i readers', size => {
 			expect(ascending(enrollments.map(e => e.sequence))).toEqual(range(0, size + 1));
 			expect(new Set(enrollments.map(e => e.ordinal)).size).toBe(size + 1);
 			const counters = await prisma.group.findUniqueOrThrow({ where: { id: group.id } });
-			expect(counters.hizbNext33).toBe(size + 1);
+			expect(counters.hizbNext32).toBe(size + 1);
 			expect(counters.hizbNextSlot).toBeGreaterThan(Math.max(...enrollments.map(e => e.ordinal)));
 			const members = await prisma.groupMember.findMany({ where: { groupId: group.id } });
 			expect(members).toHaveLength(size + 1);
 			expect(new Set(members.map(m => m.slotIndex)).size).toBe(size + 1);
 
-			// The readers list: everyone, the viewer once, the 33 portions shared out evenly.
+			// The readers list: everyone, the viewer once, the 32 portions shared out evenly.
 			const order = await inOrder(group.id);
 			const last = order.at(-1)!;
 			const {
@@ -205,7 +205,7 @@ describe.each([100, 200, 500])('a Hizb plan group with %i readers', size => {
 			for (const m of state.members) {
 				holders.set(m.portion, (holders.get(m.portion) ?? 0) + 1);
 			}
-			expect(holders.size).toBe(33);
+			expect(holders.size).toBe(32);
 			expect(Math.max(...holders.values()) - Math.min(...holders.values())).toBeLessThanOrEqual(1);
 
 			// A partial board: the first ten in order read ten different portions.
@@ -219,8 +219,8 @@ describe.each([100, 200, 500])('a Hizb plan group with %i readers', size => {
 			expect(partialSummary.completedAt).toBeNull();
 			expect(partial.members.filter(m => m.completed)).toHaveLength(10);
 
-			// The rest of the first 33 read: the board is whole, and says so everywhere.
-			for (const userId of order.slice(10, 33)) {
+			// The rest of the first 32 read: the board is whole, and says so everywhere.
+			for (const userId of order.slice(10, 32)) {
 				await readToday(userId, group.id);
 			}
 			const full = await getHizbState(last, group.id);
@@ -232,7 +232,7 @@ describe.each([100, 200, 500])('a Hizb plan group with %i readers', size => {
 			expect(ascending(full.coveredSpans)).toEqual(ALL_SPANS);
 			expect(ascending(summary.hizbCoveredSpans)).toEqual(ALL_SPANS);
 			expect(full.coverage).toMatchObject({ complete: true, covered: PLAN_SPANS.length });
-			expect(full.members.filter(m => m.completed)).toHaveLength(33);
+			expect(full.members.filter(m => m.completed)).toHaveLength(32);
 			expect(summary).toMatchObject({ percent: 100, memberCount: size + 1, myShareDoneAt: null });
 			expect(summary.completedAt).not.toBeNull();
 			expect((await hizbSummary(group.id, order[0]!)).myShareDoneAt).toBe(start.toISOString());
@@ -264,7 +264,7 @@ describe.each([100, 200, 500])('a Hizb plan group with %i readers', size => {
 	it(
 		'hides names from other members, but not from the owner or the reader themselves',
 		async () => {
-			const group = await create(33);
+			const group = await create(32);
 			await seedReaders(group.id, size);
 			await prisma.group.update({ where: { id: group.id }, data: { hideMemberNames: true } });
 			const asReader = await getHizbState(reader(1), group.id);
@@ -282,13 +282,13 @@ describe.each([100, 200, 500])('a Hizb plan group with %i readers', size => {
 		'keeps a separate, unbroken order per plan in a members-choose group',
 		async () => {
 			const group = await create(0);
-			const plans = [7, 15, 33] as const;
+			const plans = [7, 15, 32] as const;
 			const planOf = (n: number) => plans[n % 3]!;
 			// Most readers chose earlier (seeded); the last sixty choose now, twenty at a time.
 			const late = 60;
 			await seedReaders(group.id, size);
 			const seeded = await prisma.group.findUniqueOrThrow({ where: { id: group.id } });
-			const counts = { 7: 0, 15: 0, 33: 0 };
+			const counts = { 7: 0, 15: 0, 32: 0 };
 			await prisma.hizbEnrollment.createMany({
 				data: range(1, size - late).map((n, i) => ({
 					groupId: group.id,
@@ -307,7 +307,7 @@ describe.each([100, 200, 500])('a Hizb plan group with %i readers', size => {
 					hizbNextSlot: { increment: size - late },
 					hizbNext7: counts[7],
 					hizbNext15: counts[15],
-					hizbNext33: counts[33]
+					hizbNext32: counts[32]
 				}
 			});
 			for (let n = size - late + 1; n <= size; n += BATCH) {
@@ -356,7 +356,7 @@ describe.each([100, 200, 500])('a Hizb plan group with %i readers', size => {
 	it(
 		'counts missed days per reader, removes the inactive ones and appends a rejoin at the tail',
 		async () => {
-			const group = await create(33, { inactivityDays: 3 });
+			const group = await create(32, { inactivityDays: 3 });
 			await seedReaders(group.id, size);
 			// A tenth read on the first day; everyone else never opens the group.
 			const readers = range(1, size / 10).map(reader);
@@ -399,7 +399,7 @@ describe.each([100, 200, 500])('a Hizb plan group with %i readers', size => {
 			expect((await getHizbState(idle, group.id)).missedCount).toBe(3);
 
 			// Coming back takes the next number after everyone, never a freed one.
-			await enrollHizb(idle, group.id, 33);
+			await enrollHizb(idle, group.id, 32);
 			const back = await prisma.hizbEnrollment.findFirstOrThrow({
 				where: { groupId: group.id, userId: idle, endDay: null }
 			});
@@ -421,7 +421,7 @@ describe.each([100, 200, 500])('a Hizb plan group with %i readers', size => {
 	it(
 		'keeps everyone’s place when a tenth leave, and appends newcomers after the last',
 		async () => {
-			const group = await create(33);
+			const group = await create(32);
 			await seedReaders(group.id, size);
 			const before = new Map(
 				(await prisma.hizbEnrollment.findMany({ where: { groupId: group.id } })).map(e => [
@@ -449,7 +449,7 @@ describe.each([100, 200, 500])('a Hizb plan group with %i readers', size => {
 	it(
 		'stays quick after a month in which everyone read every day',
 		async () => {
-			const group = await create(33);
+			const group = await create(32);
 			await seedReaders(group.id, size);
 			vi.setSystemTime(day(30));
 			const today = civilDayNumber(new Date(), ZONE);
@@ -462,7 +462,7 @@ describe.each([100, 200, 500])('a Hizb plan group with %i readers', size => {
 					range(anchor, 31).map(d => ({
 						enrollmentId: e.id,
 						day: d,
-						portion: portionForDay(33, e.sequence, d - anchor),
+						portion: portionForDay(32, e.sequence, d - anchor),
 						traversal: 0,
 						repetitions: 19,
 						delailRepetitions: 3,

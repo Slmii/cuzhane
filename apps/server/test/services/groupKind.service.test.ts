@@ -21,7 +21,7 @@ vi.mock('@utils/memberProfiles', async () => {
 });
 
 const OWNER = 'test_owner';
-/** Eleven seats over the Hizb's 33 portions: three apiece, no remainder. */
+/** Eleven seats over the Hizb's 32 portions: three apiece, the last seat two. */
 const HIZB_SPOTS = 11;
 
 const daysAgo = (days: number): Date => {
@@ -41,7 +41,7 @@ const createRunningGroup = async ({
 	startedDaysAgo = 3
 } = {}) => {
 	const startedAt = daysAgo(startedDaysAgo);
-	const partCount = kind === 'HIZB' ? 33 : 100;
+	const partCount = kind === 'HIZB' ? 32 : 100;
 
 	const group = await prisma.group.create({
 		data: {
@@ -96,7 +96,7 @@ describe('createGroupForUser', () => {
 		timezone: DEFAULT_TIME_ZONE
 	};
 
-	it('gives a Hizb group its 33 portions and says so', async () => {
+	it('gives a Hizb group its 32 portions and says so', async () => {
 		const detail = await createGroupForUser(OWNER, 'Owner', {
 			...input,
 			kind: 'HIZB',
@@ -104,11 +104,11 @@ describe('createGroupForUser', () => {
 			cycle: 'MONTHLY'
 		});
 
-		expect(await prisma.groupBab.count({ where: { groupId: detail.id } })).toBe(33);
+		expect(await prisma.groupBab.count({ where: { groupId: detail.id } })).toBe(32);
 		expect(detail.kind).toBe('HIZB');
-		expect(detail.partCount).toBe(33);
+		expect(detail.partCount).toBe(32);
 		expect(detail.cycle).toBe('MONTHLY');
-		// Seat 0's reserved block is its third of the 33, not a tenth of a hundred.
+		// Seat 0's reserved block is its three of the 32, not a tenth of a hundred.
 		expect(detail.myBabNumbers).toEqual([1, 2, 3]);
 	});
 
@@ -128,15 +128,15 @@ describe('createGroupForUser', () => {
 });
 
 describe('setBabReadForUser on a Hizb group', () => {
-	it('refuses a part past the 33rd as a bad request', async () => {
+	it('refuses a part past the 32nd as a bad request', async () => {
 		const group = await createRunningGroup({ startedDaysAgo: 0 });
 
-		await expect(setBabReadForUser(OWNER, group.id, 34, true)).rejects.toMatchObject({ statusCode: 400 });
+		await expect(setBabReadForUser(OWNER, group.id, 33, true)).rejects.toMatchObject({ statusCode: 400 });
 	});
 
 	it('marks a part in the caller’s share', async () => {
 		/*
-		 * In round 3 seat 0 reads block 3: parts 10–12 of 33. Split as a hundred, the same seat
+		 * In round 3 seat 0 reads block 3: parts 10–12 of 32. Split as a hundred, the same seat
 		 * would be reading 29–37 and part 11 would be an empty seat's pool block, which the
 		 * owner has not taken — so a hundred-part computation refuses this with a 409.
 		 */
@@ -150,33 +150,33 @@ describe('setBabReadForUser on a Hizb group', () => {
 });
 
 describe('round history of a Hizb group', () => {
-	it('counts a closed round’s misses out of 33', async () => {
+	it('counts a closed round’s misses out of 32', async () => {
 		const group = await createRunningGroup({ startedDaysAgo: 3 });
 		await recordHistory(group.id, 1, [4, 5, 6, 7, 8]);
 
 		const round1 = (await listRoundsForUser(OWNER, group.id)).find(round => round.roundIndex === 1);
 
-		expect(round1?.partCount).toBe(33);
+		expect(round1?.partCount).toBe(32);
 		expect(round1?.readCount).toBe(5);
-		expect(round1?.missedCount).toBe(28);
-		// Counted out of 33, not 100: nothing past the 33rd part is ever "missed".
-		expect(round1?.missedPartNumbers).toEqual(numbersUpTo(33).filter(number => number < 4 || number > 8));
-		// Eleven seats over 33 parts: the owner owes three a round, never a tenth of a hundred.
+		expect(round1?.missedCount).toBe(27);
+		// Counted out of 32, not 100: nothing past the 32nd part is ever "missed".
+		expect(round1?.missedPartNumbers).toEqual(numbersUpTo(32).filter(number => number < 4 || number > 8));
+		// Eleven seats over 32 parts: the owner owes three a round, never a tenth of a hundred.
 		expect(round1?.myOwedCount).toBe(3);
 	});
 
-	it('lists 33 parts in a round’s detail, each owed by the seat that held it', async () => {
+	it('lists 32 parts in a round’s detail, each owed by the seat that held it', async () => {
 		const group = await createRunningGroup({ startedDaysAgo: 3 });
 		await recordHistory(group.id, 1, [4, 5, 6, 7, 8]);
 
 		const detail = await getRoundDetailForUser(OWNER, group.id, 1);
 
-		expect(detail.partCount).toBe(33);
-		expect(detail.babs.map(bab => bab.number)).toEqual(numbersUpTo(33));
+		expect(detail.partCount).toBe(32);
+		expect(detail.babs.map(bab => bab.number)).toEqual(numbersUpTo(32));
 		expect(detail.readCount).toBe(5);
-		expect(detail.missedCount).toBe(28);
+		expect(detail.missedCount).toBe(27);
 		// Block 1 is parts 4–6. In round 1 the seat reading it is seat 0 — the rotation run
-		// backwards over a 33-part division, not a 100-bab one.
+		// backwards over a 32-part division, not a 100-bab one.
 		expect(detail.babs.find(bab => bab.number === 4)?.owedBySlotIndex).toBe(0);
 		expect(detail.babs.find(bab => bab.number === 1)?.owedBySlotIndex).toBe(10);
 	});
@@ -184,7 +184,7 @@ describe('round history of a Hizb group', () => {
 	it('refuses to cover a part the Hizb does not have', async () => {
 		const group = await createRunningGroup({ startedDaysAgo: 3 });
 
-		await expect(coverMissedBabsForUser(OWNER, group.id, 1, [34])).rejects.toMatchObject({ statusCode: 404 });
+		await expect(coverMissedBabsForUser(OWNER, group.id, 1, [33])).rejects.toMatchObject({ statusCode: 404 });
 		expect(await prisma.babRead.count({ where: { groupId: group.id } })).toBe(0);
 	});
 });
@@ -192,7 +192,7 @@ describe('round history of a Hizb group', () => {
 describe('getProfileStatsForUser across kinds', () => {
 	it('counts a fully read Hizb round as completed', async () => {
 		const group = await createRunningGroup({ startedDaysAgo: 3 });
-		await recordHistory(group.id, 1, numbersUpTo(33));
+		await recordHistory(group.id, 1, numbersUpTo(32));
 
 		expect((await getProfileStatsForUser(OWNER)).roundsCompleted).toBe(1);
 	});
@@ -206,7 +206,7 @@ describe('getProfileStatsForUser across kinds', () => {
 		expect((await getProfileStatsForUser(OWNER)).roundsCompleted).toBe(1);
 	});
 
-	it('keeps Hizb reads out of the bab total, but in the reading days', async () => {
+	it('counts every read in the total, whatever the book, and in the reading days', async () => {
 		const cevsen = await createRunningGroup({ kind: 'CEVSEN', spots: 20, startedDaysAgo: 3 });
 		const hizb = await createRunningGroup({ startedDaysAgo: 3 });
 		await recordHistory(cevsen.id, 1, [1, 2, 3]);
@@ -214,7 +214,8 @@ describe('getProfileStatsForUser across kinds', () => {
 
 		const stats = await getProfileStatsForUser(OWNER);
 
-		expect(stats.babsRead).toBe(3);
+		// Three Cevşen babs and two Hizb portions: the profile counts readings, not one unit.
+		expect(stats.babsRead).toBe(5);
 		// Every read in `recordHistory` lands now, so today's square counts all five.
 		expect(stats.last30Days[stats.last30Days.length - 1]?.count).toBe(5);
 		expect(stats.streakDays).toBe(1);

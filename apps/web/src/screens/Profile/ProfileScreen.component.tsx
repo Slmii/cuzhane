@@ -1,6 +1,6 @@
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenTitle } from '@/components/ScreenTitle/ScreenTitle.component';
-import { TourPickSheet } from '@/components/Tour/TourPickSheet.component';
+import { useHintsContext } from '@/components/Hints/Hints.context';
 import { ActivityHeatmap } from '@/components/ui/ActivityHeatmap/ActivityHeatmap.component';
 import { Avatar } from '@/components/ui/Avatar/Avatar.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
@@ -9,6 +9,8 @@ import { Divider } from '@/components/ui/Divider/Divider.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { Form } from '@/components/ui/Form/Form.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
+import { NavRow } from '@/components/ui/NavRow/NavRow.component';
+import { ToggleRow } from '@/components/ui/ToggleRow/ToggleRow.component';
 import {
 	isSegmentedControlNative,
 	SegmentedControl
@@ -17,6 +19,7 @@ import { StatTile } from '@/components/ui/StatTile/StatTile.component';
 import { BodyStrongText, CaptionText, MonoText } from '@/components/ui/Typography/Typography.component';
 import { useDeleteAccount } from '@/lib/hooks/useAccount';
 import { useGetProfileStats } from '@/lib/hooks/useProfileStats';
+import { useGetUserSettings, useUpdateUserSettings } from '@/lib/hooks/useUserSettings';
 import { LanguageSheet } from '@/screens/Profile/LanguageSheet.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { LANGUAGE_NATIVE_NAMES } from '@/lib/i18n/strings';
@@ -25,7 +28,6 @@ import { appVersionLabel } from '@/lib/utils/appVersion';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { ThemeMode } from '@/lib/theme/tokens';
 import { FeedbackSheet } from '@/screens/Profile/FeedbackSheet.component';
-import { useTour } from '@/components/Tour/Tour.context';
 import { InlineFieldRow } from '@/screens/Profile/InlineFieldRow.component';
 import { PhotoSheet } from '@/screens/Profile/PhotoSheet.component';
 import { WhatsNewSheet } from '@/screens/WhatsNew/WhatsNewSheet.component';
@@ -40,14 +42,16 @@ import { File } from 'expo-file-system';
 import { useCallback, useMemo, useState } from 'react';
 import { Controller } from 'react-hook-form';
 import { confirmDestructive } from '@/lib/utils/confirmDestructive';
-import { Image, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, Image, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { ProfileSkeleton } from './ProfileSkeleton.component';
 
 export const ProfileScreen = () => {
 	const navigation = useNavigation<NativeStackNavigationProp<TabStackParamList>>();
 	const { mode, setMode, theme } = useThemeContext();
 	const { language, t } = useTranslation();
-	const { start: startTour } = useTour();
+	const { resetHints } = useHintsContext();
+	const { data: settings } = useGetUserSettings();
+	const { mutate: updateUserSettings } = useUpdateUserSettings();
 	const statsQuery = useGetProfileStats();
 	const { data: stats, isError, isPending } = statsQuery;
 	const deleteAccount = useDeleteAccount();
@@ -59,7 +63,6 @@ export const ProfileScreen = () => {
 	const [isFeedbackSheetOpen, setIsFeedbackSheetOpen] = useState(false);
 	const [isLanguageSheetOpen, setIsLanguageSheetOpen] = useState(false);
 	const [isWhatsNewOpen, setIsWhatsNewOpen] = useState(false);
-	const [isTourPickOpen, setIsTourPickOpen] = useState(false);
 	const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
 	const profileSchema = useMemo(() => createProfileSchema(t), [t]);
@@ -70,6 +73,16 @@ export const ProfileScreen = () => {
 		},
 		[setMode]
 	);
+
+	// "İpuçlarını yeniden göster", then a short word that it worked — nothing on this screen changes.
+	const handleHintsReplay = useCallback(async () => {
+		try {
+			await resetHints();
+			Alert.alert(t('hintsReplayDoneTitle'), t('hintsReplayDoneBody'));
+		} catch {
+			Alert.alert(t('genericError'));
+		}
+	}, [resetHints, t]);
 
 	const handleSignOutConfirm = useCallback(async () => {
 		await signOut();
@@ -346,7 +359,7 @@ export const ProfileScreen = () => {
 			 * it at each call site would only imply the others aren't.
 			 */}
 			<View style={styles.statsRow}>
-				<StatTile label={t('babsRead')} style={styles.statTile} tone='accent' value={stats.babsRead} />
+				<StatTile label={t('profileReadings')} style={styles.statTile} tone='accent' value={stats.babsRead} />
 				<StatTile label={t('roundsDone')} style={styles.statTile} tone='accent' value={stats.roundsCompleted} />
 				<StatTile label={t('streak')} style={styles.statTile} tone='accent' value={stats.streakDays} />
 			</View>
@@ -396,6 +409,7 @@ export const ProfileScreen = () => {
 					 */}
 					<SegmentedControl
 						onChange={handleAppearanceChange}
+						fitsContent
 						options={[
 							{ label: t('light'), value: 'light' },
 							{ label: t('dark'), value: 'dark' },
@@ -414,37 +428,17 @@ export const ProfileScreen = () => {
 				 * which is what separates it from the two controls above it.
 				 */}
 				{/*
-				 * Section T's own way back in (TP): a sheet asks what to show — everything, or one
-				 * kind's part — and the tour then leaves this screen for the first stop's own.
+				 * The screens' hints: whether they play, and a way to see them all again — every one
+				 * but the welcome, which comes once.
 				 */}
-				<Pressable
-					accessibilityRole='button'
-					onPress={() => setIsTourPickOpen(true)}
-					style={({ pressed }) => [styles.settingsRow, { opacity: pressed ? 0.6 : 1 }]}
-				>
-					<View style={styles.settingsCopy}>
-						<BodyStrongText>{t('tourReplay')}</BodyStrongText>
-						<CaptionText color={theme.colors.subtext}>{t('tourReplaySub')}</CaptionText>
-					</View>
-					<View style={styles.settingsNav}>
-						<Icon color={theme.colors.subtext} name='chevronRight' size={14} strokeWidth={1.8} />
-					</View>
-				</Pressable>
+				<ToggleRow
+					hint={t('hintsEnabledSub')}
+					onValueChange={value => updateUserSettings({ hintsEnabled: value })}
+					title={t('hintsEnabledTitle')}
+					value={settings?.hintsEnabled ?? true}
+				/>
 				<Divider />
-				{/* The Hizb-ül Hakaik, read for its own sake — its table of contents is a screen of its own. */}
-				<Pressable
-					accessibilityRole='button'
-					onPress={() => navigation.navigate('HizbSections')}
-					style={({ pressed }) => [styles.settingsRow, { opacity: pressed ? 0.6 : 1 }]}
-				>
-					<View style={styles.settingsCopy}>
-						<BodyStrongText>{t('hizbRow')}</BodyStrongText>
-						<CaptionText color={theme.colors.subtext}>{t('hizbRowSub')}</CaptionText>
-					</View>
-					<View style={styles.settingsNav}>
-						<Icon color={theme.colors.subtext} name='chevronRight' size={14} strokeWidth={1.8} />
-					</View>
-				</Pressable>
+				<NavRow label={t('hintsReplay')} onPress={handleHintsReplay} />
 				<Divider />
 				{/*
 				 * **The second way to the reminder settings**, and the reason giving the bell
@@ -546,7 +540,6 @@ export const ProfileScreen = () => {
 				platform={Platform.OS}
 			/>
 			<LanguageSheet isVisible={isLanguageSheetOpen} onClose={() => setIsLanguageSheetOpen(false)} />
-			<TourPickSheet isVisible={isTourPickOpen} onClose={() => setIsTourPickOpen(false)} onStart={startTour} />
 			<WhatsNewSheet
 				isVisible={isWhatsNewOpen}
 				onClose={() => setIsWhatsNewOpen(false)}

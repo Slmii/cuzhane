@@ -8,9 +8,13 @@ import type { UserSettings } from '../generated/prisma/client';
  * under their **1.2.0 names**. That build reads and writes `groupReadsEnabled`,
  * `roundCompleteEnabled` and `poolClaimEnabled`; without them it showed all three off and could
  * not change them. Same columns, old names — drop once no 1.2.0 install is left.
+ *
+ * `hasSeenTour` is also what a pre-hints build reads to decide whether to start its demo tour, so
+ * an account that has used the per-screen hints counts as having seen it.
  */
 const serializeSettings = (settings: UserSettings) => ({
 	...settings,
+	hasSeenTour: settings.hasSeenTour || settings.hasUsedHints,
 	groupReadsEnabled: settings.cevsenGroupReadsEnabled,
 	poolClaimEnabled: settings.cevsenPoolClaimEnabled,
 	roundCompleteEnabled: settings.cevsenRoundCompleteEnabled
@@ -41,6 +45,8 @@ export const updateUserSettingsForUser = async (userId: string, input: UpdateUse
 	const updateData = {
 		...(input.language !== undefined ? { language: input.language } : {}),
 		...(input.reminderEnabled !== undefined ? { reminderEnabled: input.reminderEnabled } : {}),
+		...(input.hizbReminderEnabled !== undefined ? { hizbReminderEnabled: input.hizbReminderEnabled } : {}),
+		...(input.hizbReminderTime !== undefined ? { hizbReminderTime: input.hizbReminderTime } : {}),
 		...(cevsenGroupReadsEnabled !== undefined ? { cevsenGroupReadsEnabled } : {}),
 		...(cevsenRoundCompleteEnabled !== undefined ? { cevsenRoundCompleteEnabled } : {}),
 		...(cevsenPoolClaimEnabled !== undefined ? { cevsenPoolClaimEnabled } : {}),
@@ -55,6 +61,7 @@ export const updateUserSettingsForUser = async (userId: string, input: UpdateUse
 		...(input.reminderTime !== undefined ? { reminderTime: input.reminderTime } : {}),
 		...(input.hasSeenOnboarding !== undefined ? { hasSeenOnboarding: input.hasSeenOnboarding } : {}),
 		...(input.hasSeenTour !== undefined ? { hasSeenTour: input.hasSeenTour } : {}),
+		...(input.hintsEnabled !== undefined ? { hintsEnabled: input.hintsEnabled } : {}),
 		...(input.cevsenIntroEnabled !== undefined ? { cevsenIntroEnabled: input.cevsenIntroEnabled } : {}),
 		...(input.hatimIntroEnabled !== undefined ? { hatimIntroEnabled: input.hatimIntroEnabled } : {}),
 		...(input.hizbIntroEnabled !== undefined ? { hizbIntroEnabled: input.hizbIntroEnabled } : {}),

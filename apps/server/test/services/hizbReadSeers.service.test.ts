@@ -7,7 +7,7 @@ import {
 	updateGroupForUser
 } from '@services/groups.service';
 import { joinGroupForUser, leaveGroupForUser, listMembersForUser } from '@services/groupMembership.service';
-import { getHizbState, updateHizbAssignment } from '@services/hizbReading.service';
+import { getHizbState, hizbSummary, updateHizbAssignment } from '@services/hizbReading.service';
 import { listNotificationsForUser, recordNotification } from '@services/notifications.service';
 import { sendPushToUser } from '@services/push.service';
 import { hizbWorksOf } from '@utils/hizbWorks';
@@ -100,7 +100,7 @@ describe('choosing who sees who read', () => {
 			CreateGroupBodySchema.parse({
 				name: 'Vakıf',
 				kind: 'HIZB',
-				hizbPlan: 33,
+				hizbPlan: 32,
 				readSeersEnabled: true,
 				visibility: 'OPEN',
 				cycle: 'DAILY',
@@ -184,6 +184,33 @@ describe('names with names hidden', () => {
 		await updateGroupForUser('owner', group.id, { readSeersEnabled: false });
 		expect(await namesSeenBy('m1')).toBe(1);
 		expect((await getGroupDetailForUser('m1', group.id)).seesReaders).toBe(false);
+	});
+
+	it('counts today’s readers for the cards — how many read, of everyone on a plan', async () => {
+		const group = await createPlan();
+		await updateGroupForUser('owner', group.id, { hideMemberNames: true });
+		const readers = (await getHizbState('owner', group.id)).members.length;
+		expect((await hizbSummary(group.id, 'm2')).hizbReaders).toEqual({ read: 0, total: readers });
+
+		await readToday('m1', group.id);
+		await readToday('m3', group.id);
+		expect((await hizbSummary(group.id, 'm2')).hizbReaders).toEqual({ read: 2, total: readers });
+
+		// One who leaves after reading is no longer a reader of the group's day.
+		await leaveGroupForUser('m3', group.id);
+		expect((await hizbSummary(group.id, 'm2')).hizbReaders).toEqual({ read: 1, total: readers - 1 });
+	});
+
+	it('gives every reader today’s read time — a hidden one too, still without the name', async () => {
+		const group = await createPlan();
+		await updateGroupForUser('owner', group.id, { hideMemberNames: true });
+		vi.setSystemTime(new Date('2026-10-01T11:30:00Z'));
+		await readToday('m1', group.id);
+
+		const members = (await getHizbState('m2', group.id)).members;
+		const m1 = members.find(member => member.completed);
+		expect(m1).toMatchObject({ completedAt: '2026-10-01T11:30:00.000Z', displayName: null, isMe: false });
+		expect(members.filter(member => !member.completed).every(member => member.completedAt === null)).toBe(true);
 	});
 });
 

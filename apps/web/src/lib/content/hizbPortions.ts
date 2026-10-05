@@ -44,7 +44,7 @@ export type HizbWorkKey =
 export type HizbWork = { key: HizbWorkKey; titleKey: StringKey; parts: [number, number] };
 
 export type HizbPortion = {
-	/** 1–33: the part number a Hizb group's seats, reads and rounds count in. */
+	/** 1–32: the part number a Hizb group's seats, reads and rounds count in. */
 	number: number;
 	work: HizbWorkKey;
 	descriptionKey: StringKey;
@@ -64,14 +64,15 @@ export const HIZB_WORKS: HizbWork[] = [
 	{ key: 'delail', parts: [14, 18], titleKey: 'hizbWorkDelail' },
 	{ key: 'sekine', parts: [19, 19], titleKey: 'hizbWorkSekine' },
 	{ key: 'munacatIsmiAzam', parts: [20, 20], titleKey: 'hizbWorkMunacatIsmiAzam' },
-	{ key: 'munacatQuran', parts: [21, 25], titleKey: 'hizbWorkMunacatQuran' },
-	{ key: 'tahmidiye', parts: [26, 26], titleKey: 'hizbWorkTahmidiye' },
-	{ key: 'hulasa', parts: [27, 30], titleKey: 'hizbWorkHulasa' },
-	{ key: 'tazarru', parts: [31, 33], titleKey: 'hizbWorkTazarru' }
+	{ key: 'munacatQuran', parts: [21, 24], titleKey: 'hizbWorkMunacatQuran' },
+	{ key: 'tahmidiye', parts: [25, 25], titleKey: 'hizbWorkTahmidiye' },
+	{ key: 'hulasa', parts: [26, 29], titleKey: 'hizbWorkHulasa' },
+	{ key: 'tazarru', parts: [30, 32], titleKey: 'hizbWorkTazarru' }
 ];
 
 /**
- * Where each portion begins, checked on 2026-09-26 against the photographed book's markers.
+ * Where each portion begins: the family's 32-day calendar (its 2026 sheet), checked against the
+ * text on 2026-10-04.
  * `hizbPortions.test.ts` pins every portion's exact footprint — the blocks it is cut from and
  * the lines in each — and its opening words, long enough that no other block opens with them
  * (the second line too, where the first is the besmele). An anchor edited one block or line
@@ -84,9 +85,9 @@ export const HIZB_PORTIONS: HizbPortion[] = [
 	{ number: 3, work: 'quran', descriptionKey: 'hizbPart3Desc', start: { section: 4 } },
 	{ number: 4, work: 'cevsen', descriptionKey: 'hizbPart4Desc', start: { section: 7, block: 0 } },
 	{ number: 5, work: 'cevsen', descriptionKey: 'hizbPart5Desc', start: { section: 7, block: 18 } },
-	{ number: 6, work: 'cevsen', descriptionKey: 'hizbPart6Desc', start: { section: 7, block: 39 } },
-	{ number: 7, work: 'cevsen', descriptionKey: 'hizbPart7Desc', start: { section: 7, block: 59 } },
-	{ number: 8, work: 'cevsen', descriptionKey: 'hizbPart8Desc', start: { section: 7, block: 79 } },
+	{ number: 6, work: 'cevsen', descriptionKey: 'hizbPart6Desc', start: { section: 7, block: 38 } },
+	{ number: 7, work: 'cevsen', descriptionKey: 'hizbPart7Desc', start: { section: 7, block: 58 } },
+	{ number: 8, work: 'cevsen', descriptionKey: 'hizbPart8Desc', start: { section: 7, block: 78 } },
 	{ number: 9, work: 'evrad', descriptionKey: 'hizbPart9Desc', start: { section: 8 } },
 	{
 		number: 10,
@@ -100,17 +101,17 @@ export const HIZB_PORTIONS: HizbPortion[] = [
 		descriptionKey: 'hizbPart11Desc',
 		start: { section: 8, block: 0, line: 12, invocation: 9 }
 	},
-	{ number: 12, work: 'evrad', descriptionKey: 'hizbPart12Desc', start: { section: 8, block: 0, line: 17 } },
+	{ number: 12, work: 'evrad', descriptionKey: 'hizbPart12Desc', start: { section: 8, block: 0, line: 19 } },
 	{
 		number: 13,
 		work: 'evrad',
 		descriptionKey: 'hizbPart13Desc',
-		start: { section: 8, block: 0, line: 21, invocation: 2 }
+		start: { section: 8, block: 0, line: 23, invocation: 4 }
 	},
 	{ number: 14, work: 'delail', descriptionKey: 'hizbPart14Desc', start: { section: 9 } },
 	{ number: 15, work: 'delail', descriptionKey: 'hizbPart15Desc', start: { section: 9, block: 4 } },
 	{ number: 16, work: 'delail', descriptionKey: 'hizbPart16Desc', start: { section: 9, block: 7 } },
-	{ number: 17, work: 'delail', descriptionKey: 'hizbPart17Desc', start: { section: 9, block: 10 } },
+	{ number: 17, work: 'delail', descriptionKey: 'hizbPart17Desc', start: { section: 9, block: 14 } },
 	{ number: 18, work: 'delail', descriptionKey: 'hizbPart18Desc', start: { section: 9, block: 18 } },
 	// Read off `groupKinds.ts`, which mirrors the server's table — the one place the nineteen lives.
 	{
@@ -122,18 +123,17 @@ export const HIZB_PORTIONS: HizbPortion[] = [
 	},
 	{ number: 20, work: 'munacatIsmiAzam', descriptionKey: 'hizbPart20Desc', start: { section: 11 } },
 	{ number: 21, work: 'munacatQuran', descriptionKey: 'hizbPart21Desc', start: { section: 14, block: 0 } },
-	{ number: 22, work: 'munacatQuran', descriptionKey: 'hizbPart22Desc', start: { section: 14, block: 12 } },
-	{ number: 23, work: 'munacatQuran', descriptionKey: 'hizbPart23Desc', start: { section: 14, block: 26 } },
-	{ number: 24, work: 'munacatQuran', descriptionKey: 'hizbPart24Desc', start: { section: 14, block: 42 } },
-	{ number: 25, work: 'munacatQuran', descriptionKey: 'hizbPart25Desc', start: { section: 14, block: 60 } },
-	{ number: 26, work: 'tahmidiye', descriptionKey: 'hizbPart26Desc', start: { section: 15 } },
-	{ number: 27, work: 'hulasa', descriptionKey: 'hizbPart27Desc', start: { section: 16, block: 0 } },
-	{ number: 28, work: 'hulasa', descriptionKey: 'hizbPart28Desc', start: { section: 16, block: 6 } },
-	{ number: 29, work: 'hulasa', descriptionKey: 'hizbPart29Desc', start: { section: 16, block: 16 } },
-	{ number: 30, work: 'hulasa', descriptionKey: 'hizbPart30Desc', start: { section: 16, block: 27 } },
-	{ number: 31, work: 'tazarru', descriptionKey: 'hizbPart31Desc', start: { section: 16, block: 28, line: 3 } },
-	{ number: 32, work: 'tazarru', descriptionKey: 'hizbPart32Desc', start: { section: 16, block: 28, line: 9 } },
-	{ number: 33, work: 'tazarru', descriptionKey: 'hizbPart33Desc', start: { section: 16, block: 28, line: 15 } }
+	{ number: 22, work: 'munacatQuran', descriptionKey: 'hizbPart22Desc', start: { section: 14, block: 15 } },
+	{ number: 23, work: 'munacatQuran', descriptionKey: 'hizbPart23Desc', start: { section: 14, block: 30 } },
+	{ number: 24, work: 'munacatQuran', descriptionKey: 'hizbPart24Desc', start: { section: 14, block: 48, line: 1 } },
+	{ number: 25, work: 'tahmidiye', descriptionKey: 'hizbPart25Desc', start: { section: 15 } },
+	{ number: 26, work: 'hulasa', descriptionKey: 'hizbPart26Desc', start: { section: 16, block: 0 } },
+	{ number: 27, work: 'hulasa', descriptionKey: 'hizbPart27Desc', start: { section: 16, block: 6 } },
+	{ number: 28, work: 'hulasa', descriptionKey: 'hizbPart28Desc', start: { section: 16, block: 16 } },
+	{ number: 29, work: 'hulasa', descriptionKey: 'hizbPart29Desc', start: { section: 16, block: 27 } },
+	{ number: 30, work: 'tazarru', descriptionKey: 'hizbPart30Desc', start: { section: 16, block: 28, line: 3 } },
+	{ number: 31, work: 'tazarru', descriptionKey: 'hizbPart31Desc', start: { section: 16, block: 28, line: 9 } },
+	{ number: 32, work: 'tazarru', descriptionKey: 'hizbPart32Desc', start: { section: 16, block: 28, line: 15 } }
 ];
 
 const unknownPortion = (number: number): never => {
@@ -257,11 +257,31 @@ const spanOfLine = (
  * with them. A portion spanning several sections simply returns their blocks in order.
  *
  * **Section and block do not identify a returned block.** Consecutive portions can be cut from
- * the same source block — parts 9–13 all return block 8/0 (the Evrâd is one block), and 30–33
+ * the same source block — parts 9–13 all return block 8/0 (the Evrâd is one block), and 30–32
  * all return 16/28 — so a React key needs the portion number beside them.
  */
 export const portionBlocks = (number: number): HizbBlockRef[] =>
 	sliceHizbBlocks(portion(number).start, HIZB_PORTIONS[number]?.start);
+
+const pageCounts = new Map<number, number>();
+
+/**
+ * How many pages the portion reader turns through in a portion — its blocks, counted once:
+ * `portionBlocks` walks the whole text, and a group screen asks for every portion of a share.
+ */
+export const portionPageCount = (number: number): number => {
+	const cached = pageCounts.get(number);
+
+	if (cached !== undefined) {
+		return cached;
+	}
+
+	const count = portionBlocks(number).length;
+
+	pageCounts.set(number, count);
+
+	return count;
+};
 
 export const sliceHizbBlocks = (from: HizbAnchor, until?: HizbAnchor): HizbBlockRef[] => {
 	const start = positionOf(from);

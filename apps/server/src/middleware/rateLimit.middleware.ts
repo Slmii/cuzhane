@@ -36,10 +36,88 @@ export const createGroupRateLimit = rateLimit({
 	handler: tooManyRequestsHandler
 });
 
+/** Starting a live reading — a person needs a handful an hour; a loop needs more. */
+export const liveStartRateLimit = rateLimit({
+	windowMs: 60 * 60 * 1000,
+	limit: 20,
+	standardHeaders: 'draft-7',
+	legacyHeaders: false,
+	keyGenerator: userKey,
+	handler: tooManyRequestsHandler
+});
+
+/** Looking a live reading up by its code: a wall against guessing codes, not against people. */
+export const liveLookupRateLimit = rateLimit({
+	windowMs: 60 * 1000,
+	limit: 20,
+	standardHeaders: 'draft-7',
+	legacyHeaders: false,
+	keyGenerator: userKey,
+	handler: tooManyRequestsHandler
+});
+
+/**
+ * The reader turning their voice on and off — each a call to Cloudflare. A reconnecting app starts
+ * it again, so more than a person would tap, still far below a loop.
+ */
+export const liveVoiceRateLimit = rateLimit({
+	windowMs: 60 * 1000,
+	limit: 20,
+	standardHeaders: 'draft-7',
+	legacyHeaders: false,
+	keyGenerator: userKey,
+	handler: tooManyRequestsHandler
+});
+
+/**
+ * Cloudflare relay credentials handed out — the reader starting voice and a follower starting to
+ * listen, counted together per person per hour. Each is good for a session's four hours and billed
+ * when used, so this is the wall against minting them as a relay; real starts, listens and a few
+ * reconnects stay well inside it.
+ */
+export const liveTurnRateLimit = rateLimit({
+	windowMs: 60 * 60 * 1000,
+	limit: 20,
+	standardHeaders: 'draft-7',
+	legacyHeaders: false,
+	keyGenerator: userKey,
+	handler: tooManyRequestsHandler
+});
+
+/** A follower starting to listen and answering Cloudflare's offer — two calls per listen, all to Cloudflare. */
+export const liveListenRateLimit = rateLimit({
+	windowMs: 60 * 1000,
+	limit: 30,
+	standardHeaders: 'draft-7',
+	legacyHeaders: false,
+	keyGenerator: userKey,
+	handler: tooManyRequestsHandler
+});
+
 /** Taking and releasing pool slots and cüz — generous for real use, a wall against a loop. */
 export const poolRateLimit = rateLimit({
 	windowMs: 60 * 1000,
 	limit: 30,
+	standardHeaders: 'draft-7',
+	legacyHeaders: false,
+	keyGenerator: userKey,
+	handler: tooManyRequestsHandler
+});
+
+/** Opening the next day's Hizb portion to read ahead — a row per day, so a wall against a loop. */
+export const readAheadRateLimit = rateLimit({
+	windowMs: 60 * 1000,
+	limit: 30,
+	standardHeaders: 'draft-7',
+	legacyHeaders: false,
+	keyGenerator: userKey,
+	handler: tooManyRequestsHandler
+});
+
+/** Saving the reader's place, written as pages turn — generous for reading, a wall against a loop. */
+export const readingPlaceRateLimit = rateLimit({
+	windowMs: 60 * 1000,
+	limit: 120,
 	standardHeaders: 'draft-7',
 	legacyHeaders: false,
 	keyGenerator: userKey,
@@ -60,6 +138,16 @@ export const externalCallRateLimit = rateLimit({
 export const feedbackRateLimit = rateLimit({
 	windowMs: 60 * 60 * 1000,
 	limit: 10,
+	standardHeaders: 'draft-7',
+	legacyHeaders: false,
+	keyGenerator: userKey,
+	handler: tooManyRequestsHandler
+});
+
+/** Marking hints seen and resetting them — a few taps a minute in use, a wall against a loop. */
+export const hintsRateLimit = rateLimit({
+	windowMs: 60 * 1000,
+	limit: 60,
 	standardHeaders: 'draft-7',
 	legacyHeaders: false,
 	keyGenerator: userKey,

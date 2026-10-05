@@ -61,34 +61,33 @@ const OPENINGS: Record<number, string> = {
 	3: 'بِسْمِ اللّٰهِ الرَّحْمٰنِ الرَّحٖيمِ',
 	4: 'جَوْشَنُ الْكَبٖيرْ',
 	5: 'فَاَسْئَلُكَ بِاَسْمآَئِكَ',
-	6: 'يَا مَنْ هُوَ فِى الْبَرِّ',
-	7: 'يَا مَنْ يَعْلَمُ',
-	8: 'يَا مَنْ يَخْلُقُ',
+	6: 'وَ اَسْئَلُكَ بِاَسْمَٓائِكَ يَا غَافِرُ',
+	7: 'يَا مَنْ يُقَلِّبُ',
+	8: 'يَا مَنْ اَنْعَمَ',
 	9: 'اَوْرَادِ قُدْسِيَّه',
 	10: 'اَللّٰهُ لَٓا اِلٰهَ اِلَّا',
 	11: 'مَرْحَبًا مَرْحَبًا بِالصَّبَاحِ',
-	12: 'طٰسٓمٓ',
-	13: 'اَلصَّابِرٖينَ',
+	12: 'لَٓا اِلٰهَ اِلَّا  اللّٰهُ الْوَكٖيلُ الشَّهٖيدُ',
+	13: 'كٓهٰيٰعٓصٓ ❁ حٰمٓ عٓسٓقٓ',
 	14: 'دَلَائِلُ النُّورِ',
 	15: '(اَللّٰهُمَّ) صَلِّ عَلٰى سَيِّدِنَا مُحَمَّدٍ شَجَرَةِ',
 	16: '(اَللّٰهُمَّ) صَلِّ عَلٰى مَنْ مِنْهُ انْشَقَّتِ',
-	17: '(اَللّٰهُمَّ) صَلِّ صَلَاةً كَامِلَةً',
+	17: '(اَللّٰهُمَّ) صَلِّ عَلٰى سَيِّدِنَا مُحَمَّدٍ صَلَاةً',
 	18: '(اَللّٰهُمَّ) صَلِّ عَلٰى سَيِّدِنَا مُحَمَّدٍ ۨالسَّابِقِ',
 	19: 'سَكٖينَه',
 	20: 'مُنَاجَاتُ وَيْسَ',
 	21: 'مُنَاجَاتُ الْقُرْاٰنْ',
-	22: '(اِبْرَاهٖيم:)',
-	23: '(لُقْمَان:)',
-	24: '(قَمَر:)',
-	25: '(نَبَاُالْعَظٖيم:)',
-	26: 'تَحْمِيدِيَه',
-	27: 'خُلَاصَةُ الْخُلَاصَه',
-	28: 'لَٓا اِلٰهَ اِلَّا  اللّٰهُ بِاَلْسِنَةِ الْاَخْيَارِ',
-	29: 'لَٓا اِلٰهَ اِلَّا  اللّٰهُ الْوَاجِبُ الْوُجُودِ اَلْوَاحِدُ الْاَحَدُ ذُو',
-	30: 'لَٓا اِلٰهَ اِلَّا  اللّٰهُ الْمَلِكُ الْحَقُّ الْمُبٖينُ مُحَمَّدٌ رَسُولُ اللّٰهِ صَادِقُ الْوَعْدِ الْاَمٖينِ بِشَهَادَةِ صَاحِبِ',
+	22: '(اِسْرٰى:)',
+	23: '(صَٓافَّات:)',
+	24: '(مُنَافِقٖين:) يَا مَنْ لَهُ',
+	25: 'تَحْمِيدِيَه',
+	26: 'خُلَاصَةُ الْخُلَاصَه',
+	27: 'لَٓا اِلٰهَ اِلَّا  اللّٰهُ بِاَلْسِنَةِ الْاَخْيَارِ',
+	28: 'لَٓا اِلٰهَ اِلَّا  اللّٰهُ الْوَاجِبُ الْوُجُودِ اَلْوَاحِدُ الْاَحَدُ ذُو',
+	29: 'لَٓا اِلٰهَ اِلَّا  اللّٰهُ الْمَلِكُ الْحَقُّ الْمُبٖينُ مُحَمَّدٌ رَسُولُ اللّٰهِ صَادِقُ الْوَعْدِ الْاَمٖينِ بِشَهَادَةِ صَاحِبِ',
+	30: 'بِسْمِ اللّٰهِ الرَّحْمٰنِ الرَّحٖيمِ',
 	31: 'بِسْمِ اللّٰهِ الرَّحْمٰنِ الرَّحٖيمِ',
-	32: 'بِسْمِ اللّٰهِ الرَّحْمٰنِ الرَّحٖيمِ',
-	33: 'بِسْمِ اللّٰهِ الرَّحْمٰنِ الرَّحٖيمِ'
+	32: 'بِسْمِ اللّٰهِ الرَّحْمٰنِ الرَّحٖيمِ'
 };
 
 /**
@@ -97,9 +96,9 @@ const OPENINGS: Record<number, string> = {
  */
 const SECOND_LINES: Record<number, string> = {
 	3: 'لَا يَسْتَوٖٓى اَصْحَابُ',
-	31: 'اِلٰهٖى اَلذُّنُوبُ',
-	32: 'سُبْحَانَكَ لَٓا',
-	33: 'يَٓا اَللّٰهُ ❁ يَا رَحْمٰنُ'
+	30: 'اِلٰهٖى اَلذُّنُوبُ',
+	31: 'سُبْحَانَكَ لَٓا',
+	32: 'يَٓا اَللّٰهُ ❁ يَا رَحْمٰنُ'
 };
 
 /**
@@ -111,79 +110,78 @@ const SECOND_LINES: Record<number, string> = {
 const FOOTPRINTS: Record<number, { blocks: string; lines: number }> = {
 	1: { blocks: '0/0:5 1/0:10', lines: 15 },
 	2: { blocks: '2/0:8 3/0:7', lines: 15 },
-	3: { blocks: '4/0:3 5/0:6 6/0:7', lines: 16 },
+	3: { blocks: '4/0:3 5/0:6 6/0:8', lines: 17 },
 	4: {
 		blocks: '7/0:7 7/1:2 7/2:3 7/3:2 7/4:3 7/5:2 7/6:3 7/7:2 7/8:3 7/9:2 7/10:3 7/11:2 7/12:2 7/13:2 7/14:5 7/15:2 7/16:2 7/17:2',
 		lines: 49
 	},
 	5: {
-		blocks: '7/18:2 7/19:2 7/20:3 7/21:2 7/22:2 7/23:2 7/24:3 7/25:2 7/26:2 7/27:2 7/28:2 7/29:2 7/30:2 7/31:3 7/32:2 7/33:3 7/34:2 7/35:3 7/36:2 7/37:3 7/38:2',
-		lines: 48
+		blocks: '7/18:2 7/19:2 7/20:3 7/21:2 7/22:2 7/23:2 7/24:3 7/25:2 7/26:2 7/27:2 7/28:2 7/29:2 7/30:2 7/31:3 7/32:2 7/33:3 7/34:2 7/35:3 7/36:2 7/37:3',
+		lines: 46
 	},
 	6: {
-		blocks: '7/39:3 7/40:2 7/41:3 7/42:2 7/43:2 7/44:2 7/45:2 7/46:2 7/47:2 7/48:3 7/49:2 7/50:3 7/51:2 7/52:2 7/53:2 7/54:3 7/55:2 7/56:3 7/57:2 7/58:3',
-		lines: 47
+		blocks: '7/38:2 7/39:3 7/40:2 7/41:3 7/42:2 7/43:2 7/44:2 7/45:2 7/46:2 7/47:2 7/48:3 7/49:2 7/50:3 7/51:2 7/52:2 7/53:2 7/54:3 7/55:2 7/56:3 7/57:2',
+		lines: 46
 	},
 	7: {
-		blocks: '7/59:2 7/60:3 7/61:2 7/62:2 7/63:2 7/64:3 7/65:2 7/66:2 7/67:2 7/68:3 7/69:2 7/70:2 7/71:2 7/72:2 7/73:2 7/74:2 7/75:3 7/76:2 7/77:2 7/78:2',
-		lines: 44
+		blocks: '7/58:3 7/59:2 7/60:3 7/61:2 7/62:2 7/63:2 7/64:3 7/65:2 7/66:2 7/67:2 7/68:3 7/69:2 7/70:2 7/71:2 7/72:2 7/73:2 7/74:2 7/75:3 7/76:2 7/77:2',
+		lines: 45
 	},
 	8: {
-		blocks: '7/79:3 7/80:2 7/81:3 7/82:2 7/83:3 7/84:2 7/85:2 7/86:2 7/87:3 7/88:2 7/89:2 7/90:2 7/91:2 7/92:2 7/93:2 7/94:3 7/95:2 7/96:2 7/97:2 7/98:4',
-		lines: 47
+		blocks: '7/78:2 7/79:3 7/80:2 7/81:3 7/82:2 7/83:3 7/84:2 7/85:2 7/86:2 7/87:3 7/88:2 7/89:2 7/90:2 7/91:2 7/92:2 7/93:2 7/94:3 7/95:2 7/96:2 7/97:2 7/98:4',
+		lines: 49
 	},
 	9: { blocks: '8/0:9', lines: 9 },
 	10: { blocks: '8/0:5', lines: 5 },
-	11: { blocks: '8/0:5', lines: 5 },
+	11: { blocks: '8/0:7', lines: 7 },
 	12: { blocks: '8/0:5', lines: 5 },
-	13: { blocks: '8/0:7', lines: 7 },
+	13: { blocks: '8/0:5', lines: 5 },
 	14: { blocks: '9/0:6 9/1:2 9/2:2 9/3:3', lines: 13 },
 	15: { blocks: '9/4:2 9/5:1 9/6:3', lines: 6 },
-	16: { blocks: '9/7:3 9/8:2 9/9:1', lines: 6 },
-	17: { blocks: '9/10:1 9/11:1 9/12:1 9/13:1 9/14:1 9/15:1 9/16:2 9/17:4', lines: 12 },
+	16: { blocks: '9/7:3 9/8:2 9/9:1 9/10:1 9/11:1 9/12:1 9/13:1', lines: 10 },
+	17: { blocks: '9/14:1 9/15:1 9/16:2 9/17:4', lines: 8 },
 	18: { blocks: '9/18:7 9/19:2 9/20:2 9/21:1 9/22:6', lines: 18 },
 	19: { blocks: '10/0:14', lines: 14 },
 	20: { blocks: '11/0:12 12/0:41 13/0:5', lines: 58 },
-	21: { blocks: '14/0:8 14/1:2 14/2:2 14/3:2 14/4:2 14/5:2 14/6:1 14/7:1 14/8:2 14/9:1 14/10:2 14/11:2', lines: 27 },
-	22: {
-		blocks: '14/12:1 14/13:2 14/14:1 14/15:2 14/16:2 14/17:1 14/18:2 14/19:2 14/20:1 14/21:2 14/22:1 14/23:2 14/24:1 14/25:2',
-		lines: 22
+	21: {
+		blocks: '14/0:8 14/1:2 14/2:2 14/3:2 14/4:2 14/5:2 14/6:1 14/7:1 14/8:2 14/9:1 14/10:2 14/11:2 14/12:1 14/13:2 14/14:1',
+		lines: 31
 	},
-	23: {
-		blocks: '14/26:1 14/27:2 14/28:1 14/29:2 14/30:1 14/31:2 14/32:1 14/33:2 14/34:1 14/35:2 14/36:1 14/37:2 14/38:2 14/39:1 14/40:2 14/41:1',
+	22: {
+		blocks: '14/15:2 14/16:2 14/17:1 14/18:2 14/19:2 14/20:1 14/21:2 14/22:1 14/23:2 14/24:1 14/25:2 14/26:1 14/27:2 14/28:1 14/29:2',
 		lines: 24
 	},
+	23: {
+		blocks: '14/30:1 14/31:2 14/32:1 14/33:2 14/34:1 14/35:2 14/36:1 14/37:2 14/38:2 14/39:1 14/40:2 14/41:1 14/42:2 14/43:1 14/44:1 14/45:2 14/46:2 14/47:1 14/48:1',
+		lines: 28
+	},
 	24: {
-		blocks: '14/42:2 14/43:1 14/44:1 14/45:2 14/46:2 14/47:1 14/48:2 14/49:1 14/50:1 14/51:2 14/52:1 14/53:1 14/54:2 14/55:1 14/56:1 14/57:1 14/58:2 14/59:1',
-		lines: 25
+		blocks: '14/48:1 14/49:1 14/50:1 14/51:2 14/52:1 14/53:1 14/54:2 14/55:1 14/56:1 14/57:1 14/58:2 14/59:1 14/60:2 14/61:1 14/62:2 14/63:1 14/64:1 14/65:2 14/66:1 14/67:1 14/68:2 14/69:1 14/70:1 14/71:1 14/72:2 14/73:1 14/74:1 14/75:1 14/76:1 14/77:2 14/78:1 14/79:1 14/80:1 14/81:2 14/82:1 14/83:1 14/84:1 14/85:1 14/86:2 14/87:1 14/88:1 14/89:1',
+		lines: 53
 	},
 	25: {
-		blocks: '14/60:2 14/61:1 14/62:2 14/63:1 14/64:1 14/65:2 14/66:1 14/67:1 14/68:2 14/69:1 14/70:1 14/71:1 14/72:2 14/73:1 14/74:1 14/75:1 14/76:1 14/77:2 14/78:1 14/79:1 14/80:1 14/81:2 14/82:1 14/83:1 14/84:1 14/85:1 14/86:2 14/87:1 14/88:1 14/89:1',
-		lines: 38
-	},
-	26: {
 		blocks: '15/0:9 15/1:4 15/2:4 15/3:4 15/4:4 15/5:4 15/6:4 15/7:3 15/8:4 15/9:3 15/10:3 15/11:4 15/12:4 15/13:4 15/14:3 15/15:4 15/16:3 15/17:4 15/18:4 15/19:3',
 		lines: 79
 	},
-	27: { blocks: '16/0:8 16/1:2 16/2:1 16/3:2 16/4:1 16/5:2', lines: 16 },
-	28: { blocks: '16/6:1 16/7:1 16/8:2 16/9:1 16/10:1 16/11:2 16/12:1 16/13:2 16/14:1 16/15:2', lines: 14 },
-	29: {
+	26: { blocks: '16/0:8 16/1:2 16/2:1 16/3:2 16/4:1 16/5:2', lines: 16 },
+	27: { blocks: '16/6:1 16/7:1 16/8:2 16/9:1 16/10:1 16/11:2 16/12:1 16/13:2 16/14:1 16/15:2', lines: 14 },
+	28: {
 		blocks: '16/16:1 16/17:1 16/18:1 16/19:2 16/20:1 16/21:1 16/22:1 16/23:2 16/24:1 16/25:1 16/26:4',
 		lines: 16
 	},
-	30: { blocks: '16/27:2 16/28:3', lines: 5 },
+	29: { blocks: '16/27:2 16/28:3', lines: 5 },
+	30: { blocks: '16/28:6', lines: 6 },
 	31: { blocks: '16/28:6', lines: 6 },
-	32: { blocks: '16/28:6', lines: 6 },
-	33: { blocks: '16/28:9', lines: 9 }
+	32: { blocks: '16/28:9', lines: 9 }
 };
 
 describe('HIZB_PORTIONS', () => {
-	it('numbers thirty-three portions in order', () => {
-		expect(HIZB_PORTION_COUNT).toBe(33);
-		expect(HIZB_PORTIONS.map(part => part.number)).toEqual(range(1, 33));
+	it('numbers thirty-two portions in order', () => {
+		expect(HIZB_PORTION_COUNT).toBe(32);
+		expect(HIZB_PORTIONS.map(part => part.number)).toEqual(range(1, 32));
 	});
 
-	it('gives the ten works one run each, covering 1–33 with no gap and no overlap', () => {
+	it('gives the ten works one run each, covering 1–32 with no gap and no overlap', () => {
 		expect(HIZB_WORKS.map(work => work.key)).toEqual([
 			'quran',
 			'cevsen',
@@ -196,7 +194,7 @@ describe('HIZB_PORTIONS', () => {
 			'hulasa',
 			'tazarru'
 		]);
-		expect(HIZB_WORKS.flatMap(({ parts: [first, last] }) => range(first, last))).toEqual(range(1, 33));
+		expect(HIZB_WORKS.flatMap(({ parts: [first, last] }) => range(first, last))).toEqual(range(1, 32));
 		HIZB_PORTIONS.forEach(part => {
 			const [first, last] = workOf(part.number).parts;
 
@@ -214,16 +212,16 @@ describe('HIZB_PORTIONS', () => {
 	});
 
 	it('has an opening pinned for every portion', () => {
-		expect(Object.keys(OPENINGS).map(Number)).toEqual(range(1, 33));
+		expect(Object.keys(OPENINGS).map(Number)).toEqual(range(1, 32));
 	});
 
-	it.each(range(1, 33))('opens portion %i on the text at its anchor', number => {
+	it.each(range(1, 32))('opens portion %i on the text at its anchor', number => {
 		const opening = OPENINGS[number] ?? '';
 
 		expect(linesOf(number)[0]?.line.text.slice(0, opening.length)).toBe(opening);
 	});
 
-	it.each([3, 31, 32, 33])('follows the besmele of portion %i with its own second line', number => {
+	it.each([3, 30, 31, 32])('follows the besmele of portion %i with its own second line', number => {
 		const second = SECOND_LINES[number] ?? '';
 
 		expect(linesOf(number)[0]?.line.text).toBe(OPENINGS[number]);
@@ -233,7 +231,7 @@ describe('HIZB_PORTIONS', () => {
 	it('opens every block-start portion on words no other block in the text opens with', () => {
 		const atBlockStart = HIZB_PORTIONS.filter(part => (part.start.line ?? 0) === 0 && !part.start.invocation);
 
-		expect(atBlockStart).toHaveLength(26);
+		expect(atBlockStart).toHaveLength(24);
 		atBlockStart.forEach(({ number }) => {
 			const opening = OPENINGS[number] ?? '';
 			const second = SECOND_LINES[number];
@@ -246,7 +244,7 @@ describe('HIZB_PORTIONS', () => {
 		});
 	});
 
-	it.each(range(1, 33))('cuts portion %i out of exactly the blocks and lines pinned for it', number => {
+	it.each(range(1, 32))('cuts portion %i out of exactly the blocks and lines pinned for it', number => {
 		const refs = portionBlocks(number);
 
 		expect({
@@ -256,7 +254,7 @@ describe('HIZB_PORTIONS', () => {
 	});
 
 	it('pins footprints that add up to the whole text plus the three lines cut in two', () => {
-		expect(Object.values(FOOTPRINTS).reduce((sum, footprint) => sum + footprint.lines, 0)).toBe(723 + 3);
+		expect(Object.values(FOOTPRINTS).reduce((sum, footprint) => sum + footprint.lines, 0)).toBe(724 + 3);
 	});
 
 	it('asks for Sekine nineteen times and every other portion once', () => {
@@ -349,7 +347,6 @@ describe('portionBlocks', () => {
 				line.invocations?.slice(0, invocation + 1)
 			);
 		});
-		expect(lineAt(portion(13).start).text.endsWith(MARK)).toBe(true);
 	});
 
 	it('keeps invocations on a line exactly when its text still has a ❁', () => {
@@ -394,17 +391,17 @@ describe('portionBlocks', () => {
 				.map(toLatin);
 
 		expect(closingsOf(4)).toEqual(range(1, 20));
-		expect(closingsOf(5)).toEqual(range(21, 41));
-		expect(closingsOf(6)).toEqual(range(42, 61));
-		expect(closingsOf(7)).toEqual(range(62, 81));
-		expect(closingsOf(8)).toEqual(range(82, 100));
+		expect(closingsOf(5)).toEqual(range(21, 40));
+		expect(closingsOf(6)).toEqual(range(41, 60));
+		expect(closingsOf(7)).toEqual(range(61, 80));
+		expect(closingsOf(8)).toEqual(range(81, 100));
 		expect(HIZB_PORTIONS.flatMap(part => closingsOf(part.number))).toEqual(range(1, 100));
 	});
 });
 
 describe('works', () => {
 	it('names the work a portion belongs to', () => {
-		expect(workOf(33).key).toBe('tazarru');
+		expect(workOf(32).key).toBe('tazarru');
 		expect(workOf(19).key).toBe('sekine');
 	});
 
@@ -416,8 +413,8 @@ describe('works', () => {
 
 	it('refuses a number the division does not have', () => {
 		expect(() => portion(0)).toThrow(RangeError);
-		expect(() => portion(34)).toThrow(RangeError);
+		expect(() => portion(33)).toThrow(RangeError);
 		expect(() => workOf(1.5)).toThrow(RangeError);
-		expect(() => portionBlocks(34)).toThrow(RangeError);
+		expect(() => portionBlocks(33)).toThrow(RangeError);
 	});
 });

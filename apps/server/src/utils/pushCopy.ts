@@ -69,7 +69,7 @@ const PART_NOUNS: Record<'en' | 'nl', Record<GroupKindName, { one: string; many:
 /**
  * Turkish puts the noun in whichever case the sentence needs, and vowel harmony picks each
  * suffix, so the forms are spelled out rather than built. A noun after a number stays
- * singular — "33 bölümün hepsi", never "bölümlerin".
+ * singular — "32 bölümün hepsi", never "bölümlerin".
  */
 const TR_PART_NOUNS: Record<
 	GroupKindName,
@@ -200,7 +200,7 @@ export const groupReadPush = (
 };
 
 /**
- * "The group closed the hundred" — or, in a hatim, the thirty, and in a Hizb group the 33.
+ * "The group closed the hundred" — or, in a hatim, the thirty, and in a Hizb group the 32.
  *
  * The one notification in the app that is purely good news — every other one is a task, a
  * reminder, or something that was taken away. It names the round, because a group that has run
@@ -214,7 +214,7 @@ export const roundCompletePush = (
 	input: { groupName: string; kind: GroupKindName; roundNumber: number }
 ) => {
 	const { groupName, kind, roundNumber } = input;
-	// The group's own count — 100, 30 or 33 — so the line says what was actually closed.
+	// The group's own count — 100, 30 or 32 — so the line says what was actually closed.
 	const partCount = partCountFor(kind);
 
 	if (language === 'tr') {

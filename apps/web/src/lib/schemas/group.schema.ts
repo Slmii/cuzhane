@@ -1,5 +1,5 @@
 import type { StringKey } from '@/lib/i18n/strings';
-import { CYCLES_FOR_KIND, SPOTS_FOR_KIND } from '@/lib/utils/groupKinds';
+import { CYCLES_FOR_KIND, PERSONAL_PLAN_MAX_DAYS, SPOTS_FOR_KIND } from '@/lib/utils/groupKinds';
 import { CUZ_COUNT } from '@/lib/utils/units';
 import * as z from 'zod';
 
@@ -63,9 +63,12 @@ export const createGroupSchema = (t: Translate) =>
 			 * it submits. What the group reads is immutable once created.
 			 */
 			kind: z.enum(['CEVSEN', 'HATIM', 'HIZB']).default('CEVSEN'),
+			// "Şahsi okuma" — the Hizb's individual plan, or a Cevşen/Kur'an read alone over `planDays`.
 			hizbIndividual: z.boolean().default(false),
-			hizbStartPortion: z.number().int().min(1).max(33).default(1),
-			hizbPlan: z.enum(['0', '7', '15', '33']).default('33'),
+			/** A Şahsi Cevşen or Kur'an reading's length; each kind's own ceiling is checked below. */
+			planDays: z.number().int().min(1).default(30),
+			hizbStartPortion: z.number().int().min(1).max(32).default(1),
+			hizbPlan: z.enum(['0', '7', '15', '32']).default('32'),
 			inactivityEnabled: z.boolean().default(false),
 			inactivityDays: z.number().int().min(1).max(365).default(10),
 			// "Okuma sorumluları", a shared Hizb plan's only.
@@ -108,9 +111,18 @@ export const createGroupSchema = (t: Translate) =>
 		 * are immutable after creation, so a wrong one is refused here rather than kept forever.
 		 *
 		 * A hatim is asked neither: it sends no `spots`, and its cycle is derived from
-		 * `roundDays`, so its fields are the unrendered half of the form and left alone.
+		 * `roundDays`, so its fields are the unrendered half of the form and left alone. Nor is a
+		 * Şahsi Cevşen or Kur'an reading — it is asked only how many days, within its kind's range.
 		 */
 		.superRefine((form, context) => {
+			if (form.kind !== 'HIZB' && form.hizbIndividual) {
+				if (form.planDays > PERSONAL_PLAN_MAX_DAYS[form.kind]) {
+					context.addIssue({ code: 'custom', message: t('fieldRequired'), path: ['planDays'] });
+				}
+
+				return;
+			}
+
 			if (form.kind === 'HATIM') {
 				return;
 			}

@@ -1,3 +1,4 @@
+import { useHintScreen } from '@/components/Hints/useHintScreen';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
@@ -30,6 +31,8 @@ type Day = HizbHistoryDays['days'][number];
  */
 export const HizbGroupHistoryScreen = ({ navigation, route }: Props) => {
 	const { groupId } = route.params;
+	// One card that says what this page is for.
+	useHintScreen('groupHistory');
 	const { t } = useTranslation();
 	const { theme } = useThemeContext();
 	const text = useHizbPlanText();

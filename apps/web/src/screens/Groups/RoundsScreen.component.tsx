@@ -1,3 +1,4 @@
+import { useHintScreen } from '@/components/Hints/useHintScreen';
 import { RoundCard } from '@/components/RoundCard/RoundCard.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { PullToRefresh } from '@/components/ui/PullToRefresh/PullToRefresh.component';
@@ -14,7 +15,7 @@ import { useTranslation } from '@/lib/i18n/I18n.context';
 import type { StringKey } from '@/lib/i18n/strings';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { GroupCycle, GroupKind, RoundSummary } from '@/lib/types/domain';
-import { cycleLabelKey, partUnitKey } from '@/lib/utils/groups';
+import { cycleLabelKey, partUnitKey, roundsSubtitleKey } from '@/lib/utils/groups';
 import { hizbMissedNote, roundDateRange } from '@/lib/utils/rounds';
 import type { TabStackParamList } from '@/navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -56,6 +57,8 @@ const roundPercent = (round: RoundSummary) =>
  */
 export const RoundsScreen = ({ navigation, route }: Props) => {
 	const { groupId } = route.params;
+	// One card that says what this page is for.
+	useHintScreen('rounds');
 	const { theme } = useThemeContext();
 	const { language, t } = useTranslation();
 
@@ -160,12 +163,8 @@ export const RoundsScreen = ({ navigation, route }: Props) => {
 		<>
 			<ScreenHeader
 				hasBackButton
-				// A hatim's cüz don't advance by five the way a Cevşen range does; a Hizb round has its portions.
-				subtitle={
-					isHizb
-						? t('roundsSubHizb', { count: groupQuery.data.partCount })
-						: t(kind === 'HATIM' ? 'roundsSubCuz' : 'roundsSub')
-				}
+				// What closing a round does depends on the book, and for the Cevşen on how it divides the babs.
+				subtitle={t(roundsSubtitleKey(kind, groupQuery.data.splitMode), { count: groupQuery.data.partCount })}
 				title={t('rounds')}
 				titleTrailing={<Chip label={t(cycleLabelKey(cycle))} tone='accent' />}
 			/>

@@ -1,5 +1,5 @@
 import { SliceChip } from '@/components/SliceChip/SliceChip.component';
-import { TourTarget } from '@/components/Tour/TourTarget.component';
+import { HintTarget } from '@/components/Hints/HintTarget.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { ReadingTypeMark } from '@/components/ui/ReadingTypeMark/ReadingTypeMark.component';
 import { Typography } from '@/components/ui/Typography/Typography.component';
@@ -37,7 +37,7 @@ export const HomeNextCard = ({
 	const { t } = useTranslation();
 
 	return (
-		<TourTarget id='nextCard'>
+		<HintTarget id='nextCard'>
 			<HomeTopCard onPress={onPress}>
 				<View style={styles.topRow}>
 					<Typography color={theme.colors.accent} style={styles.eyebrow} variant='eyebrow' weight='semibold'>
@@ -87,7 +87,7 @@ export const HomeNextCard = ({
 
 				<AppButton onPress={onPress} size='lg' title={actionLabel} variant='primary' />
 			</HomeTopCard>
-		</TourTarget>
+		</HintTarget>
 	);
 };
 

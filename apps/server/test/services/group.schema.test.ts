@@ -28,11 +28,11 @@ describe('CreateGroupBodySchema', () => {
 	it('accepts any Hizb size that leaves every seat a portion', () => {
 		expect(CreateGroupBodySchema.safeParse({ ...base, kind: 'HIZB', spots: 7 }).success).toBe(true);
 		expect(CreateGroupBodySchema.safeParse({ ...base, kind: 'HIZB', spots: 1 }).success).toBe(true);
-		expect(CreateGroupBodySchema.safeParse({ ...base, kind: 'HIZB', spots: 33 }).success).toBe(true);
+		expect(CreateGroupBodySchema.safeParse({ ...base, kind: 'HIZB', spots: 32 }).success).toBe(true);
 	});
 
 	it('refuses a Hizb seat with nothing to read, on the spots', () => {
-		expect(issuePaths({ ...base, kind: 'HIZB', spots: 34 })).toEqual(['spots']);
+		expect(issuePaths({ ...base, kind: 'HIZB', spots: 33 })).toEqual(['spots']);
 		expect(issuePaths({ ...base, kind: 'HIZB', spots: 0 })).toEqual(['spots']);
 	});
 

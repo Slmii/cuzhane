@@ -5,14 +5,19 @@ import {
 	BabParamsSchema,
 	PartRepetitionsQuery,
 	PartRepetitionsQuerySchema,
+	RoundCountersQuery,
+	RoundCountersQuerySchema,
 	SetBabReadBody,
 	SetBabReadBodySchema,
 	SetPartRepetitionsBody,
-	SetPartRepetitionsBodySchema
+	SetPartRepetitionsBodySchema,
+	SetRoundCountersBody,
+	SetRoundCountersBodySchema
 } from '@schemas/bab.schema';
 import { GroupIdParamsSchema } from '@schemas/group.schema';
 import { listBabsForUser, setAssignedBabsReadForUser, setBabReadForUser } from '@services/babs.service';
 import { getPartRepetitionsForUser, setPartRepetitionsForUser } from '@services/repetitions.service';
+import { getRoundCountersForUser, setRoundCountersForUser } from '@services/roundCounters.service';
 import { NextFunction, Request, Response, Router } from 'express';
 
 const babsRouter = Router();
@@ -107,6 +112,46 @@ babsRouter.put(
 
 			const repetitions = await setPartRepetitionsForUser(userId, groupId, babNumber, validatedBody);
 			res.status(OK).json(repetitions);
+		} catch (error) {
+			next(error);
+		}
+	}
+);
+
+/*
+ * A seat-divided Hizb group's Delâil and istighfar counts — the reader's own, per round — so a
+ * count survives the app closing. `?roundIndex=` reads a closed round's, for covering it.
+ */
+babsRouter.get(
+	'/:groupId/counters',
+	validateData(RoundCountersQuerySchema, 'query'),
+	async (req: Request, res: Response<object, ResponseLocalsWithQuery<RoundCountersQuery>>, next: NextFunction) => {
+		try {
+			const { groupId } = GroupIdParamsSchema.parse(req.params);
+			const {
+				auth: { userId },
+				validatedQuery
+			} = res.locals;
+
+			res.status(OK).json(await getRoundCountersForUser(userId, groupId, validatedQuery.roundIndex));
+		} catch (error) {
+			next(error);
+		}
+	}
+);
+
+babsRouter.put(
+	'/:groupId/counters',
+	validateData(SetRoundCountersBodySchema, 'body'),
+	async (req: Request, res: Response<object, ResponseLocalsWithBody<SetRoundCountersBody>>, next: NextFunction) => {
+		try {
+			const { groupId } = GroupIdParamsSchema.parse(req.params);
+			const {
+				auth: { userId },
+				validatedBody
+			} = res.locals;
+
+			res.status(OK).json(await setRoundCountersForUser(userId, groupId, validatedBody));
 		} catch (error) {
 			next(error);
 		}

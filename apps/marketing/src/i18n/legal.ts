@@ -29,7 +29,7 @@ export interface LegalPage {
 	sections: LegalSection[];
 }
 
-const UPDATED = '2026-09-24';
+const UPDATED = '2026-10-01';
 
 const privacyTr: LegalPage = {
 	title: 'Gizlilik',
@@ -45,8 +45,8 @@ const privacyTr: LegalPage = {
 			bullets: [
 				'Hesabın: e-posta adresin, adın ve yüklediysen profil fotoğrafın.',
 				'Grupların: kurduğun veya katıldığın grupların adları, niyet metni, üyeliğin ve grup içindeki sıran.',
-				'Okuma ilerlemen: hangi babı hangi turda okuduğun ve havuzdan üstlendiğin bablar.',
-				'Ayarların: arayüz dili, tema, hatırlatma saati, bildirim tercihlerin ve okuma ekranının yazı tipi ile boyutu.',
+				'Okuma ilerlemen: hangi babı hangi turda okuduğun, havuzdan üstlendiğin bablar, bir grubun cüzünde ya da Hizb bölümünde kaldığın sayfa ile kaç sayfa okuduğun, ve Hizbü’l-Hakaik’te sayarak okunan kısımları (Sekine, Delâil, istiğfar) her turda kaç kez okuduğun.',
+				'Ayarların: arayüz dili, tema, günlük hatırlatmaların saatleri (Cevşen ve Hizbü’l-Hakaik için ayrı), bildirim tercihlerin ve okuma ekranının yazı tipi ile boyutu; ayrıca hangi ipuçlarını zaten gördüğün.',
 				'Bildirim kutun: gruplarında olan bitenin kaydı — olayın türü, grubun adı ve ilgili üyenin görünen adı.',
 				'Bildirim için cihaz anahtarın (push token).',
 				'Uygulamadan geri bildirim gönderdiysen: mesajın, konusu, hesabının e-posta adresi, cihazının platform, sürüm ve dil bilgisi ve bir hatayı bulabilmemiz için uygulamada son açtığın en fazla 30 ekran (ekran adları ve bab numarası gibi sayılar; isim ya da metin yok).'
@@ -55,7 +55,7 @@ const privacyTr: LegalPage = {
 		{
 			heading: 'Saklamadığımız veriler',
 			paragraphs: [
-				'Analitik aracı kullanmıyoruz. Reklam ağı yok, izleme pikseli yok, üçüncü taraf çerezi yok. Konumunu, rehberini, takvimini veya cihazındaki başka hiçbir şeyi okumuyoruz. Okuduğun metnin kendisi uygulamayla birlikte gelir; hangi kelimeyi ne zaman okuduğun sunucuya gitmez.'
+				'Analitik aracı kullanmıyoruz. Reklam ağı yok, izleme pikseli yok, üçüncü taraf çerezi yok. Konumunu, rehberini, takvimini veya cihazındaki başka hiçbir şeyi okumuyoruz. Okuduğun metnin kendisi uygulamayla birlikte gelir; hangi kelimeyi ne zaman okuduğun sunucuya gitmez — birlikte okuma dışında; aşağıya bak.'
 			]
 		},
 		{
@@ -72,13 +72,23 @@ const privacyTr: LegalPage = {
 			bullets: [
 				'Clerk — hesap ve oturum yönetimi.',
 				'DigitalOcean — sunucunun ve veritabanının barındırıldığı yer (Avrupa).',
-				'Expo — yalnızca bildirim gönderimi için; bildirimin metni ve cihaz anahtarı iletilir.'
+				'Expo — yalnızca bildirim gönderimi için; bildirimin metni ve cihaz anahtarı iletilir.',
+				'Cloudflare — yalnızca birlikte okumada okuyucu sesini açtığında; ses, takip edenlere ulaşmak için canlı olarak Cloudflare üzerinden geçer ve kaydedilmez.'
+			]
+		},
+		{
+			heading: 'Birlikte okuma',
+			paragraphs: [
+				'Serbest Cevşen’de ya da Mushaf’ta birlikte okurken okuyucunun yeri — hangi bab ya da sayfada olduğu, sayfanın neresinde olduğu ve dokunduğu satır — sunucumuz üzerinden takip edenlere canlı olarak gider. Bu yer kaydedilmez: sunucu onu yalnızca oturum sürerken bellekte tutar.',
+				'Oturum sürerken sunucuda küçük bir kayıt durur: katılma kodu, oturumu başlatan kişi ve okunan şey (Cevşen ya da Kuran). Oturum bittiğinde bu kayıt normalde silinir — okuyucu bitirdiğinde, okuyucu bir dakika içinde dönmediğinde, on dakika okunmadığında ya da en geç dört saat sonra. Oturum yarıda kesilirse (örneğin sunucu yeniden başlarsa) kayıt daha uzun kalabilir; okuyucu yeni bir oturum açtığında, biri o kodu aradığında ya da hesap silindiğinde silinir.',
+				'Bir oturumdaki herkes okuyucunun ve diğer takip edenlerin adını görür; burada grup olmadığı için isimler gizlenemez. Kodu kiminle paylaşacağına sen karar verirsin. Birlikte okuma hiçbir şeyi okundu olarak işaretlemez ve kimsenin ilerlemesini değiştirmez.',
+				'Okuyucu isterse sesini açabilir; o zaman sesi, oturumdakilerden dinlemeyi seçenlere canlı olarak gider. Ses sunucumuzdan geçmez: Cloudflare’in sunucuları onu takip edenlere iletir. Ses ne bizim tarafımızdan ne de Cloudflare tarafından kaydedilir veya saklanır. Mikrofon yalnızca okuyucu sesini açtığında ve açık kaldığı sürece kullanılır; ilk açışta telefonun izin istenir.'
 			]
 		},
 		{
 			heading: 'Bildirimler',
 			paragraphs: [
-				'Günlük hatırlatma cihazında kurulur ve sunucuya çıkmaz. Ayrıca sunucu altı durumda bildirim gönderir: havuzdan üstlendiğin bir bab başkasına geçtiğinde, grubundaki biri payını tamamladığında, grubun turu bitirdiğinde, biri ortak havuzdan bab üstlendiğinde, gruba biri katıldığında ve gruptan biri ayrıldığında. İlki dışındakileri Bildirimler ekranındaki ayarlardan ayrı ayrı açıp kapatabilirsin. Tek istisna: okuma sorumluları seçilmiş bir Hizbü’l-Hakaik grubunda “okudu” bildirimini yalnızca bu sorumlular alır, kendi ayarları ne olursa olsun; diğer üyeler almaz.'
+				'Günlük hatırlatmalar (Cevşen ve Hizbü’l-Hakaik için ayrı) cihazında kurulur ve sunucuya çıkmaz. Ayrıca sunucu altı durumda bildirim gönderir: havuzdan üstlendiğin bir bab başkasına geçtiğinde, grubundaki biri payını tamamladığında, grubun turu bitirdiğinde, biri ortak havuzdan bab üstlendiğinde, gruba biri katıldığında ve gruptan biri ayrıldığında. İlki dışındakileri Bildirimler ekranındaki ayarlardan ayrı ayrı açıp kapatabilirsin. Tek istisna: okuma sorumluları seçilmiş bir Hizbü’l-Hakaik grubunda “okudu” bildirimini yalnızca bu sorumlular alır, kendi ayarları ne olursa olsun; diğer üyeler almaz.'
 			]
 		},
 		{
@@ -117,8 +127,8 @@ const privacyEn: LegalPage = {
 			bullets: [
 				'Your account: email address, name, and a profile photo if you upload one.',
 				'Your groups: the names of groups you create or join, their intention text, your membership and your seat within the group.',
-				'Your reading progress: which bab you read in which round, and any babs you claimed from the pool.',
-				'Your settings: interface language, theme, reminder time, your notification preferences, and the reader’s typeface and size.',
+				'Your reading progress: which bab you read in which round, any babs you claimed from the pool, in a group’s cüz or Hizb portion the page you stopped on and how many pages you have read, and how many times you have read the counted passages of the Hizbü’l-Hakaik (Sekine, Delâil, istighfar) in each round.',
+				'Your settings: interface language, theme, the times of your daily reminders (one for the Cevşen, one for the Hizbü’l-Hakaik), your notification preferences, and the reader’s typeface and size; also which tips you have already seen.',
 				'Your notification inbox: a record of what happened in your groups — the kind of event, the group’s name, and the display name of the member it concerns.',
 				'A device key for notifications (a push token).',
 				'If you send feedback from the app: your message, its topic, your account email, your device’s platform, version and language, and — so we can trace a bug — the last 30 or fewer screens you opened in the app (screen names and numbers such as a bab’s; no names or text).'
@@ -127,7 +137,7 @@ const privacyEn: LegalPage = {
 		{
 			heading: 'What we do not store',
 			paragraphs: [
-				'There is no analytics tool. No advertising network, no tracking pixel, no third-party cookie. We do not read your location, contacts, calendar, or anything else on your device. The text you read ships inside the app; which words you read, and when, never reaches the server.'
+				'There is no analytics tool. No advertising network, no tracking pixel, no third-party cookie. We do not read your location, contacts, calendar, or anything else on your device. The text you read ships inside the app; which words you read, and when, never reaches the server — except when reading together; see below.'
 			]
 		},
 		{
@@ -144,13 +154,23 @@ const privacyEn: LegalPage = {
 			bullets: [
 				'Clerk — accounts and sessions.',
 				'DigitalOcean — where the server and database are hosted (Europe).',
-				'Expo — for delivering notifications only; the notification text and the device key are passed to it.'
+				'Expo — for delivering notifications only; the notification text and the device key are passed to it.',
+				'Cloudflare — only when the reader turns on their voice while reading together; the voice passes live through Cloudflare to reach the people following, and is not recorded.'
+			]
+		},
+		{
+			heading: 'Reading together',
+			paragraphs: [
+				'When you read together in the free Cevşen or Mushaf, the reader’s place — which bab or page they are on, how far down it, and the line they tap — goes through our server to the people following, live. That place is not saved: the server holds it in memory only while the session runs.',
+				'While a session runs, the server keeps a small record of it: the join code, who started it and what is being read (Cevşen or Quran). The record is normally deleted when the session ends — when the reader ends it, when the reader does not come back within a minute, after ten minutes without reading, or after four hours at most. If a session is cut off (for example by a server restart), the record can stay longer; it is deleted when that reader starts a new session, when someone looks up its code, or when the account is deleted.',
+				'Everyone in a session sees the names of the reader and of the others following; there is no group here, so names cannot be hidden. You decide who you share the code with. Reading together marks nothing as read and changes nobody’s progress.',
+				'The reader can choose to turn on their voice; it then goes live to the people in the session who choose to listen. The voice does not pass through our server: Cloudflare’s servers carry it to the people following. It is not recorded or stored, by us or by Cloudflare. The microphone is used only when the reader turns their voice on, and only while it stays on; the phone asks for permission the first time.'
 			]
 		},
 		{
 			heading: 'Notifications',
 			paragraphs: [
-				'The daily reminder is scheduled on your device and never leaves it. Separately, the server sends a notification in six cases: when a bab you claimed from the pool passes to somebody else, when someone in your group finishes their share, when your group completes a round, when someone takes babs from the shared pool, when someone joins one of your groups, and when someone leaves one. All but the first can each be turned off from the notification settings. One exception: in a Hizbü’l-Hakaik group with responsible members, only they get the “has read” notification, whatever their own settings; the other members don’t.'
+				'The daily reminders (one for the Cevşen, one for the Hizbü’l-Hakaik) are scheduled on your device and never leave it. Separately, the server sends a notification in six cases: when a bab you claimed from the pool passes to somebody else, when someone in your group finishes their share, when your group completes a round, when someone takes babs from the shared pool, when someone joins one of your groups, and when someone leaves one. All but the first can each be turned off from the notification settings. One exception: in a Hizbü’l-Hakaik group with responsible members, only they get the “has read” notification, whatever their own settings; the other members don’t.'
 			]
 		},
 		{
@@ -189,8 +209,8 @@ const privacyNl: LegalPage = {
 			bullets: [
 				'Je account: e-mailadres, naam en een profielfoto als je die uploadt.',
 				'Je groepen: de namen van groepen die je maakt of waaraan je meedoet, de intentietekst, je lidmaatschap en je plaats in de groep.',
-				'Je leesvoortgang: welke bab je in welke ronde las, en welke babs je uit de pool nam.',
-				'Je instellingen: taal, thema, herinneringstijd, je meldingsvoorkeuren, en het lettertype en de lettergrootte van het leesscherm.',
+				'Je leesvoortgang: welke bab je in welke ronde las, welke babs je uit de pool nam, in een cüz of Hizb-deel van een groep de bladzijde waar je bleef en hoeveel bladzijden je las, en hoe vaak je de getelde passages van de Hizbü’l-Hakaik (Sekine, Delâil, istighfar) per ronde hebt gelezen.',
+				'Je instellingen: taal, thema, de tijden van je dagelijkse herinneringen (één voor de Cevşen, één voor de Hizbü’l-Hakaik), je meldingsvoorkeuren, en het lettertype en de lettergrootte van het leesscherm; ook welke tips je al hebt gezien.',
 				'Je meldingenoverzicht: een verslag van wat er in je groepen gebeurde — het soort gebeurtenis, de naam van de groep en de weergavenaam van het betrokken lid.',
 				'Een apparaatsleutel voor meldingen (push token).',
 				'Als je feedback stuurt vanuit de app: je bericht, het onderwerp, je e-mailadres, het platform, de versie en de taal van je toestel en — zodat we een fout kunnen terugvinden — de laatste hoogstens 30 schermen die je in de app opende (schermnamen en getallen zoals een babnummer; geen namen of tekst).'
@@ -199,7 +219,7 @@ const privacyNl: LegalPage = {
 		{
 			heading: 'Wat we niet bewaren',
 			paragraphs: [
-				'Er is geen analysetool. Geen advertentienetwerk, geen trackingpixel, geen cookie van derden. We lezen je locatie, contacten, agenda of wat dan ook op je toestel niet. De tekst die je leest zit in de app zelf; welke woorden je wanneer leest, bereikt de server nooit.'
+				'Er is geen analysetool. Geen advertentienetwerk, geen trackingpixel, geen cookie van derden. We lezen je locatie, contacten, agenda of wat dan ook op je toestel niet. De tekst die je leest zit in de app zelf; welke woorden je wanneer leest, bereikt de server nooit — behalve bij samen lezen; zie hieronder.'
 			]
 		},
 		{
@@ -216,13 +236,23 @@ const privacyNl: LegalPage = {
 			bullets: [
 				'Clerk — accounts en sessies.',
 				'DigitalOcean — waar de server en de database draaien (Europa).',
-				'Expo — uitsluitend voor het bezorgen van meldingen; de tekst van de melding en de apparaatsleutel gaan daarheen.'
+				'Expo — uitsluitend voor het bezorgen van meldingen; de tekst van de melding en de apparaatsleutel gaan daarheen.',
+				'Cloudflare — alleen als de lezer bij samen lezen het geluid aanzet; de stem gaat live via Cloudflare naar wie meeleest en wordt niet opgenomen.'
+			]
+		},
+		{
+			heading: 'Samen lezen',
+			paragraphs: [
+				'Lees je samen in de vrije Cevşen of Mushaf, dan gaat de plek van de lezer — op welke bab of pagina, hoe ver naar beneden en de regel waarop die tikt — via onze server live naar wie meeleest. Die plek wordt niet opgeslagen: de server houdt hem alleen in het geheugen zolang het samen lezen duurt.',
+				'Zolang het duurt, bewaart de server een klein gegeven: de deelnamecode, wie begon en wat er gelezen wordt (Cevşen of Koran). Dat wordt normaal gewist als het samen lezen stopt — als de lezer stopt, als de lezer niet binnen een minuut terugkomt, na tien minuten zonder lezen of uiterlijk na vier uur. Wordt het samen lezen onderbroken (bijvoorbeeld doordat de server opnieuw start), dan kan het gegeven langer blijven; het wordt gewist als die lezer opnieuw begint, als iemand de code opzoekt of als het account wordt verwijderd.',
+				'Iedereen die meedoet, ziet de naam van de lezer en van de andere meelezers; er is hier geen groep, dus namen kunnen niet verborgen worden. Jij bepaalt met wie je de code deelt. Samen lezen markeert niets als gelezen en verandert niemands voortgang.',
+				'De lezer kan ervoor kiezen het geluid aan te zetten; de stem gaat dan live naar wie meedoet en ervoor kiest te luisteren. De stem gaat niet via onze server: de servers van Cloudflare brengen hem naar wie meeleest. Hij wordt niet opgenomen of bewaard, niet door ons en niet door Cloudflare. De microfoon wordt alleen gebruikt als de lezer het geluid aanzet, en alleen zolang het aan blijft; de eerste keer vraagt de telefoon om toestemming.'
 			]
 		},
 		{
 			heading: 'Meldingen',
 			paragraphs: [
-				'De dagelijkse herinnering wordt op je toestel ingepland en verlaat het niet. Daarnaast stuurt de server in zes gevallen een melding: wanneer een bab die je uit de pool nam naar iemand anders gaat, wanneer iemand in je groep het eigen deel afrondt, wanneer je groep een ronde voltooit, wanneer iemand babs uit de gedeelde pool neemt, wanneer iemand lid wordt van een groep van jou en wanneer iemand er een verlaat. Alles behalve de eerste kun je afzonderlijk uitzetten bij de meldingsinstellingen. Eén uitzondering: in een Hizbü’l-Hakaik-groep met verantwoordelijken krijgen alleen zij de melding “heeft gelezen”, ongeacht hun eigen instellingen; de andere leden krijgen hem niet.'
+				'De dagelijkse herinneringen (één voor de Cevşen, één voor de Hizbü’l-Hakaik) worden op je toestel ingepland en verlaten het niet. Daarnaast stuurt de server in zes gevallen een melding: wanneer een bab die je uit de pool nam naar iemand anders gaat, wanneer iemand in je groep het eigen deel afrondt, wanneer je groep een ronde voltooit, wanneer iemand babs uit de gedeelde pool neemt, wanneer iemand lid wordt van een groep van jou en wanneer iemand er een verlaat. Alles behalve de eerste kun je afzonderlijk uitzetten bij de meldingsinstellingen. Eén uitzondering: in een Hizbü’l-Hakaik-groep met verantwoordelijken krijgen alleen zij de melding “heeft gelezen”, ongeacht hun eigen instellingen; de andere leden krijgen hem niet.'
 			]
 		},
 		{
@@ -402,7 +432,7 @@ const deleteAccountTr: LegalPage = {
 				'Hesabın: e-posta adresin, adın ve varsa profil fotoğrafın.',
 				'Kurduğun gruplar — üyeleri, panoları ve davet kodlarıyla birlikte.',
 				'Katıldığın gruplardaki üyeliklerin ve üstlendiğin bablar.',
-				'Ayarların: dil, tema, hatırlatma saati.',
+				'Ayarların: dil, tema, hatırlatma saatleri ve hangi ipuçlarını gördüğün.',
 				'Bildirim için saklanan cihaz anahtarların.',
 				'Uygulamadan gönderdiğin geri bildirim mesajları.'
 			]
@@ -460,7 +490,7 @@ const deleteAccountEn: LegalPage = {
 				'Your account: your email address, your name, and your profile photo if you set one.',
 				'Groups you created — along with their members, boards and invite codes.',
 				'Your memberships in groups you joined, and any babs you had claimed.',
-				'Your settings: language, theme, reminder time.',
+				'Your settings: language, theme, reminder times, and which tips you have already seen.',
 				'The device keys stored for notifications.',
 				'Feedback messages you sent from the app.'
 			]
@@ -517,7 +547,7 @@ const deleteAccountNl: LegalPage = {
 				'Je account: je e-mailadres, je naam en je profielfoto als je die hebt ingesteld.',
 				'Groepen die je zelf hebt gemaakt — inclusief hun leden, borden en uitnodigingscodes.',
 				'Je lidmaatschappen in groepen waaraan je deelnam, en babs die je had genomen.',
-				'Je instellingen: taal, thema, herinneringstijd.',
+				'Je instellingen: taal, thema, herinneringstijden en welke tips je al hebt gezien.',
 				'De apparaatsleutels die voor meldingen worden bewaard.',
 				'Feedbackberichten die je vanuit de app hebt gestuurd.'
 			]

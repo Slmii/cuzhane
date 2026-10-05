@@ -48,6 +48,11 @@ services:
             # The verse meal — see `api` in `compose.yml`.
             QURAN_CLIENT_ID: ${QURAN_CLIENT_ID:-}
             QURAN_CLIENT_SECRET: ${QURAN_CLIENT_SECRET:-}
+            # A live reader's voice — see `api` in `compose.yml`.
+            CLOUDFLARE_REALTIME_APP_ID: ${CLOUDFLARE_REALTIME_APP_ID:-}
+            CLOUDFLARE_REALTIME_APP_TOKEN: ${CLOUDFLARE_REALTIME_APP_TOKEN:-}
+            CLOUDFLARE_TURN_KEY_ID: ${CLOUDFLARE_TURN_KEY_ID:-}
+            CLOUDFLARE_TURN_KEY_TOKEN: ${CLOUDFLARE_TURN_KEY_TOKEN:-}
         volumes:
             # The Hüsrev pages, read-only — see `api` in `compose.yml`.
             - ./mushaf:/app/apps/server/mushaf:ro

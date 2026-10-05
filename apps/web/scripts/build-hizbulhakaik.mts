@@ -26,6 +26,28 @@ const TARGET = resolve(here, '../src/lib/content/hizbulhakaik.data.json');
 
 const sections = parseHizbulhakaik(readFileSync(SOURCE, 'utf8'));
 
+/*
+ * Âmenerresûlü (el-Bakara 2:285–286), which the Hizb calendar reads after Nebe and the
+ * publisher's text does not carry. Its words are Quran Foundation's, kept verbatim in
+ * `amenerrasulu.json` (whose `meta` says why imlaei); only the verse marks are set here, the
+ * way this text sets them. One line, after Nebe's last verse and before the du'a.
+ */
+const AMENERRASULU = resolve(here, 'amenerrasulu.json');
+const amenerrasulu: { verses: { key: string; text: string }[] } = JSON.parse(readFileSync(AMENERRASULU, 'utf8'));
+const arabicDigits = (value: string) => value.replace(/\d/g, digit => '٠١٢٣٤٥٦٧٨٩'[Number(digit)] ?? digit);
+const nebe = sections.find(section => section.title === 'Nebe');
+const nebeEnds = (nebe?.blocks ?? []).flatMap(block =>
+	block.lines.flatMap((line, index) => (line.text.trimEnd().endsWith('﴿٤٠﴾') ? [{ block, index, line }] : []))
+);
+if (nebeEnds.length !== 1 || !nebeEnds[0]) {
+	throw new Error(`Expected one line closing Nebe's ﴿٤٠﴾, found ${nebeEnds.length}`);
+}
+const { block: nebeBlock, index: nebeEnd, line: nebeLast } = nebeEnds[0];
+nebeBlock.lines.splice(nebeEnd + 1, 0, {
+	page: nebeLast.page,
+	text: amenerrasulu.verses.map(verse => `${verse.text} ﴿${arabicDigits(verse.key.split(':')[1] ?? '')}﴾`).join(' ')
+});
+
 const count = (pick: (section: HizbSection) => number) => sections.reduce((sum, section) => sum + pick(section), 0);
 const blockCount = count(section => section.blocks.length);
 const lineCount = count(section => section.blocks.reduce((sum, block) => sum + block.lines.length, 0));
@@ -41,6 +63,8 @@ const data = {
 		structure:
 			"Sections hold blocks, blocks hold lines, and each line carries the page it is printed on. Pages are not a level of their own because a du'a runs across them: the print closes one with * * * at the foot of a page only 15 times in 242 pages, so a page break says nothing about where a du'a ends. Three sections (Haşir, Tebareke, Nebe) begin partway down a page. Empty pages are omitted; their numbers are simply absent.",
 		marks: "The long î is written U+0656 (subscript alef), not the U+06EA the source file uses — the same swap cevsen.data.json makes, for the same reason: the face the reader renders with maps U+06EA onto its uni0656 glyph, and faces not in on that arrangement draw U+06EA as an empty diamond. Verse marks '﴿N﴾' and the invocation mark '❁' are kept in `text` as the source sets them; `invocations` is the same line split at ❁.",
+		supplement:
+			"Âmenerresûlü (el-Bakara 2:285–286) is not in the publisher's text; its words come verbatim from Quran Foundation (scripts/amenerrasulu.json, imlaei script) and are spliced into Nebe after its last verse, before the du'a.",
 		verified: `${sections.length} sections, ${blockCount} blocks, ${lineCount} lines over ${pages.size} pages (${pageRange}). The Cevşen-ül Kebir section carries all hundred babs, closings ﴿١﴾ to ﴿١٠٠﴾, which is what checks it against cevsen.data.json.`
 	},
 	sections

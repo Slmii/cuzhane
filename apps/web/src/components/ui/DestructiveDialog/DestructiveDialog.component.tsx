@@ -80,9 +80,16 @@ export const DestructiveDialog = () => {
 		return () => setDestructiveConfirmPresenter(null);
 	}, []);
 
+	// Answered "no" — the same once-only rule as `confirm` below.
 	const dismiss = () => {
+		const isCurrent = pendingRef.current === request;
+
 		pendingRef.current = null;
 		setRequest(null);
+
+		if (isCurrent) {
+			request?.onCancel?.();
+		}
 	};
 
 	/*

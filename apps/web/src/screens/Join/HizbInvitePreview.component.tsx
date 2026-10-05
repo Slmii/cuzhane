@@ -1,10 +1,10 @@
-import { HizbCoverageGrid } from '@/components/HizbCoverageGrid/HizbCoverageGrid.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { Chip } from '@/components/ui/Chip/Chip.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
+import { ProgressBar } from '@/components/ui/ProgressBar/ProgressBar.component';
 import type { IconName } from '@/components/ui/Icon/Icon.types';
 import { CaptionText, TitleText, Typography } from '@/components/ui/Typography/Typography.component';
 import type { PullToRefreshState } from '@/components/ui/PullToRefresh/PullToRefresh.types';
@@ -17,23 +17,21 @@ import { toAlphaColor } from '@/lib/theme/tokens';
 import type { GroupInvitePreview } from '@/lib/types/domain';
 import { kindLabelKey } from '@/lib/utils/groups';
 import { compactCount, hizbAgeLabel } from '@/lib/utils/hizbDiscover';
-import { planBoardCells } from '@/lib/utils/hizbPlanBoard';
 import { timeIn, zoneAbbreviation } from '@/lib/utils/roundReset';
 import { turkishWordAblativeSuffix } from '@/lib/utils/turkishSuffixes';
-import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-const PORTIONS = 33;
-const PLANS = [7, 15, 33] as const;
+const PORTIONS = 32;
+const PLANS = [7, 15, 32] as const;
 const PER_DAY_KEY: Record<(typeof PLANS)[number], StringKey> = {
 	7: 'hdPerDay7',
 	15: 'hdPerDay15',
-	33: 'hdPerDay33'
+	32: 'hdPerDay32'
 };
 const PLAN_DESC_KEY: Record<(typeof PLANS)[number], StringKey> = {
 	7: 'hpPlanDesc7',
 	15: 'hpPlanDesc15',
-	33: 'hpPlanDesc33'
+	32: 'hpPlanDesc32'
 };
 
 type Props = {
@@ -49,7 +47,7 @@ type Props = {
 
 /**
  * The invite preview of a Hizb group on personal plans — "Hizb Kişisel Plan", section 5, P1–P6.
- * Read-only: the full 33 grid says which portions today's readers have covered, with no share of
+ * Read-only: the full 32 grid says which portions today's readers have covered, with no share of
  * yours ringed and no names. The rules card appears only for an inactivity rule or hidden names.
  *
  * - P1 fixed plan · P2 mixed plan (the three plans listed as information; the choice comes after
@@ -69,14 +67,14 @@ export const HizbInvitePreview = ({
 	const { language, t } = useTranslation();
 	const { theme } = useThemeContext();
 	const { monthDay, trSuffix } = useHizbPlanText();
-	const cells = useMemo(() => planBoardCells(data.hizbCoveredSpans ?? [], null), [data.hizbCoveredSpans]);
 
 	const plan = data.hizbPlan ?? PORTIONS;
 	const isMixed = data.hizbPlan === 0;
-	// Portions of the 33, from the grid itself — `readCount` counts the finer spans.
-	const read = cells.filter(cell => cell.state === 'read').length;
-	const percent = Math.round((read * 100) / PORTIONS);
-	const isDone = read >= PORTIONS;
+	// Today's readers — a count only, the same on every card: how many of everyone on a plan read.
+	const read = data.hizbReaders?.read ?? 0;
+	const total = data.hizbReaders?.total ?? 0;
+	const percent = total > 0 ? Math.round((read * 100) / total) : 0;
+	const isDone = total > 0 && read === total;
 	/*
 	 * Membership as it was before "Gruba katıl": the join refetches this preview, which then says
 	 * "already a member" while the next screen is still sliding in. Held for the whole join.
@@ -259,7 +257,7 @@ export const HizbInvitePreview = ({
 					</CardSurface>
 				)}
 
-				{/* Today's 33 — or, once covered, W3's band — and when the day turns over. */}
+				{/* Today's readers — or, once everyone has read, the green band — and when the day turns over. */}
 				{isDone ? (
 					<>
 						<View style={[styles.band, { backgroundColor: theme.colors.accent }]}>
@@ -286,21 +284,20 @@ export const HizbInvitePreview = ({
 										})}
 									</Typography>
 									<TitleText color={theme.colors.onAccent} style={styles.bandTitle}>
-										{t('hpGroupDone')}
+										{t('hpAllReadToday')}
 									</TitleText>
 								</View>
 								<Typography color={theme.colors.onAccent} style={styles.bandCount} variant='numeric'>
-									{PORTIONS}
+									{read}
 									<Typography
 										color={toAlphaColor(theme.colors.onAccent, 0.6)}
 										style={styles.bandTotal}
 										variant='numeric'
 									>
-										{` / ${PORTIONS}`}
+										{` / ${total}`}
 									</Typography>
 								</Typography>
 							</View>
-							<HizbCoverageGrid cells={cells} isOnBand />
 						</View>
 						{timeRow ? <CardSurface style={[styles.card, styles.timeCard]}>{timeRow}</CardSurface> : null}
 					</>
@@ -316,7 +313,7 @@ export const HizbInvitePreview = ({
 											style={styles.coverageTotal}
 											variant='numeric'
 										>
-											{`/ ${PORTIONS}`}
+											{`/ ${total}`}
 										</Typography>
 									</Typography>
 									<Typography
@@ -325,14 +322,14 @@ export const HizbInvitePreview = ({
 										variant='stat'
 										weight='medium'
 									>
-										{t('hpPortionsRead')}
+										{t('hpReadersReadToday')}
 									</Typography>
 								</View>
 								<CaptionText color={theme.colors.subtext} style={styles.percentLeft} weight='semibold'>
-									{t('hdPercentLeft', { left: PORTIONS - read, percent })}
+									{t('hpPercent', { percent })}
 								</CaptionText>
 							</View>
-							<HizbCoverageGrid cells={cells} />
+							<ProgressBar fillColor={theme.colors.accent} height={6} percent={percent} />
 						</View>
 						{timeRow ? (
 							<View style={[styles.timeFoot, { borderTopColor: theme.colors.divider }]}>{timeRow}</View>

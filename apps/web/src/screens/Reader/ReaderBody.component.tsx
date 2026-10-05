@@ -3,7 +3,7 @@ import { ayahMark, BISMILLAH, CEVSEN_AFTER_HUNDREDTH, clampReaderFontSize, getBa
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { arabicReaderFonts, arabicReaderFontScale } from '@/lib/theme/fonts';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import type { ReaderTextFont } from '@/lib/types/domain';
+import type { ReaderNumerals, ReaderTextFont } from '@/lib/types/domain';
 import { BAB_COUNT } from '@/lib/utils/babs';
 import { Fragment, type ReactNode, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -137,6 +137,33 @@ export const readerFaces = (font: ReaderTextFont, chosenSize: number) => {
 };
 
 /**
+ * The bab's flowing paragraph as characters, for whatever has to find an invocation on its lines
+ * (the live band): each invocation's words, a space, its ornament, a space — exactly what the
+ * paragraph below renders, in that order. `marks` are the ranges set in the ornament's face.
+ */
+export const cevsenParagraph = (babNumber: number, numerals: ReaderNumerals) => {
+	let text = '';
+	const spans: { n: number; start: number; end: number }[] = [];
+	const marks: [number, number][] = [];
+
+	for (const invocation of getBab(babNumber)?.invocations ?? []) {
+		const start = text.length;
+
+		text += `${invocation.text} `;
+
+		const markStart = text.length;
+
+		text += ayahMark(invocation.n, numerals);
+		marks.push([markStart, text.length]);
+		// `end` is the ornament's end: the space after it belongs to neither invocation.
+		spans.push({ end: text.length, n: invocation.n, start });
+		text += ' ';
+	}
+
+	return { marks, spans, text };
+};
+
+/**
  * A bab as it is set on the page: the besmele where the edition puts it, the invocations
  * flowed as one paragraph, the refrain in red, and the du'a after the hundredth.
  *
@@ -154,7 +181,11 @@ export const ReaderBody = ({
 	font,
 	fontSize: chosenSize,
 	numerals,
-	onLongPressInvocation
+	onLongPressInvocation,
+	onParagraphLayout,
+	onParagraphTextLayout,
+	onPressMark,
+	onPressParagraph
 }: ReaderBodyProps) => {
 	const { t } = useTranslation();
 	const { theme } = useThemeContext();
@@ -251,6 +282,9 @@ export const ReaderBody = ({
 			 * existed to prevent. Ordinary spaces break between words only.
 			 */}
 			<Typography
+				onLayout={onParagraphLayout}
+				onPress={onPressParagraph}
+				onTextLayout={onParagraphTextLayout}
 				style={[
 					styles.arabic,
 					{
@@ -260,6 +294,7 @@ export const ReaderBody = ({
 						writingDirection: 'rtl'
 					}
 				]}
+				suppressHighlighting
 				textAlign='center'
 			>
 				{cevsenBab.invocations.map(invocation => (
@@ -294,6 +329,7 @@ export const ReaderBody = ({
 						<Typography
 							color={theme.colors.accent}
 							onLongPress={() => onLongPressInvocation(invocation)}
+							onPress={onPressMark ? () => onPressMark(invocation.n) : undefined}
 							style={{
 								fontFamily: ornamentFont,
 								fontSize: ornamentFontSize,

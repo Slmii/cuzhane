@@ -19,7 +19,7 @@ describe('opening istighfar', () => {
 		expect(splitIstighfar({ lines: [{ page: 5, text: 'Text ﴿١﴾' }] })).toBeNull();
 	});
 	it('requires istighfar only in the first portion of every plan', () => {
-		for (const days of [7, 15, 33]) {
+		for (const days of [7, 15, 32]) {
 			expect(Array.from({ length: days }, (_, i) => i + 1).filter(p => hasIstighfar(days, p))).toEqual([1]);
 		}
 	});

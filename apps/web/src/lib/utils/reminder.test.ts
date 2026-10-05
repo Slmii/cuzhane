@@ -1,28 +1,6 @@
 import type { GroupSummary } from '@/lib/types/domain';
 import { describe, expect, it } from 'vitest';
-import { isNextReminderTomorrow, reminderBody, reminderTotals, type ReminderTotals } from './reminder';
-
-const at = (hour: number, minute: number, second = 0) => new Date(2026, 7, 29, hour, minute, second);
-
-describe('isNextReminderTomorrow', () => {
-	it('keeps a time still ahead today on today', () => {
-		expect(isNextReminderTomorrow('21:30', at(9, 29))).toBe(false);
-	});
-
-	it('moves a time already past to tomorrow', () => {
-		expect(isNextReminderTomorrow('09:29', at(9, 30))).toBe(true);
-	});
-
-	it('treats the current minute as tomorrow', () => {
-		// The real failure this label exists for: 09:29 chosen at 09:29 reached the OS at
-		// 09:29:02, and a repeating trigger matches the next date strictly after now.
-		expect(isNextReminderTomorrow('09:29', at(9, 29, 2))).toBe(true);
-	});
-
-	it('is minute-accurate within the same hour', () => {
-		expect(isNextReminderTomorrow('09:30', at(9, 29, 59))).toBe(false);
-	});
-});
+import { plannedReminders, reminderBody, reminderTotals, type ReminderTotals } from './reminder';
 
 const group = (overrides: Partial<GroupSummary>): GroupSummary =>
 	({
@@ -217,5 +195,120 @@ it('counts personal Hizb assignments without treating inactive readers as owing 
 		unread: 1,
 		unreadBabs: 0,
 		unreadPortions: 1
+	});
+});
+
+it('counts a Şahsi Cevşen day by its babs, and leaves a Şahsi Kur’an out as it does every hatim', () => {
+	const cevsen = group({
+		kind: 'CEVSEN',
+		planDays: 10,
+		myBabNumbers: [],
+		hizbToday: { assignmentId: 'c', planDays: 10, portion: 5, units: [41, 42, 43, 44, 45], completed: false }
+	});
+	const quran = group({
+		kind: 'HATIM',
+		planDays: 15,
+		myBabNumbers: [],
+		hizbToday: { assignmentId: 'q', planDays: 15, portion: 2, units: [3, 4], completed: false }
+	});
+	expect(reminderTotals([cevsen, quran])).toEqual({
+		participatingGroups: 1,
+		pendingGroups: 1,
+		unread: 5,
+		unreadBabs: 5,
+		unreadPortions: 0
+	});
+});
+
+describe('plannedReminders', () => {
+	// Friday 3 October 2026, 10:00 on the phone's clock.
+	const now = new Date(2026, 9, 3, 10, 0);
+	const midnight = (daysAhead: number) => new Date(2026, 9, 3 + daysAhead).toISOString();
+	const daily = (overrides: Partial<GroupSummary>) =>
+		group({ cycle: 'DAILY', roundEndsAt: midnight(1), ...overrides });
+
+	it('reminds today, with the count, while something is unread', () => {
+		const planned = plannedReminders([daily({ myReadCount: 2 })], 'cevsen', '21:30', now, 3);
+
+		expect(planned[0]).toEqual({
+			at: new Date(2026, 9, 3, 21, 30),
+			body: { key: 'notifBody', values: { unread: 3 } }
+		});
+		// The next days open new rounds, whose share is not known yet.
+		expect(planned.slice(1).map(reminder => reminder.body.key)).toEqual(['notifBodyIdle', 'notifBodyIdle']);
+	});
+
+	it('sends nothing today once today’s share is read, and comes back with the next round', () => {
+		const planned = plannedReminders([daily({ myReadCount: 5 })], 'cevsen', '21:30', now, 3);
+
+		expect(planned.map(reminder => reminder.at)).toEqual([
+			new Date(2026, 9, 4, 21, 30),
+			new Date(2026, 9, 5, 21, 30)
+		]);
+	});
+
+	it('stays quiet for the rest of a week whose share is read', () => {
+		const weekly = group({ cycle: 'WEEKLY', myReadCount: 5, roundEndsAt: midnight(3) });
+
+		expect(plannedReminders([weekly], 'cevsen', '21:30', now, 5).map(reminder => reminder.at.getDate())).toEqual([
+			6, 7
+		]);
+	});
+
+	it('skips a time already past today', () => {
+		const planned = plannedReminders([daily({})], 'cevsen', '09:00', now, 2);
+
+		expect(planned.map(reminder => reminder.at)).toEqual([new Date(2026, 9, 4, 9, 0)]);
+	});
+
+	it('says nothing after a one-off group has ended', () => {
+		const once = group({ cycle: 'CUSTOM', myReadCount: 5, roundEndsAt: midnight(1) });
+
+		expect(plannedReminders([once], 'cevsen', '21:30', now, 3)).toEqual([]);
+	});
+
+	it('keeps each book to its own groups', () => {
+		const shelf = [daily({ id: 'cevsen' }), daily({ id: 'hizb', kind: 'HIZB', myBabNumbers: [7], myReadCount: 1 })];
+
+		// The Hizb group's portion is read; the Cevşen's babs are not.
+		expect(plannedReminders(shelf, 'hizb', '15:00', now, 1)).toEqual([]);
+		expect(plannedReminders(shelf, 'cevsen', '21:30', now, 1)).toHaveLength(1);
+	});
+
+	it('skips the plan days already read ahead', () => {
+		const plan = group({
+			cycle: 'DAILY',
+			hizbAheadDays: 2,
+			hizbToday: { assignmentId: 'a', completed: true, planDays: 32, portion: 4 },
+			kind: 'HIZB',
+			myBabNumbers: [],
+			nextDayAt: midnight(1)
+		});
+
+		// Today and the two days after it are read; the reminders come back on the third.
+		expect(plannedReminders([plan], 'hizb', '21:30', now, 5).map(reminder => reminder.at.getDate())).toEqual([
+			6, 7
+		]);
+	});
+
+	it('assumes no new share in a flexible group, whose claims go with the round', () => {
+		const flexible = daily({ myReadCount: 5, splitMode: 'FLEXIBLE' });
+
+		expect(plannedReminders([flexible], 'cevsen', '21:30', now, 3)).toEqual([]);
+	});
+
+	it('follows a personal plan’s next day rather than its round', () => {
+		const plan = group({
+			cycle: 'DAILY',
+			hizbToday: { assignmentId: 'a', completed: true, planDays: 32, portion: 4 },
+			kind: 'HIZB',
+			myBabNumbers: [],
+			nextDayAt: midnight(1),
+			roundEndsAt: midnight(30)
+		});
+
+		expect(plannedReminders([plan], 'hizb', '21:30', now, 2).map(reminder => reminder.at)).toEqual([
+			new Date(2026, 9, 4, 21, 30)
+		]);
 	});
 });

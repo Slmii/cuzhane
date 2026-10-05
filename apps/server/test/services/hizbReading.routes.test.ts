@@ -15,7 +15,12 @@ vi.mock('@services/push.service', () => ({ sendPushToUser: async () => 0 }));
 assertIsTestDatabase(testDatabaseUrl());
 let server: Server;
 let base = '';
-const headers = { 'Content-Type': 'application/json', 'X-Cuzhane-Kinds': 'CEVSEN,HIZB', 'X-Cuzhane-Hizb-Plans': '1' };
+const headers = {
+	'Content-Type': 'application/json',
+	'X-Cuzhane-Kinds': 'CEVSEN,HIZB',
+	'X-Cuzhane-Hizb-Plans': '1',
+	'X-Cuzhane-Hizb-Portions': '32'
+};
 beforeAll(async () => {
 	const app = express();
 	app.use(express.json());
@@ -55,6 +60,38 @@ const create = async (plan = 7) => {
 	expect(response.status).toBe(201);
 	return response.json() as Promise<{ id: string }>;
 };
+it('hides Hizb groups from 1.4.0, which draws 33 portions, and refuses it creating one', async () => {
+	// 1.4.0 lists the Hizb and draws plans, but not the 32-portion division.
+	const build14 = {
+		'Content-Type': 'application/json',
+		'X-Cuzhane-Kinds': 'CEVSEN,HIZB',
+		'X-Cuzhane-Hizb-Plans': '1'
+	};
+	const plan = await create();
+	const shared = { name: 'Shared', kind: 'HIZB', visibility: 'PRIVATE', reminderTime: '21:00', spots: 8 };
+	const board = await fetch(base + '/groups', { method: 'POST', headers, body: JSON.stringify(shared) });
+	expect(board.status).toBe(201);
+	const boardId = ((await board.json()) as { id: string }).id;
+	const ids = async (h: Record<string, string>) =>
+		((await (await fetch(base + '/groups', { headers: h })).json()) as { id: string }[]).map(g => g.id);
+	expect(await ids(build14)).toEqual([]);
+	expect(await ids({ ...build14, 'X-Cuzhane-Hizb-Portions': '33' })).toEqual([]);
+	expect((await ids(headers)).sort()).toEqual([plan.id, boardId].sort());
+	expect((await fetch(base + `/groups/${plan.id}`, { headers: build14 })).status).toBe(426);
+	expect((await fetch(base + `/groups/${plan.id}`, { headers })).status).toBe(200);
+	// The shared board too, and its reads: its parts would point at the old cuts.
+	expect((await fetch(base + `/groups/${boardId}`, { headers: build14 })).status).toBe(426);
+	expect((await fetch(base + `/babs/${boardId}`, { headers: build14 })).status).toBe(426);
+	expect((await fetch(base + `/groups/${boardId}`, { headers })).status).toBe(200);
+	for (const body of [shared, { ...shared, hizbPlan: 7 }]) {
+		const refused = await fetch(base + '/groups', { method: 'POST', headers: build14, body: JSON.stringify(body) });
+		expect(refused.status).toBe(426);
+	}
+	expect(await prisma.group.count()).toBe(2);
+	// The old 33-day plan is gone, whichever build asks.
+	const old = { ...shared, hizbPlan: 33 };
+	expect((await fetch(base + '/groups', { method: 'POST', headers, body: JSON.stringify(old) })).status).toBe(400);
+});
 it('serves personal plans only to capable clients and rejects legacy read paths', async () => {
 	const group = await create();
 	expect((await fetch(base + `/groups/${group.id}`, { headers: { 'X-Cuzhane-Kinds': 'CEVSEN,HIZB' } })).status).toBe(
@@ -96,6 +133,48 @@ it('validates updates and allows current mixed members to choose a plan after ad
 	expect((await fetch(base + `/groups/${group.id}/reading/enroll`, request)).status).toBe(200);
 	const invalid = await fetch(base + `/groups/${group.id}/reading/enroll`, { ...request, body: '{"planDays":8}' });
 	expect(invalid.status).toBe(400);
+});
+
+it('opens the next day to read ahead once today is read, and takes it only in order', async () => {
+	const group = await create();
+	const url = base + `/groups/${group.id}/reading`;
+	type Day = { id: string; day: number; date: string; version: number; boardPortions: number[] };
+	const ahead = (reader = 'owner') =>
+		fetch(url + '/ahead', { headers: { ...headers, 'x-reader': reader }, method: 'POST' });
+	const patch = (id: string, body: object) =>
+		fetch(`${url}/assignments/${id}`, { headers, method: 'PATCH', body: JSON.stringify(body) });
+	expect((await ahead()).status).toBe(409);
+	expect((await ahead('outsider')).status).toBe(403);
+	const { today } = (await (await fetch(url, { headers })).json()) as { today: Day };
+	expect((await patch(today.id, { version: 0, bookPortions: today.boardPortions })).status).toBe(200);
+
+	const opened = await ahead();
+	expect(opened.status).toBe(200);
+	const next = (await opened.json()) as Day;
+	expect(next).toMatchObject({ day: today.day + 1, portion: 2, round: 1, completedAt: null });
+	expect(((await (await ahead()).json()) as Day).id).toBe(next.id);
+	const state = (await (await fetch(url, { headers })).json()) as { ahead: unknown; aheadThrough: unknown };
+	expect(state.ahead).toEqual({ day: next.day, date: next.date, portion: 2, assignmentId: next.id });
+	expect(state.aheadThrough).toBeNull();
+
+	// Today undone, the day after it waits.
+	expect((await patch(today.id, { version: 1, read: false })).status).toBe(200);
+	expect((await patch(next.id, { version: 0, bookPortions: next.boardPortions })).status).toBe(409);
+});
+
+it('limits opening days ahead per reader', async () => {
+	const group = await create();
+	const open = () =>
+		fetch(base + `/groups/${group.id}/reading/ahead`, {
+			headers: { ...headers, 'x-reader': 'flooder' },
+			method: 'POST'
+		});
+	const statuses: number[] = [];
+	for (let i = 0; i < 31; i++) {
+		statuses.push((await open()).status);
+	}
+	expect(statuses.slice(0, 30).every(status => status === 403)).toBe(true);
+	expect(statuses[30]).toBe(429);
 });
 
 it('validates and saves the independent Delail counter through the assignment endpoint', async () => {

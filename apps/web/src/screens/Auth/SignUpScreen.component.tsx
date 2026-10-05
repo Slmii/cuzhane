@@ -15,18 +15,22 @@ import {
 } from '@/lib/schemas/auth.schema';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { clerkErrorCodes, describeClerkError, type ClerkErrorLike } from '@/lib/utils/clerkErrors';
+import { secondsUntil } from '@/lib/utils/cooldown';
 import { AuthStackParamList } from '@/navigation/types';
 import { useSignUp } from '@clerk/expo';
 import { useSSO } from '@clerk/expo/experimental';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { AppState, Platform, StyleSheet, View } from 'react-native';
 import { AuthDivider } from './AuthDivider.component';
 // Google's official four-colour mark, which their sign-in guidelines require. A PNG because it
 // is artwork rather than a glyph — see `AppButton`'s `imageIcon`.
 const googleMark = require('@/assets/brand/google.png');
 
 type SignUpScreenProps = NativeStackScreenProps<AuthStackParamList, 'SignUp'>;
+
+/** The wait between code sends, the same as the password reset's (`ResetCodeSentScreen`). */
+const RESEND_COOLDOWN_SECONDS = 60;
 
 type SignUpErrorKey =
 	| 'emailTaken'
@@ -80,6 +84,32 @@ export const SignUpScreen = ({ navigation }: SignUpScreenProps) => {
 	const { startSSOFlow } = useSSO();
 
 	const [isPendingVerification, setIsPendingVerification] = useState(false);
+	// "Kod hatalı ya da süresi dolmuş. Yeni bir kod iste." needs somewhere to ask: the code step
+	// can send a fresh code, as the password reset can, once the wait has run out. The wait is a
+	// deadline on the wall clock, so time spent in the mail app counts (`secondsUntil`).
+	const [resendAt, setResendAt] = useState<number | null>(null);
+	const [now, setNow] = useState(() => Date.now());
+	const [isResending, setIsResending] = useState(false);
+	const secondsLeft = secondsUntil(resendAt, now);
+
+	useEffect(() => {
+		if (secondsLeft <= 0) {
+			return;
+		}
+
+		const timer = setInterval(() => setNow(Date.now()), 1000);
+		// Timers stop in the background; coming back re-reads the clock at once.
+		const subscription = AppState.addEventListener('change', state => {
+			if (state === 'active') {
+				setNow(Date.now());
+			}
+		});
+
+		return () => {
+			clearInterval(timer);
+			subscription.remove();
+		};
+	}, [secondsLeft]);
 
 	/*
 	 * **On the code step, back means the form — not "leave sign-up".** The two are one screen
@@ -142,6 +172,8 @@ export const SignUpScreen = ({ navigation }: SignUpScreenProps) => {
 				}
 
 				setIsPendingVerification(true);
+				setNow(Date.now());
+				setResendAt(Date.now() + RESEND_COOLDOWN_SECONDS * 1000);
 			} finally {
 				setIsSubmitting(false);
 			}
@@ -199,6 +231,30 @@ export const SignUpScreen = ({ navigation }: SignUpScreenProps) => {
 		[signUp]
 	);
 
+	const handleResend = useCallback(async () => {
+		// One send at a time: a second tap while the first is out would race it.
+		if (!signUp || secondsLeft > 0 || isResending) {
+			return;
+		}
+
+		setErrorKey(null);
+		setIsResending(true);
+
+		try {
+			const { error } = await signUp.verifications.sendEmailCode();
+
+			if (error) {
+				setErrorKey(toErrorKey(error, 'sendEmailCode'));
+				return;
+			}
+
+			setNow(Date.now());
+			setResendAt(Date.now() + RESEND_COOLDOWN_SECONDS * 1000);
+		} finally {
+			setIsResending(false);
+		}
+	}, [isResending, secondsLeft, signUp]);
+
 	const handleSSO = useCallback(
 		async (strategy: 'oauth_google' | 'oauth_apple', setBusy: (value: boolean) => void) => {
 			setErrorKey(null);
@@ -247,7 +303,7 @@ export const SignUpScreen = ({ navigation }: SignUpScreenProps) => {
 							/>
 							{errorKey ? <CaptionText color={theme.colors.danger}>{t(errorKey)}</CaptionText> : null}
 							{/*
-							 * Verify is the only button here. There used to be a "Geri" ghost
+							 * Verify is the main button, and resending the code the only other. There used to be a "Geri" ghost
 							 * below it, because the navigator's back leaves sign-up altogether
 							 * while this step wants to return to the *form* — two controls that
 							 * both said back and did different things. The effect above makes the
@@ -258,6 +314,13 @@ export const SignUpScreen = ({ navigation }: SignUpScreenProps) => {
 								isLoading={isSubmitting}
 								onPress={handleSubmit(handleVerify)}
 								title={t('verify')}
+							/>
+							<AppButton
+								disabled={secondsLeft > 0 || isSubmitting}
+								isLoading={isResending}
+								onPress={handleResend}
+								title={secondsLeft > 0 ? t('resendIn', { seconds: secondsLeft }) : t('resend')}
+								variant='ghost'
 							/>
 						</View>
 					)}

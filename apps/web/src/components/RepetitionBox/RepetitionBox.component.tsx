@@ -1,4 +1,4 @@
-import { TourTarget } from '@/components/Tour/TourTarget.component';
+import { HintTarget } from '@/components/Hints/HintTarget.component';
 import { AppBottomSheet } from '@/components/ui/BottomSheet/BottomSheet.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { isGlassButtonAvailable } from '@/components/ui/Button/GlassButton';
@@ -153,9 +153,9 @@ export const RepetitionBox = ({
 						percent={Math.min(100, (count * 100) / Math.max(1, target))}
 						trackColor={theme.colors.accentSoft}
 					/>
-					{/* The platform's own buttons: glass on iOS 26, the drawn ones elsewhere. H2 of the
-					    first-use tour points at this row: counting is these three buttons. */}
-					<TourTarget id='counter' style={styles.buttons}>
+					{/* The platform's own buttons: glass on iOS 26, the drawn ones elsewhere. The Hizb
+					    reader's hint points at this row: counting is these three buttons. */}
+					<HintTarget id='counter' style={styles.buttons}>
 						<AppButton
 							disabled={disabled || count === 0}
 							fullWidth={false}
@@ -183,7 +183,7 @@ export const RepetitionBox = ({
 							title={t('hizbRepetitionAdd')}
 							variant='accent'
 						/>
-					</TourTarget>
+					</HintTarget>
 
 					{onTargetChange ? (
 						<View

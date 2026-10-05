@@ -1,3 +1,4 @@
+import { useGetGroups } from '@/lib/hooks/useGroup';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
@@ -16,7 +17,7 @@ import { useTranslation } from '@/lib/i18n/I18n.context';
 import { createRemindersSchema, RemindersForm } from '@/lib/schemas/profile.schema';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { registerDeviceForPush } from '@/lib/utils/notifications/pushRegistration';
-import { isNextReminderTomorrow } from '@/lib/utils/reminder';
+import { plannedReminders, type ReminderBook } from '@/lib/utils/reminder';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useIsFocused } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
@@ -66,6 +67,7 @@ type ReminderPersistenceProps = {
  */
 const SWITCH_FIELDS = [
 	'reminderEnabled',
+	'hizbReminderEnabled',
 	'cevsenGroupReadsEnabled',
 	'cevsenRoundCompleteEnabled',
 	'cevsenPoolClaimEnabled',
@@ -77,10 +79,14 @@ const SWITCH_FIELDS = [
 	'memberLeftEnabled'
 ] as const satisfies readonly (keyof RemindersForm)[];
 
+/** The two daily reminders' times — the Cevşen's and the Hizb's, each its own. */
+const TIME_FIELDS = ['reminderTime', 'hizbReminderTime'] as const satisfies readonly (keyof RemindersForm)[];
+type TimeField = (typeof TIME_FIELDS)[number];
+
 const ReminderPersistence = ({ onNotificationsEnabled, updateSettings, watch }: ReminderPersistenceProps) => {
 	const writeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-	/** The value a pending debounce is holding, so it can be forced out early. */
-	const pendingTimeRef = useRef<string | null>(null);
+	/** The times a pending debounce is holding, so they can be forced out early. */
+	const pendingTimesRef = useRef<Partial<Record<TimeField, string>>>({});
 
 	const flushPendingTime = useCallback(() => {
 		if (writeTimeoutRef.current) {
@@ -88,9 +94,11 @@ const ReminderPersistence = ({ onNotificationsEnabled, updateSettings, watch }: 
 			writeTimeoutRef.current = null;
 		}
 
-		if (pendingTimeRef.current !== null) {
-			updateSettings.mutate({ reminderTime: pendingTimeRef.current });
-			pendingTimeRef.current = null;
+		const pending = pendingTimesRef.current;
+		pendingTimesRef.current = {};
+
+		if (Object.keys(pending).length > 0) {
+			updateSettings.mutate(pending);
 		}
 	}, [updateSettings]);
 
@@ -115,20 +123,22 @@ const ReminderPersistence = ({ onNotificationsEnabled, updateSettings, watch }: 
 		// mount — so unlike a value-diffing effect, this can't accidentally write back the
 		// values a screen was just loaded with.
 		const subscription = watch((values, { name }) => {
-			if (name === 'reminderTime' && values.reminderTime) {
-				const nextReminderTime = values.reminderTime;
+			const timeField = TIME_FIELDS.find(field => field === name);
 
-				pendingTimeRef.current = nextReminderTime;
+			if (timeField !== undefined) {
+				const nextTime = values[timeField];
+
+				if (!nextTime) {
+					return;
+				}
+
+				pendingTimesRef.current = { ...pendingTimesRef.current, [timeField]: nextTime };
 
 				if (writeTimeoutRef.current) {
 					clearTimeout(writeTimeoutRef.current);
 				}
 
-				writeTimeoutRef.current = setTimeout(() => {
-					writeTimeoutRef.current = null;
-					pendingTimeRef.current = null;
-					updateSettings.mutate({ reminderTime: nextReminderTime });
-				}, REMINDER_TIME_WRITE_DELAY_MS);
+				writeTimeoutRef.current = setTimeout(flushPendingTime, REMINDER_TIME_WRITE_DELAY_MS);
 				return;
 			}
 
@@ -176,7 +186,8 @@ export const RemindersScreen = () => {
 	const updateSettings = useUpdateUserSettings();
 
 	const [hasNotifPermission, setHasNotifPermission] = useState(true);
-	const [isTimePickerVisible, setIsTimePickerVisible] = useState(false);
+	// Which section's time picker is open — each book's reminder has its own time.
+	const [openPicker, setOpenPicker] = useState<'cevsen' | 'hizb' | null>(null);
 	/**
 	 * Only ever read to say whether the chosen time still lies ahead today. Refreshed at the
 	 * three moments the answer can have changed — picking a time, returning to the
@@ -184,6 +195,8 @@ export const RemindersScreen = () => {
 	 * the screen every second to move a line that changes once a day.
 	 */
 	const [now, setNow] = useState(() => new Date());
+	// The shelf, for when each reminder first comes — the same plan the scheduler writes.
+	const { data: groups } = useGetGroups();
 	const isFocused = useIsFocused();
 	const [wasFocused, setWasFocused] = useState(isFocused);
 
@@ -270,7 +283,9 @@ export const RemindersScreen = () => {
 				isFullHeight={false}
 				defaultValues={{
 					reminderTime: settings.reminderTime,
+					hizbReminderTime: settings.hizbReminderTime,
 					reminderEnabled: settings.reminderEnabled,
+					hizbReminderEnabled: settings.hizbReminderEnabled,
 					cevsenGroupReadsEnabled: settings.cevsenGroupReadsEnabled,
 					cevsenRoundCompleteEnabled: settings.cevsenRoundCompleteEnabled,
 					cevsenPoolClaimEnabled: settings.cevsenPoolClaimEnabled,
@@ -282,31 +297,103 @@ export const RemindersScreen = () => {
 					memberLeftEnabled: settings.memberLeftEnabled
 				}}
 				render={({ setValue, watch }) => {
-					const time = parseTime(watch('reminderTime'));
-					const reminderTime = formatTime(time);
-					// Only claimed when something will actually arrive: switched off, or with
-					// permission refused, naming a delivery time would be a straight lie.
-					const hasNextReminder = watch('reminderEnabled') && hasNotifPermission;
-					const nextReminderHint = isNextReminderTomorrow(reminderTime, now)
-						? t('nextReminderTomorrow', { time: reminderTime })
-						: t('nextReminderToday', { time: reminderTime });
+					const sections = {
+						cevsen: { field: 'reminderTime', isOn: watch('reminderEnabled') },
+						hizb: { field: 'hizbReminderTime', isOn: watch('hizbReminderEnabled') }
+					} as const;
+
+					/*
+					 * When the first reminder comes, from the same plan the scheduler writes — a day with
+					 * nothing unread has none, so "bugün" is only said when today's will arrive. Named only
+					 * where something will: switched off, or with permission refused, it would be a lie.
+					 */
+					const firstReminderHint = (section: ReminderBook) => {
+						const sectionTime = formatTime(parseTime(watch(sections[section].field)));
+						const first = plannedReminders(groups, section, sectionTime, now)[0];
+
+						if (!sections[section].isOn || !hasNotifPermission || !first) {
+							return null;
+						}
+
+						const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+
+						return first.at.toDateString() === now.toDateString()
+							? t('nextReminderToday', { time: sectionTime })
+							: first.at.toDateString() === tomorrow.toDateString()
+							? t('nextReminderTomorrow', { time: sectionTime })
+							: null;
+					};
 
 					// Android's picker is a dialog that closes itself; iOS keeps the spinner
 					// inline until the reader dismisses it.
-					const handleTimeChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
+					const handleTimeChange = (
+						section: ReminderBook,
+						event: DateTimePickerEvent,
+						selectedDate?: Date
+					) => {
 						if (Platform.OS === 'android') {
-							setIsTimePickerVisible(false);
+							setOpenPicker(null);
 						}
 
 						if (event.type !== 'dismissed' && selectedDate) {
 							setValue(
-								'reminderTime',
+								sections[section].field,
 								formatTime({ hour: selectedDate.getHours(), minute: selectedDate.getMinutes() })
 							);
 							// This picks between "today" and "tomorrow", so it has to be answered
 							// against the clock as it is now, not as it was when the screen mounted.
 							setNow(new Date());
 						}
+					};
+
+					/** The clock under a daily reminder's switch — each book's its own, with its own picker. */
+					const timeBlock = (section: ReminderBook) => {
+						const time = parseTime(watch(sections[section].field));
+						const hint = firstReminderHint(section);
+
+						return (
+							<Collapsible isOpen={sections[section].isOn}>
+								<View style={[styles.timeBlock, { borderTopColor: theme.colors.divider }]}>
+									<FieldLabelText color={theme.colors.faintText} textAlign='center'>
+										{t('dailyAt')}
+									</FieldLabelText>
+									<Pressable
+										accessibilityRole='button'
+										onPress={() => setOpenPicker(current => (current === section ? null : section))}
+										style={({ pressed }) => [styles.timeRow, { opacity: pressed ? 0.7 : 1 }]}
+									>
+										<Typography style={styles.timeValue} variant='display'>
+											{pad(time.hour)}:{pad(time.minute)}
+										</Typography>
+									</Pressable>
+									{hint ? (
+										<CaptionText color={theme.colors.faintText} style={styles.nextReminder}>
+											{hint}
+										</CaptionText>
+									) : null}
+									{openPicker === section ? (
+										<View style={styles.pickerWrap}>
+											<DateTimePicker
+												display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+												mode='time'
+												onChange={(event, date) => handleTimeChange(section, event, date)}
+												value={toDate(time)}
+											/>
+											{/*
+											 * Closes the picker; it does not save. The value is written on every
+											 * turn of the spinner and debounced, so leaving without tapping this
+											 * keeps the time either way.
+											 */}
+											<Pressable onPress={() => setOpenPicker(null)} style={styles.pickerDone}>
+												<BodyStrongText color={theme.colors.accent}>
+													{t('confirm')}
+												</BodyStrongText>
+											</Pressable>
+										</View>
+									) : null}
+								</View>
+							</Collapsible>
+						);
 					};
 
 					return (
@@ -376,10 +463,10 @@ export const RemindersScreen = () => {
 								<FieldLabelText style={styles.sectionLabel}>{t('qCevsen')}</FieldLabelText>
 								<CardSurface isFlush>
 									{/*
-									 * **The daily reminder is Cevşen's.** `reminderTotals` counts only Cevşen
-									 * groups — a hatim round runs ten or thirty days, so a nightly "you still owe"
-									 * would nag about something not due — which is why it sits under this heading
-									 * rather than above the sections as a screen-wide setting.
+									 * **A daily reminder per book that has one**: this one for the Cevşen's
+									 * groups, the Hizb's under its own heading — each its own time and its own
+									 * notifications, only on days something is unread. A hatim has none — a round runs ten or thirty days, so a
+									 * nightly "you still owe" would nag about something not due.
 									 *
 									 * **The clock collapses with the switch.** A time is meaningless while nothing
 									 * is scheduled, so it leaves rather than sitting there inert. `Collapsible`
@@ -392,53 +479,7 @@ export const RemindersScreen = () => {
 										name='reminderEnabled'
 										title={t('dailyReminder')}
 									/>
-									<Collapsible isOpen={watch('reminderEnabled')}>
-										<View style={[styles.timeBlock, { borderTopColor: theme.colors.divider }]}>
-											<FieldLabelText color={theme.colors.faintText} textAlign='center'>
-												{t('dailyAt')}
-											</FieldLabelText>
-											<Pressable
-												accessibilityRole='button'
-												onPress={() => setIsTimePickerVisible(current => !current)}
-												style={({ pressed }) => [
-													styles.timeRow,
-													{ opacity: pressed ? 0.7 : 1 }
-												]}
-											>
-												<Typography style={styles.timeValue} variant='display'>
-													{pad(time.hour)}:{pad(time.minute)}
-												</Typography>
-											</Pressable>
-											{hasNextReminder ? (
-												<CaptionText color={theme.colors.faintText} style={styles.nextReminder}>
-													{nextReminderHint}
-												</CaptionText>
-											) : null}
-											{isTimePickerVisible ? (
-												<View style={styles.pickerWrap}>
-													<DateTimePicker
-														display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-														mode='time'
-														onChange={handleTimeChange}
-														value={toDate(time)}
-													/>
-													{/*
-													 * Closes the picker; it does not save. The value is written on every
-													 * turn of the spinner and debounced, so leaving without tapping this
-													 * keeps the time either way.
-													 */}
-													<Pressable
-														onPress={() => setIsTimePickerVisible(false)}
-														style={styles.pickerDone}
-													>
-														<BodyStrongText color={theme.colors.accent}>
-															{t('confirm')}
-														</BodyStrongText>
-													</Pressable>
-												</View>
-											) : null}
-										</View>
-									</Collapsible>
+									{timeBlock('cevsen')}
 									<View style={[styles.stackedRow, { borderTopColor: theme.colors.divider }]}>
 										<FormToggleRow
 											hint={t('groupReadsHint')}
@@ -468,11 +509,20 @@ export const RemindersScreen = () => {
 								 */}
 								<FieldLabelText style={styles.sectionLabel}>{t('kindHizb')}</FieldLabelText>
 								<CardSurface isFlush>
+									{/* Its own daily reminder, at its own time. */}
 									<FormToggleRow
-										hint={t('groupReadsHintHizb')}
-										name='hizbGroupReadsEnabled'
-										title={t('groupReads')}
+										hint={t('dailyReminderHint')}
+										name='hizbReminderEnabled'
+										title={t('dailyReminder')}
 									/>
+									{timeBlock('hizb')}
+									<View style={[styles.stackedRow, { borderTopColor: theme.colors.divider }]}>
+										<FormToggleRow
+											hint={t('groupReadsHintHizb')}
+											name='hizbGroupReadsEnabled'
+											title={t('groupReads')}
+										/>
+									</View>
 								</CardSurface>
 							</View>
 						</>

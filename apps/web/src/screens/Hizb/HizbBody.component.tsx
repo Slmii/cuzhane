@@ -9,14 +9,12 @@ import { readerFaces, withDivineName } from '@/screens/Reader/ReaderBody.compone
 import { Fragment, memo, useMemo, type ReactNode } from 'react';
 import { StyleSheet } from 'react-native';
 import { splitIstighfar } from '@/lib/content/hizbIstighfar';
-import { splitSekine } from '@/lib/content/hizbSekine';
+import { SEKINE_REPETITIONS, splitSekine } from '@/lib/content/hizbSekine';
 import { IstighfarReading } from './IstighfarReading.component';
 import { RepetitionBox, RepetitionTag } from '@/components/RepetitionBox/RepetitionBox.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import type { HizbBodyProps } from './HizbBody.types';
 
-/** Sekine is read nineteen times. */
-const SEKINE_REPETITIONS = 19;
 /** The print's mark between invocations. */
 const INVOCATION_MARK = '❁';
 /** `U+06DD` on its own — the rosette the verse marks are drawn in, with nothing inside it. */

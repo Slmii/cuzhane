@@ -10,7 +10,7 @@ import { PART_COUNT, partCountFor } from '@/lib/utils/groupKinds';
 export const CUZ_COUNT = PART_COUNT.HATIM;
 
 /**
- * How many readable units a group is made of, by what it reads — 100 babs, 30 cüz or 33
+ * How many readable units a group is made of, by what it reads — 100 babs, 30 cüz or 32
  * portions. One table (`PART_COUNT` in `groupKinds.ts`) answers it for every kind.
  *
  * **Read this wherever a group is in hand, never `BAB_COUNT`.** Every "N / 100" on a card,

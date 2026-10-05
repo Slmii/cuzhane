@@ -24,7 +24,7 @@ export type GroupMemberRole = 'OWNER' | 'MEMBER';
 
 /**
  * What a group reads. A Cevşen group divides a hundred babs by seat; a hatim divides thirty
- * cüz by choice; a Hizb group divides the Hizbü'l-Hakaik's 33 portions by seat, on the Cevşen's
+ * cüz by choice; a Hizb group divides the Hizbü'l-Hakaik's 32 portions by seat, on the Cevşen's
  * model. Chosen at step 1 and immutable after — every other setting on the group hangs off it.
  */
 export type GroupKind = 'CEVSEN' | 'HATIM' | 'HIZB';
@@ -65,11 +65,29 @@ export type GroupBab = {
 
 /** Shape returned by list endpoints — enough to render a group card without the bab grid. */
 export type GroupSummary = {
-	hizbToday?: { planDays: number; portion: number; completed: boolean; assignmentId: string | null } | null;
+	/**
+	 * The viewer's day on a personal plan. `portion` is the plan's day, 1-based; `units` — on a Şahsi
+	 * Cevşen or Kur'an reading only — are that day's babs or cüz.
+	 */
+	hizbToday?: {
+		planDays: number;
+		portion: number;
+		units?: number[];
+		/** A Şahsi Kur'an day's cüz marked read so far, before the day is complete. */
+		readUnits?: number[];
+		/** A Şahsi Kur'an day's place, as its reading's `bookmark` keeps it (0: none yet). */
+		place?: number;
+		completed: boolean;
+		assignmentId: string | null;
+	} | null;
 	/** A personal-plan Hizb's board today: the canonical spans its completed readings cover. */
 	hizbCoveredSpans?: number[];
+	/** A personal-plan Hizb's readers today: everyone on a plan now, and how many of them read. */
+	hizbReaders?: { read: number; total: number };
 	/** A personal-plan Hizb's next reading day: the next local midnight in the group's zone. */
 	nextDayAt?: string;
+	/** How many days straight after today the viewer has already read ahead on their plan. */
+	hizbAheadDays?: number;
 	/** The viewer was taken out of a personal-plan Hizb's order by the inactivity rule. */
 	hizbRemoved?: boolean;
 	/** The rule's length when it removed the viewer; null unless `hizbRemoved`. */
@@ -77,7 +95,13 @@ export type GroupSummary = {
 	/** Which day of the group today is, 1-based, in the group's zone. */
 	hizbDay?: number;
 	hizbPlan?: number | null;
+	/** One person's private reading, of any kind: a Hizb individual plan or a Şahsi Cevşen/Kur'an. */
 	hizbIndividual?: boolean;
+	/**
+	 * A Şahsi Cevşen or Kur'an reading's length in days — its book split over them, read by the
+	 * `/reading` routes like a Hizb plan. Null on every other group, a Hizb included.
+	 */
+	planDays?: number | null;
 	hizbStartPortion?: number;
 	inactivityDays?: number | null;
 	hideMemberNames: boolean;
@@ -99,7 +123,7 @@ export type GroupSummary = {
 	kind: GroupKind;
 	splitMode: GroupSplitMode;
 	cycle: GroupCycle;
-	/** How many parts the group divides — 100 babs for the Cevşen, 30 cüz for a hatim, 33 portions for the Hizb. */
+	/** How many parts the group divides — 100 babs for the Cevşen, 30 cüz for a hatim, 32 portions for the Hizb. */
 	partCount: number;
 	/**
 	 * How many days a round runs. **The cadence name cannot stand in for it**: a hatim may be
@@ -180,6 +204,21 @@ export type PoolClaimReleaseNotice = {
 	endBab: number;
 };
 
+/** The viewer's place in one unit of the round — a cüz, a bab or a Hizb portion. */
+export type ReadingPlace = {
+	unitNumber: number;
+	/** The page within the unit, 1-based, or null when only pages read are known. */
+	position: number | null;
+	textPagesRead: number;
+	husrevPagesRead: number;
+};
+
+/** The viewer's places in the round the group is on. */
+export type ReadingPlaces = {
+	roundIndex: number;
+	places: ReadingPlace[];
+};
+
 export type GroupDetail = GroupSummary & {
 	ownerUserId: string;
 	inviteCode: string | null;
@@ -207,13 +246,16 @@ export type GroupDetail = GroupSummary & {
 /** Unauthenticated-ish preview shown when opening an invite link or entering a code. */
 export type GroupInvitePreview = {
 	hizbPlan?: number | null;
-	/** See `GroupSummary` — the same four fields, from `hizbSummary`. */
+	/** See `GroupSummary` — the same fields, from `hizbSummary`. */
 	hizbCoveredSpans?: number[];
+	hizbReaders?: { read: number; total: number };
 	nextDayAt?: string;
 	hizbRemoved?: boolean;
 	hizbRemovalDays?: number | null;
 	hizbDay?: number;
 	hizbIndividual?: boolean;
+	/** See `GroupSummary.planDays`. */
+	planDays?: number | null;
 	hizbStartPortion?: number;
 	inactivityDays?: number | null;
 	hideMemberNames: boolean;
@@ -341,6 +383,14 @@ export type PoolSlotPart = {
  */
 export type PartRepetitions = { count: number; required: number; roundIndex: number };
 
+/** A seat-divided Hizb group's Delâil and istighfar counts — the viewer's own, for one round. Mirrors the server's `RoundCounters`. */
+export type RoundCounters = {
+	delailCount: number;
+	istighfarCount: number;
+	istighfarTarget: number;
+	roundIndex: number;
+};
+
 /** What an inbox row is about. Mirrors the server's `NotificationKind` enum. */
 export type NotificationKind =
 	| 'POOL_CLAIM_RELEASED'
@@ -374,6 +424,12 @@ export type AppNotification = {
 	createdAt: string;
 };
 
+/** `GET /api/hints` and both of its writes: the hint ids this account has seen, and the switch. */
+export type HintsState = {
+	seenIds: string[];
+	enabled: boolean;
+};
+
 export type UserSettings = {
 	id: string;
 	userId: string;
@@ -382,6 +438,9 @@ export type UserSettings = {
 	// is the only one the app gives anybody a way to set. See `user.prisma`.
 	reminderEnabled: boolean;
 	reminderTime: string;
+	/** The Hizb groups' daily reminder and its own time; `reminderEnabled` and `reminderTime` are the Cevşen's. */
+	hizbReminderEnabled: boolean;
+	hizbReminderTime: string;
 	/*
 	 * **Three switches, one pair each — Cevşen and Kuran.** They are not the same news in the
 	 * two kinds: a finished share is a range of babs or a cüz, a round is a hundred or thirty,
@@ -418,6 +477,8 @@ export type UserSettings = {
 	memberLeftEnabled: boolean;
 	hasSeenOnboarding: boolean;
 	hasSeenTour: boolean;
+	/** "İpuçlarını göster" — whether the screens' hints play (`components/Hints`). */
+	hintsEnabled: boolean;
 	/**
 	 * "Grubun nasıl çalışır?" after joining, one per kind: "bir daha gösterme" on one kind leaves
 	 * the others showing.
@@ -457,6 +518,7 @@ export type ReaderTextFont = Exclude<ReaderArabicFont, 'husrev'>;
 export const textFontFor = (font: ReaderArabicFont): ReaderTextFont => (font === 'husrev' ? 'uthman' : font);
 
 export type ProfileStats = {
+	/** Every reading, whatever the book: a bab, a cüz, a Hizb portion, a plan's day (the server's name). */
 	babsRead: number;
 	roundsCompleted: number;
 	streakDays: number;
@@ -567,4 +629,83 @@ export type MyProgress = {
 	/** Closed rounds only; the open one cannot have been missed yet. */
 	missedCount: number;
 	ratePercent: number;
+};
+
+/**
+ * Live reading ("Birlikte oku") — mirrors the server's `liveSession.service.ts` (the REST
+ * preview) and `schemas/live.schema.ts` (the socket's frames), field for field.
+ */
+export type LiveReadingKind = 'CEVSEN' | 'QURAN';
+
+export type LiveSessionPreview = {
+	id: string;
+	code: string;
+	kind: LiveReadingKind;
+	startedAt: string;
+	/** Null for "Member" — the server does not pick the language. */
+	leaderName: string | null;
+	isLeader: boolean;
+	followerCount: number;
+	/** Where the reader is now; null before they have opened a page. */
+	position: LivePosition | null;
+};
+
+/** A place in the text, never pixels: `f` is how far through the bab or page the screen's top is. */
+export type LivePosition =
+	| { k: 'CEVSEN'; bab: number; f: number }
+	| { k: 'QURAN'; edition: 'text' | 'husrev'; cuz: number; page: number; verse?: string; f: number };
+
+/**
+ * The line the reader is reading ("Göster") — a place in the text like a position: an invocation
+ * of a bab, a verse of a typeset page, or one of a Hüsrev page's fifteen lines.
+ */
+export type LiveMark =
+	| { k: 'CEVSEN'; bab: number; n: number }
+	| { k: 'QURAN'; edition: 'text'; cuz: number; page: number; verse: string }
+	| { k: 'QURAN'; edition: 'husrev'; cuz: number; page: number; line: number };
+
+/** `isListening` is whether they hear the reader's voice now, on any of their phones. */
+export type LivePerson = { name: string | null; isLeader: boolean; isYou: boolean; isListening: boolean };
+
+export type LiveStatus = 'live' | 'away';
+
+/** The reader's voice: off unless they turn it on; paused while it cannot reach anyone. */
+export type LiveVoice = 'off' | 'on' | 'paused';
+
+export type LiveEndReason = 'ended' | 'leader-left' | 'replaced' | 'expired' | 'idle';
+
+export type LiveServerFrame =
+	| { t: 'ready' }
+	| {
+			t: 'snapshot';
+			session: { id: string; code: string; kind: LiveReadingKind; startedAt: string };
+			role: 'leader' | 'follower';
+			status: LiveStatus;
+			seq: number;
+			pos: LivePosition | null;
+			mark: LiveMark | null;
+			markShown: boolean;
+			people: LivePerson[];
+			voice: LiveVoice;
+	  }
+	| { t: 'pos'; seq: number; pos: LivePosition }
+	| { t: 'mark'; seq: number; mark: LiveMark | null; shown: boolean }
+	| { t: 'status'; status: LiveStatus }
+	| { t: 'voice'; voice: LiveVoice }
+	| { t: 'people'; people: LivePerson[] }
+	| { t: 'ended'; reason: LiveEndReason }
+	| { t: 'error'; code: 'bad-frame' | 'not-found' | 'not-joined' | 'not-leader' | 'too-many' | 'wrong-kind' };
+
+/**
+ * Live voice's requests (`/api/live/:sessionId/voice…`) — mirrors the server's
+ * `liveVoice.service.ts`. `iceServers` is Cloudflare's TURN answer, passed through.
+ */
+export type LiveIceServer = { urls: string | string[]; username?: string; credential?: string };
+
+export type LiveVoiceStarted = { answer: { type: 'answer'; sdp: string }; iceServers: LiveIceServer[] };
+
+export type LiveVoiceListening = {
+	listenerSessionId: string;
+	offer: { type: 'offer'; sdp: string };
+	iceServers: LiveIceServer[];
 };

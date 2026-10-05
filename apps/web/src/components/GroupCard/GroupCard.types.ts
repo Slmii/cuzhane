@@ -29,7 +29,7 @@ export interface GroupCardProps {
 	 * count can't arrive without the total and the noun it is read against.
 	 */
 	progress?: Omit<GroupProgressSummaryProps, 'style'>;
-	/** A kind's own body under the header — the Hizb card's 33 notches, plan and rules (Keşfet). */
+	/** A kind's own body under the header — the Hizb card's 32 notches, plan and rules (Keşfet). */
 	children?: ReactNode;
 	/** The round-reset row, between the progress bar and the footer. Omitted while gathering. */
 	resetRow?: ReactNode;

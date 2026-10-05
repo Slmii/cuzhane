@@ -96,7 +96,6 @@ export const MemberRow = ({
 					fullWidth={false}
 					icon='close'
 					onPress={onRemove}
-					size='sm'
 					variant='surface'
 				/>
 			) : null}

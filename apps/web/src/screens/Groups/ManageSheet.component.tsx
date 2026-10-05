@@ -18,6 +18,7 @@ import { editGroupSchema, type EditGroupForm } from '@/lib/schemas/group.schema'
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { GroupDetail } from '@/lib/types/domain';
 import { confirmDestructive } from '@/lib/utils/confirmDestructive';
+import { isPersonalPlanGroup } from '@/lib/utils/personalPlan';
 import type { TabStackParamList } from '@/navigation/types';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -94,6 +95,9 @@ export const ManageSheet = ({ group, isVisible, onClose: close }: Props) => {
 
 	// Only a shared Hizb plan has the rule; an individual one has nobody to remove.
 	const hasInactivityRule = group.hizbPlan != null && !group.hizbIndividual;
+	// A flexible board — not a personal plan, which is stored flexible but read by days (a Şahsi
+	// Cevşen or Kur'an reading stays private).
+	const isFlexible = group.splitMode === 'FLEXIBLE' && !isPersonalPlanGroup(group);
 
 	const handleSave = (values: EditGroupForm) => {
 		const inactivityDays = values.inactivityEnabled ? values.inactivityDays : null;
@@ -106,7 +110,7 @@ export const ManageSheet = ({ group, isVisible, onClose: close }: Props) => {
 			dedication: values.dedication.trim() === '' ? null : values.dedication.trim(),
 			groupId: group.id,
 			name: values.name.trim(),
-			visibility: group.splitMode === 'FLEXIBLE' && group.hizbPlan == null ? 'OPEN' : values.visibility
+			visibility: isFlexible ? 'OPEN' : values.visibility
 		});
 
 		// The tick is the sheet's "done": saved, it closes.
@@ -129,7 +133,6 @@ export const ManageSheet = ({ group, isVisible, onClose: close }: Props) => {
 		});
 	};
 
-	const isFlexible = group.splitMode === 'FLEXIBLE' && group.hizbPlan == null;
 	const spotsHint = isFlexible
 		? t('flexiblePublicHint')
 		: `${group.memberCount} / ${group.spots} · ${group.spotsLeft} ${t('spotsLeft')}`;

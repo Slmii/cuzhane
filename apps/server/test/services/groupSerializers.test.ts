@@ -35,7 +35,7 @@ const group = (overrides: Partial<Group> = {}): Group => ({
 	inactivitySinceDay: null,
 	hizbNext7: 0,
 	hizbNext15: 0,
-	hizbNext33: 0,
+	hizbNext32: 0,
 	hizbNextSlot: 1,
 	spots: 11,
 	inviteCode: 'PREV0001',

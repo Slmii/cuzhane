@@ -17,7 +17,7 @@ import { StyleSheet, View } from 'react-native';
  * has no Cevşen counterpart at all, because a Cevşen share is derived from a seat and a
  * hatim's has to be chosen.
  *
- * A Hizb group is four: the book, its name, the reading plan (HZ's 7/15/33 days, or the seats),
+ * A Hizb group is four: the book, its name, the reading plan (HZ's 7/15/32 days, or the seats),
  * and then either where a personal plan starts or when an idle member is released.
  *
  * The design numbers its frames from zero ("Adım 0 / 4" on Q1, up to QC4) because it drew
@@ -29,6 +29,13 @@ export type CreateGroupStep = 1 | 2 | 3 | 4 | 5;
 /** Where each kind stops. Also the total the progress bar and the eyebrows count to. */
 export const LAST_STEP_BY_KIND: Record<GroupKind, CreateGroupStep> = { CEVSEN: 3, HATIM: 5, HIZB: 4 };
 
+/**
+ * Where the flow stops. A Şahsi Cevşen or Kur'an reading is three steps whatever the book: the
+ * book, its name, and how many days — no seats, cadence, rounds or cüz to pick.
+ */
+export const lastStepFor = (kind: GroupKind, isPersonal: boolean): CreateGroupStep =>
+	isPersonal && kind !== 'HIZB' ? 3 : LAST_STEP_BY_KIND[kind];
+
 interface CreateGroupStepHeaderProps {
 	/**
 	 * Blocks the forward action. Used only where a step's answer is not a form field and so
@@ -37,6 +44,8 @@ interface CreateGroupStepHeaderProps {
 	isNextDisabled?: boolean;
 	/** What the group reads, chosen at step 1 — steps 3 and 4 are different questions for each. */
 	kind: GroupKind;
+	/** "Şahsi okuma" is on — a Cevşen or Kur'an reading of three steps (`lastStepFor`). */
+	isPersonal?: boolean;
 	/** Overrides the step's own title — a Hizb step whose question depends on an earlier answer. */
 	titleKey?: StringKey;
 	onBack: () => void;
@@ -68,6 +77,7 @@ const TITLE_KEY_BY_STEP: Record<GroupKind, Record<CreateGroupStep, StringKey>> =
 
 export const CreateGroupStepHeader = ({
 	isNextDisabled = false,
+	isPersonal = false,
 	kind,
 	onBack,
 	onNext,
@@ -75,7 +85,10 @@ export const CreateGroupStepHeader = ({
 	titleKey
 }: CreateGroupStepHeaderProps) => {
 	const { t } = useTranslation();
-	const isLastStep = step === LAST_STEP_BY_KIND[kind];
+	const lastStep = lastStepFor(kind, isPersonal);
+	const isLastStep = step === lastStep;
+	// A three-step flow counts as the Cevşen's does, whichever book it reads.
+	const eyebrowKey = EYEBROW_KEY_BY_STEP[lastStep === 3 ? 'CEVSEN' : kind][step];
 	const isFirstStep = step === 1;
 
 	return (
@@ -108,8 +121,8 @@ export const CreateGroupStepHeader = ({
 					variant='accent'
 				/>
 			</View>
-			<StepProgress current={step} style={styles.progress} total={LAST_STEP_BY_KIND[kind]} />
-			<EyebrowText style={styles.eyebrow}>{t(EYEBROW_KEY_BY_STEP[kind][step])}</EyebrowText>
+			<StepProgress current={step} style={styles.progress} total={lastStep} />
+			<EyebrowText style={styles.eyebrow}>{t(eyebrowKey)}</EyebrowText>
 			<Header1>{t(titleKey ?? TITLE_KEY_BY_STEP[kind][step])}</Header1>
 		</View>
 	);

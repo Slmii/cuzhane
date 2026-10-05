@@ -1,4 +1,5 @@
 import { GroupCard } from '@/components/GroupCard/GroupCard.component';
+import { useHintScreen } from '@/components/Hints/useHintScreen';
 import { RoundResetRow } from '@/components/RoundResetRow/RoundResetRow.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { PullToRefresh } from '@/components/ui/PullToRefresh/PullToRefresh.component';
@@ -23,7 +24,11 @@ import {
 	visibilityIcon,
 	visibilityLabelKey
 } from '@/lib/utils/groups';
-import { roundResetLabels } from '@/lib/utils/roundReset';
+import { roundResetLabels, timeIn } from '@/lib/utils/roundReset';
+import { quranDayPages } from '@/lib/utils/personalPlan';
+import { useGetUserSettings } from '@/lib/hooks/useUserSettings';
+import { mushafCuzPages } from '@/lib/content/mushaf';
+import { cuzPages } from '@/lib/content/quran';
 import { unitCountFor } from '@/lib/utils/units';
 import { GroupsScreenParams, TabStackParamList } from '@/navigation/types';
 import { JoinByCodeSheet } from '@/screens/Join/JoinByCodeSheet.component';
@@ -42,6 +47,7 @@ type GroupsNavigationProp = NativeStackNavigationProp<TabStackParamList>;
 const CARD_LAYOUT = LinearTransition.springify().damping(20).stiffness(180).mass(0.7);
 export const GroupsScreen = () => {
 	const navigation = useNavigation<GroupsNavigationProp>();
+	useHintScreen('groups');
 
 	const { theme } = useThemeContext();
 	const { language, t } = useTranslation();
@@ -59,14 +65,20 @@ export const GroupsScreen = () => {
 	const shouldOpenJoinSheet = route.params?.shouldOpenJoinSheet === true;
 	// A scanned QR lands here too (`groups/join/:inviteCode`), with the code to open the sheet on.
 	const scannedInviteCode = route.params?.inviteCode;
-	const isJoinSheetVisible = isJoinSheetOpen || shouldOpenJoinSheet || scannedInviteCode !== undefined;
+	// The "+" menu's "Birlikte okumaya katıl": the same sheet, asking only for a live reading's code.
+	const isLiveJoin = route.params?.shouldOpenLiveJoinSheet === true;
+	const isJoinSheetVisible = isJoinSheetOpen || shouldOpenJoinSheet || scannedInviteCode !== undefined || isLiveJoin;
 
 	const closeJoinSheet = () => {
 		setIsJoinSheetOpen(false);
 
 		// Cleared on dismissal, or the params would reopen the sheet on the next render.
-		if (shouldOpenJoinSheet || scannedInviteCode !== undefined) {
-			navigation.setParams({ inviteCode: undefined, shouldOpenJoinSheet: undefined });
+		if (shouldOpenJoinSheet || scannedInviteCode !== undefined || isLiveJoin) {
+			navigation.setParams({
+				inviteCode: undefined,
+				shouldOpenJoinSheet: undefined,
+				shouldOpenLiveJoinSheet: undefined
+			});
 		}
 	};
 
@@ -94,6 +106,12 @@ export const GroupsScreen = () => {
 
 	const isReducedMotion = useReducedMotion();
 	const cardLayout = isReducedMotion ? undefined : CARD_LAYOUT;
+	// A Şahsi Kur'an card counts pages in the mushaf the reader is set to, as its group screen does.
+	const isHusrev = useGetUserSettings().data?.readerArabicFont === 'husrev';
+	const pagesOfCuz = useCallback(
+		(cuzNumber: number) => (isHusrev ? mushafCuzPages(cuzNumber) : cuzPages(cuzNumber)).length,
+		[isHusrev]
+	);
 
 	// The design pins this block: the + stays reachable however far the shelf scrolls,
 	// which is the whole reason it moved up here from the bottom of the list. It paints
@@ -262,7 +280,10 @@ export const GroupsScreen = () => {
 						 * a Cevşen share with pool blocks on top as its current block plus a chip.
 						 */
 						footerLabel={
-							isFlexible
+							// A Şahsi Cevşen or Kur'an reading names its length, as a Hizb plan does.
+							item.planDays != null
+								? t('hpDays', { days: item.planDays })
+								: isFlexible
 								? item.hizbPlan != null
 									? item.hizbPlan
 										? t('hpDays', { days: item.hizbPlan })
@@ -272,7 +293,7 @@ export const GroupsScreen = () => {
 										share.current
 								  }`
 						}
-						footerMoreCount={isFlexible ? 0 : share.moreCount}
+						footerMoreCount={isFlexible || item.planDays != null ? 0 : share.moreCount}
 						// Filled even when the round is finished: the hatim itself is ongoing, so a
 						// de-emphasised button would read as "this group is done". Only the label
 						// softens — there is nothing left to continue today.
@@ -280,16 +301,84 @@ export const GroupsScreen = () => {
 						name={item.name}
 						onAction={() => goToGroup(item.id)}
 						onPress={() => goToGroup(item.id)}
-						progress={{
-							kind: item.kind,
-							percent: item.percent,
-							readCount: item.readCount,
-							total: item.partCount,
-							// A private plan counts today's one reading: "1 / 1 bölüm", never "1 / 1 portions".
-							unit: t(item.partCount === 1 ? 'portionsOne' : partUnitKey(item.kind))
-						}}
+						progress={
+							// A shared Hizb plan counts its readers, not the 32: "2 / 3 okudu" — a goal a group
+							// of three or of five hundred can reach.
+							item.hizbReaders && !item.hizbIndividual
+								? {
+										kind: item.kind,
+										percent:
+											item.hizbReaders.total > 0
+												? Math.round((item.hizbReaders.read * 100) / item.hizbReaders.total)
+												: 0,
+										readCount: item.hizbReaders.read,
+										total: item.hizbReaders.total,
+										unit: t('hpReadersUnit')
+								  }
+								: item.planDays != null && item.kind === 'HATIM' && item.hizbToday?.units
+								? // A Şahsi Kur'an day counts pages, as its group screen does: "22 / 41 sayfa".
+								  (() => {
+										const pages = item.hizbToday.completed
+											? quranDayPages(item.hizbToday.units, item.hizbToday.units, 0, pagesOfCuz)
+											: quranDayPages(
+													item.hizbToday.units,
+													item.hizbToday.readUnits ?? [],
+													item.hizbToday.place ?? 0,
+													pagesOfCuz
+											  );
+
+										return {
+											kind: item.kind,
+											percent: Math.round((pages.read * 100) / Math.max(1, pages.total)),
+											readCount: pages.read,
+											total: pages.total,
+											unit: t('qPages')
+										};
+								  })()
+								: item.planDays != null && item.hizbToday?.units
+								? // A Şahsi Cevşen day counts its babs: "0 / 10 bab".
+								  {
+										kind: item.kind,
+										// A Kur'an day's cüz count as they are marked, before the day is done.
+										percent: Math.round(
+											((item.hizbToday.completed
+												? item.hizbToday.units.length
+												: item.hizbToday.readUnits?.length ?? 0) *
+												100) /
+												item.hizbToday.units.length
+										),
+										readCount: item.hizbToday.completed
+											? item.hizbToday.units.length
+											: item.hizbToday.readUnits?.length ?? 0,
+										total: item.hizbToday.units.length,
+										unit: t(partUnitKey(item.kind))
+								  }
+								: {
+										kind: item.kind,
+										percent: item.percent,
+										readCount: item.readCount,
+										total: item.partCount,
+										// A private plan counts today's one reading: "1 / 1 bölüm", never "1 / 1 portions".
+										unit: t(item.partCount === 1 ? 'portionsOne' : partUnitKey(item.kind))
+								  }
+						}
 						{...(reset
-							? { resetRow: <RoundResetRow groupLabel={reset.group} localLabel={reset.local} /> }
+							? {
+									resetRow: item.hizbIndividual ? (
+										// A Şahsi reading is the reader's own clock: the plain time, no zone, no "sende".
+										<RoundResetRow
+											groupLabel={t('spEveryDayAt', {
+												time: timeIn(
+													new Date(item.nextDayAt ?? item.roundEndsAt ?? ''),
+													language
+												)
+											})}
+											localLabel=''
+										/>
+									) : (
+										<RoundResetRow groupLabel={reset.group} localLabel={reset.local} />
+									)
+							  }
 							: {})}
 						// The ghost "Kurucu" tag, shown only on groups you started.
 						{...(item.isOwner ? { extraBadges: [{ label: t('creator') }] } : {})}
@@ -305,7 +394,7 @@ export const GroupsScreen = () => {
 				</Animated.View>
 			);
 		},
-		[cardLayout, goToGathering, goToGroup, language, t]
+		[cardLayout, goToGathering, goToGroup, language, pagesOfCuz, t]
 	);
 
 	if (isError) {
@@ -380,6 +469,7 @@ export const GroupsScreen = () => {
 
 			<JoinByCodeSheet
 				{...(scannedInviteCode === undefined ? {} : { initialCode: scannedInviteCode })}
+				isLiveOnly={isLiveJoin}
 				isVisible={isJoinSheetVisible}
 				onClose={closeJoinSheet}
 			/>

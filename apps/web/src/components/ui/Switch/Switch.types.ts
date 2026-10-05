@@ -6,5 +6,7 @@ export interface AppSwitchProps {
 	onValueChange: (value: boolean) => void;
 	onBlur?: () => void;
 	disabled?: boolean;
+	/** The track while on, where the state has its own colour — live voice paused is sand. `accent` otherwise. */
+	onColor?: string;
 	style?: StyleProp<ViewStyle>;
 }

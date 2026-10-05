@@ -55,7 +55,11 @@ afterAll(async () => {
 });
 
 /** Every new-build header, so Hizb groups are not hidden from the caller. */
-const MODERN = { 'X-Cuzhane-Kinds': 'CEVSEN,HATIM,HIZB', 'X-Cuzhane-Hizb-Plans': '1' };
+const MODERN = {
+	'X-Cuzhane-Kinds': 'CEVSEN,HATIM,HIZB',
+	'X-Cuzhane-Hizb-Plans': '1',
+	'X-Cuzhane-Hizb-Portions': '32'
+};
 
 const call = (
 	method: string,
@@ -305,7 +309,7 @@ describe('groups and membership', () => {
 	it('keeps a Hizb group out of discover for a build that cannot draw it', async () => {
 		const hizb = await createGroup('hizb_owner', {
 			kind: 'HIZB',
-			hizbPlan: 33,
+			hizbPlan: 32,
 			spots: undefined,
 			splitMode: undefined
 		});

@@ -14,6 +14,9 @@ export const UpdateUserSettingsBodySchema = z
 	.object({
 		language: z.enum(['tr', 'en', 'nl']).optional(),
 		reminderEnabled: z.boolean().optional(),
+		// The Hizb's daily reminder, with its own time.
+		hizbReminderEnabled: z.boolean().optional(),
+		hizbReminderTime: TimeStringSchema.optional(),
 		// Three switches, one pair each: P4 puts them under a Kuran heading and a Cevşen one,
 		// because "someone finished their share" is a different event in each.
 		cevsenGroupReadsEnabled: z.boolean().optional(),
@@ -32,7 +35,9 @@ export const UpdateUserSettingsBodySchema = z
 		memberJoinedEnabled: z.boolean().optional(),
 		memberLeftEnabled: z.boolean().optional(),
 		hasSeenOnboarding: z.boolean().optional(),
+		// Old builds still send `hasSeenTour: true` after their demo tour.
 		hasSeenTour: z.boolean().optional(),
+		hintsEnabled: z.boolean().optional(),
 		cevsenIntroEnabled: z.boolean().optional(),
 		hatimIntroEnabled: z.boolean().optional(),
 		hizbIntroEnabled: z.boolean().optional(),

@@ -48,7 +48,7 @@ const ownershipFor = async (
 
 /**
  * Checked against the group's own part count, so it needs the group loaded first: the route
- * only bounds the number by the Cevşen's hundred, and a Hizb group has 33.
+ * only bounds the number by the Cevşen's hundred, and a Hizb group has 32.
  */
 const validateBabNumber = (babNumber: number, partCount: number): void => {
 	if (!Number.isInteger(babNumber) || babNumber < 1 || babNumber > partCount) {

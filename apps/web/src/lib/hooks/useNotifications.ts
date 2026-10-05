@@ -1,43 +1,23 @@
 import { getNotifications, getUnreadNotificationCount, markAllNotificationsRead } from '@/api/notifications.api';
-import { notificationQueryKeys, tourDemoQueryKeys } from '@/lib/hooks/queryKeys';
-import { useIsTourDemo } from '@/components/Tour/Tour.context';
+import { notificationQueryKeys } from '@/lib/hooks/queryKeys';
 import { useLiveRefetchInterval } from '@/lib/hooks/useLiveRefetchInterval';
 import { useRefetchOnFocus } from '@/lib/hooks/useRefetchOnFocus';
 import { AppNotification } from '@/lib/types/domain';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-/** The tour's inbox: nothing, so the bell carries no badge while it runs. */
-const NO_NOTIFICATIONS: AppNotification[] = [];
-
-/**
- * The inbox itself (design P2).
- *
- * **Empty during the tour**, under a key of its own, like the five hooks in `useGetGroups`'s
- * note. The tour hands the app a stand-in shelf of three groups; real rows would name groups
- * that are not on screen, and the badge would count events from an account the walkthrough is
- * pretending does not have one.
- */
+/** The inbox itself (design P2). */
 export const useGetNotifications = () => {
-	const isDemo = useIsTourDemo();
 	const refetchInterval = useLiveRefetchInterval();
 
 	const query = useQuery({
-		queryKey: isDemo ? tourDemoQueryKeys.notifications() : notificationQueryKeys.list(),
-		queryFn: isDemo ? async () => NO_NOTIFICATIONS : getNotifications,
+		queryKey: notificationQueryKeys.list(),
+		queryFn: getNotifications,
 		/*
 		 * **The same cadence as the badge.** The count polled and this did not, and the tabs stay
 		 * mounted — so the bell counted up while the list behind it kept showing the rows from
-		 * whenever the app was opened, until someone thought to pull. Nothing to poll for while
-		 * the tour holds the shelf.
+		 * whenever the app was opened, until someone thought to pull.
 		 */
-		refetchInterval: isDemo ? false : refetchInterval,
-		/*
-		 * A `queryFn` is a promise however fast it settles, so without this the first render
-		 * after mount is still `isPending` — and this screen's gate is exactly that, so the tour
-		 * would flash its skeleton on the way in. The same reason the other five demo hooks
-		 * carry it.
-		 */
-		...(isDemo ? { initialData: () => NO_NOTIFICATIONS, staleTime: Infinity } : {})
+		refetchInterval
 	});
 
 	/*
@@ -57,15 +37,12 @@ export const useGetNotifications = () => {
  * screen it sits on rather than inventing a cadence of its own.
  */
 export const useUnreadNotificationCount = () => {
-	const isDemo = useIsTourDemo();
 	const refetchInterval = useLiveRefetchInterval();
 
 	return useQuery({
-		queryKey: isDemo ? tourDemoQueryKeys.unreadCount() : notificationQueryKeys.unreadCount(),
-		// None during the tour, so the badge and the empty list it opens agree.
-		queryFn: isDemo ? async () => 0 : async () => (await getUnreadNotificationCount()).count,
-		refetchInterval: isDemo ? false : refetchInterval,
-		...(isDemo ? { initialData: () => 0, staleTime: Infinity } : {})
+		queryKey: notificationQueryKeys.unreadCount(),
+		queryFn: async () => (await getUnreadNotificationCount()).count,
+		refetchInterval
 	});
 };
 

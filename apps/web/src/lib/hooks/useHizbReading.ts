@@ -1,5 +1,6 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { type InfiniteData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+	createHizbAhead,
 	enrollHizbReading,
 	getHizbHistoryDay,
 	getHizbHistoryDays,
@@ -8,35 +9,30 @@ import {
 	setHizbReadsFromBook,
 	updateHizbAssignment,
 	type HizbAssignment,
-	type HizbAssignmentPatch
+	type HizbAssignmentPatch,
+	type HizbReadingState
 } from '@/api/hizbReading.api';
-import { useIsTourDemo } from '@/components/Tour/Tour.context';
-import { tourDemoHizbAssignment, tourDemoHizbReading } from '@/components/Tour/tourDemoData';
-import { groupQueryKeys, profileQueryKeys, tourDemoQueryKeys } from './queryKeys';
+import { groupQueryKeys, profileQueryKeys } from './queryKeys';
 import { useLiveRefetchInterval } from './useLiveRefetchInterval';
 export const hizbReadingKey = (groupId: string) => ['groups', 'hizb-reading', groupId] as const;
 export const hizbAssignmentKey = (groupId: string, id: string) =>
 	[...hizbReadingKey(groupId), 'assignment', id] as const;
 /**
  * `isEnabled` off for a screen that serves every kind and only reads this for a Hizb group.
- *
- * H1 stands on the tour's Hizb group, which answers from its demo — the first page in place from
- * the first render, as every demo-aware hook does (see `useGetGroups`).
+ * `isPolling` off for a reader, which needs the state once — how far ahead is read — and not the
+ * group screen's live refresh.
  */
-export const useHizbReading = (groupId: string, isEnabled = true) => {
-	const refetchInterval = useLiveRefetchInterval();
-	const isDemo = useIsTourDemo();
+export const useHizbReading = (groupId: string, isEnabled = true, { isPolling = true } = {}) => {
+	const liveInterval = useLiveRefetchInterval();
+	const refetchInterval = isPolling ? liveInterval : false;
 
 	return useInfiniteQuery({
 		enabled: isEnabled,
-		queryKey: isDemo ? tourDemoQueryKeys.hizbReading(groupId) : [...hizbReadingKey(groupId), 'state'],
-		queryFn: ({ pageParam }) =>
-			isDemo ? Promise.resolve(tourDemoHizbReading()) : getHizbReading(groupId, pageParam),
+		queryKey: [...hizbReadingKey(groupId), 'state'],
+		queryFn: ({ pageParam }) => getHizbReading(groupId, pageParam),
 		initialPageParam: undefined as string | undefined,
 		getNextPageParam: last => last.nextCursor ?? undefined,
-		...(isDemo
-			? { initialData: () => ({ pageParams: [undefined], pages: [tourDemoHizbReading()] }), staleTime: Infinity }
-			: { refetchInterval })
+		refetchInterval
 	});
 };
 /** "Tüm geçmiş": the group's days, a page of thirty at a time. */
@@ -69,16 +65,32 @@ export const useSetHizbReadsFromBook = (groupId: string) => {
 		onSuccess: () => client.invalidateQueries({ queryKey: hizbReadingKey(groupId) })
 	});
 };
-/** H2 opens the tour's demo reading, answered from its demo like the rest of the tour. */
-export const useHizbAssignment = (groupId: string, id: string) => {
-	const isDemo = useIsTourDemo();
+/**
+ * "Oku" on the day ahead whose reading isn't made yet: the server makes it and answers with it.
+ * Not predicted — the reader needs the id the server gives it. The reading is put in place so the
+ * reader opens on it at once, and the state is refreshed for the row's id.
+ */
+export const useCreateHizbAhead = (groupId: string) => {
+	const client = useQueryClient();
+	const stateKey = [...hizbReadingKey(groupId), 'state'];
 
-	return useQuery({
-		queryKey: isDemo ? tourDemoQueryKeys.hizbAssignment(id) : hizbAssignmentKey(groupId, id),
-		queryFn: isDemo ? async () => tourDemoHizbAssignment() : () => getHizbAssignment(groupId, id),
-		...(isDemo ? { initialData: () => tourDemoHizbAssignment(), staleTime: Infinity } : {})
+	return useMutation({
+		mutationFn: () => createHizbAhead(groupId),
+		onSuccess: assignment => {
+			client.setQueryData(hizbAssignmentKey(groupId, assignment.id), assignment);
+			// Not awaited: the reader opens on the reading above without waiting for the state.
+			void client.invalidateQueries({ queryKey: stateKey });
+		},
+		// A refusal means the state moved on (the day turned, a day was undone elsewhere) — show it.
+		onError: () => client.invalidateQueries({ queryKey: stateKey })
 	});
 };
+export const useHizbAssignment = (groupId: string, id: string, isEnabled = true) =>
+	useQuery({
+		enabled: isEnabled,
+		queryKey: hizbAssignmentKey(groupId, id),
+		queryFn: () => getHizbAssignment(groupId, id)
+	});
 export const useUpdateHizbAssignment = (groupId: string, id: string) => {
 	const client = useQueryClient();
 	const key = hizbAssignmentKey(groupId, id);
@@ -108,14 +120,19 @@ export const useUpdateHizbAssignment = (groupId: string, id: string) => {
 		/*
 		 * Page turns and counts show at once rather than after the round trip — both are
 		 * absolute values, so the next tap builds on the predicted one. Marking read is not
-		 * predicted: the server decides whether the repetitions allow it.
+		 * predicted: the server decides whether the repetitions allow it. Ticks are — a bab or cüz
+		 * marked shows at once, as the group reader's does; none of them is gated.
 		 */
-		onMutate: async ({ read: _read, version: _version, bookPortions: _bookPortions, ...fields }) => {
+		onMutate: async ({ read: _read, version: _version, bookPortions, ...fields }) => {
 			await client.cancelQueries({ queryKey: key });
 			const previous = client.getQueryData<HizbAssignment>(key);
 
 			if (previous) {
-				client.setQueryData<HizbAssignment>(key, { ...previous, ...fields });
+				client.setQueryData<HizbAssignment>(key, {
+					...previous,
+					...fields,
+					...(bookPortions !== undefined ? { readPortions: bookPortions } : {})
+				});
 			}
 
 			return { previous };
@@ -125,6 +142,18 @@ export const useUpdateHizbAssignment = (groupId: string, id: string) => {
 			const isLast = client.isMutating({ mutationKey }) <= 1;
 			client.setQueryData<HizbAssignment>(key, current =>
 				isLast || !current ? assignment : { ...current, version: assignment.version }
+			);
+			// The group screen's copy of today too: a page turned or a place kept shows there at once
+			// ("Sayfa 12 / 41"), without waiting for the next time the group is fetched.
+			client.setQueryData<InfiniteData<HizbReadingState>>([...hizbReadingKey(groupId), 'state'], data =>
+				data
+					? {
+							...data,
+							pages: data.pages.map(page =>
+								page.today?.id === assignment.id ? { ...page, today: assignment } : page
+							)
+					  }
+					: data
 			);
 			if (patch.read !== undefined || patch.bookPortions !== undefined) {
 				await Promise.all([

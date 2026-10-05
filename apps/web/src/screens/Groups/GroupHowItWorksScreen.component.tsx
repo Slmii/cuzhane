@@ -33,13 +33,13 @@ import { GroupHowItWorksSkeleton, GroupHowItWorksSkeletonFoot } from './GroupHow
 
 type Props = NativeStackScreenProps<TabStackParamList, 'GroupHowItWorks'>;
 
-const HIZB_PORTIONS = 33;
+const HIZB_PORTIONS = 32;
 const CUZ_COUNT = 30;
 const VIEWER_TIME_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
 /** Air under the pinned foot, above the home indicator's own inset. */
 const FOOT_BOTTOM_GAP = 8;
-const PER_DAY: Record<number, StringKey> = { 7: 'hoPerDay7', 15: 'hoPerDay15', 33: 'hoPerDay33' };
-const PER_DAY_CAPITALISED: Record<number, StringKey> = { 7: 'hdPerDay7', 15: 'hdPerDay15', 33: 'hdPerDay33' };
+const PER_DAY: Record<number, StringKey> = { 7: 'hoPerDay7', 15: 'hoPerDay15', 32: 'hoPerDay32' };
+const PER_DAY_CAPITALISED: Record<number, StringKey> = { 7: 'hdPerDay7', 15: 'hdPerDay15', 32: 'hdPerDay32' };
 const PERIOD: Partial<Record<GroupDetail['cycle'], StringKey>> = {
 	DAILY: 'hoPeriodDaily',
 	MONTHLY: 'hoPeriodMonthly',
@@ -162,7 +162,7 @@ export const GroupHowItWorksScreen = ({ navigation, route }: Props) => {
 
 	const content = ((): Content => {
 		if (detail.kind === 'HIZB' && hizbState) {
-			// O1 / O2: today's portions on the 33.
+			// O1 / O2: today's portions on the 32.
 			const today = hizbState.today;
 			const isMixed = detail.hizbPlan === 0;
 			const planDays = today?.planDays ?? detail.hizbPlan ?? HIZB_PORTIONS;
@@ -182,10 +182,10 @@ export const GroupHowItWorksScreen = ({ navigation, route }: Props) => {
 							meta: workTitle(today),
 							metaTone: 'accent',
 							note: isMixed
-								? t('hoPlanMine', { days: planDays, perDay: t(PER_DAY[planDays] ?? 'hoPerDay33') })
+								? t('hoPlanMine', { days: planDays, perDay: t(PER_DAY[planDays] ?? 'hoPerDay32') })
 								: t('hoPlanFixed', {
 										days: planDays,
-										perDay: t(PER_DAY_CAPITALISED[planDays] ?? 'hdPerDay33')
+										perDay: t(PER_DAY_CAPITALISED[planDays] ?? 'hdPerDay32')
 								  }),
 							segmentGap: 2,
 							segments: Array.from({ length: HIZB_PORTIONS }, (_, index) =>

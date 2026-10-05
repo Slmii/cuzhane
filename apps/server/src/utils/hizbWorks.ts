@@ -12,10 +12,10 @@ const WORKS: { parts: [number, number]; name: Record<PushLanguage, string> | str
 	{ parts: [14, 18], name: 'Delâilü’n-Nûr' },
 	{ parts: [19, 19], name: 'Sekîne' },
 	{ parts: [20, 20], name: 'Münâcât & İsm-i Âzam' },
-	{ parts: [21, 25], name: 'Münâcâtü’l-Kur’ân' },
-	{ parts: [26, 26], name: 'Tahmîdiye' },
-	{ parts: [27, 30], name: 'Hulâsatü’l-Hulâsa' },
-	{ parts: [31, 33], name: 'Tazarru ve Niyaz' }
+	{ parts: [21, 24], name: 'Münâcâtü’l-Kur’ân' },
+	{ parts: [25, 25], name: 'Tahmîdiye' },
+	{ parts: [26, 29], name: 'Hulâsatü’l-Hulâsa' },
+	{ parts: [30, 32], name: 'Tazarru ve Niyaz' }
 ];
 
 /** The works a set of portions touches, in reading order, named for the reader: "Evrâd-ı Kudsiye, Delâilü’n-Nûr". */

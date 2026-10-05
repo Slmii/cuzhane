@@ -8,7 +8,9 @@ import {
 	GroupSummary,
 	GroupVisibility,
 	PoolCuz,
-	PoolSlot
+	PoolSlot,
+	ReadingPlace,
+	ReadingPlaces
 } from '@/lib/types/domain';
 
 type CreateGroupCommon = {
@@ -31,7 +33,7 @@ type CreateGroupCommon = {
 
 /**
  * Mirrors the server's `CreateGroupBodySchema`, union and all. A Cevşen group divides a
- * hundred babs by seat, a Hizb group 33 portions by seat (or by personal plan), and a hatim
+ * hundred babs by seat, a Hizb group 32 portions by seat (or by personal plan), and a hatim
  * divides thirty cüz by choice, so no kind's settings
  * mean anything to the other — and since all of them are immutable after creation, sending
  * one from the wrong half would be wrong for the life of the group.
@@ -49,7 +51,7 @@ export type CreateGroupInput =
 			/** Everyone reads the whole book on a personal plan rather than a seat's share. */
 			hizbIndividual?: boolean;
 			hizbStartPortion?: number;
-			/** The personal plan's length in days — 7, 15 or 33. */
+			/** The personal plan's length in days — 7, 15 or 32. */
 			hizbPlan?: number;
 			/** "Okuma sorumluları" — the "has read" notice to the ticked members only. */
 			readSeersEnabled?: boolean;
@@ -63,7 +65,12 @@ export type CreateGroupInput =
 			roundDays: number;
 			/** The cüz the creator takes (QC4). The server requires at least one. */
 			cuzNumbers: number[];
-	  });
+	  })
+	/**
+	 * A Şahsi Cevşen or Kur'an reading: one person's, private, the book split over `planDays`
+	 * (Cevşen 1–90, Kur'an 1–30). The server ignores every sharing setting on it.
+	 */
+	| (CreateGroupCommon & { kind: 'CEVSEN' | 'HATIM'; planDays: number });
 
 // Mirrors the server's UpdateGroupBodySchema. `kind`, `spots`, `splitMode` and `cycle` are
 // immutable once the group exists and are deliberately absent — the server rejects them.
@@ -187,6 +194,27 @@ export const pickRoundCuz = async ({ cuzNumbers, groupId }: { cuzNumbers: number
 /** QR1's "Bu turu atla": the member's cüz go back to the havuz and the round is sat out. */
 export const skipRound = async (groupId: string) =>
 	wrapperApi<{ success: boolean }>(`/groups/${groupId}/round-skip`, { method: 'POST' });
+
+/** The viewer's places in the group's current round — a board group only, never a personal plan. */
+export const getReadingPlaces = async (groupId: string) =>
+	wrapperApi<ReadingPlaces>(`/groups/${groupId}/reading-places`, { method: 'GET' });
+
+/** What a save carries: the page now open, the pages turned past (only ever raised), or both. */
+export type ReadingPlacePatch = { position?: number; textPagesRead?: number; husrevPagesRead?: number };
+
+export const saveReadingPlace = async ({
+	groupId,
+	patch,
+	unitNumber
+}: {
+	groupId: string;
+	patch: ReadingPlacePatch;
+	unitNumber: number;
+}) =>
+	wrapperApi<ReadingPlace>(`/groups/${groupId}/reading-places/${unitNumber}`, {
+		method: 'PUT',
+		body: JSON.stringify(patch)
+	});
 
 /** Acknowledges the "a joiner took over the block you volunteered for" notices in a group. */
 export const markPoolReleasesSeen = async (groupId: string) =>

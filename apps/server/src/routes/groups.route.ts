@@ -1,7 +1,9 @@
 import hizbReadingRouter from './hizbReading.route';
-import { CREATED, OK } from '@config/httpCodes';
+import { CREATED, OK, UPGRADE_REQUIRED } from '@config/httpCodes';
+import { HttpError } from '@config/httpError';
 import { ResponseLocals, ResponseLocalsWithBody, ResponseLocalsWithQuery } from '@interfaces/response.types';
-import { createGroupRateLimit, poolRateLimit } from '@middleware/rateLimit.middleware';
+import { createGroupRateLimit, poolRateLimit, readingPlaceRateLimit } from '@middleware/rateLimit.middleware';
+import { clientSupportsKind } from '@middleware/clientCapabilities.middleware';
 import { validateData } from '@middleware/validate.middleware';
 import {
 	CreateGroupBody,
@@ -16,6 +18,9 @@ import {
 	PoolCuzParamsSchema,
 	PoolPartParamsSchema,
 	PoolSlotParamsSchema,
+	ReadingPlaceParamsSchema,
+	SaveReadingPlaceBody,
+	SaveReadingPlaceBodySchema,
 	UpdateGroupBody,
 	UpdateGroupBodySchema
 } from '@schemas/group.schema';
@@ -40,6 +45,7 @@ import {
 } from '@services/pool.service';
 import { listPoolCuzForUser, releasePoolCuzForUser, takePoolCuzForUser } from '@services/cuzPool.service';
 import { pickRoundCuzForUser, skipRoundForUser } from '@services/cuzRound.service';
+import { listReadingPlacesForUser, saveReadingPlaceForUser } from '@services/readingPlace.service';
 import {
 	coverMissedBabsForUser,
 	getMyProgressForUser,
@@ -95,6 +101,11 @@ groupsRouter.post(
 				auth: { userId },
 				validatedBody
 			} = res.locals;
+
+			// A build that cannot draw the kind would be left with a group it is never shown.
+			if (!clientSupportsKind(res, validatedBody.kind)) {
+				throw new HttpError(UPGRADE_REQUIRED, 'Update the app to open this group');
+			}
 
 			const displayName = resolveDisplayName(req);
 			const group = await createGroupForUser(userId, displayName, validatedBody);
@@ -367,6 +378,44 @@ groupsRouter.post(
 			} = res.locals;
 
 			const result = await skipRoundForUser(userId, groupId);
+			res.status(OK).json(result);
+		} catch (error) {
+			next(error);
+		}
+	}
+);
+
+/** The viewer's own places in the round the group is on — see `readingPlace.service`. */
+groupsRouter.get(
+	'/:groupId/reading-places',
+	async (req: Request, res: Response<object, ResponseLocals>, next: NextFunction) => {
+		try {
+			const { groupId } = GroupIdParamsSchema.parse(req.params);
+			const {
+				auth: { userId }
+			} = res.locals;
+
+			const result = await listReadingPlacesForUser(userId, groupId);
+			res.status(OK).json(result);
+		} catch (error) {
+			next(error);
+		}
+	}
+);
+
+groupsRouter.put(
+	'/:groupId/reading-places/:unitNumber',
+	readingPlaceRateLimit,
+	validateData(SaveReadingPlaceBodySchema, 'body'),
+	async (req: Request, res: Response<object, ResponseLocalsWithBody<SaveReadingPlaceBody>>, next: NextFunction) => {
+		try {
+			const { groupId, unitNumber } = ReadingPlaceParamsSchema.parse(req.params);
+			const {
+				auth: { userId },
+				validatedBody
+			} = res.locals;
+
+			const result = await saveReadingPlaceForUser(userId, groupId, unitNumber, validatedBody);
 			res.status(OK).json(result);
 		} catch (error) {
 			next(error);

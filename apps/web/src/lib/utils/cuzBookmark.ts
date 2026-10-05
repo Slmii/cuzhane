@@ -1,11 +1,11 @@
 import * as SecureStore from 'expo-secure-store';
 
 /**
- * "Kaldığım yeri işaretle" — the page a reader stopped on in a cüz, kept on the device.
+ * "Kaldığım yeri işaretle" — the page a reader stopped on in a cüz, this device's copy.
  *
- * **Device-local, like the recent searches**, and for the same reasons: it is a convenience
- * for the person holding this phone, nobody else needs it, and a server column for "which
- * page of cüz 22 was I on" would be a lot of schema for a bookmark. Keyed on the account,
+ * **The server holds the place** (`readingPlaces` for a group's cüz, the plan reading's
+ * `bookmark` for a Şahsi day), so it follows the reader to any device. This copy stands in while
+ * the server has not answered, cannot be reached, or never got the save. Keyed on the account,
  * the group and the cüz, so two groups reading the same cüz keep separate places and a
  * sign-out shows none.
  *

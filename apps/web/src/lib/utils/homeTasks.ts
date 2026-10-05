@@ -2,6 +2,7 @@ import { isRepeatingCycle, type GroupKind, type GroupSummary } from '@/lib/types
 import { formatBabRange } from '@/lib/utils/babs';
 import { shareSlices } from '@/lib/utils/groups';
 import { boardPortionsOf } from '@/lib/utils/hizbPlanBoard';
+import { isPersonalPlanGroup } from '@/lib/utils/personalPlan';
 
 const DAY_MS = 86_400_000;
 const HOUR_MS = 3_600_000;
@@ -91,16 +92,18 @@ export const buildHomeTasks = (groups: readonly GroupSummary[], now: Date): Home
 				(group.myBabNumbers.length > 0 ||
 					group.mustPickCuz ||
 					group.splitMode === 'FLEXIBLE' ||
-					group.hizbPlan != null)
+					isPersonalPlanGroup(group))
 		)
 		.map((group): HomeTask => {
 			/*
 			 * **A Hizb personal plan is one portion a day**, read from `hizbToday` rather than a seat's
-			 * share — and until the plan has begun there is no portion, only the choosing of it.
+			 * share — and until the plan has begun there is no portion, only the choosing of it. A Şahsi
+			 * Cevşen or Kur'an reading is the same, its day a block of babs or cüz (`units`).
 			 */
-			if (group.hizbPlan != null) {
+			if (isPersonalPlanGroup(group)) {
 				const today = group.hizbToday ?? null;
-				const portions = today ? boardPortionsOf(today.planDays, today.portion) : [];
+				const portions = today ? today.units ?? boardPortionsOf(today.planDays, today.portion) : [];
+				const isHizb = group.kind === 'HIZB';
 
 				return {
 					doneAt: today?.completed ? group.myShareDoneAt : null,
@@ -114,15 +117,17 @@ export const buildHomeTasks = (groups: readonly GroupSummary[], now: Date): Home
 					moreCount: 0,
 					mustChoose: today ? null : 'plan',
 					mustPick: false,
-					nextNumber: today && !today.completed ? today.portion : null,
-					// Named by the board's 33, as on the group's card: a 15-day plan's fifth day is "11–13",
-					// not "5" — the plan's own count read as a second meaning of "bölüm".
+					// A Cevşen or Kur'an day goes on from its first bab or cüz, as "Bab 41’den devam" names it.
+					nextNumber: today && !today.completed ? (isHizb ? today.portion : portions[0] ?? null) : null,
+					// Named by the board's 32, as on the group's card: a 15-day plan's fifth day is "11–13",
+					// not "5" — the plan's own count read as a second meaning of "bölüm". A Cevşen or
+					// Kur'an day by its babs or cüz.
 					range: today ? formatBabRange(portions) : '',
 					repeats: isRepeatingCycle(group.cycle),
 					roundEndsAt: group.roundEndsAt,
 					roundIndex: group.roundIndex,
 					total: today ? 1 : 0,
-					// The 33 the day covers, so a caption can count them ("3 bölüm", not the one reading).
+					// The 32 the day covers, so a caption can count them ("3 bölüm", not the one reading).
 					unitNumbers: portions
 				};
 			}

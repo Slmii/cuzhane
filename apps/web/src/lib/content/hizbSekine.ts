@@ -25,3 +25,6 @@ export const splitSekine = (block: HizbBlock): SekineParts | null => {
 		instruction: { lines: [instruction] }
 	};
 };
+
+/** Sekine is read nineteen times. */
+export const SEKINE_REPETITIONS = 19;
