@@ -58,9 +58,11 @@ export const BabLegend = ({ kind = 'CEVSEN', style }: BabLegendProps) => {
 						borderColor: theme.colors.babReadByOthers,
 						label: t('legendOthers')
 					},
+					// Drawn as `BabGrid` draws a block someone else holds (`takenByOthers`), so the key
+					// matches the cells it labels.
 					{
-						backgroundColor: theme.colors.babOpen,
-						borderColor: theme.colors.babOpen,
+						backgroundColor: theme.colors.surfaceMuted,
+						borderColor: theme.colors.border,
 						label: t('legendOpen')
 					},
 					// The pool has no reader yet, so it can't reuse a progress colour — `poolFree` and the

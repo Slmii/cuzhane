@@ -6,12 +6,13 @@ import { BodyStrongText, CaptionText, Header1 } from '@/components/ui/Typography
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { describeClerkError } from '@/lib/utils/clerkErrors';
+import { secondsUntil } from '@/lib/utils/cooldown';
 import { AuthStackParamList } from '@/navigation/types';
 import { useSignIn } from '@clerk/expo';
 import type { SignInStatus } from '@clerk/types';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { AppState, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 type ResetCodeSentScreenProps = NativeStackScreenProps<AuthStackParamList, 'ResetCodeSent'>;
 
@@ -37,16 +38,30 @@ export const ResetCodeSentScreen = ({ navigation, route }: ResetCodeSentScreenPr
 	// ordinary case here and deserves to say so.
 	const [errorKey, setErrorKey] = useState<'codeInvalid' | 'resetExpired' | 'genericError' | null>(null);
 	const [isSubmitting, setIsSubmitting] = useState(false);
-	const [secondsLeft, setSecondsLeft] = useState(RESEND_COOLDOWN_SECONDS);
+	// The wait is a deadline on the wall clock, so time spent in the mail app counts (`secondsUntil`).
+	// The first code went out just before this screen opened.
+	const [resendAt, setResendAt] = useState(() => Date.now() + RESEND_COOLDOWN_SECONDS * 1000);
+	const [now, setNow] = useState(() => Date.now());
+	const [isResending, setIsResending] = useState(false);
+	const secondsLeft = secondsUntil(resendAt, now);
 
 	useEffect(() => {
 		if (secondsLeft <= 0) {
 			return;
 		}
 
-		const timer = setTimeout(() => setSecondsLeft(current => current - 1), 1000);
+		const timer = setInterval(() => setNow(Date.now()), 1000);
+		// Timers stop in the background; coming back re-reads the clock at once.
+		const subscription = AppState.addEventListener('change', state => {
+			if (state === 'active') {
+				setNow(Date.now());
+			}
+		});
 
-		return () => clearTimeout(timer);
+		return () => {
+			clearInterval(timer);
+			subscription.remove();
+		};
 	}, [secondsLeft]);
 
 	const handleChangeText = (next: string) => {
@@ -90,22 +105,30 @@ export const ResetCodeSentScreen = ({ navigation, route }: ResetCodeSentScreenPr
 	}, [code, navigation, signIn]);
 
 	const handleResend = useCallback(async () => {
-		if (!signIn || secondsLeft > 0) {
+		// One send at a time: a second tap while the first is out would race it.
+		if (!signIn || secondsLeft > 0 || isResending) {
 			return;
 		}
 
 		setErrorKey(null);
-		const { error } = await signIn.resetPasswordEmailCode.sendCode();
+		setIsResending(true);
 
-		if (error) {
-			// Nothing to do with the digits on screen — a failed *send* is always generic.
-			setErrorKey('genericError');
-			return;
+		try {
+			const { error } = await signIn.resetPasswordEmailCode.sendCode();
+
+			if (error) {
+				// Nothing to do with the digits on screen — a failed *send* is always generic.
+				setErrorKey('genericError');
+				return;
+			}
+
+			setCode('');
+			setNow(Date.now());
+			setResendAt(Date.now() + RESEND_COOLDOWN_SECONDS * 1000);
+		} finally {
+			setIsResending(false);
 		}
-
-		setCode('');
-		setSecondsLeft(RESEND_COOLDOWN_SECONDS);
-	}, [secondsLeft, signIn]);
+	}, [isResending, secondsLeft, signIn]);
 
 	return (
 		<ScreenContainer contentContainerStyle={styles.content}>
@@ -160,7 +183,7 @@ export const ResetCodeSentScreen = ({ navigation, route }: ResetCodeSentScreenPr
 				<CaptionText color={theme.colors.faintText} style={styles.noMail} textAlign='center'>
 					{t('noMail')}
 				</CaptionText>
-				<Pressable disabled={secondsLeft > 0} onPress={handleResend} style={styles.resend}>
+				<Pressable disabled={secondsLeft > 0 || isResending} onPress={handleResend} style={styles.resend}>
 					<BodyStrongText color={secondsLeft > 0 ? theme.colors.subtext : theme.colors.accent}>
 						{secondsLeft > 0 ? t('resendIn', { seconds: secondsLeft }) : t('resend')}
 					</BodyStrongText>

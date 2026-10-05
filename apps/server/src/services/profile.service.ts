@@ -5,7 +5,10 @@ import { normalizeUserId } from '@utils/normalizeUserId';
 import { civilDayNumber, DEFAULT_TIME_ZONE } from '@utils/rounds';
 
 export type ProfileStats = {
-	/** Cevşen babs (and a hatim's cüz) — the label says babs, and a Hizb portion is not one. */
+	/**
+	 * Every reading, whatever the book: a Cevşen bab, a cüz, a Hizb portion, a plan's day. The
+	 * name is kept so builds that predate it still read the field; the screen calls it "okuma".
+	 */
 	babsRead: number;
 	/** Every group's completed rounds, whatever it reads. */
 	roundsCompleted: number;
@@ -99,14 +102,6 @@ export const getProfileStatsForUser = async (
 	]);
 	const kindByGroupId = new Map(groups.map(group => [group.id, group.kind]));
 
-	/*
-	 * **Babs are the Cevşen's.** The screen labels this number "bab", and a Hizb portion is
-	 * a different unit and a far longer one, so adding the two would make the total mean
-	 * neither. Hizb reading still shows in the streak and the heatmap below, which count
-	 * reading days rather than babs. A hatim's cüz still count, as they always have.
-	 */
-	const babsRead = userReads.filter(read => kindByGroupId.get(read.groupId) !== 'HIZB').length;
-
 	let roundsCompleted = roundCounts.filter(round => {
 		const kind = kindByGroupId.get(round.groupId);
 
@@ -117,7 +112,7 @@ export const getProfileStatsForUser = async (
 	 * A Hizb plan's round is a day on which the group's readings covered the whole text. A Şahsi
 	 * Cevşen or Kur'an plan's is one pass through its days, every one read — a day read ahead
 	 * counting once its day comes, as on the group screen. Their days still count in the streak and
-	 * the heatmap below, but never as babs: `babsRead` is the shared board's.
+	 * the heatmap below and in the total.
 	 */
 	const hizbReads = personalReads.filter(a => a.enrollment.group.kind === 'HIZB');
 	const passes = new Map<string, { read: number; days: number }>();
@@ -196,6 +191,10 @@ export const getProfileStatsForUser = async (
 		const day = today - offset;
 		last30Days.push({ date: dayKey(day), count: countsByDay.get(day) ?? 0 });
 	}
+
+	// Every reading counts once in the total, the same readings the heatmap counts: a bab, a cüz, a
+	// Hizb portion or a plan's day.
+	const babsRead = userReads.length + personalReads.length;
 
 	return { babsRead, roundsCompleted, streakDays, longestStreakDays, memberSince, last30Days };
 };

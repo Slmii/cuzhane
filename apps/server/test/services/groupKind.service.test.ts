@@ -206,7 +206,7 @@ describe('getProfileStatsForUser across kinds', () => {
 		expect((await getProfileStatsForUser(OWNER)).roundsCompleted).toBe(1);
 	});
 
-	it('keeps Hizb reads out of the bab total, but in the reading days', async () => {
+	it('counts every read in the total, whatever the book, and in the reading days', async () => {
 		const cevsen = await createRunningGroup({ kind: 'CEVSEN', spots: 20, startedDaysAgo: 3 });
 		const hizb = await createRunningGroup({ startedDaysAgo: 3 });
 		await recordHistory(cevsen.id, 1, [1, 2, 3]);
@@ -214,7 +214,8 @@ describe('getProfileStatsForUser across kinds', () => {
 
 		const stats = await getProfileStatsForUser(OWNER);
 
-		expect(stats.babsRead).toBe(3);
+		// Three Cevşen babs and two Hizb portions: the profile counts readings, not one unit.
+		expect(stats.babsRead).toBe(5);
 		// Every read in `recordHistory` lands now, so today's square counts all five.
 		expect(stats.last30Days[stats.last30Days.length - 1]?.count).toBe(5);
 		expect(stats.streakDays).toBe(1);

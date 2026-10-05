@@ -508,7 +508,11 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 						 */
 						<View style={styles.sheetColumn}>
 							{createGroup.isPending ? (
-								<CreatingGroupStep isFlexible={isFlexible} />
+								<CreatingGroupStep
+									isFlexible={isFlexible}
+									isPersonal={isPersonal || individual}
+									kind={kind}
+								/>
 							) : (
 								<CreateGroupStepHeader
 									/*

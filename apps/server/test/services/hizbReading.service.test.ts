@@ -488,14 +488,14 @@ describe('Hizb edge cases', () => {
 	});
 });
 
-it('personal readings contribute to the profile activity without adding Cevsen babs', async () => {
+it('personal readings count in the profile total and its activity', async () => {
 	const { getProfileStatsForUser } = await import('@services/profile.service');
 	const group = await create();
 	const a = (await getHizbState('owner', group.id)).today!;
 	await updateHizbAssignment('owner', group.id, a.id, { version: 0, read: true, istighfarRepetitions: 11 });
 	const stats = await getProfileStatsForUser('owner', 'Europe/Amsterdam');
 	expect(stats.streakDays).toBe(1);
-	expect(stats.babsRead).toBe(0);
+	expect(stats.babsRead).toBe(1);
 	expect(stats.last30Days.at(-1)?.count).toBe(1);
 });
 

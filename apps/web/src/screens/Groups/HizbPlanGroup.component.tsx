@@ -1710,8 +1710,8 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 								{roundsCard}
 							</HintTarget>
 						</>
-					) : group.kind !== 'HATIM' ? (
-						// A Kur'an day's cüz marked from a mushaf count too; the Hizb and the Cevşen count the app's.
+					) : group.kind === 'CEVSEN' ? (
+						// Only the Cevşen has no "Kitaptan okudum": a Kur'an or Hizb day can be marked from the book.
 						<CaptionText textAlign='center' color={theme.colors.subtext}>
 							{t('hpIndividualCountHint')}
 						</CaptionText>

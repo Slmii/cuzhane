@@ -107,7 +107,8 @@ export const RELEASES: Release[] = [
 				isNew: true,
 				kinds: ['HATIM', 'HIZB'],
 				titleKey: 'rn150PlaceTitle'
-			}
+			},
+			{ bodyKey: 'rn150ProfileBody', icon: 'completed', isNew: true, titleKey: 'rn150ProfileTitle' }
 		],
 		releasedOn: '2026-10-02',
 		version: APP_VERSION

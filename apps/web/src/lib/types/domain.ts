@@ -518,6 +518,7 @@ export type ReaderTextFont = Exclude<ReaderArabicFont, 'husrev'>;
 export const textFontFor = (font: ReaderArabicFont): ReaderTextFont => (font === 'husrev' ? 'uthman' : font);
 
 export type ProfileStats = {
+	/** Every reading, whatever the book: a bab, a cüz, a Hizb portion, a plan's day (the server's name). */
 	babsRead: number;
 	roundsCompleted: number;
 	streakDays: number;

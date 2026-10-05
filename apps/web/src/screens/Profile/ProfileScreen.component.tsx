@@ -359,7 +359,7 @@ export const ProfileScreen = () => {
 			 * it at each call site would only imply the others aren't.
 			 */}
 			<View style={styles.statsRow}>
-				<StatTile label={t('babsRead')} style={styles.statTile} tone='accent' value={stats.babsRead} />
+				<StatTile label={t('profileReadings')} style={styles.statTile} tone='accent' value={stats.babsRead} />
 				<StatTile label={t('roundsDone')} style={styles.statTile} tone='accent' value={stats.roundsCompleted} />
 				<StatTile label={t('streak')} style={styles.statTile} tone='accent' value={stats.streakDays} />
 			</View>

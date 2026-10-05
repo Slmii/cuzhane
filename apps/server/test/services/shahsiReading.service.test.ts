@@ -389,7 +389,7 @@ describe('reading a Şahsi plan', () => {
 });
 
 describe('profile stats', () => {
-	it('counts Şahsi days and finished passes beside a Hizb plan, never as babs', async () => {
+	it('counts Şahsi days and finished passes beside a Hizb plan, every day in the total', async () => {
 		vi.setSystemTime(start);
 		const hizb = await createGroupForUser(
 			'owner',
@@ -423,7 +423,8 @@ describe('profile stats', () => {
 
 		vi.setSystemTime(at(1));
 		const before = await getProfileStatsForUser('owner', ZONE);
-		expect(before).toMatchObject({ babsRead: 0, roundsCompleted: 1, streakDays: 2 });
+		// Every day read counts, read-ahead days included: one Hizb day, two Cevşen days, seven Kur'an days.
+		expect(before).toMatchObject({ babsRead: 10, roundsCompleted: 1, streakDays: 2 });
 		vi.setSystemTime(at(6));
 		expect((await getProfileStatsForUser('owner', ZONE)).roundsCompleted).toBe(2);
 	});

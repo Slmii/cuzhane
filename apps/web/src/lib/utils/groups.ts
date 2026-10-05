@@ -93,6 +93,49 @@ export const visibilityIcon = (visibility: GroupVisibility): IconName => (visibi
 export const splitModeLabelKey = (splitMode: GroupSplitMode): StringKey =>
 	splitMode === 'FLEXIBLE' ? 'planFlexible' : splitMode === 'FIXED' ? 'fixedSplit' : 'planRotation';
 
+/** Whether a card names the split mode: a hatim's cüz are held, not divided by seat, so it has none. */
+export const showsSplitMode = (kind: GroupKind) => kind !== 'HATIM';
+
+/**
+ * Turlar's subtitle: what closing a round does. A hatim and a Hizb group have their own lines;
+ * a Cevşen group's depends on how it divides the babs. Seats move on by a whole share in a
+ * ROTATION group (never a fixed number of babs), stay put in a FIXED one, and a FLEXIBLE group's
+ * claims last one round.
+ */
+export const roundsSubtitleKey = (kind: GroupKind, splitMode: GroupSplitMode): StringKey =>
+	kind === 'HIZB'
+		? 'roundsSubHizb'
+		: kind === 'HATIM'
+		? 'roundsSubCuz'
+		: splitMode === 'FIXED'
+		? 'roundsSubFixed'
+		: splitMode === 'FLEXIBLE'
+		? 'roundsSubFlexible'
+		: 'roundsSub';
+
+/**
+ * The create flow's waiting copy, by what is being made. The create flow only makes Hizb plan
+ * groups, which have no portions to divide, and a reading of your own has no invite code.
+ */
+export const creatingCopy = ({
+	isFlexible,
+	isPersonal,
+	kind
+}: {
+	isFlexible: boolean;
+	isPersonal: boolean;
+	kind: GroupKind;
+}): { sub: StringKey; step: StringKey; showsCode: boolean } =>
+	isPersonal
+		? { sub: 'creatingPersonalSub', step: 'creatingStepPlan', showsCode: false }
+		: kind === 'HIZB'
+		? { sub: 'creatingPlanSub', step: 'creatingStepPlan', showsCode: true }
+		: kind === 'HATIM'
+		? { sub: 'creatingCuzSub', step: 'creatingStepCuz', showsCode: true }
+		: isFlexible
+		? { sub: 'creatingFlexibleSub', step: 'creatingFlexibleParts', showsCode: true }
+		: { sub: 'creatingSub', step: 'creatingStepBabs', showsCode: true };
+
 /** The short form used wherever the plan sits inline beside a range. */
 export const planLabelKey = (splitMode: GroupSplitMode): StringKey =>
 	splitMode === 'FLEXIBLE' ? 'planFlexible' : splitMode === 'FIXED' ? 'planFixed' : 'planRotation';
