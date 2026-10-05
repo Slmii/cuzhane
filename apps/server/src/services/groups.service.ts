@@ -63,7 +63,7 @@ export type CreateGroupInput =
 			spots: number;
 			hizbIndividual?: boolean | undefined;
 			hizbStartPortion?: number | undefined;
-			/** A personal plan: 0 lets each member choose, otherwise 7/15/33 days. */
+			/** A personal plan: 0 lets each member choose, otherwise 7/15/32 days. */
 			hizbPlan?: number | undefined;
 			inactivityDays?: number | null | undefined;
 			/** "Okuma sorumluları" — a shared plan's "has read" notice to the ticked members only. */
@@ -313,7 +313,7 @@ export const createGroupForUser = async (
 	) {
 		throw new HttpError(BAD_REQUEST, 'Invalid individual reading start');
 	}
-	if (hizb?.hizbPlan !== undefined && ![0, 7, 15, 33].includes(hizb.hizbPlan)) {
+	if (hizb?.hizbPlan !== undefined && ![0, 7, 15, 32].includes(hizb.hizbPlan)) {
 		throw new HttpError(BAD_REQUEST, 'Invalid personal plan');
 	}
 	if (
@@ -378,7 +378,7 @@ export const createGroupForUser = async (
 			}
 		});
 
-		// One row per unit — a hundred babs, thirty cüz or 33 Hizb portions (`unitCountFor`) —
+		// One row per unit — a hundred babs, thirty cüz or 32 Hizb portions (`unitCountFor`) —
 		// with nothing but its number. Ownership isn't stored: who reads which block falls out
 		// of the seat and the round (or, for a hatim, `CuzHolding`), and `assignedUserId` is
 		// reserved for pool volunteering. A personal plan has no shared board.

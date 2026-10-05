@@ -136,7 +136,7 @@ describe('setRoundCountersForUser / getRoundCountersForUser', () => {
 
 	it('refuses a group that has no such counters: a Cevşen, or a Hizb read on personal plans', async () => {
 		const cevsen = await createGroup({ kind: 'CEVSEN' });
-		const plan = await createGroup({ hizbPlan: 33 });
+		const plan = await createGroup({ hizbPlan: 32 });
 
 		await expect(getRoundCountersForUser(OWNER, cevsen.id)).rejects.toMatchObject({ statusCode: 400 });
 		await expect(setRoundCountersForUser(OWNER, plan.id, { delailCount: 1 })).rejects.toMatchObject({

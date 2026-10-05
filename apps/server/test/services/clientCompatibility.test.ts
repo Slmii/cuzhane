@@ -5,6 +5,7 @@ import type { AuthLocals } from '@middleware/auth.middleware';
 import {
 	CLIENT_KINDS_HEADER,
 	clientCapabilities,
+	HIZB_PORTIONS_HEADER,
 	parseClientKinds,
 	type ClientCapabilityLocals
 } from '@middleware/clientCapabilities.middleware';
@@ -24,7 +25,9 @@ assertIsTestDatabase(testDatabaseUrl());
 const OWNER = 'test_owner';
 const VIEWER = 'test_viewer';
 /** What a current build sends; an old one (1.3.0 and before) sends nothing. */
-const CURRENT_BUILD = { [CLIENT_KINDS_HEADER]: 'CEVSEN,HATIM,HIZB' };
+const CURRENT_BUILD = { [CLIENT_KINDS_HEADER]: 'CEVSEN,HATIM,HIZB', [HIZB_PORTIONS_HEADER]: '32' };
+/** 1.4.0: lists the Hizb, but draws its old 33 portions and says nothing of them. */
+const BUILD_1_4 = { [CLIENT_KINDS_HEADER]: 'CEVSEN,HATIM,HIZB' };
 
 // Invite codes drawn from the invite alphabet (no I, O, 0, 1), so a typed code normalises onto them.
 const HIZB_CODE = 'HZBA2345';
@@ -37,8 +40,8 @@ const localsFor = (header: string | undefined): { locals: ClientCapabilityLocals
 const OLD_BUILD_RES = localsFor(undefined);
 const CURRENT_BUILD_RES = localsFor('CEVSEN,HATIM,HIZB');
 
-/** One bab row per unit — a hundred babs, thirty cüz or 33 portions. */
-const UNIT_COUNT: Record<GroupKindName, number> = { CEVSEN: 100, HATIM: 30, HIZB: 33 };
+/** One bab row per unit — a hundred babs, thirty cüz or 32 portions. */
+const UNIT_COUNT: Record<GroupKindName, number> = { CEVSEN: 100, HATIM: 30, HIZB: 32 };
 
 /** An open, gathering group with its owner seated and one bab row per part — what Discover lists. */
 const createOpenGroup = async (kind: GroupKindName, inviteCode: string) => {
@@ -209,16 +212,42 @@ describe('the guarded routes', () => {
 	});
 
 	it('reads the header whatever case its name is sent in', async () => {
-		const response = await call('/_kinds', { headers: { 'x-CUZHANE-kinds': ' hizb ' } });
+		const response = await call('/_kinds', {
+			headers: { 'x-CUZHANE-kinds': ' hizb ', 'x-cuzhane-HIZB-portions': '32' }
+		});
 
 		expect(await response.json()).toEqual(['CEVSEN', 'HATIM', 'HIZB']);
+	});
+
+	it('takes the Hizb away from a build that does not draw its 32 portions', async () => {
+		const kinds = async (headers: Record<string, string>) => (await call('/_kinds', { headers })).json();
+
+		expect(await kinds(BUILD_1_4)).toEqual(['CEVSEN', 'HATIM']);
+		expect(await kinds({ ...BUILD_1_4, [HIZB_PORTIONS_HEADER]: '33' })).toEqual(['CEVSEN', 'HATIM']);
+		expect(await kinds(CURRENT_BUILD)).toEqual(['CEVSEN', 'HATIM', 'HIZB']);
+	});
+
+	it('refuses a Hizb group’s previews and joins to a 1.4.0 build, and seats nobody', async () => {
+		const hizb = await createOpenGroup('HIZB', HIZB_CODE);
+
+		expect((await call(`/memberships/preview/code/${HIZB_CODE}`, { headers: BUILD_1_4 })).status).toBe(
+			UPGRADE_REQUIRED
+		);
+		expect((await call(`/memberships/preview/group/${hizb.id}`, { headers: BUILD_1_4 })).status).toBe(
+			UPGRADE_REQUIRED
+		);
+		const join = await call(`/memberships/join/${hizb.id}`, { method: 'POST', headers: BUILD_1_4 });
+		expect(join.status).toBe(UPGRADE_REQUIRED);
+		expect(await viewerSeats()).toBe(0);
+
+		expect((await call(`/memberships/preview/group/${hizb.id}`, { headers: CURRENT_BUILD })).status).toBe(200);
 	});
 
 	it('leaves a Hizb group out of Discover and search for a build without the header, but not a hatim', async () => {
 		// A personal-plan group: Discover lists no other Hizb, whatever the build.
 		const hizb = await prisma.group.update({
 			where: { id: (await createOpenGroup('HIZB', HIZB_CODE)).id },
-			data: { hizbPlan: 33, splitMode: 'FLEXIBLE', status: 'RUNNING', startedAt: new Date() }
+			data: { hizbPlan: 32, splitMode: 'FLEXIBLE', status: 'RUNNING', startedAt: new Date() }
 		});
 		const cevsen = await createOpenGroup('CEVSEN', CEVSEN_CODE);
 		const hatim = await createOpenGroup('HATIM', HATIM_CODE);

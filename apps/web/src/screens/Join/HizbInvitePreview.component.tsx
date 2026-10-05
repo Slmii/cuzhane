@@ -21,17 +21,17 @@ import { timeIn, zoneAbbreviation } from '@/lib/utils/roundReset';
 import { turkishWordAblativeSuffix } from '@/lib/utils/turkishSuffixes';
 import { StyleSheet, View } from 'react-native';
 
-const PORTIONS = 33;
-const PLANS = [7, 15, 33] as const;
+const PORTIONS = 32;
+const PLANS = [7, 15, 32] as const;
 const PER_DAY_KEY: Record<(typeof PLANS)[number], StringKey> = {
 	7: 'hdPerDay7',
 	15: 'hdPerDay15',
-	33: 'hdPerDay33'
+	32: 'hdPerDay32'
 };
 const PLAN_DESC_KEY: Record<(typeof PLANS)[number], StringKey> = {
 	7: 'hpPlanDesc7',
 	15: 'hpPlanDesc15',
-	33: 'hpPlanDesc33'
+	32: 'hpPlanDesc32'
 };
 
 type Props = {
@@ -47,7 +47,7 @@ type Props = {
 
 /**
  * The invite preview of a Hizb group on personal plans — "Hizb Kişisel Plan", section 5, P1–P6.
- * Read-only: the full 33 grid says which portions today's readers have covered, with no share of
+ * Read-only: the full 32 grid says which portions today's readers have covered, with no share of
  * yours ringed and no names. The rules card appears only for an inactivity rule or hidden names.
  *
  * - P1 fixed plan · P2 mixed plan (the three plans listed as information; the choice comes after

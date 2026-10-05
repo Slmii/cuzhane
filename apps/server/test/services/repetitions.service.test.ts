@@ -21,7 +21,7 @@ const OTHER = 'test_other';
 
 const SEKINE = 19;
 /**
- * Eleven FIXED seats over 33 portions, three apiece. The owner sits in seat 6, whose block is
+ * Eleven FIXED seats over 32 portions, three apiece (the last seat two). The owner sits in seat 6, whose block is
  * portions 19–21 every round — so Sekine is always in their share, whatever round a test is on.
  */
 const SPOTS = 11;
@@ -76,7 +76,7 @@ const createGroup = async ({
 	});
 
 	await prisma.groupBab.createMany({
-		data: Array.from({ length: kind === 'HIZB' ? 33 : 100 }, (_, index) => ({
+		data: Array.from({ length: kind === 'HIZB' ? 32 : 100 }, (_, index) => ({
 			groupId: group.id,
 			number: index + 1
 		}))

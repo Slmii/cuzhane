@@ -21,7 +21,7 @@ const STATS = [
 type Props = {
 	/** One bone per part the group divides — its `partCount`. */
 	cellCount: number;
-	/** Cells per row, as the board lays them out: ten for the Cevşen, eleven for the Hizb's 33. */
+	/** Cells per row, as the board lays them out: ten for the Cevşen, eleven for the Hizb's 32. */
 	columns?: number;
 };
 
@@ -30,7 +30,7 @@ type Props = {
  *
  * The stat trio, the whole board — a cell per part, `cellCount` of them — the legend and the
  * rows naming who was short. The board is the group's own size — a hundred babs, thirty cüz or
- * 33 portions — which the caller passes in, since a Kur'an round drawn over a hundred bones
+ * 32 portions — which the caller passes in, since a Kur'an round drawn over a hundred bones
  * would lose two thirds of its height on arrival.
  *
  * The board is drawn here rather than delegated to `GridSkeleton`: this frame lays the

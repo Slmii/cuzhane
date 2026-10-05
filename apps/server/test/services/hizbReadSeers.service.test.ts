@@ -100,7 +100,7 @@ describe('choosing who sees who read', () => {
 			CreateGroupBodySchema.parse({
 				name: 'Vakıf',
 				kind: 'HIZB',
-				hizbPlan: 33,
+				hizbPlan: 32,
 				readSeersEnabled: true,
 				visibility: 'OPEN',
 				cycle: 'DAILY',

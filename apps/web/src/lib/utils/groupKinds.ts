@@ -9,9 +9,9 @@ import type { GroupCycle, GroupKind, GroupSplitMode } from '@/lib/types/domain';
 
 /**
  * How many parts a group of each kind divides — the Cevşen's hundred babs, a hatim's thirty cüz
- * and the Hizb's 33 portions (the revised book division). `unitCountFor` reads this.
+ * and the Hizb's 32 portions (the revised book division). `unitCountFor` reads this.
  */
-export const PART_COUNT: Record<GroupKind, number> = { CEVSEN: 100, HATIM: 30, HIZB: 33 };
+export const PART_COUNT: Record<GroupKind, number> = { CEVSEN: 100, HATIM: 30, HIZB: 32 };
 
 /** Parts a single reader must repeat before they count as read — Sekine, 19 times from its Besmele. */
 const REQUIRED_REPETITIONS: Record<GroupKind, Readonly<Record<number, number>>> = {
@@ -56,8 +56,8 @@ export const isPersonalPlan = (group: { hizbPlan: number | null; planDays: numbe
  *
  * The Cevşen offers three sizes that each divide the hundred evenly (20, 10 and 5 babs a head),
  * so nobody carries a leftover bab. The Hizb offers every size from one seat to one seat per
- * portion: 33 divides unevenly almost everywhere, the first `33 % spots` seats simply take one
- * more, and past 33 a seat would hold nothing. The server enforces the same two rules.
+ * portion: 32 divides unevenly almost everywhere, the first `32 % spots` seats simply take one
+ * more, and past 32 a seat would hold nothing. The server enforces the same two rules.
  *
  * A hatim offers no size: it is full when all thirty cüz are taken, not when thirty people have
  * joined, and the server pins its seat cap at the cüz count as a ceiling on membership.
@@ -78,5 +78,5 @@ export type CreateGroupDefaults = { spots: number; cycle: GroupCycle; splitMode:
 export const CREATE_DEFAULTS_FOR_KIND: Record<GroupKind, CreateGroupDefaults> = {
 	CEVSEN: { spots: 20, cycle: 'DAILY', splitMode: 'ROTATION' },
 	HATIM: { spots: PART_COUNT.HATIM, cycle: 'MONTHLY', splitMode: 'FIXED' },
-	HIZB: { spots: 33, cycle: 'DAILY', splitMode: 'ROTATION' }
+	HIZB: { spots: 32, cycle: 'DAILY', splitMode: 'ROTATION' }
 };

@@ -31,7 +31,7 @@ const dateOfDay = (day: number) => new Date(day * 86400000).toISOString().slice(
 /**
  * T5 of "Hizb Kişisel Plan" — today's readers: everyone with a plan (members who haven't chosen one,
  * or were taken out of the order, aren't readers and aren't listed — the note says how many). The
- * viewer is pinned first whatever the filter. A row says the reader's plan day and which of the 33
+ * viewer is pinned first whatever the filter. A row says the reader's plan day and which of the 32
  * it covers, so different plans compare by text rather than by number. Search matches a name or a
  * portion number.
  *

@@ -18,11 +18,11 @@ const range = (first: number, last: number) => Array.from({ length: last - first
  * `apps/server/src/utils/groupKinds.ts` and this mirror stop saying the same thing.
  */
 describe('groupKinds mirrors the server', () => {
-	it('divides the Cevşen into a hundred parts, a hatim into thirty and the Hizb into thirty-three', () => {
-		expect(PART_COUNT).toEqual({ CEVSEN: 100, HATIM: 30, HIZB: 33 });
+	it('divides the Cevşen into a hundred parts, a hatim into thirty and the Hizb into thirty-two', () => {
+		expect(PART_COUNT).toEqual({ CEVSEN: 100, HATIM: 30, HIZB: 32 });
 		expect(partCountFor('CEVSEN')).toBe(100);
 		expect(partCountFor('HATIM')).toBe(30);
-		expect(partCountFor('HIZB')).toBe(33);
+		expect(partCountFor('HIZB')).toBe(32);
 	});
 
 	it('repeats Sekine nineteen times and nothing else more than once', () => {
@@ -31,7 +31,7 @@ describe('groupKinds mirrors the server', () => {
 		expect(requiredRepetitions('HIZB', 20)).toBe(1);
 		expect(requiredRepetitions('CEVSEN', 19)).toBe(1);
 		expect(requiredRepetitions('HATIM', 19)).toBe(1);
-		expect(range(1, 33).filter(number => requiredRepetitions('HIZB', number) > 1)).toEqual([19]);
+		expect(range(1, 32).filter(number => requiredRepetitions('HIZB', number) > 1)).toEqual([19]);
 	});
 
 	it('keeps the Cevşen to its two cycles, gives the Hizb a month and a hatim any round length', () => {
@@ -73,7 +73,7 @@ describe('CREATE_DEFAULTS_FOR_KIND', () => {
 	});
 
 	it('opens the Hizb on one seat per portion, daily, rotating', () => {
-		expect(CREATE_DEFAULTS_FOR_KIND.HIZB).toEqual({ cycle: 'DAILY', splitMode: 'ROTATION', spots: 33 });
+		expect(CREATE_DEFAULTS_FOR_KIND.HIZB).toEqual({ cycle: 'DAILY', splitMode: 'ROTATION', spots: 32 });
 	});
 
 	it('opens a hatim on thirty seats, a thirty-day round, fixed', () => {

@@ -18,7 +18,7 @@ describe('Delail three repetitions', () => {
 	});
 	it('matches one source passage and assigns the requirement only to plans containing it', () => {
 		expect(HIZB_BLOCKS.filter(ref => splitDelailRepetition(ref.block))).toHaveLength(1);
-		for (const days of [7, 15, 33]) {
+		for (const days of [7, 15, 32]) {
 			for (let portion = 1; portion <= days; portion++) {
 				expect(hasDelailRepetition(days, portion)).toBe(
 					planBlocks(days, portion).some(ref => splitDelailRepetition(ref.block) !== null)

@@ -2,15 +2,21 @@ import type { StringKey } from '@/lib/i18n/strings';
 import type { AppNotification } from '@/lib/types/domain';
 import { PART_COUNT } from '@/lib/utils/groupKinds';
 import { isSinglePart } from '@/lib/utils/groups';
-import { worksForParts } from '@/lib/content/hizbPortions';
+import { HIZB_PORTION_COUNT, worksForParts } from '@/lib/content/hizbPortions';
 
-/** The portions a notice's range names — "12–14, 19" is 12, 13, 14 and 19; anything else, none. */
+/**
+ * The portions a notice's range names — "12–14, 19" is 12, 13, 14 and 19; anything else, none. A
+ * notice kept from the 33-portion division can name 33, which the division no longer has.
+ */
 const portionsOfRange = (range: string): number[] =>
-	range.split(',').flatMap(run => {
-		const [from, to = from] = run.trim().split('–').map(Number);
+	range
+		.split(',')
+		.flatMap(run => {
+			const [from, to = from] = run.trim().split('–').map(Number);
 
-		return from && to && to >= from ? Array.from({ length: to - from + 1 }, (_, i) => from + i) : [];
-	});
+			return from && to && to >= from ? Array.from({ length: to - from + 1 }, (_, i) => from + i) : [];
+		})
+		.filter(number => number <= HIZB_PORTION_COUNT);
 
 /**
  * The three buckets design P2 groups its list into.

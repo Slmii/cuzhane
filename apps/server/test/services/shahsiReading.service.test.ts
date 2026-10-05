@@ -188,7 +188,7 @@ describe('creating a Şahsi reading', () => {
 			{ userId: 'owner', planDays: 10, sequence: 0, endDay: null }
 		]);
 		const g = await prisma.group.findUniqueOrThrow({ where: { id: group.id } });
-		expect([g.hizbNext7, g.hizbNext15, g.hizbNext33]).toEqual([0, 0, 0]);
+		expect([g.hizbNext7, g.hizbNext15, g.hizbNext32]).toEqual([0, 0, 0]);
 	});
 
 	it('keeps it one person’s: no join, no invite, no preview for others, no leaving, no Keşfet', async () => {

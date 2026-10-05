@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { coverageFor, portionForDay, spansFor, PLAN_DAYS } from '@utils/hizbPlans';
+import { coverageFor, portionForDay, spansFor, startsFor, PLAN_DAYS, PLAN_SPANS } from '@utils/hizbPlans';
+import { hizbWorksOf } from '@utils/hizbWorks';
 
 describe('personal Hizb rotations', () => {
 	it('each starting position covers the whole plan exactly once and wraps', () => {
@@ -22,5 +23,39 @@ describe('personal Hizb rotations', () => {
 		expect(coverageFor(reads).complete).toBe(false);
 		expect(coverageFor(reads).covered).toBe(spansFor(7, 1).length);
 		expect(coverageFor(Array.from({ length: 7 }, (_, i) => ({ planDays: 7, portion: i + 1 }))).complete).toBe(true);
+	});
+	it('follows the family calendar: 7, 15 and 32 days, the longest one portion a day', () => {
+		expect(PLAN_DAYS).toEqual([7, 15, 32]);
+		expect(startsFor(32)).toHaveLength(32);
+		expect(() => startsFor(33)).toThrow(RangeError);
+		expect(PLAN_SPANS).toHaveLength(32);
+	});
+});
+
+describe('the Hizb works by portion', () => {
+	it('names the work each of the 32 portions belongs to', () => {
+		const at = (portion: number) => hizbWorksOf([portion], 'en');
+		expect([at(1), at(3), at(4), at(8), at(9), at(13), at(14), at(18)]).toEqual([
+			'Qur’an portion',
+			'Qur’an portion',
+			'Cevşenü’l-Kebîr',
+			'Cevşenü’l-Kebîr',
+			'Evrâd-ı Kudsiye',
+			'Evrâd-ı Kudsiye',
+			'Delâilü’n-Nûr',
+			'Delâilü’n-Nûr'
+		]);
+		expect([at(19), at(20), at(21), at(24), at(25), at(26), at(29), at(30), at(32)]).toEqual([
+			'Sekîne',
+			'Münâcât & İsm-i Âzam',
+			'Münâcâtü’l-Kur’ân',
+			'Münâcâtü’l-Kur’ân',
+			'Tahmîdiye',
+			'Hulâsatü’l-Hulâsa',
+			'Hulâsatü’l-Hulâsa',
+			'Tazarru ve Niyaz',
+			'Tazarru ve Niyaz'
+		]);
+		expect(at(33)).toBe('');
 	});
 });

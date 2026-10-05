@@ -37,7 +37,7 @@ describe('Sekine nineteen repetitions', () => {
 	// A reader showing the counter must hand over the whole block, or the cut finds nothing.
 	it('is found on every page that counts Sekine', () => {
 		expect(portionBlocks(19).some(ref => splitSekine(ref.block) !== null)).toBe(true);
-		for (const days of [7, 15, 33]) {
+		for (const days of [7, 15, 32]) {
 			for (let day = 1; day <= days; day++) {
 				expect(planBlocks(days, day).some(ref => splitSekine(ref.block) !== null)).toBe(hasSekine(days, day));
 			}

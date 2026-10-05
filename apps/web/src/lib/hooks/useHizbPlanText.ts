@@ -11,7 +11,7 @@ import { useCallback, useMemo } from 'react';
 
 type Reading = Pick<HizbAssignment, 'planDays' | 'portion'>;
 
-/** Every portion's own description, keyed by its number in the 33. */
+/** Every portion's own description, keyed by its number in the 32. */
 const portionDescKey = (number: number) => `hizbPart${number}Desc` as StringKey;
 
 /**
@@ -26,7 +26,7 @@ export const useHizbPlanText = (kind: GroupKind = 'HIZB') => {
 	const isHizb = kind === 'HIZB';
 
 	/**
-	 * Which parts a reading covers: of the Hizb's 33, one on a 33-day plan and several on a 7- or
+	 * Which parts a reading covers: of the Hizb's 32, one on a 32-day plan and several on a 7- or
 	 * 15-day one; of a Cevşen or Kur'an plan, the day's babs or cüz.
 	 */
 	const portionsOf = useCallback(

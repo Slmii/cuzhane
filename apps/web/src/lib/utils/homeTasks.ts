@@ -119,7 +119,7 @@ export const buildHomeTasks = (groups: readonly GroupSummary[], now: Date): Home
 					mustPick: false,
 					// A Cevşen or Kur'an day goes on from its first bab or cüz, as "Bab 41’den devam" names it.
 					nextNumber: today && !today.completed ? (isHizb ? today.portion : portions[0] ?? null) : null,
-					// Named by the board's 33, as on the group's card: a 15-day plan's fifth day is "11–13",
+					// Named by the board's 32, as on the group's card: a 15-day plan's fifth day is "11–13",
 					// not "5" — the plan's own count read as a second meaning of "bölüm". A Cevşen or
 					// Kur'an day by its babs or cüz.
 					range: today ? formatBabRange(portions) : '',
@@ -127,7 +127,7 @@ export const buildHomeTasks = (groups: readonly GroupSummary[], now: Date): Home
 					roundEndsAt: group.roundEndsAt,
 					roundIndex: group.roundIndex,
 					total: today ? 1 : 0,
-					// The 33 the day covers, so a caption can count them ("3 bölüm", not the one reading).
+					// The 32 the day covers, so a caption can count them ("3 bölüm", not the one reading).
 					unitNumbers: portions
 				};
 			}

@@ -15,7 +15,7 @@ import { StyleSheet, View } from 'react-native';
 import type { HizbDiscoverCardProps } from './HizbDiscoverCard.types';
 
 /** The longest plan, named when a group's own is missing. */
-const PORTIONS = 33;
+const PORTIONS = 32;
 
 /**
  * Keşfet's card for a Hizb group on personal plans — "Hizb Kişisel Plan", section 5, cards

@@ -151,7 +151,7 @@ const AssignmentReader = ({
 					<View style={styles.placeSide} />
 				</View>
 				{/* The group card's words: "28 Eylül · 15 gün · 5. gün · 11–13. bölüm" — "bölüm" is only ever
-				    one of the 33, never the plan's own count. */}
+				    one of the 32, never the plan's own count. */}
 				<CaptionText>
 					{[
 						text.monthDay(a.date, 'long'),

@@ -166,9 +166,9 @@ describe('buildHomeTasks — the audit’s cases', () => {
 		const owed = buildHomeTasks([planGroup(false)], now);
 		const done = buildHomeTasks([planGroup(true)], now);
 
-		// Named by the board's 33, as the group's card names it: the 7-day plan's fifth day is 20–22.
-		expect(owed.pending.map(task => [task.range, task.nextNumber, task.mustChoose])).toEqual([['20–22', 5, null]]);
-		expect(owed.pending[0]?.unitNumbers).toEqual([20, 21, 22]);
+		// Named by the board's 32, as the group's card names it: the 7-day plan's fifth day is 20–23.
+		expect(owed.pending.map(task => [task.range, task.nextNumber, task.mustChoose])).toEqual([['20–23', 5, null]]);
+		expect(owed.pending[0]?.unitNumbers).toEqual([20, 21, 22, 23]);
 		// A plan has no board, so its owed day opens by assignment in the plan reader.
 		expect(owed.pending[0]?.isPlan).toBe(true);
 		expect(owed.pending[0]?.planAssignmentId).toBe('today-5');

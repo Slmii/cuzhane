@@ -1,7 +1,9 @@
 import hizbReadingRouter from './hizbReading.route';
-import { CREATED, OK } from '@config/httpCodes';
+import { CREATED, OK, UPGRADE_REQUIRED } from '@config/httpCodes';
+import { HttpError } from '@config/httpError';
 import { ResponseLocals, ResponseLocalsWithBody, ResponseLocalsWithQuery } from '@interfaces/response.types';
 import { createGroupRateLimit, poolRateLimit, readingPlaceRateLimit } from '@middleware/rateLimit.middleware';
+import { clientSupportsKind } from '@middleware/clientCapabilities.middleware';
 import { validateData } from '@middleware/validate.middleware';
 import {
 	CreateGroupBody,
@@ -99,6 +101,11 @@ groupsRouter.post(
 				auth: { userId },
 				validatedBody
 			} = res.locals;
+
+			// A build that cannot draw the kind would be left with a group it is never shown.
+			if (!clientSupportsKind(res, validatedBody.kind)) {
+				throw new HttpError(UPGRADE_REQUIRED, 'Update the app to open this group');
+			}
 
 			const displayName = resolveDisplayName(req);
 			const group = await createGroupForUser(userId, displayName, validatedBody);

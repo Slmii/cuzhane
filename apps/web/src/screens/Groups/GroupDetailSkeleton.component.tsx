@@ -54,7 +54,7 @@ type Props = {
  * A Hizb group (HZ1) differs where its screen does: the heading carries the round line and the
  * book's mark at the right, the share panel is `HizbSharePanel` (a works line under its label,
  * rows with a two-line description), "Grubun ilerlemesi" is a small-caps label over loose cards
- * rather than a card, and the board is the 33 portions' own frame (`HizbBoardSkeleton`).
+ * rather than a card, and the board is the 32 portions' own frame (`HizbBoardSkeleton`).
  */
 export const GroupDetailSkeleton = ({ kind = 'CEVSEN' }: Props) => {
 	const { t } = useTranslation();
@@ -327,7 +327,7 @@ export const GroupDetailSkeleton = ({ kind = 'CEVSEN' }: Props) => {
 				)}
 			</SkeletonPulse>
 
-			{/* The 33 portions' own frame, loose under the rows as on the screen. It pulses itself. */}
+			{/* The 32 portions' own frame, loose under the rows as on the screen. It pulses itself. */}
 			{isHizb ? <HizbBoardSkeleton /> : null}
 
 			<SkeletonStatusRow label={t('loadingGroup')} />

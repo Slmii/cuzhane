@@ -17,10 +17,10 @@ import type { Group } from '../generated/prisma/client';
 export const CUZ_COUNT = 30;
 
 /** The Hizbü'l-Hakaik's portions — the revised book division. */
-export const HIZB_PORTION_COUNT = 33;
+export const HIZB_PORTION_COUNT = 32;
 
 /**
- * Units per kind: the Cevşen's 100 babs, the Kur'an's 30 cüz, the Hizb's 33 portions. The one
+ * Units per kind: the Cevşen's 100 babs, the Kur'an's 30 cüz, the Hizb's 32 portions. The one
  * table every count reads — `partCountFor` in `utils/groupKinds` is this, by kind.
  */
 export const PART_COUNT = { CEVSEN: BAB_COUNT, HATIM: CUZ_COUNT, HIZB: HIZB_PORTION_COUNT } as const satisfies Record<

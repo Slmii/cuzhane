@@ -26,6 +26,7 @@ const headers = {
 	'Content-Type': 'application/json',
 	'X-Cuzhane-Kinds': 'CEVSEN,HATIM,HIZB',
 	'X-Cuzhane-Hizb-Plans': '1',
+	'X-Cuzhane-Hizb-Portions': '32',
 	'X-Cuzhane-Personal-Kinds': 'CEVSEN,HATIM'
 };
 

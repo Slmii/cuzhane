@@ -21,7 +21,7 @@ export type HizbAssignment = {
 	bookmark: number;
 	requiresSekine: boolean;
 	/**
-	 * The board's 33 this day touches — what "Kitaptan okudum" offers to tick. On a Şahsi Kur'an day,
+	 * The board's 32 this day touches — what "Kitaptan okudum" offers to tick. On a Şahsi Kur'an day,
 	 * its cüz; on a Şahsi Cevşen day, none (it is read in the app only).
 	 */
 	boardPortions: number[];

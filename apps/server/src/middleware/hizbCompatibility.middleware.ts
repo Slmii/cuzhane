@@ -20,11 +20,15 @@ export const hizbCompatibility = async (req: Request, res: Response<object, Resp
 			where: { id: match[2]! },
 			select: { kind: true, hizbPlan: true, planDays: true }
 		});
-		if (!group || !isPersonalPlan(group)) {
+		if (!group) {
 			return next();
 		}
+		// Any group the build cannot draw — a shared Hizb board on a build of the old division too.
 		if (!clientSupportsGroup(res, group)) {
 			throw new HttpError(UPGRADE_REQUIRED, 'Update the app to open this group');
+		}
+		if (!isPersonalPlan(group)) {
+			return next();
 		}
 		if (
 			match[1] === 'babs' ||

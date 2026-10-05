@@ -29,7 +29,7 @@ enum GroupCycle {
 /// `CEVSEN` is the hundred babs split across seats; `HATIM` is the thirty cüz of the
 /// Qur'an, held individually. It defaults to `CEVSEN`, and that default *is* the backfill —
 /// every existing row is one, and nothing else needed writing. `HIZB` is the Hizbü'l-Hakaik:
-/// 33 portions split across seats, on the Cevşen's seat model.
+/// 32 portions split across seats, on the Cevşen's seat model.
 enum GroupKind {
     CEVSEN
     HATIM
@@ -89,7 +89,7 @@ model Group {
     maxPerMember      Int?
     /// Hatim only: keep your cüz at the boundary, or take again. See `CuzBoundaryPolicy`.
     boundaryPolicy    CuzBoundaryPolicy?
-    /// Hizb only. Null for legacy groups; 0 lets members choose, otherwise 7/15/33 days.
+    /// Hizb only. Null for legacy groups; 0 lets members choose, otherwise 7/15/32 days.
     hizbPlan           Int?
     /// One person's private reading, whatever the kind: a Hizb individual plan, or a Cevşen/Kur'an
     /// group with `planDays`.
@@ -101,7 +101,7 @@ model Group {
     inactivityDays     Int?
     hizbNext7          Int                @default(0)
     hizbNext15         Int                @default(0)
-    hizbNext33         Int                @default(0)
+    hizbNext32         Int                @default(0)
     inactivitySinceDay Int?
     hizbNextSlot       Int                @default(1)
     hizbEnrollments    HizbEnrollment[]

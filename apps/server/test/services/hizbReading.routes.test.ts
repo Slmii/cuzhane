@@ -15,7 +15,12 @@ vi.mock('@services/push.service', () => ({ sendPushToUser: async () => 0 }));
 assertIsTestDatabase(testDatabaseUrl());
 let server: Server;
 let base = '';
-const headers = { 'Content-Type': 'application/json', 'X-Cuzhane-Kinds': 'CEVSEN,HIZB', 'X-Cuzhane-Hizb-Plans': '1' };
+const headers = {
+	'Content-Type': 'application/json',
+	'X-Cuzhane-Kinds': 'CEVSEN,HIZB',
+	'X-Cuzhane-Hizb-Plans': '1',
+	'X-Cuzhane-Hizb-Portions': '32'
+};
 beforeAll(async () => {
 	const app = express();
 	app.use(express.json());
@@ -55,6 +60,38 @@ const create = async (plan = 7) => {
 	expect(response.status).toBe(201);
 	return response.json() as Promise<{ id: string }>;
 };
+it('hides Hizb groups from 1.4.0, which draws 33 portions, and refuses it creating one', async () => {
+	// 1.4.0 lists the Hizb and draws plans, but not the 32-portion division.
+	const build14 = {
+		'Content-Type': 'application/json',
+		'X-Cuzhane-Kinds': 'CEVSEN,HIZB',
+		'X-Cuzhane-Hizb-Plans': '1'
+	};
+	const plan = await create();
+	const shared = { name: 'Shared', kind: 'HIZB', visibility: 'PRIVATE', reminderTime: '21:00', spots: 8 };
+	const board = await fetch(base + '/groups', { method: 'POST', headers, body: JSON.stringify(shared) });
+	expect(board.status).toBe(201);
+	const boardId = ((await board.json()) as { id: string }).id;
+	const ids = async (h: Record<string, string>) =>
+		((await (await fetch(base + '/groups', { headers: h })).json()) as { id: string }[]).map(g => g.id);
+	expect(await ids(build14)).toEqual([]);
+	expect(await ids({ ...build14, 'X-Cuzhane-Hizb-Portions': '33' })).toEqual([]);
+	expect((await ids(headers)).sort()).toEqual([plan.id, boardId].sort());
+	expect((await fetch(base + `/groups/${plan.id}`, { headers: build14 })).status).toBe(426);
+	expect((await fetch(base + `/groups/${plan.id}`, { headers })).status).toBe(200);
+	// The shared board too, and its reads: its parts would point at the old cuts.
+	expect((await fetch(base + `/groups/${boardId}`, { headers: build14 })).status).toBe(426);
+	expect((await fetch(base + `/babs/${boardId}`, { headers: build14 })).status).toBe(426);
+	expect((await fetch(base + `/groups/${boardId}`, { headers })).status).toBe(200);
+	for (const body of [shared, { ...shared, hizbPlan: 7 }]) {
+		const refused = await fetch(base + '/groups', { method: 'POST', headers: build14, body: JSON.stringify(body) });
+		expect(refused.status).toBe(426);
+	}
+	expect(await prisma.group.count()).toBe(2);
+	// The old 33-day plan is gone, whichever build asks.
+	const old = { ...shared, hizbPlan: 33 };
+	expect((await fetch(base + '/groups', { method: 'POST', headers, body: JSON.stringify(old) })).status).toBe(400);
+});
 it('serves personal plans only to capable clients and rejects legacy read paths', async () => {
 	const group = await create();
 	expect((await fetch(base + `/groups/${group.id}`, { headers: { 'X-Cuzhane-Kinds': 'CEVSEN,HIZB' } })).status).toBe(

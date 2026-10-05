@@ -36,7 +36,7 @@ export const cycleLabelKey = (cycle: GroupCycle): StringKey => CYCLE_LABEL_KEYS[
 
 /**
  * The noun a count of parts takes — "20 bab", "30 cüz", "7 bölüm". Lowercase, for after a
- * number: "/ 100 bab", "33 bölüm". A Hizb group divides portions and a hatim cüz, not babs, and
+ * number: "/ 100 bab", "32 bölüm". A Hizb group divides portions and a hatim cüz, not babs, and
  * saying "bab" there would name a unit the book is not cut into. Same as `unitLabelKey`.
  */
 export const partUnitKey = (kind: GroupKind): StringKey => unitLabelKey(kind);
@@ -422,7 +422,7 @@ const HIZB_SEAT_COLUMNS_MAX = 11;
  * How many columns the Hizb lobby's seat lattice (HC4) lays its seats out in: ten up to ten
  * seats — the Cevşen lobby's row — and past that as few rows as eleven columns allow, evened
  * out across them, but never narrower than eight. HC4 draws sixteen as two rows of eight and
- * the full 33 comes out as three of eleven; the floor is what keeps a cell from ballooning
+ * the full 32 comes out as three of eleven; the floor is what keeps a cell from ballooning
  * where evening out alone would halve the width (twelve seats as two rows of six).
  */
 export const hizbSeatColumns = (spots: number) =>
@@ -432,7 +432,7 @@ export const hizbSeatColumns = (spots: number) =>
  * What `PlanPreview` draws. Under ROTATION, the first `maxRounds` rounds of one seat — never more
  * rounds than there are seats, because after `spots` of them the seat is back where it began.
  * Under FIXED, the one range it holds every round. Percentages of `partCount`, so a bar reads as
- * a position on the whole book, the hundred babs or the Hizb's 33 portions alike.
+ * a position on the whole book, the hundred babs or the Hizb's 32 portions alike.
  */
 export const planPreviewRows = ({
 	maxRounds,

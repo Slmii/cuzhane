@@ -19,14 +19,14 @@ describe('the repetition gates of the personal plans', () => {
 
 	it('put Sekine ×19 on one day per plan', () => {
 		expect(portionsWith(hasSekine, 7)).toEqual([4]);
-		expect(portionsWith(hasSekine, 15)).toEqual([8]);
-		expect(portionsWith(hasSekine, 33)).toEqual([19]);
+		expect(portionsWith(hasSekine, 15)).toEqual([9]);
+		expect(portionsWith(hasSekine, 32)).toEqual([19]);
 	});
 
 	it('put the Delail salawat ×3 on one day per plan', () => {
 		expect(portionsWith(hasDelailRepetition, 7)).toEqual([4]);
-		expect(portionsWith(hasDelailRepetition, 15)).toEqual([6]);
-		expect(portionsWith(hasDelailRepetition, 33)).toEqual([14]);
+		expect(portionsWith(hasDelailRepetition, 15)).toEqual([8]);
+		expect(portionsWith(hasDelailRepetition, 32)).toEqual([14]);
 	});
 
 	it('refuse a plan or a portion that does not exist', () => {

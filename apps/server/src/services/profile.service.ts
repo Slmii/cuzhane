@@ -75,7 +75,7 @@ export const getProfileStatsForUser = async (
 	 * `BabRead` rows exist in total for each of those rounds.
 	 *
 	 * **How many "every" is depends on the group**, which is why the kinds are fetched below:
-	 * a hundred babs, thirty cüz or 33 Hizb portions (`unitCountFor`). This was a literal
+	 * a hundred babs, thirty cüz or 32 Hizb portions (`unitCountFor`). This was a literal
 	 * `=== 100`, and against a hatim it would never have matched — the number would simply
 	 * have stopped rising, with nothing to say why.
 	 */

@@ -28,7 +28,7 @@ import { StyleSheet, View } from 'react-native';
 
 type Props = NativeStackScreenProps<TabStackParamList, 'Pool'>;
 
-/** HZ3's eleven across, so the 33 come out as three full rows. */
+/** HZ3's eleven across, so the 32 come out as three rows. */
 const GRID_COLUMNS = 11;
 /** HZ3's 44pt number tile, the Cevşen row's badge. */
 const TILE_SIZE = 44;
@@ -82,7 +82,7 @@ export const HizbPoolScreen = ({ route }: Props) => {
 	/*
 	 * Memoised above the early returns, reading the query data: `CellGrid` keeps a cell only
 	 * while the item it was handed keeps its identity, and a take re-renders this screen two or
-	 * three times in a row — rebuilt inline, all 33 would re-render under the fill.
+	 * three times in a row — rebuilt inline, all 32 would re-render under the fill.
 	 */
 	const group = groupQuery.data;
 	const babs = babsQuery.data;

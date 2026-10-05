@@ -10,7 +10,7 @@ import type { GroupProgressSummaryProps } from './GroupProgressSummary.types';
  * The "78 / 100 bab" count line above a progress bar — the design's core status readout.
  *
  * **Both halves come from the group's kind unless the caller names them**, never from
- * `BAB_COUNT`: a hatim reads "18 / 30 cüz", a Hizb group "12 / 33 bölüm". Taking the total and
+ * `BAB_COUNT`: a hatim reads "18 / 30 cüz", a Hizb group "12 / 32 bölüm". Taking the total and
  * the word from one argument is what stops the two disagreeing — "18 / 100 cüz" is the shape of
  * that bug. A gathering group's lobby card passes its own pair instead: members against seats.
  *

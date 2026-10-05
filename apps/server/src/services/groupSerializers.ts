@@ -20,7 +20,7 @@ import type {
 export type GroupVisibility = 'OPEN' | 'PRIVATE';
 /**
  * What a group reads: a hundred babs split by seat (Cevşen), thirty cüz picked one at a time
- * (Kur'an hatim), or 33 Hizb portions split by seat. Chosen at creation and immutable — every
+ * (Kur'an hatim), or 32 Hizb portions split by seat. Chosen at creation and immutable — every
  * other setting on the group hangs off it.
  */
 export type GroupKind = GroupKindName;
@@ -117,7 +117,7 @@ export type GroupSummary = {
 	splitMode: GroupSplitMode;
 	cycle: GroupCycle;
 	/**
-	 * How many parts the group divides — 100 babs for the Cevşen, 30 cüz for a hatim, 33
+	 * How many parts the group divides — 100 babs for the Cevşen, 30 cüz for a hatim, 32
 	 * portions for the Hizb (`unitCountFor`). Sent rather than derived on the client so the board, the
 	 * progress and the pool are all sized by the same number the server split by.
 	 */
@@ -265,7 +265,7 @@ export type GroupInvitePreview = {
 	name: string;
 	dedication: string | null;
 	visibility: GroupVisibility;
-	/** Cevşen, hatim or Hizb — the preview counts to a hundred, thirty or 33, and names its units. */
+	/** Cevşen, hatim or Hizb — the preview counts to a hundred, thirty or 32, and names its units. */
 	kind: GroupKind;
 	splitMode: GroupSplitMode;
 	cycle: GroupCycle;

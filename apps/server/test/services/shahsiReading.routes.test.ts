@@ -21,13 +21,15 @@ const headers = {
 	'Content-Type': 'application/json',
 	'X-Cuzhane-Kinds': 'CEVSEN,HATIM,HIZB',
 	'X-Cuzhane-Hizb-Plans': '1',
+	'X-Cuzhane-Hizb-Portions': '32',
 	'X-Cuzhane-Personal-Kinds': 'CEVSEN,HATIM'
 };
 /** A build from before them: everything but the new header. */
 const oldBuild = {
 	'Content-Type': 'application/json',
 	'X-Cuzhane-Kinds': 'CEVSEN,HATIM,HIZB',
-	'X-Cuzhane-Hizb-Plans': '1'
+	'X-Cuzhane-Hizb-Plans': '1',
+	'X-Cuzhane-Hizb-Portions': '32'
 };
 
 let server: Server;

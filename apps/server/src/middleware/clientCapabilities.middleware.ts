@@ -13,6 +13,14 @@ export const CLIENT_KINDS_HEADER = 'X-Cuzhane-Kinds';
  */
 export const PERSONAL_KINDS_HEADER = 'X-Cuzhane-Personal-Kinds';
 
+/**
+ * The header a client states the Hizb division it draws in. The book moved from 33 portions to 32;
+ * 1.4.0 draws 33, sends nothing, and cannot take the change over the air — so a build that does not
+ * say `32` is treated as one that cannot draw the Hizb at all.
+ */
+export const HIZB_PORTIONS_HEADER = 'X-Cuzhane-Hizb-Portions';
+export const HIZB_PORTIONS = '32';
+
 export type ClientCapabilityLocals = {
 	clientKinds: ReadonlySet<GroupKindName>;
 	hizbPlans?: boolean;
@@ -52,10 +60,14 @@ export const parseClientKinds = (header: string | undefined): Set<GroupKindName>
 export const parsePersonalKinds = (header: string | undefined): Set<GroupKindName> =>
 	new Set((header?.split(',') ?? []).map(token => token.trim().toUpperCase()).filter(isGroupKind));
 
-/** Populates `res.locals.clientKinds` from the capability header, for the compatibility guard. */
+/** Populates `res.locals.clientKinds` from the capability headers, for the compatibility guard. */
 export const clientCapabilities = (req: Request, res: Response<object, ClientCapabilityLocals>, next: NextFunction) => {
 	res.locals.hizbPlans = req.get('X-Cuzhane-Hizb-Plans') === '1';
-	res.locals.clientKinds = parseClientKinds(req.get(CLIENT_KINDS_HEADER));
+	const kinds = parseClientKinds(req.get(CLIENT_KINDS_HEADER));
+	if (req.get(HIZB_PORTIONS_HEADER) !== HIZB_PORTIONS) {
+		kinds.delete('HIZB');
+	}
+	res.locals.clientKinds = kinds;
 	res.locals.personalKinds = parsePersonalKinds(req.get(PERSONAL_KINDS_HEADER));
 
 	next();

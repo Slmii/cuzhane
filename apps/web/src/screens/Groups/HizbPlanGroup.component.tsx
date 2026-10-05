@@ -79,8 +79,8 @@ type Props = NativeStackScreenProps<TabStackParamList, 'GroupDetail'> & { group:
  *   shrinks to a green "Bugün okundu" row and the button moves to the newest missed day (W2).
  * - The design's missed-days row is a "Senin ilerlemen" banner, as on the Cevşen and Kur'an
  *   screens; it opens the missed days (T2), and the rounds card the history (T3). A catch-up
- *   counts for its own day's coverage and round, never for today's 33.
- * - When the group has covered all 33 today, the coverage moves to a green band on top (W3) —
+ *   counts for its own day's coverage and round, never for today's 32.
+ * - When the group has covered all 32 today, the coverage moves to a green band on top (W3) —
  *   the reader's day and the group's day are two separate "done"s.
  *
  * A Şahsi Cevşen or Kur'an reading (`planDays`) is this screen's individual layout too: its day is
@@ -91,9 +91,9 @@ type Props = NativeStackScreenProps<TabStackParamList, 'GroupDetail'> & { group:
 const STATE_RANK = { read: 0, missed: 1, today: 2 } as const;
 
 /** The most repetitions a counter draws as separate segments; past it, one bar. */
-const MAX_SEGMENTS = 33;
+const MAX_SEGMENTS = 32;
 
-/** How many cells a row of the round's board holds: the Hizb's 33 in three rows, the others ten. */
+/** How many cells a row of the round's board holds: the Hizb's 32 in three rows, the others ten. */
 const ROUND_COLUMNS: Record<GroupKind, number> = { CEVSEN: 10, HATIM: 10, HIZB: 11 };
 
 export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
@@ -119,8 +119,8 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 	const aheadView = data ? hizbAheadView(data) : null;
 	const createAhead = useCreateHizbAhead(group.id);
 	const [isBookSheetOpen, setIsBookSheetOpen] = useState(false);
-	// The 33 are the Hizb's alone: a Cevşen or Kur'an plan's day has no board (and `spansFor` knows
-	// only the Hizb's 7, 15 and 33).
+	// The 32 are the Hizb's alone: a Cevşen or Kur'an plan's day has no board (and `spansFor` knows
+	// only the Hizb's 7, 15 and 32).
 	const cells = useMemo(
 		() => (data && isHizb ? planBoardCells(data.coveredSpans, today) : []),
 		[data, isHizb, today]
@@ -134,7 +134,7 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 	const [isAheadOpen, setIsAheadOpen] = useState(false);
 	const deleteGroup = useDeleteGroup();
 	/*
-	 * S6: an individual reading's round on the 33 — each day of it read, missed or today's, and the
+	 * S6: an individual reading's round on the 32 — each day of it read, missed or today's, and the
 	 * portion the round began on ringed. Its readings are today's and the loaded history's, matched
 	 * by their round.
 	 */
@@ -176,7 +176,7 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 
 		const first = readings.at(-1);
 		const startCell = first ? text.portionsOf(first)[0] ?? null : null;
-		// The Hizb's board is always its 33; a Cevşen's or Kur'an's, its babs or cüz.
+		// The Hizb's board is always its 32; a Cevşen's or Kur'an's, its babs or cüz.
 		const items: CellGridItem[] = Array.from({ length: partCountFor(group.kind) }, (_, index) => {
 			const number = index + 1;
 			const state = states.get(number);
@@ -576,7 +576,7 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 							: styles.body
 					}
 				>
-					{/* W3: the group has covered all 33 today — a green band, its count and who took part. */}
+					{/* W3: the group has covered all 32 today — a green band, its count and who took part. */}
 					{isShared && isGroupDone ? (
 						<View style={[styles.doneBand, { backgroundColor: theme.colors.accent }]}>
 							<View style={styles.doneBandHead}>
@@ -595,7 +595,7 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 								</View>
 							</View>
 							<CaptionText color={toAlphaColor(theme.colors.onAccent, 0.72)} style={styles.bandNote}>
-								{/* In words, not "33 / 33": every other count here is people. */}
+								{/* In words, not "32 / 32": every other count here is people. */}
 								{`${t('hpWholeBookToday')} · ${t('hpContributors', { count: readersRead.length })}`}
 							</CaptionText>
 						</View>
@@ -609,7 +609,7 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 								{t('hpPickHint')}
 							</CaptionText>
 							<View style={styles.pickOptions}>
-								{(group.hizbPlan ? [group.hizbPlan] : [7, 15, 33]).map(days => {
+								{(group.hizbPlan ? [group.hizbPlan] : [7, 15, 32]).map(days => {
 									const isOn = pickedPlan === days;
 
 									return (
@@ -656,7 +656,7 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 															? 'hpPlanDesc7'
 															: days === 15
 															? 'hpPlanDesc15'
-															: 'hpPlanDesc33'
+															: 'hpPlanDesc32'
 													)}
 												</CaptionText>
 											</View>
@@ -734,7 +734,7 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 							<AppButton
 								disabled={enroll.isPending}
 								isLoading={enroll.isPending}
-								onPress={() => enroll.mutate(data.enrollment?.planDays ?? group.hizbPlan ?? 33)}
+								onPress={() => enroll.mutate(data.enrollment?.planDays ?? group.hizbPlan ?? 32)}
 								size='lg'
 								style={styles.darkButton}
 								title={t('hpRejoinAction')}
@@ -863,7 +863,7 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 												{portionDesc(today)}
 											</CaptionText>
 										) : null}
-										{/* A shorter plan's day covers several of the 33 — named as chips. A Cevşen or
+										{/* A shorter plan's day covers several of the 32 — named as chips. A Cevşen or
 										    Kur'an day's babs or cüz are its title; its progress is the box below. */}
 										{myPortions.length > 1 && isHizb ? (
 											<View style={styles.portionChips}>
@@ -1042,7 +1042,7 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 												: t('spNoMissedSub', { day: text.dayLabel(today) }))}
 									</CaptionText>
 								</View>
-								{/* Not once the group has read all 33 (W3): the day is done for everyone. Nor with a
+								{/* Not once the group has read all 32 (W3): the day is done for everyone. Nor with a
 								    day read ahead: a day read ahead stays read. */}
 								{isGroupDone || !aheadView?.canUndoToday ? null : (
 									<AppButton
@@ -1186,7 +1186,7 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 											{t('hpAllMissed', { count: data.missedCount })}
 										</CaptionText>
 									</Pressable>
-									{/* The Hizb's note on the group's 33; a Şahsi Cevşen or Kur'an has no such board. */}
+									{/* The Hizb's note on the group's 32; a Şahsi Cevşen or Kur'an has no such board. */}
 									{missedRound !== null && isHizb ? (
 										<View style={[styles.noteRow, { borderTopColor: theme.colors.divider }]}>
 											<Icon
@@ -1269,7 +1269,7 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 						) : null}
 					</SectionCard>
 
-					{/* S6: an individual reading — its round on the 33, a short history, and delete. */}
+					{/* S6: an individual reading — its round on the 32, a short history, and delete. */}
 					{!isShared && individualRound && round ? (
 						<HintTarget id='planRound' style={styles.cardGap}>
 							<CardSurface style={styles.roundCard}>

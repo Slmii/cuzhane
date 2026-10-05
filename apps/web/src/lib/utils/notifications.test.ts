@@ -145,6 +145,10 @@ describe('notificationText', () => {
 		expect(notificationText(row('SHARE_READ', { range: '', readerName: 'Ali' }, 'HIZB'), t).body).toBe(
 			'notifShareReadBodyHizbOne(range=)'
 		);
+		// A notice kept from the 33-portion division names a portion that no longer exists.
+		expect(notificationText(row('SHARE_READ', { range: '31–33', readerName: 'Ali' }, 'HIZB'), t).body).toBe(
+			'notifShareReadBodyHizbWorks(range=31–33,works=hizbWorkTazarru)'
+		);
 	});
 
 	it('writes a released Hizb portion as one number, not a span of one', () => {
@@ -169,7 +173,7 @@ describe('notificationText', () => {
 
 	it('counts the Hizb’s own portions when a round closes', () => {
 		expect(notificationText(row('ROUND_COMPLETE', { roundNumber: 2 }, 'HIZB'), t)).toEqual({
-			body: 'notifRoundCompleteBodyHizb(count=33)',
+			body: 'notifRoundCompleteBodyHizb(count=32)',
 			title: 'notifRoundCompleteTitle(round=2)'
 		});
 	});

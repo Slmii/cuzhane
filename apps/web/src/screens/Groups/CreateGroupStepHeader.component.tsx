@@ -17,7 +17,7 @@ import { StyleSheet, View } from 'react-native';
  * has no Cevşen counterpart at all, because a Cevşen share is derived from a seat and a
  * hatim's has to be chosen.
  *
- * A Hizb group is four: the book, its name, the reading plan (HZ's 7/15/33 days, or the seats),
+ * A Hizb group is four: the book, its name, the reading plan (HZ's 7/15/32 days, or the seats),
  * and then either where a personal plan starts or when an idle member is released.
  *
  * The design numbers its frames from zero ("Adım 0 / 4" on Q1, up to QC4) because it drew

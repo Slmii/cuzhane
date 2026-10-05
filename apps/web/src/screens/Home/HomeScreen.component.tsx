@@ -358,7 +358,7 @@ export const HomeScreen = () => {
 								: next.done > 0
 								? t('homeReadOf', { done: next.done, total: next.total })
 								: next.kind === 'HIZB'
-								? // A plan's day is one reading of one or more of the 33; count those, as its heading names them.
+								? // A plan's day is one reading of one or more of the 32; count those, as its heading names them.
 								  t(
 										pluralKey(
 											language,

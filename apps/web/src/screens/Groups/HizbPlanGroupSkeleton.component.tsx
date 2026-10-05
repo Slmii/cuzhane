@@ -20,7 +20,7 @@ import { useMemo } from 'react';
 /** S6's short history: today and the four readings before it. */
 const HISTORY_ROWS = 5;
 
-/** The screen's `ROUND_COLUMNS`: the Hizb's 33 in three rows, the others ten a row. */
+/** The screen's `ROUND_COLUMNS`: the Hizb's 32 in three rows, the others ten a row. */
 const ROUND_COLUMNS: Record<GroupKind, number> = { CEVSEN: 10, HATIM: 10, HIZB: 11 };
 
 type Props = { plan: NonNullable<CachedGroupShape['plan']> };
@@ -48,16 +48,16 @@ export const HizbPlanGroupSkeleton = ({ plan }: Props) => {
 	const isShared = !plan.hizbIndividual;
 	const isHizb = plan.kind === 'HIZB';
 	const planLabel = plan.hizbPlan ? t('hpDays', { days: plan.hizbPlan }) : t('hpMixedPlan');
-	// A 7- or 15-day Hizb plan's day covers several of the 33, named as chips under the title. A
+	// A 7- or 15-day Hizb plan's day covers several of the 32, named as chips under the title. A
 	// Cevşen or Kur'an day's babs or cüz are its title, and have none.
 	const portionChipCount =
-		isHizb && (plan.hizbPlan === 7 || plan.hizbPlan === 15) ? Math.ceil(33 / plan.hizbPlan) : 0;
+		isHizb && (plan.hizbPlan === 7 || plan.hizbPlan === 15) ? Math.ceil(32 / plan.hizbPlan) : 0;
 	// The readers the preview lists — you first — and "Tümünü gör" when there are more.
 	const readerRows = Math.min(Math.max(plan.memberCount, 1), READERS_PREVIEW_ROWS);
 	// A round begun mid-plan says where it wraps beside its title.
 	const hasRoundWrap = isHizb && plan.hizbStartPortion > 1;
 
-	// The round's board: the Hizb's 33, a Cevşen's hundred babs or a Kur'an's thirty cüz.
+	// The round's board: the Hizb's 32, a Cevşen's hundred babs or a Kur'an's thirty cüz.
 	const cells = useMemo<CellGridItem[]>(
 		() =>
 			Array.from({ length: partCountFor(plan.kind) }, (_, index) => ({
@@ -289,7 +289,7 @@ export const HizbPlanGroupSkeleton = ({ plan }: Props) => {
 					</>
 				) : (
 					<>
-						{/* S6: the round on its board — the Hizb's 33, a Cevşen's 100 or a Kur'an's 30. */}
+						{/* S6: the round on its board — the Hizb's 32, a Cevşen's 100 or a Kur'an's 30. */}
 						<CardSurface style={[styles.roundCard, styles.cardGap]}>
 							<View style={styles.roundHead}>
 								{line(19, 11, 52, 'strong')}

@@ -17,12 +17,12 @@ describe('versioned Hizb content', () => {
 			expect(textOf(blocks.flat())).toBe(textOf(HIZB_BLOCKS));
 		}
 	});
-	it('uses the independent 15-day boundaries, including bab 51 and the approved Hulasat split', () => {
-		expect(startsFor(15)[2]).toEqual([7, 48, 0, 0]);
-		expect(textOf(planBlocks(15, 2))).toContain('﴿٥٠﴾');
-		expect(textOf(planBlocks(15, 2))).not.toContain('﴿٥١﴾');
-		expect(textOf(planBlocks(15, 3))).toContain('﴿٥١﴾');
-		expect(startsFor(15)[13]).toEqual([16, 16, 0, 0]);
+	it('builds the 7- and 15-day plans from whole days of the 32-day sheet', () => {
+		const sheetDays = startsFor(32).map(start => start.join(','));
+		const sheetDayOf = (start: readonly number[]) => sheetDays.indexOf(start.join(',')) + 1;
+
+		expect(startsFor(7).map(sheetDayOf)).toEqual([1, 5, 8, 14, 20, 24, 26]);
+		expect(startsFor(15).map(sheetDayOf)).toEqual([1, 3, 5, 6, 7, 8, 10, 13, 19, 20, 21, 23, 25, 26, 30]);
 	});
 	it('keeps client/server plan manifests identical', () => {
 		expect(readFileSync(new URL('../utils/hizbPlans.ts', import.meta.url), 'utf8')).toBe(

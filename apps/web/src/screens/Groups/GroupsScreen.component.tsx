@@ -302,7 +302,7 @@ export const GroupsScreen = () => {
 						onAction={() => goToGroup(item.id)}
 						onPress={() => goToGroup(item.id)}
 						progress={
-							// A shared Hizb plan counts its readers, not the 33: "2 / 3 okudu" — a goal a group
+							// A shared Hizb plan counts its readers, not the 32: "2 / 3 okudu" — a goal a group
 							// of three or of five hundred can reach.
 							item.hizbReaders && !item.hizbIndividual
 								? {

@@ -138,7 +138,7 @@ export const poolBabNumbers = (
 ): number[] => poolBlocks(group, members, roundIndex).flatMap(block => block.babNumbers);
 
 export interface UnitPlan {
-	/** 100 for a Cevşen group, 30 for a hatim, 33 for a Hizb group. */
+	/** 100 for a Cevşen group, 30 for a hatim, 32 for a Hizb group. */
 	unitCount: number;
 	/** The units this member reads in the round the plan was built for. */
 	unitsFor: (userId: string) => number[];
@@ -185,7 +185,7 @@ export type PlanHolding = Pick<CuzHolding, 'cuzNumber' | 'isLoan' | 'userId'>;
  * `roundIndex` is nullable for the same reason `babNumbersInRound` takes it that way: a
  * group still GATHERING has no round, and a seat's share there is its own standing block.
  *
- * **Only a hatim reads holdings.** A Hizb group is seat-based like the Cevşen (33 portions
+ * **Only a hatim reads holdings.** A Hizb group is seat-based like the Cevşen (32 portions
  * split by `unitCountFor`), so it takes the seat branch; its pool of single portions and its
  * personal plans live in `pool.service` and `hizbReading.service`.
  * A gathering hatim has no holdings for a round that hasn't started either, so whatever

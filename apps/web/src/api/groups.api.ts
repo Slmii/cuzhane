@@ -33,7 +33,7 @@ type CreateGroupCommon = {
 
 /**
  * Mirrors the server's `CreateGroupBodySchema`, union and all. A Cevşen group divides a
- * hundred babs by seat, a Hizb group 33 portions by seat (or by personal plan), and a hatim
+ * hundred babs by seat, a Hizb group 32 portions by seat (or by personal plan), and a hatim
  * divides thirty cüz by choice, so no kind's settings
  * mean anything to the other — and since all of them are immutable after creation, sending
  * one from the wrong half would be wrong for the life of the group.
@@ -51,7 +51,7 @@ export type CreateGroupInput =
 			/** Everyone reads the whole book on a personal plan rather than a seat's share. */
 			hizbIndividual?: boolean;
 			hizbStartPortion?: number;
-			/** The personal plan's length in days — 7, 15 or 33. */
+			/** The personal plan's length in days — 7, 15 or 32. */
 			hizbPlan?: number;
 			/** "Okuma sorumluları" — the "has read" notice to the ticked members only. */
 			readSeersEnabled?: boolean;

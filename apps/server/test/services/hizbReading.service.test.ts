@@ -256,7 +256,7 @@ describe('Hizb edge cases', () => {
 		const partial = await updateHizbAssignment('owner', group.id, today.id, { version: 0, bookPortions: [first!] });
 		expect(partial).toMatchObject({ completedAt: null, readPortions: [first], readFrom: null });
 		const state = await getHizbState('owner', group.id);
-		expect(state.coveredSpans.sort((a, b) => a - b)).toEqual(spansFor(33, first!));
+		expect(state.coveredSpans.sort((a, b) => a - b)).toEqual(spansFor(32, first!));
 		expect(state.members.find(m => m.isMe)).toMatchObject({ completed: false, started: true });
 		expect((await hizbSummary(group.id, 'owner')).readCount).toBe(1);
 		// Still owed tomorrow.
@@ -284,7 +284,7 @@ describe('Hizb edge cases', () => {
 		const undone = await updateHizbAssignment('owner', group.id, today.id, { version: 1, read: false });
 		expect(undone).toMatchObject({ readPortions: [], completedAt: null });
 		expect((await getHizbState('owner', group.id)).coveredSpans).toEqual([]);
-		const outside = [33].find(p => !today.boardPortions.includes(p))!;
+		const outside = [32].find(p => !today.boardPortions.includes(p))!;
 		await expect(
 			updateHizbAssignment('owner', group.id, today.id, { version: 2, bookPortions: [outside] })
 		).rejects.toMatchObject({ statusCode: 400 });
@@ -328,18 +328,18 @@ describe('Hizb edge cases', () => {
 		await joinGroupForUser('reader', 'Reader', group.id);
 		expect((await hizbSummary(group.id, 'reader')).memberCount).toBe(2);
 	});
-	it('counts the summary in the board’s 33 portions, not in text spans', async () => {
+	it('counts the summary in the board’s 32 portions, not in text spans', async () => {
 		const group = await create(15);
 		const today = (await getHizbState('owner', group.id)).today!;
 		await updateHizbAssignment('owner', group.id, today.id, { version: 0, read: true, istighfarRepetitions: 11 });
 		const read = new Set(spansFor(15, today.portion));
-		const portions = Array.from({ length: 33 }, (_, i) => i + 1).filter(p =>
-			spansFor(33, p).every(span => read.has(span))
+		const portions = Array.from({ length: 32 }, (_, i) => i + 1).filter(p =>
+			spansFor(32, p).every(span => read.has(span))
 		).length;
 		const summary = await hizbSummary(group.id, 'owner');
-		expect(summary.partCount).toBe(33);
+		expect(summary.partCount).toBe(32);
 		expect(summary.readCount).toBe(portions);
-		expect(summary.percent).toBe(Math.round((portions * 100) / 33));
+		expect(summary.percent).toBe(Math.round((portions * 100) / 32));
 	});
 	it('keeps a deleted account’s completed readings in the group’s coverage', async () => {
 		const { deleteAccountForUser } = await import('@services/account.service');
@@ -512,7 +512,7 @@ describe('individual Hizb reading', () => {
 			reminderTime: '21:00',
 			timezone: 'Europe/Amsterdam'
 		});
-	it.each([7, 15, 33])(
+	it.each([7, 15, 32])(
 		'starts the %i-day plan at the selected portion and wraps without past arrears',
 		async plan => {
 			vi.setSystemTime(start);
@@ -581,7 +581,7 @@ describe('individual Hizb reading', () => {
 	it('rejects starting portions outside the selected plan and individual mixed plans', () => {
 		expect(() => input(7, 8)).toThrow();
 		expect(() => input(15, 16)).toThrow();
-		expect(() => input(33, 34)).toThrow();
+		expect(() => input(32, 33)).toThrow();
 		expect(() => input(7, 0)).toThrow();
 		expect(() => input(0, 1)).toThrow();
 		expect(() =>

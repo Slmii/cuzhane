@@ -103,7 +103,7 @@ export const JoinByCodeSheet = ({ initialCode, isLiveOnly = false, isVisible, on
 
 				/*
 				 * **A Hizb plan group previews on its own screen** (section 5, P4): the plan, the
-				 * 33 and the rules don't fit this sheet. The answer seeds that screen's query, so it
+				 * 32 and the rules don't fit this sheet. The answer seeds that screen's query, so it
 				 * draws at once, and the code travels with it: a private group joins by it alone.
 				 */
 				if (found.kind === 'HIZB' && found.hizbPlan != null) {

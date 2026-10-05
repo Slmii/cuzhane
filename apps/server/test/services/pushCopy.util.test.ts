@@ -122,16 +122,16 @@ describe('roundCompletePush', () => {
 		);
 	});
 
-	it('counts the 33 for a Hizb group', () => {
+	it('counts the 32 for a Hizb group', () => {
 		expect(roundCompletePush('tr', { ...input, kind: 'HIZB' })).toEqual({
 			title: 'Aile Halkası',
-			body: '4. tur tamamlandı — 33 bölümün hepsi okundu.'
+			body: '4. tur tamamlandı — 32 bölümün hepsi okundu.'
 		});
 		expect(roundCompletePush('en', { ...input, kind: 'HIZB' }).body).toBe(
-			'Round 4 is complete — all 33 portions read.'
+			'Round 4 is complete — all 32 portions read.'
 		);
 		expect(roundCompletePush('nl', { ...input, kind: 'HIZB' }).body).toBe(
-			'Ronde 4 is voltooid — alle 33 gedeelten gelezen.'
+			'Ronde 4 is voltooid — alle 32 gedeelten gelezen.'
 		);
 	});
 });

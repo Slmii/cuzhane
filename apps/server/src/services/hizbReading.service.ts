@@ -18,6 +18,9 @@ import type { Group, HizbAssignment, HizbEnrollment, Prisma } from '../generated
 import { lockGroup } from './rounds.service';
 import { notifyHizbRead } from './hizbReadNotice.service';
 
+/** The Hizb board's portions — also the length of the plan that reads one portion a day. */
+const BOARD_PORTIONS = partCountFor('HIZB');
+
 const dayOf = (group: Group) => civilDayNumber(new Date(), group.timezone);
 const dateOf = (day: number) => new Date(day * 86400000).toISOString().slice(0, 10);
 
@@ -109,7 +112,7 @@ export async function enrollHizbInTransaction(
 	if (group.planDays !== null) {
 		return enrollShahsiReader(tx, group, group.planDays, userId);
 	}
-	const days = requested ?? (group.hizbPlan || 33);
+	const days = requested ?? (group.hizbPlan || BOARD_PORTIONS);
 	if (!isPlanDays(days) || (group.hizbPlan !== 0 && group.hizbPlan !== days)) {
 		throw new HttpError(BAD_REQUEST, 'Follow the plan selected by the group creator');
 	}
@@ -121,7 +124,7 @@ export async function enrollHizbInTransaction(
 		}
 		return current;
 	}
-	const counter = days === 7 ? 'hizbNext7' : days === 15 ? 'hizbNext15' : 'hizbNext33';
+	const counter = days === 7 ? 'hizbNext7' : days === 15 ? 'hizbNext15' : 'hizbNext32';
 	const allocated = await tx.group.update({
 		where: { id: group.id },
 		data: { [counter]: { increment: 1 }, hizbNextSlot: { increment: 1 } }
@@ -196,7 +199,7 @@ const spansOfReading = (reading: DayReading) => {
 	if (!reading.partial) {
 		return own;
 	}
-	const ticked = new Set(reading.partial.flatMap(portion => spansFor(33, portion)));
+	const ticked = new Set(reading.partial.flatMap(portion => spansFor(BOARD_PORTIONS, portion)));
 	return own.filter(span => ticked.has(span));
 };
 
@@ -214,7 +217,7 @@ const coveredBy = (kind: GroupKindName, readings: readonly DayReading[]) => [
 ];
 
 /**
- * The parts of the day the book sheet offers to tick: the board's 33 a Hizb day touches, or a Kur'an
+ * The parts of the day the book sheet offers to tick: the board's portions a Hizb day touches, or a Kur'an
  * day's own cüz. A Cevşen is read in the app only, so it offers none.
  */
 const bookPortionsOf = (kind: GroupKindName, planDays: number, portion: number) =>
@@ -251,20 +254,22 @@ const coverageOf = (kind: GroupKindName, covered: readonly number[]) => {
 const coverFields = (kind: GroupKindName, covered: number[]): { coveredSpans: number[]; coveredUnits?: number[] } =>
 	kind === 'HIZB' ? { coveredSpans: covered } : { coveredSpans: [], coveredUnits: covered };
 
-/** Which of the board's 33 a plan's day touches — what the book sheet offers to tick (the web's `boardPortionsOf`). */
+/** Which of the board's portions a plan's day touches — what the book sheet offers to tick (the web's `boardPortionsOf`). */
 export const boardPortionsFor = (planDays: number, portion: number) => {
 	const own = new Set(spansFor(planDays, portion));
-	return Array.from({ length: 33 }, (_, i) => i + 1).filter(board => spansFor(33, board).some(span => own.has(span)));
+	return Array.from({ length: BOARD_PORTIONS }, (_, i) => i + 1).filter(board =>
+		spansFor(BOARD_PORTIONS, board).some(span => own.has(span))
+	);
 };
 
 /**
- * How many of the board's 33 portions a day's spans read in full — the count the group's board
- * draws (the web's `planBoardCells`). Spans are finer than the 33 (35 of them), so they are never
- * the count shown.
+ * How many of the board's portions a day's spans read in full — the count the group's board
+ * draws (the web's `planBoardCells`). Every plan now cuts on the portions' own starts, so the 32 spans
+ * are the portions; the count is still taken from portions, so a plan cut inside one never shows.
  */
 const boardPortionsRead = (spans: readonly number[]) => {
 	const covered = new Set(spans);
-	return Array.from({ length: 33 }, (_, i) => spansFor(33, i + 1)).filter(portion =>
+	return Array.from({ length: BOARD_PORTIONS }, (_, i) => spansFor(BOARD_PORTIONS, i + 1)).filter(portion =>
 		portion.every(span => covered.has(span))
 	).length;
 };
@@ -1179,8 +1184,12 @@ export async function hizbSummary(groupId: string, viewerUserId: string) {
 			// plan yet, or was taken out of the order, is still a member.
 			memberCount: await tx.groupMember.count({ where: { groupId } }),
 			readCount: group.hizbIndividual ? (own?.completedAt ? 1 : 0) : portionsRead,
-			partCount: group.hizbIndividual ? 1 : 33,
-			percent: group.hizbIndividual ? (own?.completedAt ? 100 : 0) : Math.round((portionsRead * 100) / 33),
+			partCount: group.hizbIndividual ? 1 : BOARD_PORTIONS,
+			percent: group.hizbIndividual
+				? own?.completedAt
+					? 100
+					: 0
+				: Math.round((portionsRead * 100) / BOARD_PORTIONS),
 			completedAt: group.hizbIndividual
 				? own?.completedAt?.toISOString() ?? null
 				: coverage.complete

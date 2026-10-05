@@ -698,7 +698,7 @@ export const InvitePreviewScreen = ({ navigation, route }: Props) => {
 						{/*
 						 * One card, one subject: the babs *you* would be handed. It used to list
 						 * the pool instead, and the three numbers on it each answered a different
-						 * question — "33 sahipsiz" (the whole unclaimed pool), twelve chips (a
+						 * question — "32 sahipsiz" (the whole unclaimed pool), twelve chips (a
 						 * display cap) and "16'i sana atanır" (your seat's block). Worse, the
 						 * chips were the pool's lowest numbers, so the card showed babs 1-12
 						 * while promising 69-84. Your seat's block is the only one of the three

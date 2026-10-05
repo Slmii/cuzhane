@@ -279,7 +279,7 @@ describe('plannedReminders', () => {
 		const plan = group({
 			cycle: 'DAILY',
 			hizbAheadDays: 2,
-			hizbToday: { assignmentId: 'a', completed: true, planDays: 33, portion: 4 },
+			hizbToday: { assignmentId: 'a', completed: true, planDays: 32, portion: 4 },
 			kind: 'HIZB',
 			myBabNumbers: [],
 			nextDayAt: midnight(1)
@@ -300,7 +300,7 @@ describe('plannedReminders', () => {
 	it('follows a personal plan’s next day rather than its round', () => {
 		const plan = group({
 			cycle: 'DAILY',
-			hizbToday: { assignmentId: 'a', completed: true, planDays: 33, portion: 4 },
+			hizbToday: { assignmentId: 'a', completed: true, planDays: 32, portion: 4 },
 			kind: 'HIZB',
 			myBabNumbers: [],
 			nextDayAt: midnight(1),

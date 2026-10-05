@@ -109,7 +109,7 @@ export const DiscoverScreen = () => {
 			 * it animates a row that *moves*, which is still exactly the filter/sort case.
 			 */
 			<Animated.View layout={cardLayout}>
-				{/* A Hizb plan group has its own card (section 5): no seats, today's 33 instead. */}
+				{/* A Hizb plan group has its own card (section 5): no seats, today's 32 instead. */}
 				{item.kind === 'HIZB' && item.hizbPlan != null ? (
 					<HizbDiscoverCard
 						group={item}

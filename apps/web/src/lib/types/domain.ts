@@ -24,7 +24,7 @@ export type GroupMemberRole = 'OWNER' | 'MEMBER';
 
 /**
  * What a group reads. A Cevşen group divides a hundred babs by seat; a hatim divides thirty
- * cüz by choice; a Hizb group divides the Hizbü'l-Hakaik's 33 portions by seat, on the Cevşen's
+ * cüz by choice; a Hizb group divides the Hizbü'l-Hakaik's 32 portions by seat, on the Cevşen's
  * model. Chosen at step 1 and immutable after — every other setting on the group hangs off it.
  */
 export type GroupKind = 'CEVSEN' | 'HATIM' | 'HIZB';
@@ -123,7 +123,7 @@ export type GroupSummary = {
 	kind: GroupKind;
 	splitMode: GroupSplitMode;
 	cycle: GroupCycle;
-	/** How many parts the group divides — 100 babs for the Cevşen, 30 cüz for a hatim, 33 portions for the Hizb. */
+	/** How many parts the group divides — 100 babs for the Cevşen, 30 cüz for a hatim, 32 portions for the Hizb. */
 	partCount: number;
 	/**
 	 * How many days a round runs. **The cadence name cannot stand in for it**: a hatim may be

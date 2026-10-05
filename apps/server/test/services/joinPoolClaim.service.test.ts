@@ -220,13 +220,13 @@ describe('joining a seat somebody had covered from the pool', () => {
 
 describe('joining a Hizb seat whose pool block is a single portion', () => {
 	/**
-	 * Twenty seats over 33 portions: the first thirteen blocks hold two, the last seven one.
+	 * Twenty seats over 32 portions: the first twelve blocks hold two, the last eight one.
 	 * Seats 0-2 are taken, so the joiner lands in seat 3 — and at round 10 the rotation has
-	 * seat 3 reading block 13, portion 27 alone.
+	 * seat 3 reading block 13, portion 26 alone.
 	 */
 	const HIZB_SPOTS = 20;
 	const HIZB_ROUND = 10;
-	const HIZB_PARTS = 33;
+	const HIZB_PARTS = 32;
 	const hizbBlockFor = (slotIndex: number) => babNumbersForRound(slotIndex, HIZB_SPOTS, HIZB_ROUND, HIZB_PARTS);
 
 	const createHizbGroup = async () => {
@@ -273,7 +273,7 @@ describe('joining a Hizb seat whose pool block is a single portion', () => {
 	};
 
 	it('is the case under test: seat 3’s block this round is one portion', () => {
-		expect(hizbBlockFor(JOINED_SLOT)).toEqual([27]);
+		expect(hizbBlockFor(JOINED_SLOT)).toEqual([26]);
 	});
 
 	it('records the release as that one portion', async () => {
@@ -284,8 +284,8 @@ describe('joining a Hizb seat whose pool block is a single portion', () => {
 		const release = await prisma.poolClaimRelease.findFirstOrThrow({ where: { groupId: group.id } });
 
 		expect(release.userId).toBe(VOLUNTEER);
-		expect(release.startBab).toBe(27);
-		expect(release.endBab).toBe(27);
+		expect(release.startBab).toBe(26);
+		expect(release.endBab).toBe(26);
 	});
 
 	it('files the inbox row for the volunteer', async () => {
@@ -298,7 +298,7 @@ describe('joining a Hizb seat whose pool block is a single portion', () => {
 		});
 
 		expect(rows).toHaveLength(1);
-		expect(rows[0]?.payload).toEqual({ startBab: 27, endBab: 27 });
+		expect(rows[0]?.payload).toEqual({ startBab: 26, endBab: 26 });
 	});
 
 	it('names the portion in the singular, as a bare number', async () => {
@@ -306,12 +306,12 @@ describe('joining a Hizb seat whose pool block is a single portion', () => {
 
 		await joinGroupForUser(JOINER, 'Joiner', group.id);
 
-		// No settings row, so the copy is the default English. "Portions 27–27" is the bug.
+		// No settings row, so the copy is the default English. "Portions 26–26" is the bug.
 		expect(sendPushToUser).toHaveBeenCalledWith(
 			VOLUNTEER,
 			expect.objectContaining({
 				title: 'The portion you took was passed on',
-				body: "Portion 27 became a new member's share. Anything you already read still counts for you."
+				body: "Portion 26 became a new member's share. Anything you already read still counts for you."
 			})
 		);
 	});

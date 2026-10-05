@@ -33,9 +33,9 @@ const ALI = 'test_ali';
 const AYSE = 'test_ayse';
 const JOINER = 'test_joiner';
 
-/** Eleven seats over the Hizb's 33 portions: three apiece. Seats 0-2 taken, 3-10 empty. */
+/** Eleven seats over the Hizb's 32 portions: three apiece, the last seat two. Seats 0-2 taken, 3-10 empty. */
 const SPOTS = 11;
-const PARTS = 33;
+const PARTS = 32;
 const ROUND_INDEX = 2;
 /** The lowest empty seat — the one a joiner lands in. At round 2 it offers block 5, portions 16–18. */
 const POOL_SLOT = 3;
@@ -182,7 +182,7 @@ describe('takePoolPartForUser', () => {
 	it('refuses a portion the Hizb does not have', async () => {
 		const group = await createGroup();
 
-		await expect(takePoolPartForUser(ALI, group.id, 34)).rejects.toMatchObject({ statusCode: 400 });
+		await expect(takePoolPartForUser(ALI, group.id, 33)).rejects.toMatchObject({ statusCode: 400 });
 	});
 
 	it('refuses a Cevşen group, whose pool slots are taken whole', async () => {

@@ -173,7 +173,7 @@ describe('deleting an account', () => {
 			'Other',
 			CreateGroupBodySchema.parse({
 				cycle: 'DAILY',
-				hizbPlan: 33,
+				hizbPlan: 32,
 				kind: 'HIZB',
 				name: 'Plan',
 				reminderTime: '21:00',

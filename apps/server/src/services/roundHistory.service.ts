@@ -352,7 +352,7 @@ export const coverMissedBabsForUser = async (
 	}
 
 	const wanted = [...new Set(babNumbers)];
-	// The route bounds the numbers by the Cevşen's hundred; a Hizb group stops at 33.
+	// The route bounds the numbers by the Cevşen's hundred; a Hizb group stops at 32.
 	const partCount = unitCountFor(group);
 
 	if (wanted.some(babNumber => !Number.isInteger(babNumber) || babNumber < 1 || babNumber > partCount)) {

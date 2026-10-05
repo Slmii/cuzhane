@@ -146,7 +146,7 @@ const MAX_SPOTS_FOR_KIND: Record<GroupKind, number> = {
 	HIZB: Math.max(...SPOTS_FOR_KIND.HIZB)
 };
 
-/** Ten a row for the Cevşen's twenty, eleven for the Hizb — its 33 fill three whole rows. */
+/** Ten a row for the Cevşen's twenty, eleven for the Hizb — its 32 fill three rows. */
 const SPOTS_COLUMNS_FOR_KIND: Record<GroupKind, number> = { CEVSEN: 10, HATIM: 10, HIZB: 11 };
 
 // A hatim is never shown the seat lattice; its entry keeps the record total.
@@ -189,7 +189,7 @@ const CUSTOM_ROUND_DAYS = 10;
 
 /**
  * An individual plan's starting day as the group card will name it: "15 gün · 5. gün · 11–13. bölüm".
- * A start past a shorter plan's end (33 → 15 after choosing 20) waits for the stepper to clamp it.
+ * A start past a shorter plan's end (32 → 15 after choosing 20) waits for the stepper to clamp it.
  */
 const startPortionCaption = (days: number, start: number, t: ReturnType<typeof useTranslation>['t']) => {
 	const day = t('hpPlanDay', { day: start, days });
@@ -375,7 +375,7 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 					distribution: 'FREE_PICK',
 					hideMemberNames: false,
 					hizbIndividual: false,
-					hizbPlan: '33',
+					hizbPlan: '32',
 					hizbStartPortion: 1,
 					inactivityDays: 10,
 					inactivityEnabled: false,
@@ -467,7 +467,7 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 						if (isPersonalPlanKind(next)) {
 							setValue('planDays', Math.min(watch('planDays'), PERSONAL_PLAN_MAX_DAYS[next]));
 						} else if (watch('hizbIndividual') && watch('hizbPlan') === '0') {
-							setValue('hizbPlan', '33');
+							setValue('hizbPlan', '32');
 						}
 					};
 
@@ -571,7 +571,7 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 												onValueChange={next => {
 													setValue('hizbIndividual', next);
 													if (next && kind === 'HIZB' && watch('hizbPlan') === '0') {
-														setValue('hizbPlan', '33');
+														setValue('hizbPlan', '32');
 													}
 												}}
 												title={t('hpIndividual')}
@@ -914,7 +914,7 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 											name='hizbPlan'
 											onChange={() => setValue('hizbStartPortion', 1)}
 											direction='column'
-											options={(individual ? [7, 15, 33] : [7, 15, 33, 0]).map(days => ({
+											options={(individual ? [7, 15, 32] : [7, 15, 32, 0]).map(days => ({
 												value: String(days),
 												title: days ? t('hpDays', { days }) : t('hpMixed'),
 												hint: t(
@@ -1114,13 +1114,13 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 										<FormStepper
 											name='hizbStartPortion'
 											values={Array.from(
-												{ length: Number(watch('hizbPlan')) || 33 },
+												{ length: Number(watch('hizbPlan')) || 32 },
 												(_, i) => i + 1
 											)}
 											// The group card's words: "15 gün · 1. gün · 1–3. bölüm" — "bölüm" is
-											// only ever one of the 33, never the plan's own day.
+											// only ever one of the 32, never the plan's own day.
 											caption={startPortionCaption(
-												Number(watch('hizbPlan')) || 33,
+												Number(watch('hizbPlan')) || 32,
 												Number(watch('hizbStartPortion')),
 												t
 											)}
@@ -1128,7 +1128,7 @@ export const CreateGroupScreen = ({ navigation }: CreateGroupScreenProps) => {
 										<BodyText>
 											{t(
 												hizbPlanDescriptionKey(
-													Number(watch('hizbPlan')) || 33,
+													Number(watch('hizbPlan')) || 32,
 													watch('hizbStartPortion')
 												)
 											)}

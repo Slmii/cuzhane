@@ -49,7 +49,7 @@ export const RoundParamsSchema = z.object({
 /**
  * Covering a whole block at once — the row's outstanding babs, not one per request.
  *
- * 100 is the outer bound, the Cevşen's count. A Hizb group has 33 parts, and the service
+ * 100 is the outer bound, the Cevşen's count. A Hizb group has 32 parts, and the service
  * checks against the group's own count once it has loaded the group.
  */
 export const CoverRoundBabsBodySchema = z.object({
@@ -241,15 +241,15 @@ const CreateHatimBodySchema = CreateGroupBaseSchema.extend({
 });
 
 /**
- * A Hizb group divides 33 portions by seat, like the Cevşen, and adds a calendar month, a
- * flexible pool, personal plans (`hizbPlan`: 0 lets each member choose, otherwise 7/15/33
+ * A Hizb group divides 32 portions by seat, like the Cevşen, and adds a calendar month, a
+ * flexible pool, personal plans (`hizbPlan`: 0 lets each member choose, otherwise 7/15/32
  * days) and individual reading (a private plan from a chosen portion).
  */
 const CreateHizbBodySchema = CreateGroupBaseSchema.extend({
 	kind: z.literal('HIZB'),
 	hizbIndividual: z.boolean().default(false),
-	hizbStartPortion: z.number().int().min(1).max(33).default(1),
-	hizbPlan: z.union([z.literal(0), z.literal(7), z.literal(15), z.literal(33)]).optional(),
+	hizbStartPortion: z.number().int().min(1).max(32).default(1),
+	hizbPlan: z.union([z.literal(0), z.literal(7), z.literal(15), z.literal(32)]).optional(),
 	// Refused rather than stripped, as `NotHizbSchema` does the other way round: a Hizb plan is `hizbPlan`.
 	planDays: z.undefined({ message: 'A plan length in days is for Cevşen and Kur’an groups' }).optional(),
 	inactivityDays: z.number().int().min(1).max(365).nullable().optional(),
@@ -258,7 +258,7 @@ const CreateHizbBodySchema = CreateGroupBaseSchema.extend({
 	splitMode: z.enum(['ROTATION', 'FIXED', 'FLEXIBLE']).default('ROTATION'),
 	cycle: z.enum(['DAILY', 'WEEKLY', 'MONTHLY']).default('WEEKLY'),
 	// 20 stays the default because it is valid for both seat-based kinds: the Cevşen's
-	// largest size, and 20 of the Hizb's 33.
+	// largest size, and 20 of the Hizb's 32.
 	spots: z.number().int().default(20)
 }).superRefine((body, context) => {
 	if (body.hizbIndividual && (!body.hizbPlan || body.hizbStartPortion > body.hizbPlan)) {
@@ -287,7 +287,7 @@ const CreateHizbBodySchema = CreateGroupBaseSchema.extend({
 	}
 	/*
 	 * Any size from one to the part count. An uneven split is already handled — the first
-	 * `33 % spots` seats take one more — and past 33 a seat would hold nothing.
+	 * `32 % spots` seats take one more — and past 32 a seat would hold nothing.
 	 */
 	const partCount = partCountFor('HIZB');
 

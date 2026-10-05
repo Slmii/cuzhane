@@ -94,7 +94,7 @@ const PortionRow = ({ onOpenPart, row }: RowProps) => {
  * the group has read, opening in place onto a row per portion.
  *
  * The rows stay mounted while the card is shut — `Collapsible` needs them to measure — so a
- * whole Fihrist is 33 rows however many cards are open, and opening one is a height, not a
+ * whole Fihrist is 32 rows however many cards are open, and opening one is a height, not a
  * mount.
  */
 const HizbWorkCardComponent = ({ entry, isOpen, onOpenPart, onToggle }: HizbWorkCardProps) => {

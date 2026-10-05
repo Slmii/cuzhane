@@ -621,7 +621,7 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 				 * The Hizb's summary card counts what the group has read, where the Cevşen's counts its
 				 * members, and says how long the round has left under one label whatever the cycle. A
 				 * finished round turns the count sage rather than taking the countdown's place: the
-				 * count already reads "33 / 33", and when the next one starts is still worth knowing.
+				 * count already reads "32 / 32", and when the next one starts is still worth knowing.
 				 */}
 				{/* A hint explains this card: the round's clock. */}
 				<HintTarget id='groupStats'>
@@ -1417,7 +1417,7 @@ const styles = StyleSheet.create({
 	statsReset: {
 		borderTopWidth: StyleSheet.hairlineWidth
 	},
-	// HZ1's "/ 33", set smaller beside the count it is out of.
+	// HZ1's "/ 32", set smaller beside the count it is out of.
 	statTotal: {
 		fontSize: 16
 	},

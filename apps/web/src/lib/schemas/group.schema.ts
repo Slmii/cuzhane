@@ -67,8 +67,8 @@ export const createGroupSchema = (t: Translate) =>
 			hizbIndividual: z.boolean().default(false),
 			/** A Şahsi Cevşen or Kur'an reading's length; each kind's own ceiling is checked below. */
 			planDays: z.number().int().min(1).default(30),
-			hizbStartPortion: z.number().int().min(1).max(33).default(1),
-			hizbPlan: z.enum(['0', '7', '15', '33']).default('33'),
+			hizbStartPortion: z.number().int().min(1).max(32).default(1),
+			hizbPlan: z.enum(['0', '7', '15', '32']).default('32'),
 			inactivityEnabled: z.boolean().default(false),
 			inactivityDays: z.number().int().min(1).max(365).default(10),
 			// "Okuma sorumluları", a shared Hizb plan's only.
