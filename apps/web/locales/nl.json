@@ -1,3 +1,5 @@
 {
-	"NSMicrophoneUsageDescription": "Zodat wie je volgt bij het samen lezen je stem live kan horen. Je stem wordt niet opgenomen."
+	"ios": {
+		"NSMicrophoneUsageDescription": "Zodat wie je volgt bij het samen lezen je stem live kan horen. Je stem wordt niet opgenomen."
+	}
 }
