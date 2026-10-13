@@ -56,9 +56,11 @@ jobs:
                   # `grep`, `head` and `wc` because it pipes `gh pr diff` through them to skip the
                   # binary assets (5 denials on that run). Read-only; `awk` is left out on purpose —
                   # it can run commands, and a PR on this public repo can steer the prompt.
-                  claude_args: '--model claude-opus-5-5 --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh pr comment:*),Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh search:*),Bash(grep:*),Bash(head:*),Bash(wc:*),Read,Glob,Grep" --append-system-prompt "This runs in CI and the job ends when your turn ends. Run every subagent in the foreground and wait for its result; never start one in the background. Do not end your turn until the review is posted with gh pr comment or the inline comment tool."'
-                  # TEMPORARY: shows which tool calls are denied (PR #11 run: 5 denials, nothing
-                  # posted). The repo is public, so this log is too — turn it off once fixed.
-                  show_full_output: true
+                  #
+                  # **Silent when clean.** Findings go inline; a clean review posts nothing. So
+                  # `gh pr comment` is not allowed at all — the plugin's "No issues found" summary
+                  # is the only thing it would post. The flip side: the plugin skips a PR it has
+                  # already commented on, and with no summary every push is reviewed again.
+                  claude_args: '--model claude-opus-5-5 --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh search:*),Bash(grep:*),Bash(head:*),Bash(wc:*),Read,Glob,Grep" --append-system-prompt "This runs in CI and the job ends when your turn ends. Run every subagent in the foreground and wait for its result; never start one in the background. Do not end your turn until every validated issue is posted with the inline comment tool. If no issues are found, post nothing at all: no summary comment, no gh pr comment."'
                   # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
                   # or https://code.claude.com/docs/en/cli-reference for available options
