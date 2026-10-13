@@ -12,7 +12,7 @@ export type HintRect = { x: number; y: number; width: number; height: number; ra
 
 /** What keeps every hint back. Any one of them is enough. */
 export type HintBlockers = {
-	/** The animated splash is still up. */
+	/** The splash is still up. */
 	isSplashVisible: boolean;
 	/** A bottom sheet or a menu is open — What's New included, which is a sheet. */
 	isOverlayOpen: boolean;

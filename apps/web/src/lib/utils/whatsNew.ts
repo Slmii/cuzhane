@@ -31,7 +31,7 @@ export type WhatsNewInput = {
 	/** A hint's card is on screen right now. */
 	isHintShowing: boolean;
 	/**
-	 * Something else owns the screen — today, the animated splash. It is in here because this
+	 * Something else owns the screen — today, the splash. It is in here because this
 	 * sheet is presented by UIKit above everything, splash included, so without it the notes
 	 * appear over a screen the reader has not arrived at yet.
 	 */

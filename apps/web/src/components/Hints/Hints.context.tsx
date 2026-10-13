@@ -27,7 +27,7 @@ type HintsContextValue = {
 	 * What's New waits for it, so the two never collide.
 	 */
 	isWelcomePending: boolean | undefined;
-	/** The animated splash is up — What's New waits for it too. */
+	/** The splash is up — What's New waits for it too. */
 	isSplashVisible: boolean;
 	rects: Partial<Record<HintTargetId, HintRect>>;
 	/**

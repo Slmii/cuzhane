@@ -32,7 +32,7 @@ describe('whatsNewDecision', () => {
 
 	it('waits while the splash still owns the screen', () => {
 		// Seen on device: the sheet is presented by UIKit above everything, so without this it
-		// opened over the animated splash. Newcomers wait too — nothing is recorded either way
+		// opened over the splash. Newcomers wait too — nothing is recorded either way
 		// until the app is actually on screen.
 		expect(decide({ isBlocked: true })).toBe('wait');
 		expect(decide({ isBlocked: true, isNewcomer: true })).toBe('wait');

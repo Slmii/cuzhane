@@ -23,11 +23,7 @@ export const HintWelcomeCard = ({ hint, onPress }: HintWelcomeCardProps) => {
 	return (
 		<View style={[styles.card, { backgroundColor: theme.colors.card }]}>
 			<View style={[styles.mark, { backgroundColor: theme.colors.accent, shadowColor: theme.colors.accent }]}>
-				<BrandMark
-					color={theme.colors.onHeaderSurface}
-					fadedColor={toAlphaColor(theme.colors.onHeaderSurface, 0.55)}
-					size={30}
-				/>
+				<BrandMark size={44} />
 			</View>
 			<View>
 				<Typography style={styles.title} variant='header2'>

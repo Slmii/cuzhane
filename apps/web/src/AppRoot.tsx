@@ -35,9 +35,9 @@ import { CheckForUpdateOnLaunch } from '@/components/CheckForUpdateOnLaunch/Chec
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context';
-// Aliased: `SplashScreen` above is Expo's native-splash controller, this is the animated
-// brand screen that takes over once it hides.
-import { SplashScreen as AnimatedSplash } from '@/screens/Splash/SplashScreen.component';
+// Aliased: `SplashScreen` above is Expo's native-splash controller, this is the app's own
+// brand screen that holds the same picture once it hides.
+import { SplashScreen as BrandSplash } from '@/screens/Splash/SplashScreen.component';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 
@@ -60,9 +60,8 @@ Notifications.setNotificationHandler({
 });
 
 /**
- * How long the animated splash is held. The mark's columns alone take ~940ms to finish
- * growing, so anything shorter cuts the brand off mid-gesture — and on a warm start the app
- * is ready long before the animation is.
+ * How long the splash is held — on a warm start the app is ready long before it, and the brand
+ * should be seen rather than flashed.
  */
 const SPLASH_MIN_DURATION_MS = 2000;
 
@@ -81,9 +80,9 @@ const AppContainer = () => {
 	const navigationTheme = useMemo(() => buildNavigationTheme(theme), [theme]);
 
 	/*
-	 * Started here rather than inside the check below, so the brand animation's minimum runs
-	 * *alongside* the update check instead of after it. The two share one splash: on a good
-	 * connection the check is long done before the animation is.
+	 * Started here rather than inside the check below, so the splash's minimum runs *alongside*
+	 * the update check instead of after it. The two share one splash: on a good connection the
+	 * check is long done before the minimum is.
 	 */
 	useEffect(() => {
 		const timeout = setTimeout(() => setHasSplashPlayed(true), SPLASH_MIN_DURATION_MS);
@@ -97,8 +96,8 @@ const AppContainer = () => {
 	/*
 	 * **Nothing else mounts until the launch's update check is done** — the reference's own
 	 * arrangement, where `_layout.tsx` returns this in place of the app until `onComplete` fires.
-	 * It renders the same animated splash the app would be showing anyway, so there is no seam
-	 * between waiting for the check and waiting for the animation.
+	 * It renders the same splash the app would be showing anyway, so there is no seam between
+	 * waiting for the check and waiting for the minimum.
 	 */
 	if (!isUpdateCheckComplete) {
 		return <CheckForUpdateOnLaunch onComplete={handleUpdateCheckComplete} />;
@@ -153,7 +152,7 @@ const AppContainer = () => {
 							 * fetching underneath, so the splash is spending time the app needed
 							 * anyway instead of adding to it.
 							 */}
-							{isSplashVisible ? <AnimatedSplash /> : null}
+							{isSplashVisible ? <BrandSplash /> : null}
 						</NavigationContainer>
 					</KeyboardProvider>
 				</HintsProvider>
@@ -188,12 +187,8 @@ export const AppRoot = () => {
 		UthmanTahaNaskh_400Regular: require('@/assets/fonts/UthmanTahaNaskh-Regular.ttf')
 	});
 
-	useEffect(() => {
-		if (isFontsLoaded || fontsError) {
-			SplashScreen.hideAsync().catch(() => {});
-		}
-	}, [fontsError, isFontsLoaded]);
-
+	// The native splash stays up until the app's own has drawn its rosette — `BrandSplash`
+	// hides it then. Hiding it here, as the fonts land, showed a frame of bare backdrop first.
 	if (!isFontsLoaded && !fontsError) {
 		return null;
 	}
