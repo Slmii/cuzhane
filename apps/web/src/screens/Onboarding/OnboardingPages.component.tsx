@@ -252,11 +252,7 @@ export const ReminderArt = () => {
 			{/* What arrives: the app's mark on a sage tile, as the lock screen shows it. */}
 			<WhiteCard style={styles.notificationCard}>
 				<View style={[styles.notificationIcon, { backgroundColor: theme.colors.accent }]}>
-					<BrandMark
-						color={theme.colors.onAccent}
-						fadedColor={toAlphaColor(theme.colors.onAccent, 0.34)}
-						size={18}
-					/>
+					<BrandMark size={26} />
 				</View>
 				<View style={styles.notificationCopy}>
 					<CaptionText weight='semibold'>Cüzhane · Mahalle Hatmi</CaptionText>

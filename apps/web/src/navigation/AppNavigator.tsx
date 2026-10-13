@@ -11,7 +11,7 @@ import { LiveReturnAccessory } from '@/components/LiveReturnStrip/LiveReturnAcce
 import { LiveReturnStripOverlay } from '@/components/LiveReturnStrip/LiveReturnStripOverlay.component';
 import { isStripNativeAccessory, liveReturnSlot } from '@/components/LiveReturnStrip/liveReturnSlot';
 import { useLiveStripEndedDismissal } from '@/components/LiveReturnStrip/useLiveStripEndedDismissal';
-import { SplashScreen as AnimatedSplash } from '@/screens/Splash/SplashScreen.component';
+import { SplashScreen as BrandSplash } from '@/screens/Splash/SplashScreen.component';
 import { userSettingsQueryKeys } from '@/lib/hooks/queryKeys';
 import { useGetUserSettings } from '@/lib/hooks/useUserSettings';
 import { useTranslation } from '@/lib/i18n/I18n.context';
@@ -922,7 +922,7 @@ const AuthNavigator = () => (
  * hand-over is invisible. It is also, unavoidably, the same screen after sign-in, where there
  * was never a splash to continue.
  */
-const SplashHold = () => <AnimatedSplash />;
+const SplashHold = () => <BrandSplash />;
 
 export const AppNavigator = () => {
 	const { isLoaded, isSignedIn } = useAuth();

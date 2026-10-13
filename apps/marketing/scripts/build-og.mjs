@@ -12,8 +12,7 @@
  *   • `og/cevsen-<locale>.png`, `og/quran-<locale>.png`, `og/hizb-<locale>.png` — one per
  *     reading, for sharing a single kind by hand. The site has no page of its own for each, so
  *     nothing links them yet.
- * `og-square.png` is not in the new design and is kept as it was: the brand at 1:1 for
- * WhatsApp's chat list and schema.org's logo.
+ * `og-square.png` — the brand at 1:1 for WhatsApp's chat list and schema.org's logo.
  */
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -55,16 +54,9 @@ const FONTS = [
 /** A screenshot from `src/assets`, inlined — the same files the site's sections use. */
 const shot = name => `data:image/png;base64,${fs.readFileSync(path.join(ASSETS, name)).toString('base64')}`;
 
-/** The brand mark, lifted verbatim from the design. `accent` is the lighter bars' colour. */
-const mark = (size, fill, accent) =>
-	`<svg width="${size}" height="${size}" viewBox="0 0 100 100" style="display:block;flex:none">
-		<rect x="8" y="42" width="12" height="38" rx="6" fill="${fill}"/>
-		<rect x="26" y="26" width="12" height="54" rx="6" fill="${fill}"/>
-		<rect x="44" y="34" width="12" height="46" rx="6" fill="${accent}"/>
-		<rect x="62" y="18" width="12" height="62" rx="6" fill="${fill}"/>
-		<rect x="80" y="48" width="12" height="32" rx="6" fill="${accent}"/>
-		<rect x="8" y="86" width="84" height="8" rx="4" fill="${fill}"/>
-	</svg>`;
+/** The brand mark: the rosette cut from the app icon, large enough for the square card. */
+const ROSETTE = shot('rosette.png');
+const mark = size => `<img src="${ROSETTE}" width="${size}" height="${size}" style="display:block;flex:none" alt="">`;
 
 /** The design's own `LOC` table. */
 const COPY = {
@@ -127,7 +119,7 @@ const main = c =>
 		'#3E6B5C',
 		`<div style="display:flex;flex-direction:column;justify-content:center;gap:26px;padding-right:20px">
 			<div style="display:flex;align-items:center;gap:14px">
-				${mark(44, '#F7F5F0', '#8FB8A6')}
+				${mark(44)}
 				<span style="font:400 34px/1 Newsreader,serif;color:#fff">Cüzhane</span>
 			</div>
 			<div style="font:400 76px/1.02 Newsreader,serif;letter-spacing:-.02em;color:#fff;text-wrap:pretty">${c.mainTitle}</div>
@@ -149,7 +141,7 @@ const kind = ({ background, file, label, labelInk, title, unit, unitInk }) =>
 		background,
 		`<div style="display:flex;flex-direction:column;justify-content:center;gap:24px;padding-right:20px">
 			<div style="display:flex;align-items:center;gap:12px">
-				${mark(36, '#3E6B5C', '#8FB8A6')}
+				${mark(36)}
 				<span style="font:400 28px/1 Newsreader,serif">Cüzhane</span>
 			</div>
 			<span style="font:600 18px Manrope,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:${labelInk}">${label}</span>
@@ -192,7 +184,7 @@ const KINDS = c => ({
 fs.mkdirSync(path.join(OUT, 'og'), { recursive: true });
 const tmp = fs.mkdtempSync('/tmp/og-');
 
-const render = (name, html) => {
+const render = (name, html, height = 630) => {
 	const file = path.join(tmp, `${name.replace('/', '-')}.html`);
 	fs.writeFileSync(file, html);
 	execFileSync(
@@ -202,7 +194,7 @@ const render = (name, html) => {
 			'--disable-gpu',
 			'--hide-scrollbars',
 			'--force-device-scale-factor=1',
-			'--window-size=1200,630',
+			`--window-size=1200,${height}`,
 			`--screenshot=${path.join(OUT, `${name}.png`)}`,
 			`file://${file}`
 		],
@@ -210,6 +202,16 @@ const render = (name, html) => {
 	);
 	console.log(`  ${name}.png`);
 };
+
+/** The brand at 1:1, one for every language: the rosette, the name and the address. */
+const square = () =>
+	`<div style="width:1200px;height:1200px;background:#3E6B5C;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:48px">
+		${mark(520)}
+		<span style="font:400 96px/1 Newsreader,serif;color:#fff">Cüzhane</span>
+		<span style="font:500 22px Manrope,sans-serif;letter-spacing:.18em;color:rgba(255,255,255,.62)">CUZHANE.SBYTES-IT.COM</span>
+	</div>`;
+
+render('og-square', shell('en', 1200, 1200, square()), 1200);
 
 for (const [locale, copy] of Object.entries(COPY)) {
 	render(`og-${locale}`, shell(locale, 1200, 630, main(copy)));

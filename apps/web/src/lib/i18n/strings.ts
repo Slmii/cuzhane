@@ -402,8 +402,6 @@ const tr = {
 	legendOthers: 'başkaları okudu',
 	/** Somebody else's and not read yet. */
 	legendOpen: 'başkasında',
-	/* A0 — the splash's line under the wordmark. */
-	splashTagline: 'Ortak hatim',
 	/* A1·1–A1·5 — the five-page tour. */
 	ob1Title: "Cevşen'i ve Kur'an'ı birlikte oku",
 	ob1Sub: "Cevşen'in 100 babı ya da Kur'an'ın 30 cüzü gruba bölünür. Herkes payını okur.",
@@ -2229,7 +2227,6 @@ const en: Strings = {
 	legendMine: 'yours',
 	legendOthers: 'others read',
 	legendOpen: 'theirs',
-	splashTagline: 'Shared reading',
 	ob1Title: 'Read Cevşen and the Quran together',
 	ob1Sub: 'Cevşen’s 100 babs or the Quran’s 30 juz, split across the group. Everyone reads their share.',
 	ob2Title: 'Your share is clear',
@@ -3858,7 +3855,6 @@ const nl: Strings = {
 	legendMine: 'van jou',
 	legendOthers: 'anderen hebben gelezen',
 	legendOpen: 'van anderen',
-	splashTagline: 'Samen een hatim',
 	ob1Title: 'Lees Cevşen en de Koran samen',
 	ob1Sub: 'De 100 bab’s van Cevşen of de 30 cüz van de Koran, verdeeld over de groep. Iedereen leest zijn deel.',
 	ob2Title: 'Je deel is duidelijk',
