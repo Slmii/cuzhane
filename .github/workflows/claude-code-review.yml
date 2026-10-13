@@ -48,7 +48,15 @@ jobs:
                   # comment tool allowed, every `gh pr diff` / `gh pr view` was denied (21 denials
                   # on one run, 1 on the next) and the job "passed" with nothing to say.
                   # Opus 5.5 — left unset the action ran the review on its default, Sonnet 5.
-                  claude_args: '--model claude-opus-5-5 --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh pr comment:*),Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh search:*),Read,Glob,Grep"'
+                  #
+                  # **The run ends when Claude's turn does.** On PR #11 it started its four review
+                  # agents in the background, said it would wait, and ended — the agents died with
+                  # the job and nothing was posted. Hence the appended instruction.
+                  #
+                  # `grep`, `head` and `wc` because it pipes `gh pr diff` through them to skip the
+                  # binary assets (5 denials on that run). Read-only; `awk` is left out on purpose —
+                  # it can run commands, and a PR on this public repo can steer the prompt.
+                  claude_args: '--model claude-opus-5-5 --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh pr comment:*),Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh search:*),Bash(grep:*),Bash(head:*),Bash(wc:*),Read,Glob,Grep" --append-system-prompt "This runs in CI and the job ends when your turn ends. Run every subagent in the foreground and wait for its result; never start one in the background. Do not end your turn until the review is posted with gh pr comment or the inline comment tool."'
                   # TEMPORARY: shows which tool calls are denied (PR #11 run: 5 denials, nothing
                   # posted). The repo is public, so this log is too — turn it off once fixed.
                   show_full_output: true
