@@ -62,8 +62,10 @@ in its `overrides` (`react`/`react-dom` 19.1.0, `@react-navigation/native` 7.2.2
 -   A branch whose `.gitignore` predates the Hüsrev images shows them as untracked — never discard them.
 -   **Claude review workflow** (`claude-code-review.yml`): the action skips unless the PR's copy of the
     workflow file is byte-identical to the default branch's. Change it on `development` first, then
-    bring the identical file onto the feature branch. It also skips a PR it already reviewed. A re-run
-    replays the original commit's workflow file.
+    bring the identical file onto the feature branch. A re-run replays the original commit's workflow
+    file. Findings are posted inline only; a clean review posts nothing (`gh pr comment` is not
+    allowed), so every push to a PR is reviewed again. The run ends with Claude's turn — the
+    appended system prompt keeps its review agents in the foreground, or they die unposted.
 
 ## Domain rules — read before touching group logic
 
