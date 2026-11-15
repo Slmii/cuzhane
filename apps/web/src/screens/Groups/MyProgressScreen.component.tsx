@@ -1,3 +1,4 @@
+import { RequestHelpButton } from '@/components/ReadingHelp/ReadingHelp.component';
 import { HintTarget } from '@/components/Hints/HintTarget.component';
 import { useHintScreen } from '@/components/Hints/useHintScreen';
 import { PeriodStrip } from '@/components/PeriodStrip/PeriodStrip.component';
@@ -261,6 +262,13 @@ export const MyProgressScreen = ({ navigation, route }: Props) => {
 												</View>
 											))}
 										</View>
+										{/* Reading help for a missed round; a flexible pool has no share to hand over. */}
+										{group.splitMode === 'FLEXIBLE' ? null : (
+											<RequestHelpButton
+												groupId={groupId}
+												target={{ roundIndex: period.roundIndex }}
+											/>
+										)}
 									</View>
 									{/*
 									 * **One "Oku" for the row**, not a pill per bab. It opens the oldest

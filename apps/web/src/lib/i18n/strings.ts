@@ -17,6 +17,27 @@ export const isAppLanguage = (value: unknown): value is AppLanguage =>
 	typeof value === 'string' && (APP_LANGUAGES as readonly string[]).includes(value);
 
 const tr = {
+	// Reading help: asking a group member to read in your place.
+	helpToday: 'Bugün okuyamıyorum',
+	helpRequest: 'Yardım iste',
+	helpTitle: 'Birbirimize yardım edelim',
+	helpHint:
+		'Okuyamadığın bölümü gruba aç. Bir kişi üstlensin; okuduktan sonra senin bölümün de tamamlanmış görünsün.',
+	helpMissed: 'Eksik okumalar için yardım iste',
+	helpEmpty: 'Henüz yardım isteği yok.',
+	helpRequested: 'Yardım istendi · bir okuyucu bekleniyor',
+	helpClaimed: 'Bir grup üyesi üstlendi · henüz tamamlanmadı',
+	helpCompleted: 'Okundu ve tamamlandı',
+	helpTake: 'Üstlen',
+	helpRead: 'Okumayı aç',
+	helpFinish: 'Okudum, tamamla',
+	helpFinishHint:
+		'Yalnızca istenen bölümün tamamını ve gerekli tekrarları okuduktan sonra işaretle. Kitaptan okuduysan da buradan tamamlayabilirsin.',
+	helpRelease: 'Başkasına bırak',
+	helpCancel: 'Yardım isteğini iptal et',
+	helpError: 'İşlem tamamlanamadı. İstek değişmiş olabilir; yenileyip tekrar dene.',
+	helpLoading: 'Yardım istekleri yükleniyor…',
+	hpPortion: '{days} günlük plan · {portion}. bölüm',
 	hpPlan: 'Okuma süresi',
 	hpDelailRemaining: 'Delâil-i Nur: {count}/3. Tamamlamadan önce vurgulanan salavatı üç kez okuyun.',
 	hpIstighfarSession: 'Bu sayaç yalnızca bu okuma oturumu içindir.',
@@ -1864,6 +1885,27 @@ const tr = {
 type Strings = Record<keyof typeof tr, string>;
 
 const en: Strings = {
+	// Reading help: asking a group member to read in your place.
+	helpToday: 'I cannot read today',
+	helpRequest: 'Ask for help',
+	helpTitle: 'Help each other',
+	helpHint:
+		'Offer your reading to the group. Someone takes it over, then marks your share complete after reading it.',
+	helpMissed: 'Ask for help with missed readings',
+	helpEmpty: 'No help requests yet.',
+	helpRequested: 'Help requested · waiting for a reader',
+	helpClaimed: 'Taken by a group member · not finished yet',
+	helpCompleted: 'Read and signed off',
+	helpTake: 'Take over',
+	helpRead: 'Open reading',
+	helpFinish: 'I have read it — mark complete',
+	helpFinishHint:
+		'Only confirm after reading the entire requested share and its required repetitions. You can also confirm reading from a physical book here.',
+	helpRelease: 'Give back',
+	helpCancel: 'Cancel help request',
+	helpError: 'Could not save. The request may have changed; refresh and try again.',
+	helpLoading: 'Loading help requests…',
+	hpPortion: '{days}-day plan · portion {portion}',
 	hpPlan: 'Reading pace',
 	hpDelailRemaining:
 		'Delail-i Nur: {count}/3. Read the highlighted salawat three times before marking this reading complete.',
@@ -3495,6 +3537,27 @@ const en: Strings = {
 };
 
 const nl: Strings = {
+	// Reading help: asking a group member to read in your place.
+	helpToday: 'Ik kan vandaag niet lezen',
+	helpRequest: 'Hulp vragen',
+	helpTitle: 'Elkaar helpen',
+	helpHint:
+		'Stel je lezing beschikbaar aan de groep. Iemand neemt het over en tekent jouw deel af zodra het gelezen is.',
+	helpMissed: 'Hulp vragen bij gemiste delen',
+	helpEmpty: 'Er zijn nog geen hulpverzoeken.',
+	helpRequested: 'Hulp gevraagd · wacht op een lezer',
+	helpClaimed: 'Overgenomen door een groepslid · nog niet afgelezen',
+	helpCompleted: 'Gelezen en afgetekend',
+	helpTake: 'Overnemen',
+	helpRead: 'Lezing openen',
+	helpFinish: 'Gelezen en aftekenen',
+	helpFinishHint:
+		'Bevestig pas als je het hele gevraagde deel en de bijbehorende herhalingen hebt gelezen. Ook als je uit een boek hebt gelezen, kun je hier aftekenen.',
+	helpRelease: 'Teruggeven',
+	helpCancel: 'Hulpverzoek intrekken',
+	helpError: 'Opslaan is niet gelukt. Het verzoek kan gewijzigd zijn; ververs en probeer opnieuw.',
+	helpLoading: 'Hulpverzoeken laden…',
+	hpPortion: '{days}-dagenplan · deel {portion}',
 	hpPlan: 'Leestempo',
 	hpDelailRemaining: 'Delail-i Nur: {count}/3. Lees de gemarkeerde salawat drie keer voordat je deze lezing afvinkt.',
 	hpIstighfarSession: 'Deze teller geldt alleen voor deze leessessie.',

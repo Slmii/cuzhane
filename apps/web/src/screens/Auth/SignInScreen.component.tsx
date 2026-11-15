@@ -285,7 +285,11 @@ export const SignInScreen = ({ navigation }: SignInScreenProps) => {
 							<View>
 								<View style={styles.passwordLabelRow}>
 									<FieldLabelText color={theme.colors.faintText}>{t('password')}</FieldLabelText>
-									<Pressable onPress={() => navigation.push('ForgotPassword')}>
+									<Pressable
+										accessibilityRole='button'
+										hitSlop={12}
+										onPress={() => navigation.push('ForgotPassword')}
+									>
 										{/* Sentence case, unlike the field label beside it: it is a link,
 										    not a label, and the design sets it apart that way. */}
 										<FieldLabelText color={theme.colors.accent} style={styles.forgotLink}>
@@ -324,7 +328,7 @@ export const SignInScreen = ({ navigation }: SignInScreenProps) => {
 			/>
 			<View style={styles.footer}>
 				<CaptionText color={theme.colors.subtext}>{`${t('noAccount')} `}</CaptionText>
-				<Pressable onPress={() => navigation.push('SignUp')}>
+				<Pressable accessibilityRole='button' hitSlop={12} onPress={() => navigation.push('SignUp')}>
 					<BodyStrongText color={theme.colors.accent}>{t('signUp')}</BodyStrongText>
 				</Pressable>
 			</View>

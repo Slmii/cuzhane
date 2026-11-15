@@ -20,7 +20,14 @@ const FILL_DURATION_MS = 900;
  * The transition properties must sit on this **one flat object**. Inside a style array
  * Reanimated never sees them and the bar snaps.
  */
-export const ProgressBar = ({ fillColor, height = 6, percent, style, trackColor }: ProgressBarProps) => {
+export const ProgressBar = ({
+	accessibilityLabel,
+	fillColor,
+	height = 6,
+	percent,
+	style,
+	trackColor
+}: ProgressBarProps) => {
 	const { theme } = useThemeContext();
 	const isReducedMotion = useReducedMotion();
 	const clampedPercent = Math.max(0, Math.min(100, percent));
@@ -28,6 +35,7 @@ export const ProgressBar = ({ fillColor, height = 6, percent, style, trackColor 
 
 	return (
 		<View
+			accessibilityLabel={accessibilityLabel}
 			accessibilityRole='progressbar'
 			accessibilityValue={{ now: clampedPercent, min: 0, max: 100 }}
 			style={[

@@ -1,5 +1,9 @@
 import { wrapperApi } from './wrapper.api';
 export type HizbAssignment = {
+	/** False once a group member has taken this reading on through reading help, or for that helper once it is read. */
+	canEdit?: boolean;
+	/** Completed by someone other than its owner — a helper. */
+	completedByOther?: boolean;
 	id: string;
 	/** The overall round this reading belongs to, 1-based, counted across leaves and rejoins. */
 	round: number;

@@ -76,6 +76,52 @@ describe('parseHizbulhakaik', () => {
 		expect(section.blocks[0].lines[0].text).not.toContain('۪');
 	});
 
+	it.each([
+		// the lam's sukun typed on the lam before it, the alef's fatha on the lam
+		['لِْلَانَامِ', 'لِلْاَنَامِ'],
+		// the same with a kasra under the alef
+		['لِْلاِنْسَانِ', 'لِلْاِنْسَانِ'],
+		// the lam's sukun typed on the article's alef
+		['خَلَقَ اْلاِنْسَانَ', 'خَلَقَ الْاِنْسَانَ'],
+		// the same before a superscript alef
+		['اْلاٰخِرَةِ', 'الْاٰخِرَةِ'],
+		// the same before the long î
+		['اْلا۪يمَانِ', 'الْاٖيمَانِ'],
+		// the same where no alef follows the lam
+		['بِاْلقِسْطِ', 'بِالْقِسْطِ'],
+		// the lam's kasra typed before it, under the space
+		['بَوَّءَ ِلاِبْرَاه۪يمَ', 'بَوَّءَ لِاِبْرَاهٖيمَ'],
+		// the lam's fatha typed on the meem before it
+		['تَمَْلاُ', 'تَمْلَاُ'],
+		// a sukun typed twice
+		['الْْمُلْكُ', 'الْمُلْكُ'],
+		// the lam's shadda and fatha typed after the alef's madda
+		['اِلآَّ', 'اِلَّآ'],
+		// the lam's shadda and tanwin typed after the alef
+		['كُلاًّ', 'كُلًّا']
+	])('puts a mark the source types on the neighbouring letter back on its own: %s', (source, expected) => {
+		const [section] = parseHizbulhakaik(lines('#5', '<A>', `~${source}|@`));
+
+		expect(section.blocks[0].lines[0].text).toBe(expected);
+	});
+
+	it.each([
+		// a sukun that is the waw's, before lâ
+		'لَوْلَا',
+		// the hamza this edition writes as an alef with sukun
+		'يَاْكُلُونَ',
+		// an article already typed in order
+		'وَالْاَرْضَ',
+		// a tanwin on the alef of a lam-alef
+		'قَوْلاً',
+		// the small noon the print sets between two words
+		'مُحَمَّدٍ ۨالنَّبِىِّ'
+	])('leaves marks that are already on their letter alone: %s', source => {
+		const [section] = parseHizbulhakaik(lines('#5', '<A>', `~${source}|@`));
+
+		expect(section.blocks[0].lines[0].text).toBe(source);
+	});
+
 	it('leaves nothing behind for an empty page or a trailing separator', () => {
 		const [section] = parseHizbulhakaik(lines('#3', '<A>', '~a|@', ',* * *>', '#4', '#5', '~b|@', ',* * *>'));
 

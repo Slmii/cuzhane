@@ -14,7 +14,7 @@ import {
 } from '@utils/hizbPlans';
 import { civilDayNumber, startOfCivilDay } from '@utils/rounds';
 import { normalizeUserId } from '@utils/normalizeUserId';
-import type { Group, HizbAssignment, HizbEnrollment, Prisma } from '../generated/prisma/client';
+import type { Group, HizbAssignment, HizbEnrollment, Prisma, ReadingHelp } from '../generated/prisma/client';
 import { lockGroup } from './rounds.service';
 import { notifyHizbRead } from './hizbReadNotice.service';
 
@@ -362,10 +362,23 @@ function roundsOf(enrollments: readonly HizbEnrollment[], today: number) {
 	return { offset, started };
 }
 
+type ReadingRow = HizbAssignment & { enrollment: HizbEnrollment; readingHelp?: ReadingHelp | null };
+
+/**
+ * Who may change a reading: its owner, until a group member takes it on through reading help; then
+ * that helper alone, and only until it is read — a finished reading is not theirs to undo.
+ */
+const canEditReading = (a: ReadingRow, viewer: string) => {
+	const helper = a.readingHelp?.helperUserId;
+	return helper ? helper === viewer && a.completedAt === null : a.enrollment.userId === viewer;
+};
+
 /** A day's reading on its own, as its reader opens it. */
-const readingOf = (kind: GroupKindName, a: HizbAssignment & { enrollment: HizbEnrollment }) => {
+const readingOf = (kind: GroupKindName, a: ReadingRow, viewer: string) => {
 	const gates = gatesOf(kind, a.enrollment.planDays, a.portion);
 	return {
+		canEdit: canEditReading(a, viewer),
+		completedByOther: !!a.completedByUserId && a.completedByUserId !== a.enrollment.userId,
 		id: a.id,
 		day: a.day,
 		date: dateOf(a.day),
@@ -391,10 +404,11 @@ const readingOf = (kind: GroupKindName, a: HizbAssignment & { enrollment: HizbEn
 /** A day's reading as the group screen has it: today's, a missed one, one in history or read ahead. */
 const serializeAssignment = (
 	kind: GroupKindName,
-	a: HizbAssignment & { enrollment: HizbEnrollment },
-	roundOffset: ReadonlyMap<string, number>
+	a: ReadingRow,
+	roundOffset: ReadonlyMap<string, number>,
+	viewer: string
 ) => ({
-	...readingOf(kind, a),
+	...readingOf(kind, a, viewer),
 	// The overall round this reading belongs to, 1-based.
 	round: (roundOffset.get(a.enrollmentId) ?? 0) + a.traversal + 1
 });
@@ -420,7 +434,7 @@ export async function getHizbState(userId: string, groupId: string, cursor?: str
 				current?.endDay === null
 					? await tx.hizbAssignment.findUnique({
 							where: { enrollmentId_day: { enrollmentId: current.id, day: today } },
-							include: { enrollment: true }
+							include: { enrollment: true, readingHelp: true }
 					  })
 					: null;
 			if (cursor && !(await tx.hizbAssignment.findFirst({ where: { ...mine, id: cursor } }))) {
@@ -428,13 +442,14 @@ export async function getHizbState(userId: string, groupId: string, cursor?: str
 			}
 			const history = await tx.hizbAssignment.findMany({
 				where: { ...mine, day: { lte: today }, ...(assignment ? { id: { not: assignment.id } } : {}) },
-				include: { enrollment: true },
+				include: { enrollment: true, readingHelp: true },
 				orderBy: [{ day: 'desc' }, { id: 'asc' }],
 				take: 101,
 				...(cursor ? { cursor: { id: cursor }, skip: 1 } : {})
 			});
 			const rounds = roundsOf(enrollments, today);
-			const serialize = (a: NonNullable<typeof assignment>) => serializeAssignment(group.kind, a, rounds.offset);
+			const serialize = (a: NonNullable<typeof assignment>) =>
+				serializeAssignment(group.kind, a, rounds.offset, user);
 			// A day read ahead counts once its day comes, here as on the board.
 			const completeCycles = await tx.hizbAssignment.groupBy({
 				by: ['enrollmentId', 'traversal'],
@@ -518,7 +533,7 @@ export async function getHizbState(userId: string, groupId: string, cursor?: str
 			// the history screen lists them all, and a day row is a few numbers.
 			const missed = await tx.hizbAssignment.findMany({
 				where: { ...mine, day: { lt: today }, completedAt: null },
-				include: { enrollment: true },
+				include: { enrollment: true, readingHelp: true },
 				orderBy: [{ day: 'desc' }, { id: 'asc' }]
 			});
 			// The round today's reading is in: its number, its days read so far, and its days come round.
@@ -811,7 +826,8 @@ export async function openHizbAhead(userId: string, groupId: string) {
 		return serializeAssignment(
 			group.kind,
 			{ ...offered, enrollment: current },
-			roundsOf(enrollments, today).offset
+			roundsOf(enrollments, today).offset,
+			user
 		);
 	});
 }
@@ -838,249 +854,276 @@ export async function updateHizbAssignment(
 	input: HizbAssignmentUpdate
 ) {
 	const user = normalizeUserId(userId);
-	// The portions to tell the group about, once this read has committed.
-	let announced: number[] | null = null;
-	await prisma.$transaction(async tx => {
-		await lockGroup(tx, groupId);
-		const group = await requireReader(tx, user, groupId);
-		await expireHizb(tx, group);
-		const assignment = await tx.hizbAssignment.findFirst({
-			where: { id: assignmentId, enrollment: { groupId, userId: user } },
-			include: { enrollment: true }
-		});
-		if (!assignment) {
-			throw new HttpError(NOT_FOUND, 'Reading not found');
-		}
-		const today = dayOf(group);
-		// A finished Kur'an or Cevşen day with one cüz or bab unmarked: undone, keeping the rest
-		// marked, in one write.
-		const unticks =
-			group.kind !== 'HIZB' &&
-			input.bookPortions !== undefined &&
-			input.read === undefined &&
-			assignment.completedAt !== null;
-		const undoes = input.read === false || unticks;
-		// A later day is read ahead in order: today and every day up to it read first. Undoing a read day
-		// is not reading — the rule below governs it — but anything else on an unread day is.
-		if (assignment.day > today && (!undoes || assignment.completedAt === null)) {
-			const readBefore = await tx.hizbAssignment.count({
-				where: {
-					enrollmentId: assignment.enrollmentId,
-					day: { gte: today, lt: assignment.day },
-					completedAt: { not: null }
-				}
-			});
-			if (readBefore !== assignment.day - today) {
-				throw new HttpError(CONFLICT, 'This reading is in the future');
-			}
-		}
-		// Read ahead is undone from the end: today, or a day after it, only with no later day read.
-		if (undoes && assignment.completedAt !== null && assignment.day >= today) {
-			const readAfter = await tx.hizbAssignment.count({
-				where: {
-					enrollmentId: assignment.enrollmentId,
-					day: { gt: assignment.day },
-					completedAt: { not: null }
-				}
-			});
-			if (readAfter > 0) {
-				throw new HttpError(CONFLICT, 'Undo the later days first');
-			}
-		}
-		if (!Number.isInteger(input.version) || input.version < 0) {
-			throw new HttpError(BAD_REQUEST, 'Invalid version');
-		}
-		const changesIstighfar = input.istighfarRepetitions !== undefined || input.istighfarTarget !== undefined;
-		// The repetition counters are the Hizb's; a Cevşen or Kur'an day has none.
-		if (
-			group.kind !== 'HIZB' &&
-			(input.repetitions !== undefined || input.delailRepetitions !== undefined || changesIstighfar)
-		) {
-			throw new HttpError(BAD_REQUEST, 'This reading has no repetitions');
-		}
-		const gates = gatesOf(group.kind, assignment.enrollment.planDays, assignment.portion);
-		if (
-			input.repetitions !== undefined &&
-			(!Number.isInteger(input.repetitions) || input.repetitions < 0 || input.repetitions > 19 || !gates.sekine)
-		) {
-			throw new HttpError(BAD_REQUEST, 'Invalid repetition count');
-		}
-		if (
-			input.delailRepetitions !== undefined &&
-			(!Number.isInteger(input.delailRepetitions) ||
-				input.delailRepetitions < 0 ||
-				input.delailRepetitions > 3 ||
-				!gates.delail)
-		) {
-			throw new HttpError(BAD_REQUEST, 'Invalid Delail repetition count');
-		}
-		if (changesIstighfar && !gates.istighfar) {
-			throw new HttpError(BAD_REQUEST, 'This reading has no opening istighfar');
-		}
-		if (
-			input.istighfarRepetitions !== undefined &&
-			(!Number.isInteger(input.istighfarRepetitions) ||
-				input.istighfarRepetitions < 0 ||
-				input.istighfarRepetitions > 100)
-		) {
-			throw new HttpError(BAD_REQUEST, 'Invalid istighfar repetition count');
-		}
-		if (
-			input.istighfarTarget !== undefined &&
-			(!Number.isInteger(input.istighfarTarget) || input.istighfarTarget < 1 || input.istighfarTarget > 100)
-		) {
-			throw new HttpError(BAD_REQUEST, 'Choose between 1 and 100 istighfar repetitions');
-		}
-		// What a day's ticks may name: the book sheet's portions — or, for a Cevşen read in the app, the
-		// day's babs, each ticked by its "Okudum" while the reader moves freely with its arrows.
-		const dayPortions =
-			group.kind === 'CEVSEN'
-				? unitsOfDay(group.kind, assignment.enrollment.planDays, assignment.portion)
-				: bookPortionsOf(group.kind, assignment.enrollment.planDays, assignment.portion);
-		if (input.bookPortions !== undefined) {
-			const ticked = new Set(input.bookPortions);
-			if (
-				input.read !== undefined ||
-				ticked.size !== input.bookPortions.length ||
-				ticked.size === 0 ||
-				input.bookPortions.some(p => !dayPortions.includes(p))
-			) {
-				throw new HttpError(BAD_REQUEST, 'Invalid portions');
-			}
-			if (assignment.completedAt !== null && !(unticks && ticked.size < dayPortions.length)) {
-				throw new HttpError(CONFLICT, 'This reading is already read');
-			}
-		}
-		// Every portion ticked: the day is read, from the book.
-		const completesFromBook = input.bookPortions !== undefined && input.bookPortions.length === dayPortions.length;
-		if (
-			input.bookmark !== undefined &&
-			(!Number.isInteger(input.bookmark) || input.bookmark < 0 || input.bookmark > 1000)
-		) {
-			throw new HttpError(BAD_REQUEST, 'Invalid reading position');
-		}
-		if (
-			input.read !== undefined &&
-			input.read === (assignment.completedAt !== null) &&
-			// Undoing a part-read day still has its ticks to clear.
-			(input.read || assignment.readPortions.length === 0) &&
-			input.repetitions === undefined &&
-			input.delailRepetitions === undefined &&
-			!changesIstighfar &&
-			input.bookmark === undefined &&
-			input.bookPortions === undefined
-		) {
-			return;
-		}
-		if (assignment.version !== input.version) {
-			throw new HttpError(CONFLICT, 'Reading changed on another device. Refresh and try again.');
-		}
-		const repetitions = input.repetitions ?? assignment.repetitions;
-		const read = completesFromBook || (!unticks && (input.read ?? assignment.completedAt !== null));
-		// Read from the book, the counters were kept by the reader: no gate, now or on a later page turn.
-		const isFromBook = completesFromBook || (assignment.completedAt !== null && assignment.readFrom === 'BOOK');
-		const gated = read && !isFromBook;
-		if (gated && gates.sekine && repetitions < 19) {
-			throw new HttpError(CONFLICT, 'Complete all 19 Sekine repetitions first');
-		}
-		const delailRepetitions = input.delailRepetitions ?? assignment.delailRepetitions;
-		if (
-			gated &&
-			gates.delail &&
-			(assignment.completedAt === null || input.delailRepetitions !== undefined) &&
-			delailRepetitions < 3
-		) {
-			throw new HttpError(CONFLICT, 'Complete all three Delail repetitions first');
-		}
-		const istighfarRepetitions = input.istighfarRepetitions ?? assignment.istighfarRepetitions;
-		const istighfarTarget = input.istighfarTarget ?? assignment.istighfarTarget;
-		// Keep historical completions intact without inventing counts; new completions must meet the target.
-		if (
-			gated &&
-			gates.istighfar &&
-			(assignment.completedAt === null || changesIstighfar) &&
-			istighfarRepetitions < istighfarTarget
-		) {
-			throw new HttpError(CONFLICT, 'Complete your selected istighfar repetitions first');
-		}
-		// Today's reading, read for the first time, in a group with others in it. A missed day made
-		// up later is not news, and undoing and reading again stays quiet (the claim below).
-		const announces =
-			read &&
-			assignment.completedAt === null &&
-			assignment.readNoticeSentAt === null &&
-			assignment.day === today &&
-			!group.hizbIndividual;
-		await tx.hizbAssignment.update({
-			where: { id: assignment.id },
-			data: {
-				repetitions,
-				delailRepetitions,
-				istighfarRepetitions,
-				istighfarTarget,
-				bookmark: input.bookmark ?? assignment.bookmark,
-				version: { increment: 1 },
-				completedAt: read ? assignment.completedAt ?? new Date() : null,
-				...(announces ? { readNoticeSentAt: new Date() } : {}),
-				// A partial book read keeps its ticks; a finished or undone day has none to keep.
-				readPortions:
-					input.bookPortions && !completesFromBook
-						? [...input.bookPortions].sort((a, b) => a - b)
-						: read || undoes
-						? []
-						: assignment.readPortions,
-				readFrom: read
-					? assignment.completedAt
-						? assignment.readFrom
-						: completesFromBook && group.kind !== 'CEVSEN'
-						? 'BOOK'
-						: 'APP'
-					: null
-			}
-		});
-		if (announces) {
-			announced = dayPortions;
-		}
-		if (read && assignment.completedAt === null) {
-			// Active through today — and through a day read ahead, which keeps the plan running until then.
-			const active = await tx.hizbEnrollment.findFirst({ where: { groupId, userId: user, endDay: null } });
-			if (active) {
-				await tx.hizbEnrollment.update({
-					where: { id: active.id },
-					data: { lastReadDay: Math.max(today, assignment.day, active.lastReadDay ?? today) }
-				});
-			}
-		}
-		if (undoes) {
-			const active = await tx.hizbEnrollment.findFirst({ where: { groupId, userId: user, endDay: null } });
-			if (active) {
-				const last = await tx.hizbAssignment.findFirst({
-					where: {
-						enrollment: { groupId, userId: user },
-						completedAt: { gte: startOfCivilDay(active.joinedDay, group.timezone) }
-					},
-					orderBy: { completedAt: 'desc' }
-				});
-				// The furthest day still read, which may be ahead of the last day anything was read on.
-				const furthest = await tx.hizbAssignment.findFirst({
-					where: { enrollmentId: active.id, completedAt: { not: null } },
-					orderBy: { day: 'desc' }
-				});
-				const lastReadDay = Math.max(
-					last?.completedAt ? civilDayNumber(last.completedAt, group.timezone) : -Infinity,
-					furthest?.day ?? -Infinity
-				);
-				await tx.hizbEnrollment.update({
-					where: { id: active.id },
-					data: { lastReadDay: Number.isFinite(lastReadDay) ? lastReadDay : null }
-				});
-			}
-		}
-	});
+	const announced = await prisma.$transaction(tx =>
+		updateHizbAssignmentInTransaction(tx, user, groupId, assignmentId, input)
+	);
 	if (announced) {
 		await notifyHizbRead({ groupId, portions: announced, readerId: user });
 	}
 	return getHizbAssignment(user, groupId, assignmentId);
+}
+
+/**
+ * One reading's update inside the caller's transaction — reading help completes a member's day
+ * through it, as its helper. Returns the portions to tell the group about once the caller commits.
+ */
+export async function updateHizbAssignmentInTransaction(
+	tx: Prisma.TransactionClient,
+	user: string,
+	groupId: string,
+	assignmentId: string,
+	input: HizbAssignmentUpdate
+): Promise<number[] | null> {
+	let announced: number[] | null = null;
+	await lockGroup(tx, groupId);
+	const group = await requireReader(tx, user, groupId);
+	await expireHizb(tx, group);
+	const assignment = await tx.hizbAssignment.findFirst({
+		where: {
+			id: assignmentId,
+			enrollment: { groupId },
+			OR: [{ enrollment: { userId: user } }, { readingHelp: { helperUserId: user } }]
+		},
+		include: { enrollment: true, readingHelp: true }
+	});
+	if (!assignment) {
+		throw new HttpError(NOT_FOUND, 'Reading not found');
+	}
+	if (!canEditReading(assignment, user)) {
+		throw new HttpError(
+			CONFLICT,
+			assignment.enrollment.userId === user
+				? 'A group member has taken over this reading'
+				: 'This reading is already complete'
+		);
+	}
+	const today = dayOf(group);
+	// A finished Kur'an or Cevşen day with one cüz or bab unmarked: undone, keeping the rest
+	// marked, in one write.
+	const unticks =
+		group.kind !== 'HIZB' &&
+		input.bookPortions !== undefined &&
+		input.read === undefined &&
+		assignment.completedAt !== null;
+	const undoes = input.read === false || unticks;
+	// A later day is read ahead in order: today and every day up to it read first. Undoing a read day
+	// is not reading — the rule below governs it — but anything else on an unread day is.
+	if (assignment.day > today && (!undoes || assignment.completedAt === null)) {
+		const readBefore = await tx.hizbAssignment.count({
+			where: {
+				enrollmentId: assignment.enrollmentId,
+				day: { gte: today, lt: assignment.day },
+				completedAt: { not: null }
+			}
+		});
+		if (readBefore !== assignment.day - today) {
+			throw new HttpError(CONFLICT, 'This reading is in the future');
+		}
+	}
+	// Read ahead is undone from the end: today, or a day after it, only with no later day read.
+	if (undoes && assignment.completedAt !== null && assignment.day >= today) {
+		const readAfter = await tx.hizbAssignment.count({
+			where: {
+				enrollmentId: assignment.enrollmentId,
+				day: { gt: assignment.day },
+				completedAt: { not: null }
+			}
+		});
+		if (readAfter > 0) {
+			throw new HttpError(CONFLICT, 'Undo the later days first');
+		}
+	}
+	if (!Number.isInteger(input.version) || input.version < 0) {
+		throw new HttpError(BAD_REQUEST, 'Invalid version');
+	}
+	const changesIstighfar = input.istighfarRepetitions !== undefined || input.istighfarTarget !== undefined;
+	// The repetition counters are the Hizb's; a Cevşen or Kur'an day has none.
+	if (
+		group.kind !== 'HIZB' &&
+		(input.repetitions !== undefined || input.delailRepetitions !== undefined || changesIstighfar)
+	) {
+		throw new HttpError(BAD_REQUEST, 'This reading has no repetitions');
+	}
+	const gates = gatesOf(group.kind, assignment.enrollment.planDays, assignment.portion);
+	if (
+		input.repetitions !== undefined &&
+		(!Number.isInteger(input.repetitions) || input.repetitions < 0 || input.repetitions > 19 || !gates.sekine)
+	) {
+		throw new HttpError(BAD_REQUEST, 'Invalid repetition count');
+	}
+	if (
+		input.delailRepetitions !== undefined &&
+		(!Number.isInteger(input.delailRepetitions) ||
+			input.delailRepetitions < 0 ||
+			input.delailRepetitions > 3 ||
+			!gates.delail)
+	) {
+		throw new HttpError(BAD_REQUEST, 'Invalid Delail repetition count');
+	}
+	if (changesIstighfar && !gates.istighfar) {
+		throw new HttpError(BAD_REQUEST, 'This reading has no opening istighfar');
+	}
+	if (
+		input.istighfarRepetitions !== undefined &&
+		(!Number.isInteger(input.istighfarRepetitions) ||
+			input.istighfarRepetitions < 0 ||
+			input.istighfarRepetitions > 100)
+	) {
+		throw new HttpError(BAD_REQUEST, 'Invalid istighfar repetition count');
+	}
+	if (
+		input.istighfarTarget !== undefined &&
+		(!Number.isInteger(input.istighfarTarget) || input.istighfarTarget < 1 || input.istighfarTarget > 100)
+	) {
+		throw new HttpError(BAD_REQUEST, 'Choose between 1 and 100 istighfar repetitions');
+	}
+	// What a day's ticks may name: the book sheet's portions — or, for a Cevşen read in the app, the
+	// day's babs, each ticked by its "Okudum" while the reader moves freely with its arrows.
+	const dayPortions =
+		group.kind === 'CEVSEN'
+			? unitsOfDay(group.kind, assignment.enrollment.planDays, assignment.portion)
+			: bookPortionsOf(group.kind, assignment.enrollment.planDays, assignment.portion);
+	if (input.bookPortions !== undefined) {
+		const ticked = new Set(input.bookPortions);
+		if (
+			input.read !== undefined ||
+			ticked.size !== input.bookPortions.length ||
+			ticked.size === 0 ||
+			input.bookPortions.some(p => !dayPortions.includes(p))
+		) {
+			throw new HttpError(BAD_REQUEST, 'Invalid portions');
+		}
+		if (assignment.completedAt !== null && !(unticks && ticked.size < dayPortions.length)) {
+			throw new HttpError(CONFLICT, 'This reading is already read');
+		}
+	}
+	// Every portion ticked: the day is read, from the book.
+	const completesFromBook = input.bookPortions !== undefined && input.bookPortions.length === dayPortions.length;
+	if (
+		input.bookmark !== undefined &&
+		(!Number.isInteger(input.bookmark) || input.bookmark < 0 || input.bookmark > 1000)
+	) {
+		throw new HttpError(BAD_REQUEST, 'Invalid reading position');
+	}
+	if (
+		input.read !== undefined &&
+		input.read === (assignment.completedAt !== null) &&
+		// Undoing a part-read day still has its ticks to clear.
+		(input.read || assignment.readPortions.length === 0) &&
+		input.repetitions === undefined &&
+		input.delailRepetitions === undefined &&
+		!changesIstighfar &&
+		input.bookmark === undefined &&
+		input.bookPortions === undefined
+	) {
+		return null;
+	}
+	if (assignment.version !== input.version) {
+		throw new HttpError(CONFLICT, 'Reading changed on another device. Refresh and try again.');
+	}
+	const repetitions = input.repetitions ?? assignment.repetitions;
+	const read = completesFromBook || (!unticks && (input.read ?? assignment.completedAt !== null));
+	// Read from the book, the counters were kept by the reader: no gate, now or on a later page turn.
+	const isFromBook = completesFromBook || (assignment.completedAt !== null && assignment.readFrom === 'BOOK');
+	const gated = read && !isFromBook;
+	if (gated && gates.sekine && repetitions < 19) {
+		throw new HttpError(CONFLICT, 'Complete all 19 Sekine repetitions first');
+	}
+	const delailRepetitions = input.delailRepetitions ?? assignment.delailRepetitions;
+	if (
+		gated &&
+		gates.delail &&
+		(assignment.completedAt === null || input.delailRepetitions !== undefined) &&
+		delailRepetitions < 3
+	) {
+		throw new HttpError(CONFLICT, 'Complete all three Delail repetitions first');
+	}
+	const istighfarRepetitions = input.istighfarRepetitions ?? assignment.istighfarRepetitions;
+	const istighfarTarget = input.istighfarTarget ?? assignment.istighfarTarget;
+	// Keep historical completions intact without inventing counts; new completions must meet the target.
+	if (
+		gated &&
+		gates.istighfar &&
+		(assignment.completedAt === null || changesIstighfar) &&
+		istighfarRepetitions < istighfarTarget
+	) {
+		throw new HttpError(CONFLICT, 'Complete your selected istighfar repetitions first');
+	}
+	// Today's reading, read for the first time, in a group with others in it. A missed day made
+	// up later is not news, and undoing and reading again stays quiet (the claim below).
+	const announces =
+		read &&
+		assignment.completedAt === null &&
+		assignment.readNoticeSentAt === null &&
+		assignment.day === today &&
+		!group.hizbIndividual;
+	await tx.hizbAssignment.update({
+		where: { id: assignment.id },
+		data: {
+			repetitions,
+			delailRepetitions,
+			istighfarRepetitions,
+			istighfarTarget,
+			bookmark: input.bookmark ?? assignment.bookmark,
+			version: { increment: 1 },
+			completedAt: read ? assignment.completedAt ?? new Date() : null,
+			completedByUserId: read ? (assignment.completedAt ? assignment.completedByUserId : user) : null,
+			...(announces ? { readNoticeSentAt: new Date() } : {}),
+			// A partial book read keeps its ticks; a finished or undone day has none to keep.
+			readPortions:
+				input.bookPortions && !completesFromBook
+					? [...input.bookPortions].sort((a, b) => a - b)
+					: read || undoes
+					? []
+					: assignment.readPortions,
+			readFrom: read
+				? assignment.completedAt
+					? assignment.readFrom
+					: completesFromBook && group.kind !== 'CEVSEN'
+					? 'BOOK'
+					: 'APP'
+				: null
+		}
+	});
+	if (announces) {
+		announced = dayPortions;
+	}
+	if (read && assignment.completedAt === null) {
+		// Active through today — and through a day read ahead, which keeps the plan running until then.
+		const active = await tx.hizbEnrollment.findFirst({ where: { groupId, userId: user, endDay: null } });
+		if (active) {
+			await tx.hizbEnrollment.update({
+				where: { id: active.id },
+				data: { lastReadDay: Math.max(today, assignment.day, active.lastReadDay ?? today) }
+			});
+		}
+	}
+	if (undoes) {
+		const active = await tx.hizbEnrollment.findFirst({ where: { groupId, userId: user, endDay: null } });
+		if (active) {
+			const last = await tx.hizbAssignment.findFirst({
+				where: {
+					enrollment: { groupId, userId: user },
+					completedAt: { gte: startOfCivilDay(active.joinedDay, group.timezone) }
+				},
+				orderBy: { completedAt: 'desc' }
+			});
+			// The furthest day still read, which may be ahead of the last day anything was read on.
+			const furthest = await tx.hizbAssignment.findFirst({
+				where: { enrollmentId: active.id, completedAt: { not: null } },
+				orderBy: { day: 'desc' }
+			});
+			const lastReadDay = Math.max(
+				last?.completedAt ? civilDayNumber(last.completedAt, group.timezone) : -Infinity,
+				furthest?.day ?? -Infinity
+			);
+			await tx.hizbEnrollment.update({
+				where: { id: active.id },
+				data: { lastReadDay: Number.isFinite(lastReadDay) ? lastReadDay : null }
+			});
+		}
+	}
+	return announced;
 }
 
 /** "Bu grupta hep kitaptan okuyorum": the member's own choice for this group, kept on the account. */
@@ -1103,13 +1146,17 @@ export async function getHizbAssignment(userId: string, groupId: string, id: str
 		const group = await requireReader(tx, user, groupId);
 		await expireHizb(tx, group);
 		const a = await tx.hizbAssignment.findFirst({
-			where: { id, enrollment: { groupId, userId: user } },
-			include: { enrollment: true }
+			where: {
+				id,
+				enrollment: { groupId },
+				OR: [{ enrollment: { userId: user } }, { readingHelp: { helperUserId: user } }]
+			},
+			include: { enrollment: true, readingHelp: true }
 		});
 		if (!a) {
 			throw new HttpError(NOT_FOUND, 'Reading not found');
 		}
-		return readingOf(group.kind, a);
+		return readingOf(group.kind, a, user);
 	});
 }
 

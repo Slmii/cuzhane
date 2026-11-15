@@ -40,6 +40,8 @@ model HizbAssignment {
     completedAt  DateTime?
     // When the group was told this day was read — set once, so undoing and reading again stays quiet.
     readNoticeSentAt DateTime?
+    completedByUserId String?
+    readingHelp ReadingHelp?
     enrollment   HizbEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
 
     @@unique([enrollmentId, day])

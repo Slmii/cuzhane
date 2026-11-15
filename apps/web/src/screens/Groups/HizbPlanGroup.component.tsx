@@ -1,4 +1,5 @@
 import type { HizbAssignment } from '@/api/hizbReading.api';
+import { ReadingHelpPanel, RequestHelpButton } from '@/components/ReadingHelp/ReadingHelp.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
 import { HintTarget } from '@/components/Hints/HintTarget.component';
@@ -1266,6 +1267,20 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 									})}
 								</CaptionText>
 							</View>
+						) : null}
+
+						{/* Reading help: hand today's reading to a group member. Never on a reading of one's own. */}
+						{isShared && active ? (
+							<>
+								{today && !isTodayDone && today.canEdit !== false ? (
+									<RequestHelpButton groupId={group.id} target={{ assignmentId: today.id }} today />
+								) : null}
+								<ReadingHelpPanel
+									groupId={group.id}
+									onMissed={openMissed}
+									onOpen={request => (request.assignmentId ? open(request.assignmentId) : undefined)}
+								/>
+							</>
 						) : null}
 					</SectionCard>
 

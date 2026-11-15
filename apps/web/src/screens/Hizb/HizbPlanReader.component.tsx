@@ -24,7 +24,7 @@ import { TextSizeSheet } from '@/screens/Reader/TextSizeSheet.component';
 import { textSizeSheet } from '@/screens/Reader/textSizeSheet';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useKeepAwake } from 'expo-keep-awake';
-import { type RefObject, useContext, useMemo, useRef } from 'react';
+import { type RefObject, useContext, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { HizbBody } from './HizbBody.component';
@@ -71,6 +71,8 @@ const AssignmentReader = ({
 	const settingsQuery = useGetUserSettings();
 	const updateSettings = useUpdateUserSettings();
 	const scroll = useRef<ScrollView>(null);
+	// A reading someone else has taken on (reading help) can still be paged through, from here only.
+	const [previewBookmark, setPreviewBookmark] = useState<number | null>(null);
 	const scrollContent = useRef<View>(null);
 	const a = query.data;
 	const planDays = a?.planDays;
@@ -87,7 +89,8 @@ const AssignmentReader = ({
 	if (!a || !blocks.length) {
 		return <HizbPlanReaderSkeleton />;
 	}
-	const cursor = Math.min(a.bookmark, blocks.length - 1);
+	const isLocked = a.canEdit === false;
+	const cursor = Math.min(previewBookmark ?? a.bookmark, blocks.length - 1);
 	const current = blocks[cursor];
 	const isSekine = current.sectionIndex === 10;
 	const change = (patch: Omit<HizbAssignmentPatch, 'version'>) => {
@@ -97,7 +100,13 @@ const AssignmentReader = ({
 		if (patch.bookmark !== undefined) {
 			scroll.current?.scrollTo({ y: 0, animated: false });
 		}
-
+		if (isLocked) {
+			if (patch.bookmark !== undefined) {
+				setPreviewBookmark(patch.bookmark);
+			}
+			return;
+		}
+		setPreviewBookmark(null);
 		update.mutate(patch);
 	};
 	/*
@@ -160,6 +169,8 @@ const AssignmentReader = ({
 					].join(' · ')}
 				</CaptionText>
 				<TitleText>{t(hizbPlanDescriptionKey(a.planDays, a.portion))}</TitleText>
+				{isLocked && !a.completedAt ? <CaptionText>{t('helpClaimed')}</CaptionText> : null}
+				{a.completedByOther ? <CaptionText>{t('helpCompleted')}</CaptionText> : null}
 			</View>
 			<ScrollView
 				ref={scroll}
@@ -176,20 +187,20 @@ const AssignmentReader = ({
 						block={current.block}
 						delailProgress={{
 							count: a.delailRepetitions,
-							disabled: a.completedAt !== null,
+							disabled: a.completedAt !== null || isLocked,
 							onChange: count => change({ delailRepetitions: count })
 						}}
 						istighfarProgress={{
 							count: a.istighfarRepetitions,
 							target: a.istighfarTarget,
-							disabled: a.completedAt !== null,
+							disabled: a.completedAt !== null || isLocked,
 							onChange: change
 						}}
 						{...(isSekine
 							? {
 									sekineProgress: {
 										count: a.repetitions,
-										disabled: a.completedAt !== null,
+										disabled: a.completedAt !== null || isLocked,
 										onChange: repetitions => change({ repetitions })
 									}
 							  }
@@ -272,6 +283,7 @@ const AssignmentReader = ({
 									}
 								}}
 								disabled={
+									isLocked ||
 									isUndoLocked ||
 									(!a.completedAt &&
 										((a.requiresSekine && a.repetitions < SEKINE_REPETITIONS) ||

@@ -8,6 +8,8 @@ import { hizbCompatibility } from '@middleware/hizbCompatibility.middleware';
 import { errorHandler } from '@middleware/error.middleware';
 import groupsRouter from '@routes/groups.route';
 import babsRouter from '@routes/babs.route';
+import { CreateGroupBodySchema } from '@schemas/group.schema';
+import { createGroupForUser } from '@services/groups.service';
 import { assertIsTestDatabase, testDatabaseUrl } from '../support/testDatabase';
 vi.mock('@utils/displayName', () => ({ resolveDisplayName: () => 'Owner' }));
 vi.mock('@utils/memberProfiles', () => ({ getMemberProfiles: async () => new Map(), FALLBACK_DISPLAY_NAME: 'Member' }));
@@ -206,4 +208,39 @@ it('validates and saves the independent Delail counter through the assignment en
 		repetitions: 19,
 		requiresDelailRepetition: true
 	});
+});
+
+it('serves group help requests, validates targets and requires the helper to claim before completing', async () => {
+	// Through the service: this file already spends the hour's group-creation allowance over HTTP.
+	const group = await createGroupForUser(
+		'owner',
+		'Owner',
+		CreateGroupBodySchema.parse({ name: 'Test plan', kind: 'HIZB', hizbPlan: 32, reminderTime: '21:00' })
+	);
+	await prisma.groupMember.create({
+		data: { groupId: group.id, userId: 'helper', displayName: 'Helper', slotIndex: 2 }
+	});
+	const reading = (await (await fetch(base + `/groups/${group.id}/reading`, { headers })).json()) as {
+		today: { id: string };
+	};
+	const url = base + `/groups/${group.id}/reading-help`;
+	const post = (body: object) => fetch(url, { headers, method: 'POST', body: JSON.stringify(body) });
+	expect((await post({ assignmentId: reading.today.id, roundIndex: 0 })).status).toBe(400);
+	expect((await post({ roundIndex: -1 })).status).toBe(400);
+	const response = await post({ assignmentId: reading.today.id });
+	expect(response.status).toBe(200);
+	const r = (await response.json()) as { id: string; version: number };
+	const patch = (user: string, action: string, version: number) =>
+		fetch(url + '/' + r.id, {
+			method: 'PATCH',
+			headers: { ...headers, 'x-reader': user },
+			body: JSON.stringify({ action, version })
+		});
+	expect((await patch('helper', 'complete', 0)).status).toBe(403);
+	expect((await patch('outsider', 'claim', 0)).status).toBe(403);
+	expect((await patch('helper', 'claim', 0)).status).toBe(200);
+	expect((await patch('helper', 'complete', 0)).status).toBe(409);
+	expect((await patch('helper', 'complete', 1)).status).toBe(200);
+	const list = await fetch(url, { headers });
+	expect(await list.json()).toEqual([expect.objectContaining({ id: r.id, completed: true, mine: true })]);
 });
