@@ -3,8 +3,10 @@ import type { HelpTarget, ReadingHelp, HelpAction } from '@/api/readingHelp.api'
 import { useReadingHelp, useRequestReadingHelp, useActOnReadingHelp } from '@/lib/hooks/useReadingHelp';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
+import { formatPlanDate } from '@/lib/utils/hizbPlanLabels';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
+import { Icon } from '@/components/ui/Icon/Icon.component';
 import { BodyText, CaptionText, TitleText } from '@/components/ui/Typography/Typography.component';
 
 export const RequestHelpButton = ({
@@ -59,7 +61,7 @@ export const ReadingHelpPanel = ({
 	onOpen: (request: ReadingHelp) => void;
 	onMissed?: () => void;
 }) => {
-	const { t } = useTranslation();
+	const { t, language } = useTranslation();
 	const { theme } = useThemeContext();
 	const query = useReadingHelp(groupId);
 	const update = useActOnReadingHelp(groupId);
@@ -89,14 +91,22 @@ export const ReadingHelpPanel = ({
 					<BodyText weight='semibold'>{r.mine ? t('you') : r.requesterName ?? t('anonymousMember')}</BodyText>
 					<CaptionText>
 						{r.assignmentId
-							? `${r.date} · ${t('hpPortion', { days: r.planDays!, portion: r.portion! })}`
+							? `${r.date ? `${formatPlanDate(r.date, language, true)} · ` : ''}${t('hpPortion', {
+									days: r.planDays!,
+									portion: r.portion!
+							  })}`
 							: `${t('roundN')} ${(r.roundIndex ?? 0) + 1} · ${t(
 									r.kind === 'HIZB' ? 'portions' : 'babs'
 							  )} ${r.babNumbers.join(', ')}`}
 					</CaptionText>
-					<CaptionText color={r.completed ? theme.colors.accent : theme.colors.subtext}>
-						{r.completed ? `✓ ${t('helpCompleted')}` : t(r.claimed ? 'helpClaimed' : 'helpRequested')}
-					</CaptionText>
+					<View style={styles.status}>
+						{r.completed ? (
+							<Icon color={theme.colors.accent} name='check' size={14} strokeWidth={2.1} />
+						) : null}
+						<CaptionText color={r.completed ? theme.colors.accent : theme.colors.subtext}>
+							{t(r.completed ? 'helpCompleted' : r.claimed ? 'helpClaimed' : 'helpRequested')}
+						</CaptionText>
+					</View>
 					{!r.completed ? (
 						<View style={styles.actions}>
 							{r.mine ? (
@@ -148,5 +158,6 @@ export const ReadingHelpPanel = ({
 const styles = StyleSheet.create({
 	panel: { gap: 12 },
 	actions: { gap: 8 },
+	status: { alignItems: 'center', flexDirection: 'row', gap: 6 },
 	request: { gap: 8, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth }
 });

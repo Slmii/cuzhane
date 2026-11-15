@@ -2,6 +2,7 @@ import { useContext, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import * as Haptics from 'expo-haptics';
 import { useKeepAwake } from 'expo-keep-awake';
 import type { TabStackParamList } from '@/navigation/types';
 import { TabBarOffsetContext } from '@/navigation/TabBarOffsetContext';
@@ -13,14 +14,20 @@ import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { READER_FONT_SIZE_DEFAULT } from '@/lib/content/cevsen';
 import { planBlocks } from '@/lib/content/hizbPlans';
 import { HIZB_SECTIONS, isCevsenSection } from '@/lib/content/hizbulhakaik';
-import { hizbPlanDescriptionKey } from '@/lib/utils/hizbPlanLabels';
+import { formatPlanDate, hizbPlanDescriptionKey } from '@/lib/utils/hizbPlanLabels';
 import { AppButton } from '@/components/ui/Button/Button.component';
+import { Icon } from '@/components/ui/Icon/Icon.component';
 import { BodyText, CaptionText, TitleText } from '@/components/ui/Typography/Typography.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { RepetitionCounter } from '@/components/RepetitionCounter/RepetitionCounter.component';
+import { ReaderSkeleton } from '@/screens/Reader/ReaderSkeleton.component';
 import { TextSizeSheet } from '@/screens/Reader/TextSizeSheet.component';
-import { GroupDetailSkeleton } from '@/screens/Groups/GroupDetailSkeleton.component';
 import { HizbBody } from './HizbBody.component';
+
+/** A tap back when a reading is marked — the other two readers', and swallowed for their reasons. */
+const tapBack = () => {
+	void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
+};
 
 type Props = NativeStackScreenProps<TabStackParamList, 'HizbPlanReader'>;
 export const HizbPlanReader = ({ route }: Props) => (
@@ -28,7 +35,7 @@ export const HizbPlanReader = ({ route }: Props) => (
 );
 const AssignmentReader = ({ groupId, id }: { groupId: string; id: string }) => {
 	useKeepAwake();
-	const { t } = useTranslation();
+	const { t, language } = useTranslation();
 	const { theme } = useThemeContext();
 	const tabBarOffset = useContext(TabBarOffsetContext);
 	const query = useHizbAssignment(groupId, id);
@@ -51,7 +58,12 @@ const AssignmentReader = ({ groupId, id }: { groupId: string; id: string }) => {
 		return <ErrorState queries={[query]} />;
 	}
 	if (!a || !blocks.length) {
-		return <GroupDetailSkeleton />;
+		// A reader's bones, not a group screen's: the page that lands here is a page of text.
+		return (
+			<SafeAreaView style={[styles.screen, { backgroundColor: theme.colors.readerSurface }]}>
+				<ReaderSkeleton />
+			</SafeAreaView>
+		);
 	}
 	const cursor = Math.min(previewBookmark ?? a.bookmark, blocks.length - 1);
 	const current = blocks[cursor];
@@ -68,6 +80,9 @@ const AssignmentReader = ({ groupId, id }: { groupId: string; id: string }) => {
 			return;
 		}
 		setPreviewBookmark(null);
+		if (patch.read) {
+			tapBack();
+		}
 		update.mutate(
 			{ version: a.version, ...patch },
 			{
@@ -90,7 +105,8 @@ const AssignmentReader = ({ groupId, id }: { groupId: string; id: string }) => {
 				{a.canEdit === false && !a.completedAt ? <CaptionText>{t('helpClaimed')}</CaptionText> : null}
 				{a.completedByOther ? <CaptionText>{t('helpCompleted')}</CaptionText> : null}
 				<CaptionText>
-					{a.date} · {t('hpPortion', { days: a.planDays, portion: a.portion })}
+					{formatPlanDate(a.date, language, true)} ·{' '}
+					{t('hpPortion', { days: a.planDays, portion: a.portion })}
 				</CaptionText>
 				<TitleText>{t(hizbPlanDescriptionKey(a.planDays, a.portion))}</TitleText>
 				<View
@@ -100,6 +116,9 @@ const AssignmentReader = ({ groupId, id }: { groupId: string; id: string }) => {
 						{ backgroundColor: a.completedAt ? theme.colors.accentSoft : theme.colors.surfaceMuted }
 					]}
 				>
+					{a.completedAt ? (
+						<Icon color={theme.colors.accent} name='check' size={14} strokeWidth={2.1} />
+					) : null}
 					<BodyText weight='semibold' color={a.completedAt ? theme.colors.accent : theme.colors.subtext}>
 						{t(a.completedAt ? 'hpTodayDone' : 'hpTodayPending')}
 					</BodyText>
@@ -197,7 +216,14 @@ const AssignmentReader = ({ groupId, id }: { groupId: string; id: string }) => {
 };
 const styles = StyleSheet.create({
 	screen: { flex: 1 },
-	readStatus: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
+	readStatus: {
+		alignItems: 'center',
+		borderRadius: 10,
+		flexDirection: 'row',
+		gap: 6,
+		paddingHorizontal: 12,
+		paddingVertical: 8
+	},
 	heading: { paddingHorizontal: 20, paddingTop: 52, gap: 6, paddingBottom: 8 },
 	scroll: { flex: 1 },
 	body: { padding: 22, gap: 18 },

@@ -301,6 +301,7 @@ export const JoinedWelcomeScreen = ({ navigation, route }: Props) => {
 						    be two ways to the same place. */}
 						{activeReminder ? (
 							<Pressable
+								accessibilityRole='button'
 								onPress={handleSetReminder}
 								style={({ pressed }) => [
 									styles.reminderRow,

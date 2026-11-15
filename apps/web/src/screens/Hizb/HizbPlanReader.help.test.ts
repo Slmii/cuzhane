@@ -12,6 +12,7 @@ vi.mock('react', async original => ({
 vi.mock('react-native', () => ({ View: 'View', ScrollView: 'ScrollView', StyleSheet: { create: (s: unknown) => s } }));
 vi.mock('react-native-safe-area-context', () => ({ SafeAreaView: 'SafeAreaView' }));
 vi.mock('expo-keep-awake', () => ({ useKeepAwake: () => undefined }));
+vi.mock('expo-haptics', () => ({ impactAsync: () => Promise.resolve(), ImpactFeedbackStyle: {} }));
 vi.mock('@/navigation/TabBarOffsetContext', () => ({ TabBarOffsetContext: {} }));
 vi.mock('@/lib/hooks/useHizbReading', () => ({
 	useHizbAssignment: () => ({
@@ -40,6 +41,7 @@ vi.mock('@/lib/content/hizbPlans', () => ({
 }));
 vi.mock('@/lib/content/hizbulhakaik', () => ({ HIZB_SECTIONS: [{ title: 'Reading' }], isCevsenSection: () => false }));
 vi.mock('@/components/ui/Button/Button.component', () => ({ AppButton: 'AppButton' }));
+vi.mock('@/components/ui/Icon/Icon.component', () => ({ Icon: 'Icon' }));
 vi.mock('@/components/ui/Typography/Typography.component', () => ({
 	BodyText: 'BodyText',
 	CaptionText: 'CaptionText',
@@ -50,7 +52,7 @@ vi.mock('@/components/RepetitionCounter/RepetitionCounter.component', () => ({
 	RepetitionCounter: 'RepetitionCounter'
 }));
 vi.mock('@/screens/Reader/TextSizeSheet.component', () => ({ TextSizeSheet: 'TextSizeSheet' }));
-vi.mock('@/screens/Groups/GroupDetailSkeleton.component', () => ({ GroupDetailSkeleton: 'GroupDetailSkeleton' }));
+vi.mock('@/screens/Reader/ReaderSkeleton.component', () => ({ ReaderSkeleton: 'ReaderSkeleton' }));
 vi.mock('./HizbBody.component', () => ({ HizbBody: 'HizbBody' }));
 type Element = ReactElement<Record<string, any>>;
 const elements = (node: ReactNode): Element[] =>

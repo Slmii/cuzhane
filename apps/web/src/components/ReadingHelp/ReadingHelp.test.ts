@@ -20,6 +20,7 @@ vi.mock('@/lib/theme/ThemeProvider.context', () => ({ useThemeContext: () => ({ 
 vi.mock('@/lib/i18n/I18n.context', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock('@/components/ui/Button/Button.component', () => ({ AppButton: 'AppButton' }));
 vi.mock('@/components/ui/CardSurface/CardSurface.component', () => ({ CardSurface: 'CardSurface' }));
+vi.mock('@/components/ui/Icon/Icon.component', () => ({ Icon: 'Icon' }));
 vi.mock('@/components/ui/Typography/Typography.component', () => ({
 	BodyText: 'BodyText',
 	CaptionText: 'CaptionText',

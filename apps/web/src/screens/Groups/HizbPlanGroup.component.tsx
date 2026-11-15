@@ -1,7 +1,7 @@
 import { BeginnerGuide } from '@/components/BeginnerGuide/BeginnerGuide.component';
 import { ReadingHelpPanel, RequestHelpButton } from '@/components/ReadingHelp/ReadingHelp.component';
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { TabStackParamList } from '@/navigation/types';
 import type { GroupDetail } from '@/lib/types/domain';
@@ -10,11 +10,14 @@ import { useUpdateGroup } from '@/lib/hooks/useGroup';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import { hizbPlanDescriptionKey } from '@/lib/utils/hizbPlanLabels';
+import { formatPlanDate, hizbPlanDescriptionKey } from '@/lib/utils/hizbPlanLabels';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
+import { Icon } from '@/components/ui/Icon/Icon.component';
+import { AppInput } from '@/components/ui/Input/Input.component';
+import { ProgressBar } from '@/components/ui/ProgressBar/ProgressBar.component';
 import { BodyText, CaptionText, NumericText, TitleText } from '@/components/ui/Typography/Typography.component';
 import { ToggleRow } from '@/components/ui/ToggleRow/ToggleRow.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
@@ -71,6 +74,9 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 	const nextUnread = upcoming.find(assignment => !assignment.completedAt);
 	const readers = [...data.members].sort((a, b) => Number(b.completed) - Number(a.completed));
 	const visibleReaders = showMembers ? readers : readers.slice(0, 6);
+	const missed = history.filter(assignment => !assignment.completedAt && assignment.date < data.date);
+	// The tick beside "Okundu" is a drawn glyph, never a character in the string.
+	const tick = <Icon color={theme.colors.accent} name='check' size={14} strokeWidth={2.1} />;
 	const finishToday = () => {
 		const assignment = data.today;
 		if (!assignment || assignment.completedAt || assignment.canEdit === false || completeToday.isPending) {
@@ -137,14 +143,11 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 								<CaptionText color={theme.colors.subtext}>{t('hpReadersDone')}</CaptionText>
 							</View>
 						</View>
-						<View
-							accessibilityRole='progressbar'
+						<ProgressBar
 							accessibilityLabel={t('hpSharedToday')}
-							accessibilityValue={{ min: 0, max: 100, now: percent }}
-							style={[styles.progress, { backgroundColor: theme.colors.border }]}
-						>
-							<View style={{ height: 6, width: `${percent}%`, backgroundColor: theme.colors.accent }} />
-						</View>
+							percent={percent}
+							trackColor={theme.colors.border}
+						/>
 					</CardSurface>
 				) : null}
 				<View
@@ -168,26 +171,15 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 									total: data.personalProgress.total
 								})}
 							</CaptionText>
-							<View
-								accessibilityRole='progressbar'
+							<ProgressBar
 								accessibilityLabel={t('myProgress')}
-								accessibilityValue={{
-									min: 0,
-									max: data.personalProgress.total,
-									now: data.personalProgress.completed
-								}}
-								style={[styles.progress, { backgroundColor: theme.colors.border }]}
-							>
-								<View
-									style={{
-										height: 6,
-										width: `${
-											(data.personalProgress.completed * 100) / data.personalProgress.total
-										}%`,
-										backgroundColor: theme.colors.accent
-									}}
-								/>
-							</View>
+								percent={
+									data.personalProgress.total
+										? (data.personalProgress.completed * 100) / data.personalProgress.total
+										: 0
+								}
+								trackColor={theme.colors.border}
+							/>
 						</>
 					) : null}
 					<BodyText weight='semibold' color={data.missedCount ? theme.colors.danger : theme.colors.accent}>
@@ -209,11 +201,7 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 				{data.today ? (
 					<CardSurface style={styles.card}>
 						<CaptionText>
-							{t('hpToday')} ·{' '}
-							{new Date(`${data.date}T12:00:00`).toLocaleDateString(language, {
-								day: 'numeric',
-								month: 'long'
-							})}
+							{t('hpToday')} · {formatPlanDate(data.date, language)}
 						</CaptionText>
 						<TitleText>
 							{t('hpPortion', { days: data.today.planDays, portion: data.today.portion })}
@@ -223,6 +211,7 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 							accessibilityLiveRegion='polite'
 							style={[
 								styles.readStatus,
+								styles.status,
 								{
 									backgroundColor: data.today.completedAt
 										? theme.colors.accentSoft
@@ -230,6 +219,7 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 								}
 							]}
 						>
+							{data.today.completedAt ? tick : null}
 							<BodyText
 								weight='semibold'
 								color={data.today.completedAt ? theme.colors.accent : theme.colors.subtext}
@@ -285,23 +275,22 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 						{(showUpcoming ? upcoming : upcoming.slice(0, 3)).map(assignment => (
 							<CardSurface key={assignment.id} style={styles.card} onPress={() => open(assignment.id)}>
 								<CaptionText>
-									{new Date(`${assignment.date}T12:00:00`).toLocaleDateString(language, {
-										weekday: 'long',
-										day: 'numeric',
-										month: 'long'
-									})}
+									{formatPlanDate(assignment.date, language, true)}
 									{' · '}
 									{t('hpPortion', { days: assignment.planDays, portion: assignment.portion })}
 								</CaptionText>
 								<BodyText>
 									{t(hizbPlanDescriptionKey(assignment.planDays, assignment.portion))}
 								</BodyText>
-								<BodyText
-									weight='semibold'
-									color={assignment.completedAt ? theme.colors.accent : theme.colors.subtext}
-								>
-									{t(assignment.completedAt ? 'hpTodayDone' : 'hpTodayPending')}
-								</BodyText>
+								<View style={styles.status}>
+									{assignment.completedAt ? tick : null}
+									<BodyText
+										weight='semibold'
+										color={assignment.completedAt ? theme.colors.accent : theme.colors.subtext}
+									>
+										{t(assignment.completedAt ? 'hpTodayDone' : 'hpTodayPending')}
+									</BodyText>
+								</View>
 							</CardSurface>
 						))}
 						{upcoming.length > 3 ? (
@@ -333,9 +322,14 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 											? t('you')
 											: member.displayName ?? t('anonymousMember')}
 									</BodyText>
-									<CaptionText color={member.completed ? theme.colors.accent : theme.colors.subtext}>
-										{t(member.completed ? 'hpTodayDone' : 'hpTodayPending')}
-									</CaptionText>
+									<View style={styles.status}>
+										{member.completed ? tick : null}
+										<CaptionText
+											color={member.completed ? theme.colors.accent : theme.colors.subtext}
+										>
+											{t(member.completed ? 'hpTodayDone' : 'hpTodayPending')}
+										</CaptionText>
+									</View>
 								</View>
 								<CaptionText color={theme.colors.subtext}>
 									{t('hpPortion', { days: member.planDays, portion: member.portion })}
@@ -356,10 +350,13 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 						/>
 						{showHistory
 							? data.dailyHistory.map(day => (
-									<CaptionText key={day.date}>
-										{day.date} · {Math.round((day.covered * 100) / day.total)}%
-										{day.complete ? ' ✓' : ''}
-									</CaptionText>
+									<View key={day.date} style={styles.status}>
+										<CaptionText>
+											{formatPlanDate(day.date, language)} ·{' '}
+											{day.total ? Math.round((day.covered * 100) / day.total) : 0}%
+										</CaptionText>
+										{day.complete ? tick : null}
+									</View>
 							  ))
 							: null}
 					</CardSurface>
@@ -384,28 +381,36 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 					onPress={() => setShowCompleted(!showCompleted)}
 					variant='ghost'
 				/>
-				{history
-					.filter(assignment => showCompleted || (!assignment.completedAt && assignment.date < data.date))
-					.map(assignment => (
-						<CardSurface key={assignment.id} style={styles.card}>
-							<CaptionText>
-								{assignment.date} ·{' '}
-								{t('hpPortion', { days: assignment.planDays, portion: assignment.portion })}
-							</CaptionText>
-							<BodyText>{t(hizbPlanDescriptionKey(assignment.planDays, assignment.portion))}</BodyText>
+				{/* Nothing owed is an answer, not a blank: without it the heading sat over an empty list. */}
+				{!showCompleted && !data.missedCount ? (
+					<View style={styles.status}>
+						{tick}
+						<CaptionText color={theme.colors.accent}>{t('hpNoMissed')}</CaptionText>
+					</View>
+				) : null}
+				{(showCompleted ? history : missed).map(assignment => (
+					<CardSurface key={assignment.id} style={styles.card}>
+						<CaptionText>
+							{formatPlanDate(assignment.date, language, true)} ·{' '}
+							{t('hpPortion', { days: assignment.planDays, portion: assignment.portion })}
+						</CaptionText>
+						<BodyText>{t(hizbPlanDescriptionKey(assignment.planDays, assignment.portion))}</BodyText>
+						<View style={styles.status}>
+							{assignment.completedAt ? tick : null}
 							<CaptionText color={assignment.completedAt ? theme.colors.accent : theme.colors.subtext}>
 								{t(assignment.completedAt ? 'hpTodayDone' : 'hpTodayPending')}
 							</CaptionText>
-							<AppButton
-								title={t(assignment.completedAt ? 'hpReadAgain' : 'hpRead')}
-								variant='surface'
-								onPress={() => open(assignment.id)}
-							/>
-							{!assignment.completedAt && !group.hizbIndividual ? (
-								<RequestHelpButton groupId={group.id} target={{ assignmentId: assignment.id }} />
-							) : null}
-						</CardSurface>
-					))}
+						</View>
+						<AppButton
+							title={t(assignment.completedAt ? 'hpReadAgain' : 'hpRead')}
+							variant='surface'
+							onPress={() => open(assignment.id)}
+						/>
+						{!assignment.completedAt && !group.hizbIndividual ? (
+							<RequestHelpButton groupId={group.id} target={{ assignmentId: assignment.id }} />
+						) : null}
+					</CardSurface>
+				))}
 				{query.hasNextPage ? (
 					<AppButton
 						title={t('hpMore')}
@@ -454,16 +459,15 @@ const InactivitySettings = ({ group }: { group: GroupDetail }) => {
 				onValueChange={setEnabled}
 			/>
 			{enabled ? (
-				<>
-					<CaptionText>{t('hpInactiveDays')}</CaptionText>
-					<TextInput
-						accessibilityLabel={t('hpInactiveDays')}
-						keyboardType='number-pad'
-						value={days}
-						onChangeText={setDays}
-						style={[styles.input, { color: theme.colors.text, borderColor: theme.colors.border }]}
-					/>
-				</>
+				<AppInput
+					accessibilityLabel={t('hpInactiveDays')}
+					hasError={!valid}
+					keyboardType='number-pad'
+					label={t('hpInactiveDays')}
+					maxLength={3}
+					onChangeText={setDays}
+					value={days}
+				/>
 			) : null}
 			<AppButton
 				title={t('save')}
@@ -472,6 +476,7 @@ const InactivitySettings = ({ group }: { group: GroupDetail }) => {
 				onPress={() => update.mutate({ groupId: group.id, inactivityDays: enabled ? Number(days) : null })}
 				variant='surface'
 			/>
+			{update.isError ? <CaptionText color={theme.colors.danger}>{t('hpError')}</CaptionText> : null}
 		</CardSurface>
 	);
 };
@@ -481,8 +486,7 @@ const styles = StyleSheet.create({
 	stats: { flexDirection: 'row', gap: 16 },
 	stat: { flex: 1, gap: 4 },
 	personal: { padding: 16, borderRadius: 18, gap: 6 },
-	progress: { height: 6, borderRadius: 3, overflow: 'hidden' },
+	status: { flexDirection: 'row', alignItems: 'center', gap: 6 },
 	member: { gap: 4, paddingVertical: 8 },
-	memberHeading: { flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap' },
-	input: { borderWidth: 1, borderRadius: 8, padding: 12, fontSize: 16 }
+	memberHeading: { flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap' }
 });

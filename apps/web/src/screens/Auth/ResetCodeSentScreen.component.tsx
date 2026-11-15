@@ -160,13 +160,25 @@ export const ResetCodeSentScreen = ({ navigation, route }: ResetCodeSentScreenPr
 				<CaptionText color={theme.colors.faintText} style={styles.noMail} textAlign='center'>
 					{t('noMail')}
 				</CaptionText>
-				<Pressable disabled={secondsLeft > 0} onPress={handleResend} style={styles.resend}>
+				<Pressable
+					accessibilityRole='button'
+					accessibilityState={{ disabled: secondsLeft > 0 }}
+					disabled={secondsLeft > 0}
+					hitSlop={12}
+					onPress={handleResend}
+					style={styles.resend}
+				>
 					<BodyStrongText color={secondsLeft > 0 ? theme.colors.subtext : theme.colors.accent}>
 						{secondsLeft > 0 ? t('resendIn', { seconds: secondsLeft }) : t('resend')}
 					</BodyStrongText>
 				</Pressable>
 			</View>
-			<Pressable onPress={() => navigation.popTo('SignIn')} style={styles.switchLink}>
+			<Pressable
+				accessibilityRole='button'
+				hitSlop={12}
+				onPress={() => navigation.popTo('SignIn')}
+				style={styles.switchLink}
+			>
 				<BodyStrongText color={theme.colors.accent}>{t('backToSignIn')}</BodyStrongText>
 			</Pressable>
 		</ScreenContainer>

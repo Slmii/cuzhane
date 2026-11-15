@@ -19,7 +19,7 @@ vi.mock('react', async importOriginal => ({
 	useRef: () => ({ current: null }),
 	useState: (initial: unknown) => [initial, vi.fn()]
 }));
-vi.mock('react-native', () => ({ View: 'View', TextInput: 'TextInput', StyleSheet: { create: (s: unknown) => s } }));
+vi.mock('react-native', () => ({ View: 'View', StyleSheet: { create: (s: unknown) => s } }));
 vi.mock('@/lib/hooks/useHizbReading', () => ({
 	useHizbReading: () => ({
 		data: {
@@ -58,6 +58,9 @@ vi.mock('@/components/ScreenContainer/ScreenContainer.component', () => ({ Scree
 vi.mock('@/components/ScreenHeader/ScreenHeader.component', () => ({ ScreenHeader: 'ScreenHeader' }));
 vi.mock('@/components/ui/Button/Button.component', () => ({ AppButton: 'AppButton' }));
 vi.mock('@/components/ui/CardSurface/CardSurface.component', () => ({ CardSurface: 'CardSurface' }));
+vi.mock('@/components/ui/Icon/Icon.component', () => ({ Icon: 'Icon' }));
+vi.mock('@/components/ui/Input/Input.component', () => ({ AppInput: 'AppInput' }));
+vi.mock('@/components/ui/ProgressBar/ProgressBar.component', () => ({ ProgressBar: 'ProgressBar' }));
 vi.mock('@/components/ui/Typography/Typography.component', () => ({
 	BodyText: 'BodyText',
 	CaptionText: 'CaptionText',
