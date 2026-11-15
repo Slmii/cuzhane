@@ -36,7 +36,42 @@ const INVOCATION_MARK = '❁';
  * convention); the reader's face draws `U+0656` (subscript alef) for it. `cevsen.data.json`
  * made the same swap and says why in `meta.marks`.
  */
-const toReaderMarks = (text: string) => text.replaceAll('۪', 'ٖ');
+const toLongI = (text: string) => text.replaceAll('۪', 'ٖ');
+
+/**
+ * Marks the source types on the letter beside the one they belong to — 180 words, nearly all
+ * around a lam-alef. The publisher's face draws that pair as one glyph and the file places
+ * its marks by eye: the lam's mark goes *before* the lam so it lands on the ligature's right
+ * arm, which leaves it on whatever came first — the article's alef, the previous lam, or the
+ * space between two words. A face that positions marks by letter then draws exactly what was
+ * typed: a sukun on the alef of `ال`, a sukun and a kasra on one lam, a kasra under a gap.
+ *
+ * Only marks move, never letters, and only where the letter holding one cannot carry it: a
+ * vowel beside a sukun, a mark with no letter, a sukun on the article's alef ahead of a lam
+ * with none, a shadda on an alef. `يَاْكُلُونَ` and `لَوْلَا` are neither and are left alone.
+ * Order matters — the sixth rule tidies what the second leaves behind.
+ */
+const MISPLACED_MARKS: [RegExp, string][] = [
+	// The same mark twice.
+	[/([ً-ْ])\1/g, '$1'],
+	// A vowel then a sukun, before a lam: the sukun is the lam's.
+	[/([ً-ِ])ْل/g, '$1لْ'],
+	// A sukun then a vowel, before a lam: the vowel is the lam's.
+	[/ْ([َ-ِ])ل/g, 'ْل$1'],
+	// A mark with no letter before it, ahead of a lam.
+	[/(^|\s)([َ-ِْ])ل/g, '$1ل$2'],
+	// The article's alef holding the sukun of a lam that has no mark of its own.
+	[/اْل(?![ً-ْٰ])/g, 'الْ'],
+	// A lam left with a sukun and a vowel, before an alef: the vowel is the alef's.
+	[/لْ([َ-ِ])ا/g, 'لْا$1'],
+	// A shadda typed after the alef of a lam-alef is the lam's, with the vowel beside it.
+	[/لآَّ/g, 'لَّآ'],
+	[/لاًّ/g, 'لًّا']
+];
+
+/** Exported for `cevsen.data.json`, which came from the same publisher with the same habits and is held to the same rules. */
+export const toReaderMarks = (text: string) =>
+	MISPLACED_MARKS.reduce((fixed, [pattern, replacement]) => fixed.replace(pattern, replacement), toLongI(text));
 
 export const parseHizbulhakaik = (source: string): HizbSection[] => {
 	const sections: HizbSection[] = [];

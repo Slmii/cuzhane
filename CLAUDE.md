@@ -1012,6 +1012,21 @@ ingestion. Unlike the Cevşen it is **generated in the repo**: `scripts/hizbulha
 source's own census in `hizbulhakaik.test.ts` — 17 sections, 723 lines, 236 of 242 pages, the Cevşen's
 closings ﴿١﴾–﴿١٠٠﴾. Edit the text, re-run the script; never hand-edit the JSON.
 
+**The parser also moves 180 misplaced marks onto their own letters** (`MISPLACED_MARKS`), and the
+source is left as the publisher typed it. Their face draws lam-alef as one glyph and the file places
+its marks by eye — the lam's sukun typed _before_ the lam so it lands on the ligature — which leaves
+it on the article's alef (`اْلاِنْسَانَ`, 163 words), on the previous lam beside its kasra
+(`لِْلَانَامِ`), or under the space between two words (`ِلاِبْرَاه۪يمَ`). Our faces position marks by
+letter and drew exactly that. Only marks move, never letters, and only off a letter that cannot carry
+them, so the hamza this edition writes as an alef with sukun (`يَاْكُلُونَ`) and `لَوْلَا` are
+untouched; `hizbulhakaik.test.ts` holds the census at zero. Mark _orders_ that differ from the
+majority (fatha before shadda, madda before the long î) and the small noon the print sets between two
+words (`ۨ`) were rendered in all three faces, draw identically, and are deliberately left.
+**`cevsen.data.json` had the same defect** — 21 article words and one kasra typed twice — and no
+ingestion script to put a rule in, so `toReaderMarks` was applied to it once, in place.
+`cevsen.test.ts` holds the file to the same rules: a re-import from the publisher's file brings the
+22 back, and that test is what would notice.
+
 **It is not a hundred babs, so it does not take the Cevşen's shape.** Sections hold blocks, blocks hold
 lines, and each line carries the printed page it is on. Pages are not a level of their own because a du'a
 runs across them — the print closes one with `* * *` at the foot of a page only 15 times in 242, so a page
