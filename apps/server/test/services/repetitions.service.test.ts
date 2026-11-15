@@ -21,7 +21,7 @@ const OTHER = 'test_other';
 
 const SEKINE = 19;
 /**
- * Eleven FIXED seats over 33 portions, three apiece. The owner sits in seat 6, whose block is
+ * Eleven FIXED seats over 32 portions, three apiece (the last seat two). The owner sits in seat 6, whose block is
  * portions 19–21 every round — so Sekine is always in their share, whatever round a test is on.
  */
 const SPOTS = 11;
@@ -48,7 +48,7 @@ const createGroup = async ({
 	isBehind = false
 } = {}) => {
 	const startedAt = daysAgo(startedDaysAgo);
-	const roundIndex = roundIndexSince(startedAt, 'DAILY', new Date(), DEFAULT_TIME_ZONE) - (isBehind ? 1 : 0);
+	const roundIndex = roundIndexSince(startedAt, 1, new Date(), DEFAULT_TIME_ZONE) - (isBehind ? 1 : 0);
 	const isRunning = status === 'RUNNING';
 
 	const group = await prisma.group.create({
@@ -59,6 +59,7 @@ const createGroup = async ({
 			kind,
 			spots: SPOTS,
 			cycle: 'DAILY',
+			roundDays: 1,
 			splitMode: 'FIXED',
 			status,
 			startedAt: isRunning ? startedAt : null,
@@ -75,7 +76,7 @@ const createGroup = async ({
 	});
 
 	await prisma.groupBab.createMany({
-		data: Array.from({ length: kind === 'HIZB' ? 33 : 100 }, (_, index) => ({
+		data: Array.from({ length: kind === 'HIZB' ? 32 : 100 }, (_, index) => ({
 			groupId: group.id,
 			number: index + 1
 		}))

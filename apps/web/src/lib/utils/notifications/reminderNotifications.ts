@@ -1,9 +1,4 @@
-import {
-	buildContentSignature,
-	buildTriggerSignature,
-	type ReminderContent,
-	type ReminderSchedule
-} from '@/lib/utils/notifications/reminderSignatures';
+import { buildReminderKey, type ReminderNotice } from '@/lib/utils/notifications/reminderSignatures';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
@@ -17,12 +12,6 @@ export const REMINDER_CHANNEL_ID = 'reminders';
 const REMINDER_KIND = 'daily-reminder';
 
 const isNativePlatform = Platform.OS !== 'web';
-
-const parseTime = (time: string) => {
-	const [hour, minute] = time.split(':').map(Number);
-
-	return { hour: hour || 0, minute: minute || 0 };
-};
 
 const asString = (value: unknown) => (typeof value === 'string' ? value : null);
 
@@ -78,40 +67,35 @@ export const cancelReminders = async () => {
 };
 
 /**
- * One repeating daily trigger rather than a run of dated ones. The OS owns the repeat, so
- * the reminder keeps arriving whether the app is backgrounded, force-quit or never opened
- * again — which is the whole point of scheduling it locally instead of waiting for a push.
+ * The reminders, each on its own date. Dated rather than a repeating daily trigger, so a day with
+ * nothing unread can simply have none (`plannedReminders`); the app writes the coming days again
+ * each time it opens. The channel is declared once, then every reminder is written together — a
+ * set written one by one is a longer window for a crash to leave it half there.
  */
-export const scheduleReminder = async (schedule: ReminderSchedule, content: ReminderContent) => {
-	if (!isNativePlatform || !schedule.isEnabled) {
-		return null;
+export const scheduleReminders = async (notices: ReminderNotice[]) => {
+	if (!isNativePlatform || notices.length === 0) {
+		return;
 	}
 
 	await ensureAndroidChannel();
+	await Promise.all(notices.map(scheduleReminder));
+};
 
-	const { hour, minute } = parseTime(schedule.time);
-
-	return Notifications.scheduleNotificationAsync({
+const scheduleReminder = (notice: ReminderNotice) =>
+	Notifications.scheduleNotificationAsync({
 		content: {
-			title: content.title,
-			body: content.body,
+			title: notice.title,
+			body: notice.body,
 			sound: true,
-			data: {
-				kind: REMINDER_KIND,
-				triggerSig: buildTriggerSignature(schedule),
-				contentSig: buildContentSignature(content)
-			}
+			data: { kind: REMINDER_KIND, key: buildReminderKey(notice) }
 		},
 		trigger: {
-			type: Notifications.SchedulableTriggerInputTypes.DAILY,
-			hour,
-			minute,
+			type: Notifications.SchedulableTriggerInputTypes.DATE,
+			date: notice.at,
 			channelId: REMINDER_CHANNEL_ID
 		}
 	});
-};
 
-export const readSignatures = (notification: Notifications.NotificationRequest) => ({
-	contentSig: asString(notification.content?.data?.contentSig),
-	triggerSig: asString(notification.content?.data?.triggerSig)
-});
+/** The key a scheduled reminder was stamped with — `null` for one written by an older build. */
+export const readReminderKey = (notification: Notifications.NotificationRequest) =>
+	asString(notification.content?.data?.key);

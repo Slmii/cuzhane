@@ -23,12 +23,26 @@ export class WrapperApiError extends Error {
  * The group kinds this build can draw, sent on every request as a **capability declaration**.
  * The server's compatibility guard (`clientCapabilities.middleware.ts` +
  * `clientCompatibility.service.ts`) reads it to decide which groups this client may find,
- * preview or join. Builds that predate `Group.kind` don't send it, and are treated as knowing
- * only the Cevşen — so a Hizb group never reaches a build that would read it as a hundred babs.
+ * preview or join. Builds that don't send it are treated as knowing the Cevşen and the Kur'an
+ * hatim — so a Hizb group never reaches a build that would read it as a hundred babs.
  * List a new kind here only once this build can actually draw it.
  */
 export const CLIENT_KINDS_HEADER = 'X-Cuzhane-Kinds';
-export const CLIENT_KINDS = 'CEVSEN,HIZB';
+export const CLIENT_KINDS = 'CEVSEN,HATIM,HIZB';
+
+/**
+ * The Hizb division this build draws: the family calendar's 32 portions. Builds before it drew 33
+ * and are not shown Hizb groups at all, since their days would point at the wrong text.
+ */
+export const HIZB_PORTIONS_HEADER = 'X-Cuzhane-Hizb-Portions';
+export const HIZB_PORTIONS = '32';
+
+/**
+ * The kinds this build can draw a Şahsi (one-person plan) reading of. Without it the server hides
+ * such a group, or answers 426 — an older build would open it as an empty board.
+ */
+export const PERSONAL_KINDS_HEADER = 'X-Cuzhane-Personal-Kinds';
+export const PERSONAL_KINDS = 'CEVSEN,HATIM';
 
 /** Holds a reference to the Clerk `getToken` function, set at app startup. */
 let _getToken: (() => Promise<string | null>) | null = null;
@@ -54,7 +68,8 @@ export const setMissingTokenHandler = (handler: () => void) => {
 
 const wait = async (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-const resolveAuthToken = async () => {
+/** The session token, retried as `wrapperApi` retries it — also what live reading's socket signs in with. */
+export const resolveAuthToken = async () => {
 	if (!_getToken) {
 		return null;
 	}
@@ -72,6 +87,22 @@ const resolveAuthToken = async () => {
 	}
 
 	return null;
+};
+
+/**
+ * The session's `Authorization` header, for a request that does not go through `wrapperApi`
+ * — the mushaf's page downloads. No token is handled exactly as `wrapperApi` handles it: the
+ * app signs out, and the caller gets a 401 to fail on.
+ */
+export const authorizationHeader = async (): Promise<{ Authorization: string }> => {
+	const token = await resolveAuthToken();
+
+	if (!token) {
+		_onMissingToken?.();
+		throw new WrapperApiError({ code: 401, message: 'Authentication token is not ready. Please retry.' }, 401);
+	}
+
+	return { Authorization: `Bearer ${token}` };
 };
 
 export const wrapperApi = async <T>(endpoint: string, init?: RequestInit): Promise<T> => {
@@ -114,7 +145,9 @@ export const wrapperApi = async <T>(endpoint: string, init?: RequestInit): Promi
 				...(isFormData ? {} : { 'Content-Type': 'application/json' }),
 				...(token ? { Authorization: `Bearer ${token}` } : {}),
 				[CLIENT_KINDS_HEADER]: CLIENT_KINDS,
+				[HIZB_PORTIONS_HEADER]: HIZB_PORTIONS,
 				'X-Cuzhane-Hizb-Plans': '1',
+				[PERSONAL_KINDS_HEADER]: PERSONAL_KINDS,
 				...(init?.headers || {})
 			}
 		});

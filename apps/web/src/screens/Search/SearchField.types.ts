@@ -1,5 +1,5 @@
+import type { SearchInputHandle } from '@/components/ui/SearchInput/SearchInput.types';
 import type { RefObject } from 'react';
-import type { TextInput } from 'react-native';
 
 export interface SearchFieldProps {
 	query: string;
@@ -8,5 +8,5 @@ export interface SearchFieldProps {
 	onClear: () => void;
 	/** The round × beside it: leaves search mode altogether. */
 	onClose: () => void;
-	inputRef: RefObject<TextInput | null>;
+	inputRef: RefObject<SearchInputHandle | null>;
 }

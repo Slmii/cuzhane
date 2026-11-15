@@ -1,7 +1,17 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import { z } from 'zod';
 import type { ResponseLocals } from '@interfaces/response.types';
-import { enrollHizb, getHizbState, getHizbAssignment, updateHizbAssignment } from '@services/hizbReading.service';
+import { readAheadRateLimit } from '@middleware/rateLimit.middleware';
+import {
+	enrollHizb,
+	getHizbState,
+	getHizbAssignment,
+	getHizbHistoryDay,
+	getHizbHistoryDays,
+	openHizbAhead,
+	setHizbReadsFromBook,
+	updateHizbAssignment
+} from '@services/hizbReading.service';
 const router = Router({ mergeParams: true });
 const params = z.object({ groupId: z.string().min(1), assignmentId: z.string().min(1).optional() });
 const update = z
@@ -9,13 +19,16 @@ const update = z
 		version: z.number().int().min(0),
 		read: z.boolean().optional(),
 		istighfarRepetitions: z.number().int().min(0).max(100).optional(),
-		istighfarTarget: z.union([z.literal(11), z.literal(33), z.literal(100)]).optional(),
+		istighfarTarget: z.number().int().min(1).max(100).optional(),
 		delailRepetitions: z.number().int().min(0).max(3).optional(),
 		repetitions: z.number().int().min(0).max(19).optional(),
-		bookmark: z.number().int().min(0).max(1000).optional()
+		bookmark: z.number().int().min(0).max(1000).optional(),
+		// The Hizb's 32, a Kur'an day's cüz, or a Cevşen day's babs (up to 100); the service checks the day's own.
+		bookPortions: z.array(z.number().int().min(1).max(100)).min(1).max(100).optional()
 	})
 	.refine(
 		v =>
+			v.bookPortions !== undefined ||
 			v.delailRepetitions !== undefined ||
 			v.read !== undefined ||
 			v.repetitions !== undefined ||
@@ -36,14 +49,34 @@ router.get(
 	'/',
 	handle((req, user, id) => getHizbState(user, id, z.string().min(1).optional().parse(req.query.cursor)))
 );
+const day = z.coerce.number().int().min(0).max(1_000_000);
+router.get(
+	'/history',
+	handle((req, user, id) => getHizbHistoryDays(user, id, day.optional().parse(req.query.before)))
+);
+router.get(
+	'/history/:day',
+	handle((req, user, id) => getHizbHistoryDay(user, id, day.parse(req.params.day)))
+);
 router.post(
 	'/enroll',
 	handle((req, user, id) =>
 		enrollHizb(
 			user,
 			id,
-			z.object({ planDays: z.union([z.literal(7), z.literal(15), z.literal(33)]) }).parse(req.body).planDays
+			z.object({ planDays: z.union([z.literal(7), z.literal(15), z.literal(32)]) }).parse(req.body).planDays
 		)
+	)
+);
+router.post(
+	'/ahead',
+	readAheadRateLimit,
+	handle((_req, user, id) => openHizbAhead(user, id))
+);
+router.patch(
+	'/preferences',
+	handle((req, user, id) =>
+		setHizbReadsFromBook(user, id, z.object({ readsFromBook: z.boolean() }).parse(req.body).readsFromBook)
 	)
 );
 router.get(

@@ -8,3 +8,6 @@ export const splitDelailRepetition = (block: HizbBlock) => {
 	}
 	return { passage: { lines: block.lines.slice(0, 1) }, after: { lines: block.lines.slice(1) } };
 };
+
+/** The Delâil's salavat is read three times. */
+export const DELAIL_REPETITIONS = 3;

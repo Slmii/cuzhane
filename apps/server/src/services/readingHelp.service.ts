@@ -3,7 +3,7 @@ import { BAD_REQUEST, CONFLICT, FORBIDDEN, NOT_FOUND } from '@config/httpCodes';
 import { HttpError } from '@config/httpError';
 import { normalizeUserId } from '@utils/normalizeUserId';
 import { isAnonymousTo } from '@utils/groupPrivacy';
-import { civilDayNumber, roundIndexSince } from '@utils/rounds';
+import { civilDayNumber, roundIndexSince, roundLengthFor } from '@utils/rounds';
 import { hasSekine, hasDelailRepetition, hasIstighfar } from '@utils/hizbPlans';
 import type {
 	Prisma,
@@ -17,6 +17,7 @@ import { ensureCurrentRound, lockGroup } from './rounds.service';
 import { babNumbersInRound } from './groupSerializers';
 import { syncCompletedAt } from './babs.service';
 import { updateHizbAssignmentInTransaction } from './hizbReading.service';
+import { notifyHizbRead } from './hizbReadNotice.service';
 import { assertRepetitionsMet } from './repetitions.service';
 
 type Tx = Prisma.TransactionClient;
@@ -33,6 +34,11 @@ async function context(tx: Tx, user: string, groupId: string) {
 	}
 	if (group.hizbIndividual || group.status !== 'RUNNING') {
 		throw new HttpError(BAD_REQUEST, 'Help is available in active shared groups');
+	}
+	// A seat-divided share is seat arithmetic. A hatim's cüz are stored holdings and a flexible group has no
+	// shares at all, so neither has a "my reading" to hand over.
+	if (group.hizbPlan === null && (group.kind === 'HATIM' || group.splitMode === 'FLEXIBLE')) {
+		throw new HttpError(BAD_REQUEST, 'Help is available in Cevşen and Hizb groups');
 	}
 	if (group.hizbPlan === null) {
 		await ensureCurrentRound(tx, groupId);
@@ -127,7 +133,12 @@ export async function requestReadingHelp(userId: string, groupId: string, target
 			targetKey = `assignment:${a.id}`;
 		} else {
 			roundIndex = target.roundIndex ?? group.roundIndex;
-			const joinedRound = roundIndexSince(group.startedAt!, group.cycle, member.joinedAt, group.timezone);
+			const joinedRound = roundIndexSince(
+				group.startedAt!,
+				roundLengthFor(group),
+				member.joinedAt,
+				group.timezone
+			);
 			if (
 				target.assignmentId ||
 				!Number.isInteger(roundIndex) ||
@@ -187,7 +198,9 @@ export async function actOnReadingHelp(
 	version: number
 ) {
 	const user = normalizeUserId(userId);
-	return prisma.$transaction(async tx => {
+	// The portions to tell the group about once a completed reading has committed.
+	let announced: number[] | null = null;
+	const result = await prisma.$transaction(async tx => {
 		const group = await context(tx, user, groupId);
 		const r = await tx.readingHelp.findFirst({ where: { id, groupId }, include });
 		if (!r || !group.members.some(m => m.userId === r.requesterUserId)) {
@@ -218,7 +231,7 @@ export async function actOnReadingHelp(
 				await tx.readingHelp.update({ where: { id }, data: { helperUserId: null, version: { increment: 1 } } });
 			} else if (r.assignment) {
 				const a = r.assignment;
-				await updateHizbAssignmentInTransaction(tx, user, groupId, a.id, {
+				announced = await updateHizbAssignmentInTransaction(tx, user, groupId, a.id, {
 					version: a.version,
 					read: true,
 					...(hasSekine(a.enrollment.planDays, a.portion) ? { repetitions: 19 } : {}),
@@ -250,4 +263,8 @@ export async function actOnReadingHelp(
 		}
 		return { success: true as const };
 	});
+	if (announced) {
+		await notifyHizbRead({ groupId, portions: announced, readerId: user });
+	}
+	return result;
 }

@@ -1,4 +1,3 @@
-import { useTourBarTarget } from '@/components/Tour/useTourBarTarget';
 import { GlassCornerAction } from '@/components/ui/CornerAction/GlassCornerAction.component';
 import { groupQueryKeys } from '@/lib/hooks/queryKeys';
 import { useGetGroupById } from '@/lib/hooks/useGroup';
@@ -46,9 +45,6 @@ export const GroupDetailToolbar = () => {
 	 * fetch the whole shelf on a screen reached by deep link, to decide one glyph. It is only a
 	 * seed — once the detail resolves it is the answer.
 	 */
-	// Stop 9 of the first-use tour — the share glyph, beside the account.
-	useTourBarTarget('share', 1);
-
 	const shelf = useQueryClient().getQueryData<GroupSummary[]>(groupQueryKeys.groups());
 	const individual = group?.hizbIndividual ?? shelf?.find(entry => entry.id === groupId)?.hizbIndividual ?? false;
 	const isOwner = group?.isOwner ?? shelf?.find(entry => entry.id === groupId)?.isOwner ?? false;

@@ -1,3 +1,4 @@
+import { useHintScreen } from '@/components/Hints/useHintScreen';
 import { RoundCard } from '@/components/RoundCard/RoundCard.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { PullToRefresh } from '@/components/ui/PullToRefresh/PullToRefresh.component';
@@ -14,7 +15,7 @@ import { useTranslation } from '@/lib/i18n/I18n.context';
 import type { StringKey } from '@/lib/i18n/strings';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { GroupCycle, GroupKind, RoundSummary } from '@/lib/types/domain';
-import { cycleLabelKey, partUnitKey } from '@/lib/utils/groups';
+import { cycleLabelKey, partUnitKey, roundsSubtitleKey } from '@/lib/utils/groups';
 import { hizbMissedNote, roundDateRange } from '@/lib/utils/rounds';
 import type { TabStackParamList } from '@/navigation/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -29,12 +30,17 @@ const NO_ROUNDS: RoundSummary[] = [];
 
 /**
  * The open round and the one before it, by cadence — "bugün" / "dün", "bu hafta" / "geçen
- * hafta", "bu ay" / "geçen ay". A record, so a cycle without a name fails the build.
+ * hafta". A record, so a cycle without an answer fails the build.
+ *
+ * **Only a day and a week have words of their own.** A monthly hatim round is thirty days, not
+ * a calendar month, and a one-off has no "last one" — both are dated, or the open one read
+ * "bu hafta". A Hizb round (calendar months included) is dated by its range before this is read.
  */
-const WHEN_LABELS: Record<GroupCycle, { current: StringKey; previous: StringKey }> = {
+const WHEN_LABELS: Record<GroupCycle, { current: StringKey; previous: StringKey } | null> = {
 	DAILY: { current: 'todayLabel', previous: 'yesterdayLabel' },
 	WEEKLY: { current: 'thisWeekLabel', previous: 'lastWeekLabel' },
-	MONTHLY: { current: 'thisMonthLabel', previous: 'lastMonthLabel' }
+	MONTHLY: null,
+	CUSTOM: null
 };
 
 /** A round's read count as a share of what it had to cover, 0–100. */
@@ -51,6 +57,8 @@ const roundPercent = (round: RoundSummary) =>
  */
 export const RoundsScreen = ({ navigation, route }: Props) => {
 	const { groupId } = route.params;
+	// One card that says what this page is for.
+	useHintScreen('rounds');
 	const { theme } = useThemeContext();
 	const { language, t } = useTranslation();
 
@@ -81,7 +89,7 @@ export const RoundsScreen = ({ navigation, route }: Props) => {
 	);
 
 	// The design labels rounds by cadence rather than by date: a daily group's previous
-	// round is "dün", a weekly one's is "geçen hafta", a monthly one's "geçen ay".
+	// round is "dün", a weekly one's is "geçen hafta". A monthly or one-off hatim round is dated.
 	//
 	// **HZ4 dates every Hizb round instead** — "20–26 Eyl · Bu tur", "13–19 Eyl" — because a
 	// Hizb round is often a month long, and "geçen ay" says less than the days it ran.
@@ -91,19 +99,21 @@ export const RoundsScreen = ({ navigation, route }: Props) => {
 				return roundDateRange(round.startedAt, round.endsAt, language, timezone);
 			}
 
-			if (isOpenRound) {
-				return t(WHEN_LABELS[cycle].current);
+			const words = WHEN_LABELS[cycle];
+
+			if (isOpenRound && words) {
+				return t(words.current);
 			}
 
 			const isPrevious = openRound !== undefined && round.roundIndex === openRound.roundIndex - 1;
 
-			if (!isPrevious) {
+			if (isOpenRound || !isPrevious || !words) {
 				// Anything older than one round back is dated — "4 turdan önce" would make the
 				// reader count backwards.
 				return roundDate.format(new Date(round.startedAt));
 			}
 
-			return t(WHEN_LABELS[cycle].previous);
+			return t(words.previous);
 		},
 		[cycle, isHizb, language, openRound, roundDate, t, timezone]
 	);
@@ -153,7 +163,8 @@ export const RoundsScreen = ({ navigation, route }: Props) => {
 		<>
 			<ScreenHeader
 				hasBackButton
-				subtitle={isHizb ? t('roundsSubHizb', { count: groupQuery.data.partCount }) : t('roundsSub')}
+				// What closing a round does depends on the book, and for the Cevşen on how it divides the babs.
+				subtitle={t(roundsSubtitleKey(kind, groupQuery.data.splitMode), { count: groupQuery.data.partCount })}
 				title={t('rounds')}
 				titleTrailing={<Chip label={t(cycleLabelKey(cycle))} tone='accent' />}
 			/>

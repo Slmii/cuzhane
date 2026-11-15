@@ -1,3 +1,4 @@
+import { HintTarget } from '@/components/Hints/HintTarget.component';
 import { MenuAction } from '@/components/ui/MenuAction/MenuAction.component';
 import { useGetGroups } from '@/lib/hooks/useGroup';
 import { useTranslation } from '@/lib/i18n/I18n.context';
@@ -19,7 +20,8 @@ type GroupsToolbarNavigationProp = NativeStackNavigationProp<
 >;
 
 /**
- * Gruplarım's bar: one + that pulls down the two ways onto the shelf.
+ * Gruplarım's bar: one + that pulls down the ways in — a new group, a group's code, and a live
+ * reading's code.
  *
  * **A component the navigator registers, not a `setOptions` call from the screen.** Setting the
  * header from an effect means the screen's first frame has no bar and a later commit puts one
@@ -47,30 +49,43 @@ export const GroupsToolbar = () => {
 		<View style={styles.actions}>
 			{/* Narrowing first, then adding, then the account at the end — the order the shelf is read in. */}
 			<GroupBrowseMenu />
-			<MenuAction
-				accessibilityLabel={t('addGroup')}
-				assetName='yeni-new'
-				icon='plus'
-				items={[
-					{
-						assetName: 'yeni-new',
-						icon: 'plus',
-						label: t('newGroup'),
-						onPress: () => navigation.navigate('CreateGroup')
-					},
-					{
-						assetName: 'anahtar-key',
-						icon: 'key',
-						label: t('haveCode'),
-						// The route param Onboarding already uses to ask for this sheet, rather than a
-						// second channel: the screen clears it on dismissal, so one flag can serve both.
-						onPress: () => navigation.setParams({ shouldOpenJoinSheet: true })
-					}
-				]}
-				// `text`, not the accent: this sits beside the platform's own back chevron and
-				// toolbar glyphs, which are monochrome. A sage + read as a coloured outlier.
-				tone='surface'
-			/>
+			{/*
+			 * Gruplarım's hint: both ways into a group — a new one, or a private one by its code — are
+			 * here. A disc around a disc: the 44pt glyph and the spotlight's 6pt either side.
+			 */}
+			<HintTarget id='newGroup' radius={28}>
+				<MenuAction
+					accessibilityLabel={t('addGroup')}
+					assetName='yeni-new'
+					icon='plus'
+					items={[
+						{
+							assetName: 'yeni-new',
+							icon: 'plus',
+							label: t('newGroup'),
+							onPress: () => navigation.navigate('CreateGroup')
+						},
+						{
+							assetName: 'anahtar-key',
+							icon: 'key',
+							label: t('haveCode'),
+							// The route param Onboarding already uses to ask for this sheet, rather than a
+							// second channel: the screen clears it on dismissal, so one flag can serve both.
+							onPress: () => navigation.setParams({ shouldOpenJoinSheet: true })
+						},
+						{
+							// A live reading's code, asked for on its own — the same sheet, in its live mode.
+							assetName: 'birlikte-oku-live-session',
+							icon: 'liveSession',
+							label: t('liveJoinMenu'),
+							onPress: () => navigation.setParams({ shouldOpenLiveJoinSheet: true })
+						}
+					]}
+					// `text`, not the accent: this sits beside the platform's own back chevron and
+					// toolbar glyphs, which are monochrome. A sage + read as a coloured outlier.
+					tone='surface'
+				/>
+			</HintTarget>
 			<TrailingCornerAction />
 		</View>
 	);

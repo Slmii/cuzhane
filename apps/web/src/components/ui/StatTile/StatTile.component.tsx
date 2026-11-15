@@ -8,10 +8,11 @@ import type { StatTileProps } from './StatTile.types';
 // `false` here would quietly hold every stat tile in the app back off the material.
 export const StatTile = ({ hasGlassSurface = true, label, style, tone = 'default', value }: StatTileProps) => {
 	const { theme } = useThemeContext();
+	const valueColor = { accent: theme.colors.accent, default: theme.colors.text, missed: theme.colors.missed }[tone];
 
 	return (
 		<CardSurface hasGlassSurface={hasGlassSurface} isFlush style={[styles.card, style]}>
-			<NumericText color={tone === 'accent' ? theme.colors.accent : theme.colors.text}>{value}</NumericText>
+			<NumericText color={valueColor}>{value}</NumericText>
 			<StatText color={theme.colors.faintText} style={styles.label}>
 				{label}
 			</StatText>

@@ -1,11 +1,20 @@
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, { Easing, useAnimatedProps, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, {
+	Easing,
+	useAnimatedProps,
+	useReducedMotion,
+	useSharedValue,
+	withTiming
+} from 'react-native-reanimated';
 import Svg, { Circle } from 'react-native-svg';
 import type { ProgressRingProps } from './ProgressRing.types';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+
+/** A ticking ring's step — one second, the countdown's own unit. */
+const TICK_MS = 1000;
 
 /**
  * Circular track + progress arc, drawn as an SVG stroke and animated by easing the
@@ -13,25 +22,37 @@ const AnimatedCircle = Animated.createAnimatedComponent(Circle);
  */
 export const ProgressRing = ({
 	children,
+	color,
+	isTicking = false,
 	percent,
 	size = 236,
 	strokeWidth = 4,
+	trackColor,
 	trackWidth,
 	style
 }: ProgressRingProps) => {
 	const { theme } = useThemeContext();
+	const isReducedMotion = useReducedMotion();
 	// Both circles share a radius so the arc rides the centre of the track — the track is
 	// the thinner of the two, and the arc is meant to sit slightly proud of it.
 	const radius = (size - Math.max(strokeWidth, trackWidth ?? strokeWidth)) / 2;
 	const circumference = 2 * Math.PI * radius;
-	const progress = useSharedValue(0);
+	const fraction = Math.max(0, Math.min(100, percent)) / 100;
+	const progress = useSharedValue(isTicking ? fraction : 0);
 
 	useEffect(() => {
-		progress.value = withTiming(Math.max(0, Math.min(100, percent)) / 100, {
+		if (isTicking) {
+			progress.value = isReducedMotion
+				? fraction
+				: withTiming(fraction, { duration: TICK_MS, easing: Easing.linear });
+			return;
+		}
+
+		progress.value = withTiming(fraction, {
 			duration: 750,
 			easing: Easing.bezier(0.22, 0.9, 0.28, 1)
 		});
-	}, [percent, progress]);
+	}, [fraction, isReducedMotion, isTicking, progress]);
 
 	const animatedProps = useAnimatedProps(() => ({
 		strokeDashoffset: circumference * (1 - progress.value)
@@ -45,7 +66,7 @@ export const ProgressRing = ({
 					cy={size / 2}
 					fill='none'
 					r={radius}
-					stroke={theme.colors.secondary}
+					stroke={trackColor ?? theme.colors.secondary}
 					strokeWidth={trackWidth ?? strokeWidth}
 				/>
 				<AnimatedCircle
@@ -54,7 +75,7 @@ export const ProgressRing = ({
 					cy={size / 2}
 					fill='none'
 					r={radius}
-					stroke={theme.colors.accent}
+					stroke={color ?? theme.colors.accent}
 					strokeDasharray={circumference}
 					strokeLinecap='round'
 					strokeWidth={strokeWidth}

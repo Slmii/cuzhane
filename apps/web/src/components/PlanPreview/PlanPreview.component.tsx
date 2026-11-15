@@ -58,7 +58,7 @@ const PlanRow = ({ label, offset, range, width }: PlanRowProps) => {
 
 /**
  * Shows what the chosen plan actually means, round by round: the range and where it sits
- * across the whole text — the hundred babs, or the Hizb's 33 portions. A ROTATION group walks
+ * across the whole text — the hundred babs, or the Hizb's 32 portions. A ROTATION group walks
  * forward one seat each round, so the bar marches left to right; a FIXED group is one
  * unmoving row. The rows themselves are `planPreviewRows`, tested; this only labels them.
  */

@@ -9,6 +9,8 @@ export type CreateFeedbackInput = {
 	appVersion?: string;
 	platform?: string;
 	locale?: string;
+	/** The app's last steps, oldest first — see `lib/utils/breadcrumbs`. */
+	trail?: string[];
 };
 
 export type FeedbackReceipt = {

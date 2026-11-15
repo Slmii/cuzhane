@@ -1,8 +1,10 @@
 import readingHelpRouter from './readingHelp.route';
 import hizbReadingRouter from './hizbReading.route';
-import { CREATED, OK } from '@config/httpCodes';
+import { CREATED, OK, UPGRADE_REQUIRED } from '@config/httpCodes';
+import { HttpError } from '@config/httpError';
 import { ResponseLocals, ResponseLocalsWithBody, ResponseLocalsWithQuery } from '@interfaces/response.types';
-import { createGroupRateLimit } from '@middleware/rateLimit.middleware';
+import { createGroupRateLimit, poolRateLimit, readingPlaceRateLimit } from '@middleware/rateLimit.middleware';
+import { clientSupportsKind } from '@middleware/clientCapabilities.middleware';
 import { validateData } from '@middleware/validate.middleware';
 import {
 	CreateGroupBody,
@@ -12,8 +14,14 @@ import {
 	GroupIdParamsSchema,
 	CoverRoundBabsBodySchema,
 	RoundParamsSchema,
+	PickRoundCuzBody,
+	PickRoundCuzBodySchema,
+	PoolCuzParamsSchema,
 	PoolPartParamsSchema,
 	PoolSlotParamsSchema,
+	ReadingPlaceParamsSchema,
+	SaveReadingPlaceBody,
+	SaveReadingPlaceBodySchema,
 	UpdateGroupBody,
 	UpdateGroupBodySchema
 } from '@schemas/group.schema';
@@ -36,6 +44,9 @@ import {
 	takePoolPartForUser,
 	takePoolSlotForUser
 } from '@services/pool.service';
+import { listPoolCuzForUser, releasePoolCuzForUser, takePoolCuzForUser } from '@services/cuzPool.service';
+import { pickRoundCuzForUser, skipRoundForUser } from '@services/cuzRound.service';
+import { listReadingPlacesForUser, saveReadingPlaceForUser } from '@services/readingPlace.service';
 import {
 	coverMissedBabsForUser,
 	getMyProgressForUser,
@@ -92,6 +103,11 @@ groupsRouter.post(
 				auth: { userId },
 				validatedBody
 			} = res.locals;
+
+			// A build that cannot draw the kind would be left with a group it is never shown.
+			if (!clientSupportsKind(res, validatedBody.kind)) {
+				throw new HttpError(UPGRADE_REQUIRED, 'Update the app to open this group');
+			}
 
 			const displayName = resolveDisplayName(req);
 			const group = await createGroupForUser(userId, displayName, validatedBody);
@@ -199,6 +215,7 @@ groupsRouter.get('/:groupId/pool', async (req: Request, res: Response<object, Re
 
 groupsRouter.post(
 	'/:groupId/pool/:slotIndex',
+	poolRateLimit,
 	async (req: Request, res: Response<object, ResponseLocals>, next: NextFunction) => {
 		try {
 			const { groupId, slotIndex } = PoolSlotParamsSchema.parse(req.params);
@@ -216,6 +233,7 @@ groupsRouter.post(
 
 groupsRouter.delete(
 	'/:groupId/pool/:slotIndex',
+	poolRateLimit,
 	async (req: Request, res: Response<object, ResponseLocals>, next: NextFunction) => {
 		try {
 			const { groupId, slotIndex } = PoolSlotParamsSchema.parse(req.params);
@@ -237,6 +255,7 @@ groupsRouter.delete(
  */
 groupsRouter.post(
 	'/:groupId/pool/parts/:babNumber',
+	poolRateLimit,
 	async (req: Request, res: Response<object, ResponseLocals>, next: NextFunction) => {
 		try {
 			const { groupId, babNumber } = PoolPartParamsSchema.parse(req.params);
@@ -254,6 +273,7 @@ groupsRouter.post(
 
 groupsRouter.delete(
 	'/:groupId/pool/parts/:babNumber',
+	poolRateLimit,
 	async (req: Request, res: Response<object, ResponseLocals>, next: NextFunction) => {
 		try {
 			const { groupId, babNumber } = PoolPartParamsSchema.parse(req.params);
@@ -262,6 +282,142 @@ groupsRouter.delete(
 			} = res.locals;
 
 			const result = await releasePoolPartForUser(userId, groupId, babNumber);
+			res.status(OK).json(result);
+		} catch (error) {
+			next(error);
+		}
+	}
+);
+
+/*
+ * **The hatim's havuz, addressed by cüz.** Its own three routes rather than a branch inside
+ * the three above: those take a `slotIndex`, which a hatim has no meaning for — see
+ * `cuzPool.service`. Same verbs, same shapes, one unit apart.
+ */
+groupsRouter.get(
+	'/:groupId/pool-cuz',
+	async (req: Request, res: Response<object, ResponseLocals>, next: NextFunction) => {
+		try {
+			const { groupId } = GroupIdParamsSchema.parse(req.params);
+			const {
+				auth: { userId }
+			} = res.locals;
+
+			const cuz = await listPoolCuzForUser(userId, groupId);
+			res.status(OK).json(cuz);
+		} catch (error) {
+			next(error);
+		}
+	}
+);
+
+groupsRouter.post(
+	'/:groupId/pool-cuz/:cuzNumber',
+	poolRateLimit,
+	async (req: Request, res: Response<object, ResponseLocals>, next: NextFunction) => {
+		try {
+			const { cuzNumber, groupId } = PoolCuzParamsSchema.parse(req.params);
+			const {
+				auth: { userId }
+			} = res.locals;
+
+			const result = await takePoolCuzForUser(userId, groupId, cuzNumber);
+			res.status(OK).json(result);
+		} catch (error) {
+			next(error);
+		}
+	}
+);
+
+groupsRouter.delete(
+	'/:groupId/pool-cuz/:cuzNumber',
+	poolRateLimit,
+	async (req: Request, res: Response<object, ResponseLocals>, next: NextFunction) => {
+		try {
+			const { cuzNumber, groupId } = PoolCuzParamsSchema.parse(req.params);
+			const {
+				auth: { userId }
+			} = res.locals;
+
+			const result = await releasePoolCuzForUser(userId, groupId, cuzNumber);
+			res.status(OK).json(result);
+		} catch (error) {
+			next(error);
+		}
+	}
+);
+
+/*
+ * **The round-start screen's two answers (QR1).** A pick is the member's own cüz for the round,
+ * not a loan out of the havuz above; skipping sits the round out. See `cuzRound.service`.
+ */
+groupsRouter.post(
+	'/:groupId/round-cuz',
+	validateData(PickRoundCuzBodySchema, 'body'),
+	async (req: Request, res: Response<object, ResponseLocalsWithBody<PickRoundCuzBody>>, next: NextFunction) => {
+		try {
+			const { groupId } = GroupIdParamsSchema.parse(req.params);
+			const {
+				auth: { userId },
+				validatedBody
+			} = res.locals;
+
+			const result = await pickRoundCuzForUser(userId, groupId, validatedBody.cuzNumbers);
+			res.status(OK).json(result);
+		} catch (error) {
+			next(error);
+		}
+	}
+);
+
+groupsRouter.post(
+	'/:groupId/round-skip',
+	async (req: Request, res: Response<object, ResponseLocals>, next: NextFunction) => {
+		try {
+			const { groupId } = GroupIdParamsSchema.parse(req.params);
+			const {
+				auth: { userId }
+			} = res.locals;
+
+			const result = await skipRoundForUser(userId, groupId);
+			res.status(OK).json(result);
+		} catch (error) {
+			next(error);
+		}
+	}
+);
+
+/** The viewer's own places in the round the group is on — see `readingPlace.service`. */
+groupsRouter.get(
+	'/:groupId/reading-places',
+	async (req: Request, res: Response<object, ResponseLocals>, next: NextFunction) => {
+		try {
+			const { groupId } = GroupIdParamsSchema.parse(req.params);
+			const {
+				auth: { userId }
+			} = res.locals;
+
+			const result = await listReadingPlacesForUser(userId, groupId);
+			res.status(OK).json(result);
+		} catch (error) {
+			next(error);
+		}
+	}
+);
+
+groupsRouter.put(
+	'/:groupId/reading-places/:unitNumber',
+	readingPlaceRateLimit,
+	validateData(SaveReadingPlaceBodySchema, 'body'),
+	async (req: Request, res: Response<object, ResponseLocalsWithBody<SaveReadingPlaceBody>>, next: NextFunction) => {
+		try {
+			const { groupId, unitNumber } = ReadingPlaceParamsSchema.parse(req.params);
+			const {
+				auth: { userId },
+				validatedBody
+			} = res.locals;
+
+			const result = await saveReadingPlaceForUser(userId, groupId, unitNumber, validatedBody);
 			res.status(OK).json(result);
 		} catch (error) {
 			next(error);

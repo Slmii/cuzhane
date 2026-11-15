@@ -1,6 +1,9 @@
 import type { GroupKind } from '@/lib/types/domain';
 import { NavigatorScreenParams } from '@react-navigation/native';
 
+/** Why a hatim's round-start screen (QR1) is being shown — see `RoundStart`. */
+export type RoundStartReason = 'pick' | 'carried';
+
 export type AuthStackParamList = {
 	SignIn: undefined;
 	SignUp: undefined;
@@ -24,8 +27,46 @@ export type TabDetailParamList = {
 	 * The read-only preview of a group tapped in Keşfet — frames 03b/03c/03f — is still a
 	 * screen, because browsing genuinely is navigation.
 	 */
-	InvitePreview: { groupId: string };
-	GroupIntroduction: { groupId: string; source: 'created' | 'joined' };
+	/** `inviteCode` when reached by a code or the QR (P4): a private group previews and joins by it. */
+	InvitePreview: { groupId: string; inviteCode?: string };
+	/**
+	 * QJ3 — which cüz you are joining a hatim with. Pushed from the preview's CTA.
+	 * `isRoundPick` reuses the same map for a member choosing again at a new round (QR1's
+	 * "Farklı cüz seç"): it takes cüz for the round rather than joining.
+	 */
+	PickCuz: { groupId: string; isRoundPick?: boolean; inviteCode?: string };
+	/**
+	 * Q7 — the hatim of `roundIndex` is complete. `then` is set when a completed round is only
+	 * seen after its boundary: the celebration comes first, then the new round's screen.
+	 */
+	HatimComplete: { groupId: string; roundIndex: number; then?: RoundStartReason };
+	/**
+	 * QR1 — a new round's opening screen. `pick`: the member holds no cüz and must choose or
+	 * skip before the group opens. `carried`: "Cüzler korunur" brought their cüz over — shown
+	 * once, for their information.
+	 */
+	RoundStart: { groupId: string; reason: RoundStartReason };
+	/** Q4 — one cüz of a hatim: its state, its span, what is in it. */
+	CuzDetail: { groupId: string; cuzNumber: number };
+	/**
+	 * Q5 — reading a cüz page by page. `page` is 1-based within the cüz and only seeds where it
+	 * opens; the screen owns it from there. `shouldOpenTextSize` as on `BabReader`.
+	 */
+	CuzReader: {
+		groupId: string;
+		/** Absent only with `assignmentId`: a Şahsi day opens on its first cüz not yet marked. */
+		cuzNumber?: number;
+		/** A Şahsi Kur'an day's reading: the reader loads its cüz, and marks the day read at its end. */
+		assignmentId?: string;
+		page?: number;
+		shouldOpenTextSize?: boolean;
+		/**
+		 * Opened from a Şahsi Kur'an day: the day's cüz, which the arrows walk instead of the cüz held
+		 * in a round, and the reading's day number, which the marked place is kept under in place of
+		 * a round (a day reads each of its cüz once).
+		 */
+		plan?: { cuzNumbers: number[]; day: number };
+	};
 	JoinedWelcome: { groupId: string };
 	/**
 	 * `sheet` asks the screen to open one of its sheets on arrival. It exists so the bar's
@@ -34,7 +75,13 @@ export type TabDetailParamList = {
 	 * its state. Same device as `shouldOpenJoinSheet`, and cleared on dismissal for the same
 	 * reason — left set, the flag would reopen the sheet on the next render.
 	 */
-	GroupDetail: { groupId: string; sheet?: GroupDetailSheet };
+	/**
+	 * `isJustJoined`: a members-choose Hizb group was just joined, so picking the plan opens O2
+	 * (how it works) — set only by the join, and only while the account still wants to see it.
+	 */
+	GroupDetail: { groupId: string; sheet?: GroupDetailSheet; isJustJoined?: boolean };
+	/** O1–O5 — how the group works, after joining. `isOverGroup` when pushed over its screen (O2). */
+	GroupHowItWorks: { groupId: string; isOverGroup?: boolean };
 	/**
 	 * `shouldOpenTextSize` asks the reader to open its text-size sheet, for the same reason
 	 * `GroupDetail.sheet` exists: the control lives in the navigator's bar, outside the screen
@@ -48,6 +95,8 @@ export type TabDetailParamList = {
 	BabReader: { groupId: string; babNumber: number; roundIndex?: number; shouldOpenTextSize?: boolean };
 	Rounds: { groupId: string };
 	MyProgress: { groupId: string };
+	/** The Hatim duası in Hüsrev hattı — the same four pages whichever group opened it. */
+	HatimDua: undefined;
 	RoundDetail: { groupId: string; roundIndex: number };
 	/** Where a GATHERING group lives — the creator's start screen, or the member's wait. */
 	Lobby: { groupId: string };
@@ -56,8 +105,10 @@ export type TabDetailParamList = {
 	 * The share of the seats nobody took. `kind` picks the screen — a Cevşen block at a time or a
 	 * Hizb portion at a time — and travels with the route because a group's kind never changes,
 	 * so it can't go stale, and the right screen is drawn without waiting on the group's query.
+	 * Optional: the hatim screens (and a cold open) arrive without it, and the group's own kind
+	 * wins once known — see `PoolScreen`.
 	 */
-	Pool: { groupId: string; kind: GroupKind };
+	Pool: { groupId: string; kind?: GroupKind };
 	/** HZ2 — a Hizb group's portions, work by work, from the board's "Fihrist ›"; a row opens `HizbReader`. */
 	HizbIndex: { groupId: string };
 	/**
@@ -70,7 +121,29 @@ export type TabDetailParamList = {
 	 * the one exception to "no params": search lands here on a bab it found, and that is a
 	 * place you are sent to. It only seeds the cursor; the screen owns it from there.
 	 */
-	AllBabs: { shouldOpenTextSize?: boolean; babNumber?: number } | undefined;
+	/*
+	 * A live reading is the app's (`lib/live/liveSession`), not the route's: the reader attaches to
+	 * it while focused. `shouldOpenLive` opens its sheet from the bar, as `shouldOpenTextSize` does;
+	 * `liveNotFoundCode` is the join screen's one-shot "that code found nothing" (E5).
+	 */
+	AllBabs:
+		| { shouldOpenTextSize?: boolean; babNumber?: number; shouldOpenLive?: boolean; liveNotFoundCode?: string }
+		| undefined;
+	/**
+	 * The free Mushaf — the Kur'an read outside any group, as `AllBabs` is the Cevşen. The same
+	 * "no params" rule: the cüz and page are screen state, and `cuzNumber` only seeds the cursor.
+	 */
+	Mushaf:
+		| {
+				shouldOpenTextSize?: boolean;
+				cuzNumber?: number;
+				page?: number;
+				verseKey?: string;
+				shouldOpenLive?: boolean;
+		  }
+		| undefined;
+	/** A live reading's code, from a link or from "Davet kodum var": looked up, then its reader opened. */
+	LiveJoin: { code: string };
 	/**
 	 * The account screen lost its tab to search (K2) and is pushed from the avatar at the right
 	 * end of every tab root's bar — inside that tab, so back returns to where it was opened.
@@ -92,7 +165,17 @@ export type TabDetailParamList = {
 	 * exactly as no index, so a caller holding one may pass it. `shouldOpenTextSize` as on
 	 * `BabReader`, in either shape.
 	 */
-	HizbPlanReader: { groupId: string; assignmentId: string };
+	HizbPlanReader: { groupId: string; assignmentId: string; shouldOpenTextSize?: boolean };
+	/** A Şahsi Cevşen reading's day: its babs in order, marked read at the end. */
+	CevsenPlanReader: { groupId: string; assignmentId: string; shouldOpenTextSize?: boolean };
+	/** A personal-plan group's missed days, newest first — opened from "Senin ilerlemen" (T2). */
+	HizbMissed: { groupId: string };
+	/** A personal-plan group's history: every reading of the viewer's, newest first — from the rounds card (T3). */
+	HizbPlanHistory: { groupId: string };
+	/** A personal-plan group's readers today (T5), or on `day` (a group day number) from "Tüm geçmiş". */
+	HizbReaders: { groupId: string; day?: number };
+	/** A shared plan's "Tüm geçmiş": the group's days, newest first, each opening its readers. */
+	HizbGroupHistory: { groupId: string };
 	HizbReader:
 		| { sectionIndex: number; shouldOpenTextSize?: boolean }
 		| { groupId: string; partNumber: number; roundIndex?: number; shouldOpenTextSize?: boolean };
@@ -102,7 +185,9 @@ export type TabDetailParamList = {
 };
 
 /** `inviteCode` arrives from the QR's link (`groups/join/:inviteCode`) and opens the join sheet on that code. */
-export type GroupsScreenParams = { shouldOpenJoinSheet?: boolean; inviteCode?: string } | undefined;
+export type GroupsScreenParams =
+	| { shouldOpenJoinSheet?: boolean; inviteCode?: string; shouldOpenLiveJoinSheet?: boolean }
+	| undefined;
 
 /** The sheets the group screen's bar can ask for. Not a route — each is `ui/BottomSheet`. */
 export type GroupDetailSheet = 'manage' | 'members' | 'share';

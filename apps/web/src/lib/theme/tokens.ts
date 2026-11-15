@@ -67,6 +67,9 @@ export type AppTheme = {
 		accentOutline: string;
 		sand: string;
 		sandText: string;
+		/** Ana sayfa's "2 sa 30 dk kaldı" — how long the next reading has left, warmer than `sand`. */
+		deadline: string;
+		deadlineText: string;
 		text: string;
 		subtext: string;
 		faintText: string;
@@ -74,6 +77,10 @@ export type AppTheme = {
 		borderStrong: string;
 		divider: string;
 		track: string;
+		/** A thin progress bar's empty part inside a muted panel — a shade under `track`. */
+		progressTrack: string;
+		/** A day's bar that fell short of the whole — the Hizb plan's thirty-day chart. */
+		barPartial: string;
 		danger: string;
 		dangerSurface: string;
 		/**
@@ -111,6 +118,11 @@ export type AppTheme = {
 		 * than a number standing out.
 		 */
 		onHeaderSurfaceMissed: string;
+		/**
+		 * Q7's full ring on the deep green — the design's `#8FB8A6`, fixed in both modes for the
+		 * same reason as the two above: the layer under it does not change with the theme.
+		 */
+		onHeaderSurfaceRing: string;
 		switchTrackOff: string;
 		switchThumbOff: string;
 		transparent: string;
@@ -162,9 +174,86 @@ export type AppTheme = {
 		heatLow: string;
 		heatMid: string;
 		heatHigh: string;
-		// Reader chrome sits over the page and blurs what scrolls beneath it.
+		/**
+		 * The reader's header and footer. **Opaque**, and it was a 94% tint: nothing is meant
+		 * to pass under these bars, but the header is the scroll view's own sticky child, so the
+		 * page *does* scroll beneath it — and through six percent of it the Arabic showed as a
+		 * ghost behind "BAB 100 / 100" and made the sura line and the page strip hard to read.
+		 */
 		readerSurface: string;
 		readerRule: string;
+		/**
+		 * The Hüsrev mushaf's page. **Light in both modes**, like the invite code's plate: the
+		 * page images are black ink on a transparent ground, so on the dark theme's page they
+		 * would vanish. Dark mode takes it a shade down so the page does not glare.
+		 */
+		mushafPaper: string;
+		/**
+		 * The sajdah mark on a Hüsrev page ("Secde süsü" in the Icon Set): the star's fill, its gilt,
+		 * and its drop shadow with the design's alpha baked in. It hangs off the page onto the
+		 * reader's own ground, so unlike `mushafPaper` it has a dark twin.
+		 */
+		mushafMarkSurface: string;
+		mushafMarkGilt: string;
+		mushafMarkShadow: string;
+		/**
+		 * The sura heading's gilt — its stars, diamonds and inner rule, and the dots between the
+		 * caption's facts ("Sure başlığı" in the Icon Set). Only ornament, never text.
+		 */
+		gilt: string;
+		/** The sura heading's cartouche, behind the name — a paler sage than `accentSoft`. */
+		suraCartouche: string;
+		/** The band behind a sajdah verse's lines — `gilt`, washed ("Secde âyeti" in the Icon Set). */
+		giltSoft: string;
+		/**
+		 * The band behind the verse long-pressed on the typeset page, while its meal is open — the
+		 * app's sage, washed, so a selection never reads as the gilt of a sajdah verse.
+		 */
+		verseSelection: string;
+		/**
+		 * Birlikte oku's band behind the reader's line ("Göster"): a follower's in full, with a 1pt
+		 * ring of its own; the reader's own at half tone, so they know where they are without it
+		 * pulling at them.
+		 */
+		liveBand: string;
+		liveBandRing: string;
+		liveBandOwn: string;
+		liveBandOwnRing: string;
+		/**
+		 * The return-to-reading strip (Birlikte oku · Okumaya dönüş) — its own tones, which say the
+		 * state by colour: live (sage), the reader dropped (sand), connecting and ended (a quiet grey).
+		 * Only what no other token equals in **both** modes is here: the titles reuse `text`, the
+		 * button `primary`/`onPrimary`, the quiet border `text` at 12%, the ended mark `text` at 45%.
+		 * `*Lead` is the 40pt disc behind the glyph or initials.
+		 */
+		liveStrip: string;
+		liveStripBorder: string;
+		liveStripSub: string;
+		liveStripLead: string;
+		liveStripAccent: string;
+		liveStripWarn: string;
+		liveStripWarnBorder: string;
+		liveStripWarnTitle: string;
+		liveStripWarnSub: string;
+		liveStripWarnLead: string;
+		/** The countdown ring's stroke; its track is this at 22%. */
+		liveStripWarnAccent: string;
+		liveStripQuiet: string;
+		liveStripQuietSub: string;
+		liveStripQuietLead: string;
+		/** The connecting spinner. */
+		liveStripQuietAccent: string;
+		/** The strip's lift off the page: a wide soft shadow and, in light mode, a tight one under it. */
+		liveStripShadow: string;
+		liveStripShadowNear: string;
+		/**
+		 * Live voice (Birlikte Oku Ses) draws in the strip's tones — live sage, sand for paused, the
+		 * quiet grey for "sesini kapattı". This is the one colour it adds: the well behind the
+		 * microphone on the sheet's "Sesimi aç" row while it is off, the design's `chip`.
+		 */
+		liveVoiceWell: string;
+		/** The "sesini kapattı" glyph: the voice design's calm accent, a shade stronger than `liveStripQuietAccent`. */
+		liveVoiceQuietAccent: string;
 		/**
 		 * The verse ornament's crimson — its own colour, not `danger`.
 		 *
@@ -233,6 +322,8 @@ export const lightTheme: AppTheme = {
 		accentOutline: 'rgba(62,107,92,0.42)',
 		sand: '#F0EBE2',
 		sandText: '#6E5B3E',
+		deadline: '#F6ECE1',
+		deadlineText: '#8A4F24',
 		text: '#1C1D1A',
 		subtext: '#6C6D68',
 		faintText: '#9A9B95',
@@ -240,6 +331,8 @@ export const lightTheme: AppTheme = {
 		borderStrong: '#DAD8D1',
 		divider: '#EDEBE5',
 		track: '#ECEAE4',
+		progressTrack: '#E4E1D8',
+		barPartial: '#C9D9CF',
 		danger: '#8C3F3F',
 		dangerSurface: '#F6EDEC',
 		missed: '#A65D5D',
@@ -254,6 +347,7 @@ export const lightTheme: AppTheme = {
 		headerSurface: '#3E6B5C',
 		onHeaderSurface: '#FFFFFF',
 		onHeaderSurfaceMissed: '#D48A8A',
+		onHeaderSurfaceRing: '#8FB8A6',
 		switchTrackOff: '#DEDCD5',
 		switchThumbOff: '#FFFFFF',
 		transparent: 'transparent',
@@ -274,8 +368,39 @@ export const lightTheme: AppTheme = {
 		heatLow: '#DCE7DF',
 		heatMid: '#A9C7B6',
 		heatHigh: '#3E6B5C',
-		readerSurface: 'rgba(247,245,240,0.94)',
+		readerSurface: '#F7F5F0',
 		readerRule: 'rgba(28,29,26,0.07)',
+		mushafPaper: '#FFFDF8',
+		mushafMarkSurface: '#FFFFFF',
+		mushafMarkGilt: '#B8862F',
+		mushafMarkShadow: 'rgba(62,50,20,0.16)',
+		gilt: '#B8862F',
+		suraCartouche: '#F1F5F2',
+		giltSoft: 'rgba(184,134,47,0.1)',
+		verseSelection: 'rgba(62,107,92,0.14)',
+		liveBand: 'rgba(62,107,92,0.15)',
+		liveBandRing: 'rgba(62,107,92,0.2)',
+		liveBandOwn: 'rgba(62,107,92,0.075)',
+		liveBandOwnRing: 'rgba(62,107,92,0.1)',
+		liveStrip: '#E8EFEA',
+		liveStripBorder: 'rgba(62,107,92,0.24)',
+		liveStripSub: 'rgba(28,29,26,0.66)',
+		liveStripLead: '#FFFFFF',
+		liveStripAccent: '#3E6B5C',
+		liveStripWarn: '#F3ECDF',
+		liveStripWarnBorder: 'rgba(140,106,60,0.28)',
+		liveStripWarnTitle: '#5E4B2E',
+		liveStripWarnSub: '#6E5B3E',
+		liveStripWarnLead: '#FFFFFF',
+		liveStripWarnAccent: '#B08A52',
+		liveStripQuiet: '#EFEDE7',
+		liveStripQuietSub: 'rgba(28,29,26,0.62)',
+		liveStripQuietLead: '#FFFFFF',
+		liveStripQuietAccent: 'rgba(28,29,26,0.5)',
+		liveStripShadow: 'rgba(28,29,26,0.14)',
+		liveStripShadowNear: 'rgba(28,29,26,0.08)',
+		liveVoiceWell: '#F2F0EA',
+		liveVoiceQuietAccent: 'rgba(28,29,26,0.55)',
 		ornament: '#A65D5D',
 		scrim: '#141513'
 	},
@@ -317,6 +442,9 @@ export const darkTheme: AppTheme = {
 		accentOutline: 'rgba(143,184,166,0.42)',
 		sand: '#3A342A',
 		sandText: '#D8C9A9',
+		// No dark frame draws the badge; the light pair carried over the way `sand` is.
+		deadline: '#3D2E22',
+		deadlineText: '#E3AE84',
 		text: '#F2F0EA',
 		subtext: 'rgba(242,240,234,0.52)',
 		faintText: 'rgba(242,240,234,0.42)',
@@ -324,6 +452,8 @@ export const darkTheme: AppTheme = {
 		borderStrong: 'rgba(242,240,234,0.16)',
 		divider: 'rgba(242,240,234,0.09)',
 		track: 'rgba(242,240,234,0.1)',
+		progressTrack: 'rgba(242,240,234,0.16)',
+		barPartial: 'rgba(143,184,166,0.35)',
 		// Dark frames carry two reds: #C97B7B on cards and #8C3F3F on the invalid-code
 		// strip. The latter is the light value left in place and barely clears its own
 		// #3A2A2A background, so the card red is used for both.
@@ -342,6 +472,7 @@ export const darkTheme: AppTheme = {
 		headerSurface: '#20372F',
 		onHeaderSurface: '#F2F0EA',
 		onHeaderSurfaceMissed: '#D48A8A',
+		onHeaderSurfaceRing: '#8FB8A6',
 		switchTrackOff: '#3A3C36',
 		switchThumbOff: '#191A18',
 		transparent: 'transparent',
@@ -364,14 +495,87 @@ export const darkTheme: AppTheme = {
 		heatLow: 'rgba(143,184,166,0.25)',
 		heatMid: 'rgba(143,184,166,0.55)',
 		heatHigh: '#8FB8A6',
-		readerSurface: 'rgba(25,26,24,0.94)',
+		readerSurface: '#191A18',
 		readerRule: 'rgba(242,240,234,0.09)',
+		mushafPaper: '#ECE8DE',
+		mushafMarkSurface: '#26302C',
+		mushafMarkGilt: '#D9B36A',
+		mushafMarkShadow: 'rgba(0,0,0,0.5)',
+		gilt: '#D9B36A',
+		suraCartouche: '#1F2724',
+		giltSoft: 'rgba(217,179,106,0.12)',
+		verseSelection: 'rgba(143,184,166,0.2)',
+		liveBand: 'rgba(143,190,168,0.2)',
+		liveBandRing: 'rgba(143,190,168,0.26)',
+		liveBandOwn: 'rgba(143,190,168,0.1)',
+		liveBandOwnRing: 'rgba(143,190,168,0.14)',
+		liveStrip: '#22302A',
+		liveStripBorder: 'rgba(143,190,168,0.28)',
+		liveStripSub: 'rgba(242,240,234,0.72)',
+		liveStripLead: '#2D3E36',
+		liveStripAccent: '#8FBEA8',
+		liveStripWarn: '#33291C',
+		liveStripWarnBorder: 'rgba(214,170,110,0.3)',
+		liveStripWarnTitle: '#F0DDBE',
+		liveStripWarnSub: 'rgba(240,221,190,0.82)',
+		liveStripWarnLead: '#43361F',
+		liveStripWarnAccent: '#D6AA6E',
+		liveStripQuiet: '#262824',
+		liveStripQuietSub: 'rgba(242,240,234,0.64)',
+		liveStripQuietLead: '#30322D',
+		liveStripQuietAccent: 'rgba(242,240,234,0.55)',
+		liveStripShadow: 'rgba(0,0,0,0.45)',
+		// The design draws dark mode's lift as the one wide shadow.
+		liveStripShadowNear: 'rgba(0,0,0,0)',
+		liveVoiceWell: '#2A2C27',
+		liveVoiceQuietAccent: 'rgba(242,240,234,0.6)',
 		ornament: '#C97B7B',
 		scrim: '#141513'
 	},
 	spacing,
 	radius
 };
+
+/**
+ * **Q7's illustration** — "Hatim Tamamlandı" in the design: the page's green, the little mushaf
+ * that opens, turns its pages and closes, and the gilt that bursts and falls around it.
+ *
+ * One palette, not a light and a dark one: Q7 is always the deep green page in either mode, as
+ * the design draws it, so these never follow the theme. Kept here rather than in the screen so
+ * the rule that no component carries its own hex still holds.
+ */
+export const hatimCompletePalette = {
+	/** The page's radial wash: lit at the top, `headerSurface`'s green in the middle, deeper below. */
+	pageLight: '#4F8472',
+	pageMiddle: '#3E6B5C',
+	pageDeep: '#30574A',
+	/** The celebration's golds and the confetti's other two colours. */
+	goldLight: '#E9C98A',
+	gold: '#D9B36A',
+	goldDeep: '#C98A2B',
+	sagePale: '#BFD8CC',
+	white: '#FFFFFF',
+	twinkle: '#F3DFB2',
+	/** The book: its binding, its pages, the illuminated first pages, the endpaper and the ink. */
+	binding: '#24463B',
+	page: '#F6F1E4',
+	parchment: '#EFE3C8',
+	parchmentEdge: '#E0CCA5',
+	cartouche: '#EDE0C3',
+	endpaper: '#EFE6CF',
+	ink: 'rgba(52,40,24,0.82)',
+	/** The illuminated page's hatched bands — the same ink, fainter. */
+	hatch: 'rgba(52,40,24,0.6)',
+	inkDeep: '#3A2C1A',
+	script: 'rgba(40,30,18,0.75)',
+	scriptFaint: 'rgba(40,30,18,0.35)',
+	rule: 'rgba(28,29,26,0.13)',
+	shade: 'rgba(0,0,0,0.07)',
+	shadeDeep: 'rgba(0,0,0,0.12)',
+	/** The binding's inner edge at the spine, and the boards' drop shadow. */
+	spineShade: 'rgba(0,0,0,0.25)',
+	shadow: '#000000'
+} as const;
 
 export const toAlphaColor = (color: string, alpha = 0.16) => {
 	if (/^#[\da-f]{6}$/i.test(color)) {

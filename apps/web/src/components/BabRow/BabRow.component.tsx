@@ -1,6 +1,6 @@
 import { AppButton } from '@/components/ui/Button/Button.component';
-import { BodyStrongText, Typography } from '@/components/ui/Typography/Typography.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
+import { BodyStrongText, Typography } from '@/components/ui/Typography/Typography.component';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { useReducedMotion, ZoomIn } from 'react-native-reanimated';
@@ -104,7 +104,7 @@ export const BabRow = ({
 				onPress={onOpen}
 				size='sm'
 				title={openLabel}
-				variant='surface'
+				variant='accent'
 			/>
 		</View>
 	);

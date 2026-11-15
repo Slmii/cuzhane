@@ -1,6 +1,6 @@
 /**
  * The Cevşen is 100 babs — and that is all this says. It is the Cevşen's count, not every
- * group's: a Hizb group divides 33 parts. Nothing in the seat math below reads it; every
+ * group's: a Hizb group divides 32 parts. Nothing in the seat math below reads it; every
  * function takes the group's own part count, so a caller cannot quietly split the wrong book.
  */
 export const BAB_COUNT = 100;

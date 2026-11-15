@@ -77,6 +77,11 @@ const GLYPH_BY_ICON: Partial<Record<IconName, GlyphSource>> = {
 	close: { systemName: 'xmark' },
 	chevronRight: { systemName: 'chevron.right' },
 	copy: { assetName: 'kopyala-copy-link' },
+	// "Takip et" while detached — which way the reader's line went. Apple's, like the chevrons.
+	arrowDown: { systemName: 'arrow.down' },
+	arrowUp: { systemName: 'arrow.up' },
+	// Birlikte oku's "Gönder", beside "Kodu kopyala" — without it the pair split into glass and drawn.
+	share: { assetName: 'paylas-share' },
 	// Ours, converted like the tick it sits opposite in Yönet — Apple's own `trash` is drawn to
 	// the full box the converted glyphs leave room in, so at one point size it came out visibly
 	// heavier than the tick.
@@ -88,6 +93,15 @@ const GLYPH_BY_ICON: Partial<Record<IconName, GlyphSource>> = {
 	 * than the converted one next to it — the `trash`-beside-`check` lesson above.
 	 */
 	plus: { assetName: 'yeni-new' },
+	// The repetition box's other two beside "+ Bir tekrar", so the row crosses to glass together.
+	minus: { systemName: 'minus' },
+	reset: { systemName: 'arrow.counterclockwise' },
+	// Q4's "Uygulamada oku" — converted so the button takes the same capsule as Okudum.
+	readInApp: { assetName: 'uygulamada-oku-read-in-app' },
+	// Beside it on Q4 — the frame's hand-over card, converted the same way.
+	handOver: { assetName: 'devret-hand-over' },
+	// The Hizb day card's "Kitaptan okudum", beside "Uygulamada oku" — converted from `ui/Icon`'s own paths.
+	bookPages: { assetName: 'kitaptan-oku-read-from-book' },
 	search: { assetName: 'ara-search' },
 	/*
 	 * **Converted because its own other half already was.** The pool's one button says
@@ -97,7 +111,20 @@ const GLYPH_BY_ICON: Partial<Record<IconName, GlyphSource>> = {
 	 * the whole button back to the drawn path, silently.
 	 */
 	claim: { assetName: 'ustlen-claim' },
-	undo: { assetName: 'geri-al-undo' }
+	undo: { assetName: 'geri-al-undo' },
+	// The cüz reader's "Kaldığım yeri işaretle" — the set's own bookmark, converted, so the button
+	// is one glyph on both platforms instead of Apple's `bookmark` on iOS and nothing elsewhere.
+	bookmark: { assetName: 'kaldigin-yer-bookmark' },
+	/*
+	 * Live voice's three buttons — "Dinle", "Durdur", "Sesi kapat" — in the live bar beside
+	 * "Takip et", which is glass. Apple's, like the chevrons: the voice glyphs have no converted
+	 * symbol yet, and without an entry the button would drop to the drawn path beside a glass one.
+	 */
+	speaker: { systemName: 'speaker.wave.1' },
+	stop: { systemName: 'stop.fill' },
+	micOff: { systemName: 'mic.slash' },
+	// The reader's "turn my voice on" beside the invite code in the plain live bar.
+	mic: { systemName: 'mic' }
 };
 
 /** Whether this glyph can cross to a native button. `AppButton` asks before switching paths. */
@@ -128,7 +155,7 @@ const ICON_SIZE_BY_SIZE: Record<ButtonSize, number> = {
 };
 
 /**
- * **A glyph on its own is the navigation bar's disc**, whatever `size` says: SwiftUI's `large`
+ * **A glyph on its own is the navigation bar's disc**, whatever `size` says (`sm` aside, below): SwiftUI's `large`
  * control in a circle — the 44pt the bar gives its back chevron — with the glyph at 20pt
  * semibold, which is how that chevron is set. Create-group's × and ✓, the reader's arrows and
  * the search field's × all read as the same control as the bar's, instead of three sizes of a
@@ -136,6 +163,8 @@ const ICON_SIZE_BY_SIZE: Record<ButtonSize, number> = {
  * for the drawn path, and by `GlassCornerAction`'s own-glass variant.
  */
 const ICON_ONLY_GLYPH_SIZE = 20;
+/** `sm`: the smaller disc — SwiftUI's `regular` circle. Mirrors `ICON_ONLY_SM_*` in `Button.component.tsx`. */
+const ICON_ONLY_SM_GLYPH_SIZE = 16;
 
 /**
  * **A mirror of `labelSizeStyleMap` in `Button.component.tsx` — change both together.**
@@ -239,6 +268,7 @@ export const GlassButton = ({
 		systemIcon !== undefined ? { systemName: systemIcon } : icon !== undefined ? GLYPH_BY_ICON[icon] : undefined;
 	// A glyph and no word — the bar's disc, see `ICON_ONLY_GLYPH_SIZE`.
 	const isIconOnly = title === undefined && (imageUri !== undefined || glyph !== undefined);
+	const iconOnlyGlyphSize = size === 'sm' ? ICON_ONLY_SM_GLYPH_SIZE : ICON_ONLY_GLYPH_SIZE;
 	// Built once so the two sides of the label can place the same element. One source or the
 	// other, never both — `GlyphSource` makes that a type error.
 	const glyphImage =
@@ -256,7 +286,7 @@ export const GlassButton = ({
 					resizable(),
 					frame(
 						isIconOnly
-							? { height: ICON_ONLY_GLYPH_SIZE, width: ICON_ONLY_GLYPH_SIZE }
+							? { height: iconOnlyGlyphSize, width: iconOnlyGlyphSize }
 							: { height: ICON_SIZE_BY_SIZE[size], width: ICON_SIZE_BY_SIZE[size] }
 					)
 				]}
@@ -266,7 +296,7 @@ export const GlassButton = ({
 			<Image
 				// The font modifier replaces `size`, and it is the only way to name a weight.
 				{...(isIconOnly
-					? { modifiers: [font({ size: ICON_ONLY_GLYPH_SIZE, weight: 'semibold' })] }
+					? { modifiers: [font({ size: iconOnlyGlyphSize, weight: 'semibold' })] }
 					: { size: ICON_SIZE_BY_SIZE[size] })}
 				{...(glyph.assetName === undefined ? { systemName: glyph.systemName } : { assetName: glyph.assetName })}
 			/>
@@ -315,8 +345,10 @@ export const GlassButton = ({
 		accent: { style: 'glassProminent', tintColor: theme.colors.accent },
 		dangerFilled: { style: 'glassProminent', tintColor: theme.colors.danger },
 		accentOutline: { style: 'glass', tintColor: theme.colors.accent },
+		outline: { style: 'glass', tintColor: undefined },
 		danger: { style: 'glass', tintColor: theme.colors.danger },
 		surface: { style: 'glass', tintColor: undefined },
+		tonal: { style: 'glass', tintColor: undefined },
 		ghost: { style: 'glass', tintColor: undefined }
 	}[variant] as { style: 'glass' | 'glassProminent'; tintColor: string | undefined };
 
@@ -343,7 +375,7 @@ export const GlassButton = ({
 				modifiers={[
 					buttonStyle(glassToneByVariant.style),
 					// The glass style sizes its disc from the control size: `large` is the bar's 44.
-					controlSize(isIconOnly ? 'large' : CONTROL_SIZE_BY_SIZE[size]),
+					controlSize(isIconOnly ? (size === 'sm' ? 'regular' : 'large') : CONTROL_SIZE_BY_SIZE[size]),
 					disabledModifier(disabled),
 					/*
 					 * **One shape for a pinned pair.** `glass` defaults to a capsule and

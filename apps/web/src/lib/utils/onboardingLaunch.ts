@@ -2,8 +2,8 @@
  * Whether this account went through onboarding **during this launch of the app**.
  *
  * It exists because nothing stored can answer that question. A brand-new account and an existing
- * reader who never finished the tour look identical on Ana sayfa — `hasSeenOnboarding: true`,
- * `hasSeenTour: false` — since the new account set the first of those seconds earlier. The
+ * reader who never saw the welcome look identical on Ana sayfa — `hasSeenOnboarding: true`, the
+ * welcome hint unseen — since the new account set the first of those seconds earlier. The
  * difference is not in the data, it is in how the app got here: a newcomer passed through
  * `OnboardingScreen`, and an existing reader launched straight into the tabs.
  *

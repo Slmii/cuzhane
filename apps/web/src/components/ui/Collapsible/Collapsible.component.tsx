@@ -1,60 +1,55 @@
-import { useEffect } from 'react';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, {
-	Easing,
-	useAnimatedStyle,
-	useReducedMotion,
-	useSharedValue,
-	withTiming
-} from 'react-native-reanimated';
+import Animated, { useReducedMotion } from 'react-native-reanimated';
 import type { CollapsibleProps } from './Collapsible.types';
 
-/** Long enough to read as the block leaving, short enough not to hold up the tap. */
-const COLLAPSE_MS = 240;
+/** Long enough to read as a reveal, short enough that a switch still feels immediate. */
+const DURATION_MS = 220;
 
 /**
- * Opens and closes a block, taking the surface around it with it.
+ * A block that opens and closes, animating **both** ways.
  *
- * **Height and opacity move together, on a measured height.** A `LinearTransition` on the card
- * was the first attempt and is not the same thing: it springs the *card* to its new size while
- * the contents mount and unmount instantly, so the block pops in at full strength and vanishes
- * mid-collapse. Animating the block itself means the card follows, because the block is what
- * takes up the room.
+ * **It stays mounted and clips itself, rather than entering and exiting.** The obvious
+ * version — `{isOpen ? <Animated.View entering exiting /> : null}` — opens beautifully and
+ * closes instantly: the exit has to outlive the unmount, and it loses the race against the
+ * parent's own reflow, so the block vanishes and everything below it snaps up. Keeping the
+ * view mounted and animating its height removes the race entirely; there is nothing to
+ * outlive, and the content below follows the height down.
  *
- * **The child is absolutely positioned so it keeps its natural height.** That is what makes this
- * work without being told a number: the child lays out at whatever size it wants, reports it
- * through `onLayout`, and the clipping box is what animates. Nothing here needs a magic constant,
- * and the block can change size later without this knowing.
+ * The transition is declared as **Reanimated CSS properties on one flat style object**, the
+ * same idiom `CellGrid` uses for its hundred cells and for the same reason: it runs on the
+ * UI thread with no mapper per element. They must sit on a single flat object, not inside a
+ * style array, or Reanimated never sees them.
  *
- * It stays **mounted while closed** — there is nothing to measure otherwise, and the first open
- * would animate from zero to zero. `pointerEvents` is what keeps a clipped control unreachable.
+ * The child is measured at its natural height while the wrapper is clipped to zero, so the
+ * height to animate *to* is always known — no first-open snap, and no guessed constant.
  */
-export const Collapsible = ({ children, isOpen }: CollapsibleProps) => {
+export const Collapsible = ({ children, isOpen, style }: CollapsibleProps) => {
+	const [height, setHeight] = useState(0);
 	const isReducedMotion = useReducedMotion();
-	const contentHeight = useSharedValue(0);
-	const progress = useSharedValue(isOpen ? 1 : 0);
-
-	useEffect(() => {
-		const target = isOpen ? 1 : 0;
-
-		progress.value = isReducedMotion
-			? target
-			: withTiming(target, { duration: COLLAPSE_MS, easing: Easing.bezier(0.2, 0.9, 0.3, 1) });
-	}, [isOpen, isReducedMotion, progress]);
-
-	const animatedStyle = useAnimatedStyle(() => ({
-		height: contentHeight.value * progress.value,
-		opacity: progress.value
-	}));
+	// Before the first measurement `isOpen` has nothing to open to, so it stays closed for a
+	// frame rather than jumping to a guess.
+	const duration = isReducedMotion || height === 0 ? 0 : DURATION_MS;
 
 	return (
-		<Animated.View pointerEvents={isOpen ? 'auto' : 'none'} style={[styles.clip, animatedStyle]}>
-			<View
-				onLayout={event => {
-					contentHeight.value = event.nativeEvent.layout.height;
-				}}
-				style={styles.content}
-			>
+		<Animated.View
+			style={{
+				height: isOpen ? height : 0,
+				// Fading slightly ahead of the height keeps the content from looking squashed
+				// on the way out.
+				opacity: isOpen ? 1 : 0,
+				overflow: 'hidden',
+				transitionDuration: duration,
+				transitionProperty: ['height', 'opacity'],
+				transitionTimingFunction: 'ease-in-out'
+			}}
+		>
+			{/*
+			 * Absolutely positioned so its own height never depends on the wrapper's — a child
+			 * in normal flow inside a zero-height clipped parent measures zero, and the block
+			 * would then have no height to reopen to.
+			 */}
+			<View onLayout={event => setHeight(event.nativeEvent.layout.height)} style={[styles.measure, style]}>
 				{children}
 			</View>
 		</Animated.View>
@@ -62,10 +57,7 @@ export const Collapsible = ({ children, isOpen }: CollapsibleProps) => {
 };
 
 const styles = StyleSheet.create({
-	clip: {
-		overflow: 'hidden'
-	},
-	content: {
+	measure: {
 		left: 0,
 		position: 'absolute',
 		right: 0,

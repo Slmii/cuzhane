@@ -1,9 +1,10 @@
+import { HintScrollProvider } from '@/components/Hints/HintScroll.context';
 import { PullToRefresh } from '@/components/ui/PullToRefresh/PullToRefresh.component';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { HasTabBarContext, TAB_BAR_CONTENT_GAP, TabBarOffsetContext } from '@/navigation/TabBarOffsetContext';
 import { useIsFocused } from '@react-navigation/native';
-import { useContext, useEffect, useRef, type ComponentRef } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useContext, useEffect, useRef, type ComponentRef, type RefObject } from 'react';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { Edge, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ScreenContainerProps } from './ScreenContainer.types';
@@ -30,6 +31,7 @@ export const ScreenContainer = ({
 	const hasTabBar = useContext(HasTabBarContext);
 	// The keyboard-aware view's own ref type — a `ScrollView` plus the method it adds.
 	const scrollRef = useRef<ComponentRef<typeof KeyboardAwareScrollView> | null>(null);
+	const contentRef = useRef<View>(null);
 	// A sticky header pins to the scroll *viewport*, not to the content — so it rises above
 	// the content padding that normally carries the top inset and lands under the notch.
 	// With one in play the inset moves onto the viewport instead, which shrinks it rather
@@ -95,6 +97,8 @@ export const ScreenContainer = ({
 			 */
 			<KeyboardAwareScrollView
 				bottomOffset={KEYBOARD_GAP}
+				// React Native types this ref as never null, which a React 19 ref is until it mounts.
+				innerViewRef={contentRef as RefObject<View>}
 				ref={scrollRef}
 				contentContainerStyle={[
 					styles.scrollableContent,
@@ -123,7 +127,14 @@ export const ScreenContainer = ({
 					style
 				]}
 			>
-				{pullToRefresh ? <PullToRefresh {...pullToRefresh}>{scrollView}</PullToRefresh> : scrollView}
+				{/*
+				 * A hint whose section is below the fold scrolls it into view (`HintTarget`). Around the
+				 * scroll view rather than inside it: as its only child it would make the whole page index 0
+				 * of `stickyHeaderIndices`, and `PullToRefresh` clones the scroll view it is given.
+				 */}
+				<HintScrollProvider innerRef={contentRef} scrollRef={scrollRef as RefObject<ScrollView | null>}>
+					{pullToRefresh ? <PullToRefresh {...pullToRefresh}>{scrollView}</PullToRefresh> : scrollView}
+				</HintScrollProvider>
 			</SafeAreaView>
 		);
 	}

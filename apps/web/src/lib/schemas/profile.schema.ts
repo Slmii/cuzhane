@@ -15,9 +15,17 @@ export const createRemindersSchema = () =>
 	z.object({
 		reminderTime: z.string().regex(/^\d{2}:\d{2}$/),
 		reminderEnabled: z.boolean(),
-		groupReadsEnabled: z.boolean(),
-		roundCompleteEnabled: z.boolean(),
-		poolClaimEnabled: z.boolean(),
+		hizbReminderEnabled: z.boolean(),
+		hizbReminderTime: z.string().regex(/^\d{2}:\d{2}$/),
+		// Per reading type — P4 draws them under a Kuran heading and a Cevşen one. The server
+		// picks the column from the group's kind; see `settingFor` there.
+		cevsenGroupReadsEnabled: z.boolean(),
+		cevsenRoundCompleteEnabled: z.boolean(),
+		cevsenPoolClaimEnabled: z.boolean(),
+		hatimGroupReadsEnabled: z.boolean(),
+		hatimRoundCompleteEnabled: z.boolean(),
+		hatimPoolClaimEnabled: z.boolean(),
+		hizbGroupReadsEnabled: z.boolean(),
 		memberJoinedEnabled: z.boolean(),
 		memberLeftEnabled: z.boolean()
 	});

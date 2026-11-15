@@ -5,13 +5,13 @@ on:
     push:
         branches: [main, development]
         paths:
-            - 'apps/server/**'
-            - 'deploy/**'
-            - 'package.json'
-            - 'pnpm-lock.yaml'
-            - 'pnpm-workspace.yaml'
-            - '.npmrc'
-            - '.github/workflows/deploy-server.yml'
+            - "apps/server/**"
+            - "deploy/**"
+            - "package.json"
+            - "pnpm-lock.yaml"
+            - "pnpm-workspace.yaml"
+            - ".npmrc"
+            - ".github/workflows/deploy-server.yml"
     workflow_dispatch:
 
 # Two pushes in quick succession must not race for the droplet: the second `up -d` could
@@ -77,22 +77,38 @@ jobs:
         permissions:
             contents: read
         steps:
-            # **The deployment files always come from `main`, whichever branch is deploying.**
-            # `compose.yml`, `Caddyfile` and `backup.sh` describe the *whole box* — both APIs,
-            # the shared Postgres and the edge in front of them — and this job scp's them over
-            # the running copies. Taken from the triggering branch, a merge to `development`
-            # could repoint `{$DOMAIN}` at the preview container, change production's image, or
-            # rewrite the `backup.sh` that root's nightly cron runs with the object-store key.
-            # That would make `development` a path to production with only `main` protected, and
-            # README's claim that protecting `main` is the control that matters would be false.
+            # **Two checkouts: the commit being deployed, and `main`.**
             #
-            # The consequence to know: **infrastructure changes reach the box only through
-            # `main`.** A preview deploy cannot test a compose change before it is merged —
-            # which is the correct trade for a file that owns production, and why this very
-            # change has to land on `main` before `development` can deploy against it.
+            # `compose.yml`, `Caddyfile` and `backup.sh` describe the *shared* box — production's
+            # API, the one Postgres, the edge in front and the backup root's cron runs — so they
+            # are always `main`'s, whichever branch deploys. Taken from `development`, a merge
+            # there could repoint `{$DOMAIN}` at the preview container, change production's
+            # image, or rewrite the backup script that holds the object-store key.
+            #
+            # `compose.preview.yml` is preview's API alone, and comes from the branch being
+            # deployed — which is what lets `development` change preview's own settings (a new
+            # environment variable, say) without a detour through `main`. The step after this
+            # checks that it really holds nothing else.
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
               with:
                   ref: main
+                  path: main-infra
+
+            # **Compose merges files by service name**, so a `compose.preview.yml` that also named
+            # `api`, `postgres` or `caddy` would quietly redefine production's services from
+            # `development`. Only `api-preview` may be in it, and nothing but `services` at the top.
+            - name: Check the preview file holds only preview
+              run: |
+                  TOP=$(yq -r 'keys | join(",")' deploy/compose.preview.yml)
+                  SERVICES=$(yq -r '.services | keys | join(",")' deploy/compose.preview.yml)
+                  echo "top-level: $TOP"
+                  echo "services:  $SERVICES"
+                  if [ "$TOP" != "services" ] || [ "$SERVICES" != "api-preview" ]; then
+                    echo "compose.preview.yml may define the api-preview service and nothing else"
+                    exit 1
+                  fi
 
             # **The branch picks the target, and nothing else does.** `main` swaps the
             # production API, `development` swaps the preview one beside it. They share the
@@ -132,14 +148,40 @@ jobs:
             # workflow triggers on `deploy/**` and then deploys a new image against whatever
             # configuration the box happened to have — a release that adds an environment
             # variable or a healthcheck would silently run without it.
+            #
+            # **The shared files from `main`, preview's from the branch deploying.** A production
+            # deploy does not overwrite `compose.preview.yml` — that would roll preview back to
+            # `main`'s copy — and installs it only when the box has none yet, which is the first
+            # deploy after the split, where the merged `COMPOSE_FILE` would otherwise name a file
+            # that is not there.
             - name: Ship the deployment files
               env:
                   HOST: ${{ secrets.DROPLET_HOST }}
                   USER_NAME: ${{ secrets.DROPLET_USER }}
+                  IS_PRODUCTION: ${{ github.ref == 'refs/heads/main' }}
               run: |
-                  scp -i ~/.ssh/id_deploy deploy/compose.yml deploy/Caddyfile deploy/backup.sh \
+                  # **`main`'s compose file with any `api-preview` taken out** — a no-op once `main`
+                  # has the split, and what lets `development` run its preview file before then:
+                  # merged over a second `api-preview`, compose concatenates list fields
+                  # (`security_opt` twice is invalid). Only that service and Caddy's start-up order
+                  # on it are removed; production's `api`, Postgres and Caddy stay `main`'s exactly.
+                  yq -I4 'del(.services."api-preview") | del(.services.caddy.depends_on[] | select(. == "api-preview"))' \
+                    main-infra/deploy/compose.yml > compose.shared.yml
+                  scp -i ~/.ssh/id_deploy compose.shared.yml "$USER_NAME@$HOST:/opt/cuzhane/compose.yml"
+                  scp -i ~/.ssh/id_deploy main-infra/deploy/Caddyfile main-infra/deploy/backup.sh \
                     "$USER_NAME@$HOST:/opt/cuzhane/"
-                  ssh -i ~/.ssh/id_deploy "$USER_NAME@$HOST" 'chmod +x /opt/cuzhane/backup.sh'
+                  scp -i ~/.ssh/id_deploy deploy/compose.preview.yml \
+                    "$USER_NAME@$HOST:/opt/cuzhane/compose.preview.yml.next"
+                  ssh -i ~/.ssh/id_deploy "$USER_NAME@$HOST" "IS_PRODUCTION='$IS_PRODUCTION' bash -s" <<'REMOTE'
+                  set -euo pipefail
+                  cd /opt/cuzhane
+                  chmod +x backup.sh
+                  if [ "$IS_PRODUCTION" != "true" ] || [ ! -e compose.preview.yml ]; then
+                    mv -f compose.preview.yml.next compose.preview.yml
+                  else
+                    rm -f compose.preview.yml.next
+                  fi
+                  REMOTE
 
             - name: Deploy
               env:
@@ -170,11 +212,21 @@ jobs:
                     printf '\n' >> .env
                   fi
 
-                  if grep -q "^${TAG_VAR}=" .env; then
-                    sed -i "s|^${TAG_VAR}=.*|${TAG_VAR}=${SHA}|" .env
-                  else
-                    printf '%s=%s\n' "$TAG_VAR" "$SHA" >> .env
-                  fi
+                  # One writer for a `.env` line: replaced if it is there, appended if not.
+                  set_env() {
+                    if grep -q "^$1=" .env; then
+                      sed -i "s|^$1=.*|$1=$2|" .env
+                    else
+                      printf '%s=%s\n' "$1" "$2" >> .env
+                    fi
+                  }
+
+                  set_env "$TAG_VAR" "$SHA"
+
+                  # **Both files, for every compose command on the box** — this script and anyone
+                  # at a shell (`backup.sh` names `compose.yml` itself). Written here rather than by
+                  # hand so the split cannot be half-applied.
+                  set_env COMPOSE_FILE compose.yml:compose.preview.yml
 
                   # The only copy of the data from before this release's migrations. A
                   # destructive migration is not recoverable without it.

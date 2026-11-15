@@ -3,23 +3,27 @@ import { SkeletonStatusRow } from '@/components/Skeleton/SkeletonStatusRow.compo
 import { CardSurface } from '@/components/ui/CardSurface/CardSurface.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
+import { Fragment } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 /**
- * The Reminders screen, before its settings arrive: one card per switch, with the clock inside
- * the first of them.
+ * The Reminders screen, before its settings arrive: its sections as drawn — a heading, then one
+ * card holding that section's switches — with the clock under the daily reminder.
  *
  * The screen title is real and sits outside this — it is a constant, not something the
- * request supplies — so only the cards are stubbed.
+ * request supplies — so only the sections are stubbed.
  */
 /**
- * One per switch on the screen — six of them — and the widths stand in for hints of different
- * lengths, since identical bones read as a table rather than as sentences about to arrive.
- *
- * **Its length is the screen's section count.** It was three while the screen had six, so the
- * page grew by half again as the settings landed.
+ * **The screen's shape, section by section: Genel, Kuran, Cevşen, Hizbü'l-Hakaik.** One width per
+ * switch, standing in for hints of different lengths, since identical bones read as a table rather
+ * than as sentences about to arrive. Change it with the screen, or the page jumps as settings land.
  */
-const TOGGLE_HINT_WIDTHS = [186, 168, 196, 204, 174, 190] as const;
+const SECTIONS = [
+	{ labelWidth: 52, hintWidths: [186, 168] },
+	{ labelWidth: 46, hintWidths: [196, 204, 174] },
+	{ labelWidth: 50, hintWidths: [190, 182, 200, 170], hasClock: true },
+	{ labelWidth: 96, hintWidths: [206] }
+] as const;
 
 export const RemindersSkeleton = () => {
 	const { t } = useTranslation();
@@ -28,30 +32,39 @@ export const RemindersSkeleton = () => {
 	return (
 		<View>
 			<SkeletonPulse style={styles.stack}>
-				{/*
-				 * **One card per switch, which is the shape the screen actually has.** Its count
-				 * has been wrong twice: once when this drew a single toggle row for a screen with
-				 * three sections, and again when it kept three for a screen with six. Both times
-				 * the page grew as the settings landed.
-				 */}
-				{TOGGLE_HINT_WIDTHS.map((hintWidth, index) => (
-					<CardSurface isFlush key={index}>
-						<View style={styles.toggleRow}>
-							<View style={styles.toggleCopy}>
-								<Bone height={12} radius={5} width={132} />
-								<Bone height={8} radius={4} tone='soft' width={hintWidth} />
-							</View>
-							<Bone height={22} radius={11} width={38} />
+				{SECTIONS.map((section, sectionIndex) => (
+					<Fragment key={sectionIndex}>
+						<View style={styles.sectionLabel}>
+							<Bone height={9} radius={4.5} tone='soft' width={section.labelWidth} />
 						</View>
-						{/* The clock, in the daily reminder's section only — see `RemindersScreen`. */}
-						{index === 0 ? (
-							<View style={[styles.timeBlock, { borderTopColor: theme.colors.divider }]}>
-								<Bone height={9} radius={4.5} tone='soft' width={64} />
-								<Bone height={40} radius={12} width={148} />
-								<Bone height={8} radius={4} tone='soft' width={128} />
-							</View>
-						) : null}
-					</CardSurface>
+						<CardSurface isFlush>
+							{section.hintWidths.map((hintWidth, rowIndex) => (
+								<Fragment key={rowIndex}>
+									<View
+										style={[
+											styles.toggleRow,
+											rowIndex > 0 && styles.stackedRow,
+											{ borderTopColor: theme.colors.divider }
+										]}
+									>
+										<View style={styles.toggleCopy}>
+											<Bone height={12} radius={5} width={132} />
+											<Bone height={8} radius={4} tone='soft' width={hintWidth} />
+										</View>
+										<Bone height={22} radius={11} width={38} />
+									</View>
+									{/* The clock sits under the daily reminder, the Cevşen card's first row. */}
+									{'hasClock' in section && rowIndex === 0 ? (
+										<View style={[styles.timeBlock, { borderTopColor: theme.colors.divider }]}>
+											<Bone height={9} radius={4.5} tone='soft' width={64} />
+											<Bone height={40} radius={12} width={148} />
+											<Bone height={8} radius={4} tone='soft' width={128} />
+										</View>
+									) : null}
+								</Fragment>
+							))}
+						</CardSurface>
+					</Fragment>
 				))}
 			</SkeletonPulse>
 
@@ -63,6 +76,14 @@ export const RemindersSkeleton = () => {
 const styles = StyleSheet.create({
 	stack: {
 		gap: 12
+	},
+	// The screen's own section heading spacing (`RemindersScreen`'s `sectionLabel`).
+	sectionLabel: {
+		marginBottom: -4,
+		marginTop: 6
+	},
+	stackedRow: {
+		borderTopWidth: StyleSheet.hairlineWidth
 	},
 	timeBlock: {
 		alignItems: 'center',

@@ -39,7 +39,7 @@ const APP_BUILD =
  * Expo Go and development builds are not pinned to a channel, because they may run any update
  * their runtime accepts, so `channel` is null there however `eas.json` labels the profile.
  */
-const BUILD_CHANNEL: string | null =
+export const BUILD_CHANNEL: string | null =
 	Updates.channel === null || Updates.channel === ''
 		? 'development'
 		: Updates.channel === 'production'

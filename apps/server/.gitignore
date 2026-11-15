@@ -6,3 +6,6 @@
 
 # Prisma
 src/generated/
+
+# Mushaf pages
+mushaf/

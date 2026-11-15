@@ -1,4 +1,5 @@
 import { KindMark } from '@/components/ui/KindMark/KindMark.component';
+import { ReadingTypeMark } from '@/components/ui/ReadingTypeMark/ReadingTypeMark.component';
 import { CaptionText, MonoText, TitleText } from '@/components/ui/Typography/Typography.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import type { StringKey } from '@/lib/i18n/strings';
@@ -10,16 +11,17 @@ import { Controller, useFormContext } from 'react-hook-form';
 import { Pressable, StyleSheet, View } from 'react-native';
 import type { FormKindOptionGroupProps } from './KindOptionGroup.types';
 
-/** HC1 draws its marks at 48. */
-const MARK_SIZE = 48;
+/** The mark at the head of a kind's row. */
+const MARK_SIZE = 40;
 
 /**
- * The kinds a group can be created as, in the order the cards sit. **HC1 draws a third card,
- * Hatim, and it is left out on purpose** — there is no Hatim kind to create, and a card for one
- * would be a promise the server refuses.
+ * The kinds a group can be created as, in the order the cards sit — HC1's three: the Cevşen,
+ * the Kur'an (a hatim of thirty cüz) and the Hizb. The Kur'an card keeps Q1's own name and
+ * hint (`qHatim`), the words the rest of the hatim flow uses.
  */
 const KIND_CARDS: readonly { kind: GroupKind; title: StringKey; hint: StringKey }[] = [
 	{ hint: 'kindCevsenHint', kind: 'CEVSEN', title: 'kindCevsen' },
+	{ hint: 'qHatimHint', kind: 'HATIM', title: 'qHatim' },
 	{ hint: 'kindHizbHint', kind: 'HIZB', title: 'kindHizb' }
 ];
 
@@ -32,8 +34,8 @@ type KindCardProps = {
 };
 
 /**
- * One kind: its mark, its name in the heading face, what it is, and — pinned to the foot so the
- * two cards line up whatever their hints wrap to — how many parts it divides.
+ * One kind, as a full-width row: its mark, its name in the heading face over what it is, and at
+ * the end how many parts it divides.
  *
  * The same fill, border and press as `OptionCard`, because it is the same control with more in
  * it: `accentSoft` and an accent border when chosen, the flat `surface` and a hairline when not.
@@ -62,9 +64,18 @@ const KindCard = ({ hint, isSelected, kind, onPress, title }: KindCardProps) => 
 				}
 			]}
 		>
-			<View style={styles.body}>
+			{/*
+			 * The Kur'an's mark is the open mushaf from `ReadingTypeMark` — `KindMark` draws only
+			 * the tesbih and the star. Its spine is knocked out of the fill, so it is told the
+			 * card's own ground.
+			 */}
+			{kind === 'HATIM' ? (
+				<ReadingTypeMark backgroundColor={ground} kind={kind} size={MARK_SIZE} />
+			) : (
 				<KindMark kind={kind} size={MARK_SIZE} />
-				<TitleText style={styles.title}>{title}</TitleText>
+			)}
+			<View style={styles.body}>
+				<TitleText>{title}</TitleText>
 				<CaptionText color={theme.colors.subtext} style={styles.hint}>
 					{hint}
 				</CaptionText>
@@ -77,7 +88,7 @@ const KindCard = ({ hint, isSelected, kind, onPress, title }: KindCardProps) => 
 };
 
 /**
- * The create sheet's first question — which book — as HC1's row of kind cards, bound to a form
+ * The create sheet's first question — which book — as a list of kind cards, bound to a form
  * field the way `FormOptionGroup` binds visibility. A control of its own rather than options
  * handed to that one, because a kind card carries a mark and a count an `OptionCard` has no
  * room for.
@@ -130,17 +141,19 @@ export const FormKindOptionGroup = ({ error, name, onChange, style }: FormKindOp
 };
 
 const styles = StyleSheet.create({
-	/** Takes the slack, which is what sends the count to the foot of the taller card's height. */
+	/** Takes the width between the mark and the count, so the hint wraps there. */
 	body: {
 		flex: 1
 	},
 	card: {
+		alignItems: 'center',
 		borderWidth: 1.5,
-		flex: 1,
+		flexDirection: 'row',
+		gap: 14,
 		padding: 14
 	},
 	count: {
-		marginTop: 16
+		alignSelf: 'flex-start'
 	},
 	// `OptionCard`'s hint, so the two kinds of card read as one family across the steps.
 	hint: {
@@ -152,12 +165,8 @@ const styles = StyleSheet.create({
 		marginLeft: 14,
 		marginTop: 4
 	},
-	// `FormOptionGroup`'s gap. The cards stretch to the taller one, the row's default.
+	// `FormOptionGroup`'s gap, one kind under the other.
 	row: {
-		flexDirection: 'row',
 		gap: 9
-	},
-	title: {
-		marginTop: 12
 	}
 });

@@ -14,6 +14,16 @@ const detailPaths: PathConfigMap<TabDetailParamList> = {
 	...(Platform.OS === 'android' ? { Search: 'search' } : {}),
 	JoinedWelcome: 'welcome/:groupId',
 	GroupDetail: 'groups/:groupId',
+	// Q4. Parsed for the same reason `babNumber` below is: the screen finds the cüz among
+	// the member's holdings by identity, and a string "22" is not among numbers.
+	CuzReader: {
+		path: 'groups/:groupId/cuz/:cuzNumber/read',
+		parse: { cuzNumber: Number, page: Number }
+	},
+	CuzDetail: {
+		path: 'groups/:groupId/cuz/:cuzNumber',
+		parse: { cuzNumber: Number }
+	},
 	BabReader: {
 		path: 'groups/:groupId/babs/:babNumber',
 		// Same reason as `roundIndex` below, and it bites harder here: the reader looks the
@@ -23,6 +33,8 @@ const detailPaths: PathConfigMap<TabDetailParamList> = {
 	},
 	// No path. B7 keeps its bab in screen state rather than params — there is nothing to
 	// address, and a bare `babs` route would only ever land on bab 1.
+	// A live reading's link (`liveLink`): the screen looks the code up and opens its reader.
+	LiveJoin: 'live/:code',
 	Rounds: 'groups/:groupId/rounds',
 	MyProgress: 'groups/:groupId/progress',
 	RoundDetail: {

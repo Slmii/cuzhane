@@ -5,7 +5,9 @@ const FALLBACK_DISPLAY_NAME = 'Member';
 
 /**
  * Best-effort display name for a group member, sourced from Clerk session claims.
- * Falls back to a generic label when no usable claim is present.
+ * Falls back to a generic label when no usable claim is present — **never to the email
+ * address**: a name is shown to every member of the group, and the owner's to anyone who
+ * previews an open group, so an email here would publish it.
  *
  * **Mirrored on the client** by `useViewerDisplayName`, which needs to predict what this
  * will return so an optimistic row can draw the viewer's avatar before the server answers —
@@ -24,11 +26,6 @@ export const resolveDisplayName = (req: Request): string => {
 	const firstName = claims?.firstName;
 	if (typeof firstName === 'string' && firstName.trim().length > 0) {
 		return firstName.trim();
-	}
-
-	const email = claims?.email;
-	if (typeof email === 'string' && email.trim().length > 0) {
-		return email.trim();
 	}
 
 	return FALLBACK_DISPLAY_NAME;

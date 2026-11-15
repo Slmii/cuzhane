@@ -6,6 +6,7 @@ import { isAnonymousTo, visibleUserId } from '@utils/groupPrivacy';
 import { syncCompletedAt } from './babs.service';
 import { getMemberProfiles } from '@utils/memberProfiles';
 import { notifyGroupMembers } from './groupEvents.service';
+import { settingFor } from '@utils/notificationSettings';
 import { poolClaimPush } from '@utils/pushCopy';
 import { babRuns, formatRun } from '@utils/babs';
 import { partCountFor } from '@utils/groupKinds';
@@ -143,21 +144,33 @@ export const poolBlockFor = (
  * unhandled one. The claim is already recorded by the time this runs, so `notifyGroupMembers`
  * swallowing its own failures is what keeps a courtesy from failing the write.
  */
-const notifyPoolClaim = async (takerUserId: string, groupId: string, babNumbers: number[]): Promise<void> => {
+const notifyPoolClaim = async (
+	takerUserId: string,
+	groupId: string,
+	kind: Group['kind'],
+	babNumbers: number[],
+	subject: string
+): Promise<void> => {
 	const range = babRuns(babNumbers).map(formatRun).join(', ');
 
 	await notifyGroupMembers({
 		actorUserId: takerUserId,
 		// The lookup used to be here; it lives in the helper now, so all three events resolve
 		// a name the same way rather than one of them doing it properly and two not.
-		build: ({ actorName, groupName, kind }) => ({
+		build: ({ actorName, groupName, kind: groupKind }) => ({
 			payload: { kind: 'POOL_BAB_CLAIMED', range, takerName: actorName },
-			push: language => poolClaimPush(language, { groupName, kind, range, takerName: actorName })
+			push: language => poolClaimPush(language, { groupName, kind: groupKind, range, takerName: actorName })
 		}),
 		excludeUserIds: [takerUserId],
 		groupId,
 		pushKind: 'pool-claim',
-		setting: 'poolClaimEnabled'
+		/*
+		 * By the group's kind, though this path is seat machinery that a hatim never reaches (its
+		 * spare cüz are `cuzPool.service`'s): a Cevşen or Hizb pool answers to the Cevşen's switch.
+		 */
+		setting: settingFor('poolClaim', kind === 'HATIM' ? 'CEVSEN' : kind),
+		// Once per actor, per round, per slot or portion — see `notifyGroupMembers`.
+		subject
 	});
 };
 
@@ -182,6 +195,7 @@ export const takePoolSlotForUser = async (
 
 	// Carried out of the transaction for the notification below, which must not run inside it.
 	let takenBabNumbers: number[] = [];
+	let takenKind: Group['kind'] = 'CEVSEN';
 	let groupName: string | null = null;
 
 	await prisma.$transaction(async tx => {
@@ -196,9 +210,20 @@ export const takePoolSlotForUser = async (
 			throw new HttpError(BAD_REQUEST, 'The pool opens when the hatim starts');
 		}
 
+		/*
+		 * **A hatim's havuz is `cuzPool.service`, not this.** This path hands out a seat's block of
+		 * the hundred, and on thirty cüz that maths means nothing — yet it went through: the app
+		 * never called it for a hatim, but a direct request could, and the next joiner then
+		 * "released" the claim in bab wording. Refused at the door instead.
+		 */
+		if (group.kind === 'HATIM') {
+			throw new HttpError(BAD_REQUEST, 'A hatim takes cüz from its cüz havuz, not seats from this pool');
+		}
+
 		if (group.splitMode === 'FLEXIBLE') {
 			throw new HttpError(BAD_REQUEST, 'Choose an individual portion in a flexible group');
 		}
+
 		const babNumbers = poolBlockFor(group, group.members, slotIndex);
 
 		if (!babNumbers) {
@@ -223,12 +248,13 @@ export const takePoolSlotForUser = async (
 		}
 
 		takenBabNumbers = freeNumbers;
+		takenKind = group.kind;
 		groupName = group.name;
 	});
 
 	// After the commit — see `notifyPoolClaim`.
 	if (takenBabNumbers.length > 0 && groupName !== null) {
-		await notifyPoolClaim(normalizedUserId, groupId, takenBabNumbers);
+		await notifyPoolClaim(normalizedUserId, groupId, takenKind, takenBabNumbers, String(slotIndex));
 	}
 
 	return { success: true };
@@ -351,7 +377,7 @@ export const takePoolPartForUser = async (
 	const normalizedUserId = normalizeUserId(userId);
 	await requireMembership(normalizedUserId, groupId);
 
-	await prisma.$transaction(async tx => {
+	const claimedKind = await prisma.$transaction(async tx => {
 		// Group lock first, then babs — see `takePoolSlotForUser`.
 		await lockGroup(tx, groupId);
 		await ensureCurrentRound(tx, groupId);
@@ -381,9 +407,11 @@ export const takePoolPartForUser = async (
 		if (claimed.count === 0) {
 			throw new HttpError(CONFLICT, 'Someone already took that portion');
 		}
+
+		return group.kind;
 	});
 
-	await notifyPoolClaim(normalizedUserId, groupId, [babNumber]);
+	await notifyPoolClaim(normalizedUserId, groupId, claimedKind, [babNumber], `part:${babNumber}`);
 
 	return { success: true };
 };

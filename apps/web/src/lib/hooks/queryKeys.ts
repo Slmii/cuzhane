@@ -9,9 +9,13 @@ export const groupQueryKeys = {
 	members: (groupId: string) => [...groupQueryKeys.root(), 'members', groupId] as const,
 	babs: (groupId: string) => [...groupQueryKeys.root(), 'babs', groupId] as const,
 	pool: (groupId: string) => [...groupQueryKeys.root(), 'pool', groupId] as const,
+	/** The hatim's havuz — a different shape from the seat pool, so a key of its own. */
+	poolCuz: (groupId: string) => [...groupQueryKeys.root(), 'pool-cuz', groupId] as const,
 	rounds: (groupId: string) => [...groupQueryKeys.root(), 'rounds', groupId] as const,
 	round: (groupId: string, roundIndex: number) => [...groupQueryKeys.root(), 'rounds', groupId, roundIndex] as const,
 	myProgress: (groupId: string) => [...groupQueryKeys.root(), 'my-progress', groupId] as const,
+	/** The viewer's places in the readers, for the round the group is on — see `useReadingPlaces`. */
+	readingPlaces: (groupId: string) => [...groupQueryKeys.root(), 'reading-places', groupId] as const,
 	/** Every repetition count cached for a group — the prefix `partRepetitions` extends. */
 	repetitions: (groupId: string) => [...groupQueryKeys.root(), 'repetitions', groupId] as const,
 	/**
@@ -22,6 +26,11 @@ export const groupQueryKeys = {
 	 */
 	partRepetitions: (groupId: string, babNumber: number, roundIndex: number) =>
 		[...groupQueryKeys.repetitions(groupId), babNumber, roundIndex] as const,
+	/** The viewer's Delâil and istighfar counts in a seat-divided Hizb group — every round's, by prefix. */
+	roundCounters: (groupId: string) => [...groupQueryKeys.root(), 'round-counters', groupId] as const,
+	/** One round's, keyed by its number for the reason `partRepetitions` is. */
+	roundCountersOf: (groupId: string, roundIndex: number) =>
+		[...groupQueryKeys.roundCounters(groupId), roundIndex] as const,
 	// No `previewByCode`: looking a code up is a mutation, not a cached query — nothing
 	// should re-run it on its own, and there is nothing to invalidate.
 	previewByGroup: (groupId: string) => [...groupQueryKeys.root(), 'preview-group', groupId] as const
@@ -48,7 +57,9 @@ export const groupOwnedQueryKeys = (groupId: string) => [
 	groupQueryKeys.members(groupId),
 	groupQueryKeys.rounds(groupId),
 	groupQueryKeys.myProgress(groupId),
+	groupQueryKeys.readingPlaces(groupId),
 	groupQueryKeys.repetitions(groupId),
+	groupQueryKeys.roundCounters(groupId),
 	groupQueryKeys.previewByGroup(groupId)
 ];
 
@@ -64,24 +75,23 @@ export const notificationQueryKeys = {
 	unreadCount: () => [...notificationQueryKeys.root(), 'unread-count'] as const
 } as const;
 
+/** A Hüsrev mushaf page or du'a page, by its path — resolves to the file on this device once it is there. */
+export const mushafQueryKeys = {
+	page: (path: string) => ['mushaf', 'page', path] as const
+} as const;
+
+/** A verse's meal, per interface language — fetched live, see `useVerseTranslation`. */
+export const quranQueryKeys = {
+	translation: (verseKey: string, language: string) => ['quran', 'translation', verseKey, language] as const
+} as const;
+
 export const profileQueryKeys = {
 	root: () => ['profile'] as const,
 	stats: () => [...profileQueryKeys.root(), 'stats'] as const
 } as const;
 
-/**
- * Keys for the first-use tour's stand-in data. **A separate namespace on purpose**: the real
- * queries keep their own entries untouched while the tour runs, so nothing has to be refetched
- * or invalidated when it ends — the hooks simply go back to asking for the other key.
- */
-export const tourDemoQueryKeys = {
-	root: () => ['tourDemo'] as const,
-	groups: () => [...tourDemoQueryKeys.root(), 'list'] as const,
-	groupById: (groupId: string) => [...tourDemoQueryKeys.root(), 'detail', groupId] as const,
-	babs: (groupId: string) => [...tourDemoQueryKeys.root(), 'babs', groupId] as const,
-	rounds: (groupId: string) => [...tourDemoQueryKeys.root(), 'rounds', groupId] as const,
-	myProgress: (groupId: string) => [...tourDemoQueryKeys.root(), 'my-progress', groupId] as const,
-	stats: () => [...tourDemoQueryKeys.root(), 'stats'] as const,
-	notifications: () => [...tourDemoQueryKeys.root(), 'notifications'] as const,
-	unreadCount: () => [...tourDemoQueryKeys.root(), 'unreadCount'] as const
-};
+/** The hints this account has seen, and whether they play — see `useHints`. */
+export const hintsQueryKeys = {
+	root: () => ['hints'] as const,
+	state: () => [...hintsQueryKeys.root(), 'state'] as const
+} as const;

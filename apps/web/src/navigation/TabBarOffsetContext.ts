@@ -11,6 +11,11 @@ import { createContext } from 'react';
  *
  * Zero when there is no bar (the auth stack, onboarding), which is also what tells a screen
  * it still owns its own `bottom` safe-area edge.
+ *
+ * **One exception: Birlikte oku's return strip.** While it is due on a tab, this is the strip's
+ * top edge plus `TAB_BAR_CONTENT_GAP` instead (`LiveReturnStripHost`), so every screen leaves it
+ * room without knowing it exists. A screen placing something against "the bar" stands it on the
+ * strip then, which is the point: the strip must not cover anything.
  */
 export const TabBarOffsetContext = createContext(0);
 

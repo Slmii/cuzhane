@@ -7,8 +7,8 @@ describe('groupKinds util', () => {
 			expect(partCountFor('CEVSEN')).toBe(100);
 		});
 
-		it('divides the Hizb into the revised 33 portions', () => {
-			expect(partCountFor('HIZB')).toBe(33);
+		it('divides the Hizb into the family calendar’s 32 portions', () => {
+			expect(partCountFor('HIZB')).toBe(32);
 		});
 	});
 

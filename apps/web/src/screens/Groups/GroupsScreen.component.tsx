@@ -1,4 +1,5 @@
 import { GroupCard } from '@/components/GroupCard/GroupCard.component';
+import { useHintScreen } from '@/components/Hints/useHintScreen';
 import { RoundResetRow } from '@/components/RoundResetRow/RoundResetRow.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { PullToRefresh } from '@/components/ui/PullToRefresh/PullToRefresh.component';
@@ -11,18 +12,24 @@ import { Typography } from '@/components/ui/Typography/Typography.component';
 import { useGetGroups } from '@/lib/hooks/useGroup';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useTranslation } from '@/lib/i18n/I18n.context';
+import { pluralKey } from '@/lib/i18n/plural';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import { formatBabRange } from '@/lib/utils/babs';
 import { applyGroupBrowse, emptyGroupBrowseState, isGroupBrowseNarrowed } from '@/lib/utils/groupBrowse';
 import {
 	cycleLabelKey,
 	partUnitKey,
 	planLabelKey,
+	shareSlices,
 	visibilityChipTone,
 	visibilityIcon,
 	visibilityLabelKey
 } from '@/lib/utils/groups';
-import { roundResetLabels } from '@/lib/utils/roundReset';
+import { roundResetLabels, timeIn } from '@/lib/utils/roundReset';
+import { quranDayPages } from '@/lib/utils/personalPlan';
+import { useGetUserSettings } from '@/lib/hooks/useUserSettings';
+import { mushafCuzPages } from '@/lib/content/mushaf';
+import { cuzPages } from '@/lib/content/quran';
+import { unitCountFor } from '@/lib/utils/units';
 import { GroupsScreenParams, TabStackParamList } from '@/navigation/types';
 import { JoinByCodeSheet } from '@/screens/Join/JoinByCodeSheet.component';
 import { useGroupBrowse } from '@/components/GroupBrowseBar/GroupBrowse.context';
@@ -40,6 +47,7 @@ type GroupsNavigationProp = NativeStackNavigationProp<TabStackParamList>;
 const CARD_LAYOUT = LinearTransition.springify().damping(20).stiffness(180).mass(0.7);
 export const GroupsScreen = () => {
 	const navigation = useNavigation<GroupsNavigationProp>();
+	useHintScreen('groups');
 
 	const { theme } = useThemeContext();
 	const { language, t } = useTranslation();
@@ -57,14 +65,20 @@ export const GroupsScreen = () => {
 	const shouldOpenJoinSheet = route.params?.shouldOpenJoinSheet === true;
 	// A scanned QR lands here too (`groups/join/:inviteCode`), with the code to open the sheet on.
 	const scannedInviteCode = route.params?.inviteCode;
-	const isJoinSheetVisible = isJoinSheetOpen || shouldOpenJoinSheet || scannedInviteCode !== undefined;
+	// The "+" menu's "Birlikte okumaya katıl": the same sheet, asking only for a live reading's code.
+	const isLiveJoin = route.params?.shouldOpenLiveJoinSheet === true;
+	const isJoinSheetVisible = isJoinSheetOpen || shouldOpenJoinSheet || scannedInviteCode !== undefined || isLiveJoin;
 
 	const closeJoinSheet = () => {
 		setIsJoinSheetOpen(false);
 
 		// Cleared on dismissal, or the params would reopen the sheet on the next render.
-		if (shouldOpenJoinSheet || scannedInviteCode !== undefined) {
-			navigation.setParams({ inviteCode: undefined, shouldOpenJoinSheet: undefined });
+		if (shouldOpenJoinSheet || scannedInviteCode !== undefined || isLiveJoin) {
+			navigation.setParams({
+				inviteCode: undefined,
+				shouldOpenJoinSheet: undefined,
+				shouldOpenLiveJoinSheet: undefined
+			});
 		}
 	};
 
@@ -92,6 +106,12 @@ export const GroupsScreen = () => {
 
 	const isReducedMotion = useReducedMotion();
 	const cardLayout = isReducedMotion ? undefined : CARD_LAYOUT;
+	// A Şahsi Kur'an card counts pages in the mushaf the reader is set to, as its group screen does.
+	const isHusrev = useGetUserSettings().data?.readerArabicFont === 'husrev';
+	const pagesOfCuz = useCallback(
+		(cuzNumber: number) => (isHusrev ? mushafCuzPages(cuzNumber) : cuzPages(cuzNumber)).length,
+		[isHusrev]
+	);
 
 	// The design pins this block: the + stays reachable however far the shelf scrolls,
 	// which is the whole reason it moved up here from the bottom of the list. It paints
@@ -113,7 +133,10 @@ export const GroupsScreen = () => {
 				// below it rather than behind them.
 				isUnderNavigationBar
 				label={t('myGroups')}
-				secondaryLabel={t('greet', { name: user?.firstName ?? '' })}
+				// "Selâm" alone without a first name, rather than "Selâm, " — as on Ana sayfa.
+				secondaryLabel={
+					user?.firstName?.trim() ? t('greet', { name: user.firstName.trim() }) : t('greetNoName')
+				}
 			/>
 			{/* No search box: searching is the Ara tab's job. Filter and sort are the navigator's pull-down. */}
 		</View>
@@ -128,6 +151,20 @@ export const GroupsScreen = () => {
 			// A gathering group has no progress to show — the card counts seats instead, and
 			// its action is the owner's "start" rather than "continue".
 			const isGathering = item.status === 'GATHERING';
+			/*
+			 * The share as **one slice plus a count**, never a list — on both cards, reserved or
+			 * running. A hatim's next cüz and how many others it holds; a Cevşen share's current
+			 * block and how many more blocks sit on top of it.
+			 */
+			const hatimCurrent = item.myNextBabNumber ?? item.myBabNumbers[0];
+			const share =
+				item.kind === 'HATIM'
+					? {
+							current: hatimCurrent === undefined ? '—' : String(hatimCurrent),
+							moreCount: Math.max(0, item.myBabNumbers.length - 1)
+					  }
+					: shareSlices(item.myBabNumbers, item.myNextBabNumber);
+			const shareLabelKey = item.kind === 'HATIM' ? 'qMyCuz' : 'yourRange';
 
 			/*
 			 * `layout` only. `entering`/`exiting` used to sit here as well, so a filter change
@@ -137,32 +174,62 @@ export const GroupsScreen = () => {
 			 */
 			if (isGathering) {
 				const openSpots = item.spots - item.memberCount;
+				/*
+				 * The count sits beside "/ 30 cüz" or "/ 100 bab", so it counts units, not people: a
+				 * hatim member can hold several cüz, and a Cevşen seat reserves a block. Whatever is
+				 * not in the pool — cüz nobody holds, blocks of empty seats — is taken.
+				 */
+				const unitCount = unitCountFor(item.kind);
+				const gathered = unitCount - item.poolBabNumbers.length;
 
 				return (
 					<Animated.View layout={cardLayout}>
 						<GroupCard
+							kind={item.kind}
 							// "Lobiyi gör", not the bare "Görüntüle" Discover uses for a group you
 							// already belong to — one tap apart, the same word would be carrying two
 							// different meanings.
 							actionLabel={item.isOwner ? t('startNow') : t('viewLobby')}
 							badgeLabel={t('lobbyState')}
 							badgeTone='sand'
-							footerCaption={
-								item.isOwner ? `${openSpots} ${t('openSpots')}` : formatBabRange(item.myBabNumbers)
+							// The same ghost "Kurucu" tag the running card carries, so a group
+							// doesn't stop saying it is yours while it gathers.
+							{...(item.isOwner ? { extraBadges: [{ label: t('creator') }] } : {})}
+							// A joiner's reservation reads like the running card's share — "Cüzlerin · 9"
+							// with a chip — and the caption says it isn't final yet.
+							footerCaption={item.isOwner ? `${openSpots} ${t('openSpots')}` : t('provisional')}
+							footerLabel={
+								item.isOwner
+									? `${t('creator')} · ${t('you')}`
+									: `${t(shareLabelKey)} · ${share.current}`
 							}
-							footerLabel={item.isOwner ? `${t('creator')} · ${t('you')}` : t('provisional')}
+							footerMoreCount={item.isOwner ? 0 : share.moreCount}
 							name={item.name}
-							kind={item.kind}
 							onAction={() => goToGathering(item.id, item.isOwner)}
 							onPress={() => goToGathering(item.id, item.isOwner)}
-							// Members out of seats, as the lobby itself counts them — "4 / 12 katıldı".
-							// It read "4 / 100 bab" once: a seat count set against the hundred.
-							progress={{
-								percent: Math.round((item.memberCount / item.spots) * 100),
-								readCount: item.memberCount,
-								total: item.spots,
-								unit: t('joinedCount')
-							}}
+							/*
+							 * A seat group (Cevşen, Hizb) counts members out of seats, as its lobby does —
+							 * "4 / 12 katıldı"; it read "4 / 100 bab" once, a seat count set against the
+							 * hundred. A hatim counts cüz taken out of thirty: a member may hold several,
+							 * and its `spots` is only a ceiling on membership.
+							 */
+							progress={
+								item.kind === 'HATIM'
+									? {
+											kind: item.kind,
+											percent: Math.round((gathered / unitCount) * 100),
+											readCount: gathered,
+											total: unitCount,
+											unit: t(partUnitKey(item.kind))
+									  }
+									: {
+											kind: item.kind,
+											percent: Math.round((item.memberCount / item.spots) * 100),
+											readCount: item.memberCount,
+											total: item.spots,
+											unit: t('joinedCount')
+									  }
+							}
 							subtitle={t('notCounting')}
 						/>
 					</Animated.View>
@@ -173,54 +240,152 @@ export const GroupsScreen = () => {
 			const isCompleted = item.completedAt !== null;
 			// Called straight rather than through the hook: this renders per row, and a hook
 			// per card would change hook order as the list grows or shrinks.
-			const reset = roundResetLabels(item.roundEndsAt, item.cycle, item.timezone, language, t, item.startedAt);
+			const reset = roundResetLabels(
+				item.roundEndsAt,
+				item.cycle,
+				item.roundDays,
+				item.timezone,
+				language,
+				t,
+				item.kind,
+				item.startedAt
+			);
+			const isFlexible = item.splitMode === 'FLEXIBLE';
 
 			return (
 				<Animated.View layout={cardLayout}>
 					<GroupCard
+						kind={item.kind}
 						actionLabel={isCompleted ? t('view') : t('continue')}
 						badgeIcon={visibilityIcon(item.visibility)}
 						badgeLabel={item.hizbIndividual ? t('hpIndividual') : t(visibilityLabelKey(item.visibility))}
 						badgeTone={visibilityChipTone(item.visibility)}
+						// The round's cadence, not "Bugün": a weekly share's 3/3 is this week's. A Hizb plan
+						// says whether today's portion is done; a FLEXIBLE group has no share, so it counts people.
 						footerCaption={
 							item.hizbIndividual
 								? t(item.hizbToday?.completed ? 'hpComplete' : 'hpPending')
-								: item.splitMode === 'FLEXIBLE'
+								: isFlexible
 								? t('flexibleMembers', { count: item.memberCount })
-								: `${t('todayLabel')} · ${item.myReadCount}/${item.myBabNumbers.length}`
+								: `${t(cycleLabelKey(item.cycle))} · ${item.myReadCount}/${item.myBabNumbers.length}`
 						}
+						/*
+						 * **A hatim has no reading plan to name.** `splitMode` decides which block a
+						 * seat rotates onto, and a hatim has neither — it stores `FIXED` because the
+						 * column cannot be empty, so the Cevşen label would read "Sabit · 7, 22" and
+						 * describe nothing. The design's own footer names the holding instead:
+						 * "Cüzlerin · 7, 22". A FLEXIBLE group (Cevşen or Hizb) names its plan.
+						 *
+						 * **One slice plus a count**, never the list: "Cüzlerin · 7" with a +1 chip, and
+						 * a Cevşen share with pool blocks on top as its current block plus a chip.
+						 */
 						footerLabel={
-							item.splitMode === 'FLEXIBLE'
+							// A Şahsi Cevşen or Kur'an reading names its length, as a Hizb plan does.
+							item.planDays != null
+								? t('hpDays', { days: item.planDays })
+								: isFlexible
 								? item.hizbPlan != null
 									? item.hizbPlan
 										? t('hpDays', { days: item.hizbPlan })
 										: t('hpMixed')
 									: t('planFlexible')
-								: `${t(planLabelKey(item.splitMode))} · ${formatBabRange(item.myBabNumbers)}`
+								: `${item.kind === 'HATIM' ? t('qMyCuz') : t(planLabelKey(item.splitMode))} · ${
+										share.current
+								  }`
 						}
+						footerMoreCount={isFlexible || item.planDays != null ? 0 : share.moreCount}
 						// Filled even when the round is finished: the hatim itself is ongoing, so a
 						// de-emphasised button would read as "this group is done". Only the label
 						// softens — there is nothing left to continue today.
 						isActionPrimary
 						name={item.name}
-						kind={item.kind}
 						onAction={() => goToGroup(item.id)}
 						onPress={() => goToGroup(item.id)}
-						progress={{
-							percent: item.percent,
-							readCount: item.readCount,
-							total: item.partCount,
-							unit: t(partUnitKey(item.kind))
-						}}
+						progress={
+							// A shared Hizb plan counts its readers, not the 32: "2 / 3 okudu" — a goal a group
+							// of three or of five hundred can reach.
+							item.hizbReaders && !item.hizbIndividual
+								? {
+										kind: item.kind,
+										percent:
+											item.hizbReaders.total > 0
+												? Math.round((item.hizbReaders.read * 100) / item.hizbReaders.total)
+												: 0,
+										readCount: item.hizbReaders.read,
+										total: item.hizbReaders.total,
+										unit: t('hpReadersUnit')
+								  }
+								: item.planDays != null && item.kind === 'HATIM' && item.hizbToday?.units
+								? // A Şahsi Kur'an day counts pages, as its group screen does: "22 / 41 sayfa".
+								  (() => {
+										const pages = item.hizbToday.completed
+											? quranDayPages(item.hizbToday.units, item.hizbToday.units, 0, pagesOfCuz)
+											: quranDayPages(
+													item.hizbToday.units,
+													item.hizbToday.readUnits ?? [],
+													item.hizbToday.place ?? 0,
+													pagesOfCuz
+											  );
+
+										return {
+											kind: item.kind,
+											percent: Math.round((pages.read * 100) / Math.max(1, pages.total)),
+											readCount: pages.read,
+											total: pages.total,
+											unit: t('qPages')
+										};
+								  })()
+								: item.planDays != null && item.hizbToday?.units
+								? // A Şahsi Cevşen day counts its babs: "0 / 10 bab".
+								  {
+										kind: item.kind,
+										// A Kur'an day's cüz count as they are marked, before the day is done.
+										percent: Math.round(
+											((item.hizbToday.completed
+												? item.hizbToday.units.length
+												: item.hizbToday.readUnits?.length ?? 0) *
+												100) /
+												item.hizbToday.units.length
+										),
+										readCount: item.hizbToday.completed
+											? item.hizbToday.units.length
+											: item.hizbToday.readUnits?.length ?? 0,
+										total: item.hizbToday.units.length,
+										unit: t(partUnitKey(item.kind))
+								  }
+								: {
+										kind: item.kind,
+										percent: item.percent,
+										readCount: item.readCount,
+										total: item.partCount,
+										// A private plan counts today's one reading: "1 / 1 bölüm", never "1 / 1 portions".
+										unit: t(item.partCount === 1 ? 'portionsOne' : partUnitKey(item.kind))
+								  }
+						}
 						{...(reset
-							? { resetRow: <RoundResetRow groupLabel={reset.group} localLabel={reset.local} /> }
+							? {
+									resetRow: item.hizbIndividual ? (
+										// A Şahsi reading is the reader's own clock: the plain time, no zone, no "sende".
+										<RoundResetRow
+											groupLabel={t('spEveryDayAt', {
+												time: timeIn(
+													new Date(item.nextDayAt ?? item.roundEndsAt ?? ''),
+													language
+												)
+											})}
+											localLabel=''
+										/>
+									) : (
+										<RoundResetRow groupLabel={reset.group} localLabel={reset.local} />
+									)
+							  }
 							: {})}
 						// The ghost "Kurucu" tag, shown only on groups you started.
 						{...(item.isOwner ? { extraBadges: [{ label: t('creator') }] } : {})}
 						subtitle={
 							item.dedication
 								? t('forName', { dedication: item.dedication })
-								: t('groupCycleLine', {
+								: t(pluralKey(language, item.memberCount, 'groupCycleLineOne', 'groupCycleLine'), {
 										cycle: t(cycleLabelKey(item.cycle)),
 										count: item.memberCount
 								  })
@@ -229,7 +394,7 @@ export const GroupsScreen = () => {
 				</Animated.View>
 			);
 		},
-		[cardLayout, goToGathering, goToGroup, language, t]
+		[cardLayout, goToGathering, goToGroup, language, pagesOfCuz, t]
 	);
 
 	if (isError) {
@@ -304,6 +469,7 @@ export const GroupsScreen = () => {
 
 			<JoinByCodeSheet
 				{...(scannedInviteCode === undefined ? {} : { initialCode: scannedInviteCode })}
+				isLiveOnly={isLiveJoin}
 				isVisible={isJoinSheetVisible}
 				onClose={closeJoinSheet}
 			/>

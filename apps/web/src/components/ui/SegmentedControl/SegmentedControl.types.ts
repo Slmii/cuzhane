@@ -11,11 +11,19 @@ export type SegmentedControlOption = {
 	 * "Türkçe" would say less than the word already does.
 	 */
 	icon?: IconName;
+	/**
+	 * Takes its label's whole width on one line before the rest share what is left — the
+	 * repetition box's "Sayıyı gir" beside three short numbers. The drawn control only; the native
+	 * one sizes its own segments.
+	 */
+	isWide?: boolean;
 };
 
 export interface SegmentProps {
 	label: string;
 	icon?: IconName;
+	isWide?: boolean;
+	fitsContent?: boolean;
 	isSelected: boolean;
 	onPress: () => void;
 }
@@ -24,5 +32,11 @@ export interface SegmentedControlProps {
 	options: SegmentedControlOption[];
 	value: string;
 	onChange: (value: string) => void;
+	/**
+	 * Each segment as wide as its label, the control hugging them — for a control beside a label
+	 * in a row. Growing segments fill whatever room the row offers and run past its edge. The
+	 * drawn control only; the native one is given a width.
+	 */
+	fitsContent?: boolean;
 	style?: StyleProp<ViewStyle>;
 }

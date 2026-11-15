@@ -33,10 +33,10 @@ Coordinates refer to the current `apps/web/src/lib/content/hizbulhakaik.data.jso
 | 2 | Fetih and Rahman | 01.55.57 | Section 2; continues through section 3 |
 | 3 | Haşir ending, Tebareke, Nebe and concluding Qur’an readings/prayer | 01.56.35 | Section 4; continues through section 6; see Âmenerresûlü discrepancy below |
 | 4 | Cevşen opening and babs 1–20 | 01.56.59 | Section 7, block 0 |
-| 5 | Cevşen, “Fe-es’elüke bi-esmâike yâ Aliyy…”; babs 21–41 under the next-start interpretation | 01.57.43 | Section 7, block 18 |
-| 6 | Cevşen, “Yâ men hüve fi’l-berri ve’l-bahri sebîlüh…”; babs 42–61 | 01.58.22 | Section 7, block 39 |
-| 7 | Cevşen, “Yâ men ya’lemü murâde’l-mürîdîn…”; babs 62–81 | 01.58.58 | Section 7, block 59 |
-| 8 | Cevşen, “Yâ men yahluku mâ yeşâ…”; babs 82–100 and closing prayer | 01.59.49 | Section 7, block 79 |
+| 5 | Cevşen, “Fe-es’elüke bi-esmâike yâ Aliyy…”; babs 21–40 | 01.57.43 | Section 7, block 18 |
+| 6 | Cevşen babs 41–60 | 01.58.22 | Section 7, block 38 |
+| 7 | Cevşen babs 61–80 | 01.58.58 | Section 7, block 58 |
+| 8 | Cevşen babs 81–100 and closing prayer | 01.59.49 | Section 7, block 78 |
 | 9 | Evrâd-ı Kudsiyye opening | 02.00.45 | Section 8 |
 | 10 | Âyetü’l-Kürsî, “Allâhü lâ ilâhe illâ hüve…” | 02.01.04 | Section 8, block 0, line 8, invocation 2 |
 | 11 | “Merhaben merhaben bi’s-sabâh…” | 02.01.25 | Section 8, block 0, line 12, invocation 9 |
@@ -68,7 +68,7 @@ Important differences from the old 32-day calendar:
 - The revised Münâcât division has five portions, starting at Fatiha, İbrahim, Lokman, Kamer and Nebe. The old table uses four with different starts.
 - Tahmidiye consequently moves from portion 25 to 26, and the final prayer from 32 to 33.
 - Evrâd portions 12 and 13 have revised text anchors.
-- The photographed Cevşen starts for portions 6, 7 and 8 follow refrains numbered 41, 61 and 81. Their next bab openings match app babs 42, 62 and 82. Do not silently substitute the old spreadsheet's 41/61/81 starts. Confirm this reading of the marks before calling the division final.
+- The photographed Cevşen starts for portions 6, 7 and 8 follow refrains numbered 41, 61 and 81. Their next bab openings match app babs 42, 62 and 82. Do not silently substitute the old spreadsheet's 41/61/81 starts. **Resolved 2026-10-04:** the photos' own labels read “8. Bölüm – Cevşen 81'den – 100'e” (the 2026 calendar agrees: 1–20 / 21–40 / 41–60 / 61–80 / 81–100), so the starts are babs 21, 41, 61 and 81 (blocks 18, 38, 58, 78 — blocks 0 and 14 each hold two babs).
 - The app has 99 Cevşen display blocks containing all 100 babs. Display-block indexes are not bab numbers; some blocks contain multiple babs. Split by verified text boundaries, not by arithmetic on block numbers.
 - Portions 31–33 already exist within the app's last Hülasat section. Adding duplicate copies would repeat text.
 
@@ -154,7 +154,7 @@ The shared-daily versus individual-advance preference was asked in the task. Unt
 ## Content questions that must remain visible
 
 1. **Âmenerresûlü:** the older 32-day table includes it in the Qur’an portion. Its opening was not found after diacritic-insensitive comparison of the current Hizbul Hakaik JSON, nor in the searched Hizbul content/scripts text. The photos show starts rather than the intervening pages. Confirm the intended passage/inclusion and use a verified source before calling the digital plan an exact match. Do not silently omit it or generate Arabic from memory.
-2. **Cevşen boundaries:** confirm that numbered photo labels mean the next bab after the marked closing refrain. This yields the 21–41 / 42–61 / 62–81 / 82–100 ranges above, which differ from the old table.
+2. **Cevşen boundaries:** confirm that numbered photo labels mean the next bab after the marked closing refrain. Resolved 2026-10-04 in favour of 21–40 / 41–60 / 61–80 / 81–100 (see above).
 3. **15-day Hülasat boundary:** identify the exact occurrence of the repeated “el-vâcibü’l-vücûd” opening.
 4. **Seven-day division:** only its existence is given. Do not label an invented grouping as the supplied seven-day practice.
 

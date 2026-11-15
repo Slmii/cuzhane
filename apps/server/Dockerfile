@@ -33,6 +33,9 @@ RUN corepack enable
 
 # The manifests first, so a change to source code doesn't invalidate the install layer.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc tsconfig.base.json ./
+# `pnpm-workspace.yaml` lists the app's `patchedDependencies`, and pnpm hashes every patch file
+# against the lockfile on any install — even one filtered to the server, which uses none of them.
+COPY patches patches
 COPY apps/server/package.json apps/server/
 
 # `@cuzhane/server...` is the package and everything it depends on.

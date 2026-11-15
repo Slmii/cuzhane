@@ -24,16 +24,26 @@ export const RoundResetRow = ({ groupLabel, localLabel, style, variant = 'card' 
 			>
 				{groupLabel}
 			</CaptionText>
-			{isPanel ? null : <CaptionText color={theme.colors.faintText}>·</CaptionText>}
-			<CaptionText
-				// The local time is the one the reader acts on, so it carries the accent in both
-				// variants — greyed on the panel it read as a footnote to the group's own clock.
-				color={theme.colors.accent}
-				style={isPanel ? styles.panelLocal : undefined}
-				weight={isPanel ? 'regular' : 'semibold'}
-			>
-				{localLabel}
-			</CaptionText>
+			{/*
+			 * **A one-off has no second line.** It states the date the hatim ends, and there is
+			 * no next round for the reader to be early or late for — so `localLabel` is empty,
+			 * and the separator has to go with it or the row trails a dot into nothing.
+			 */}
+			{localLabel ? (
+				<>
+					{isPanel ? null : <CaptionText color={theme.colors.faintText}>·</CaptionText>}
+					<CaptionText
+						// The local time is the one the reader acts on, so it carries the accent in
+						// both variants — greyed on the panel it read as a footnote to the group's
+						// own clock.
+						color={theme.colors.accent}
+						style={isPanel ? styles.panelLocal : undefined}
+						weight={isPanel ? 'regular' : 'semibold'}
+					>
+						{localLabel}
+					</CaptionText>
+				</>
+			) : null}
 		</View>
 	);
 };

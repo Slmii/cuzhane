@@ -1,4 +1,6 @@
 import { RequestHelpButton } from '@/components/ReadingHelp/ReadingHelp.component';
+import { HintTarget } from '@/components/Hints/HintTarget.component';
+import { useHintScreen } from '@/components/Hints/useHintScreen';
 import { PeriodStrip } from '@/components/PeriodStrip/PeriodStrip.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenHeader } from '@/components/ScreenHeader/ScreenHeader.component';
@@ -8,7 +10,9 @@ import { Chip } from '@/components/ui/Chip/Chip.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { StatTile } from '@/components/ui/StatTile/StatTile.component';
 import { CaptionText, TitleText, Typography } from '@/components/ui/Typography/Typography.component';
+import { useCachedGroup } from '@/lib/hooks/useCachedGroup';
 import { useGetGroupById } from '@/lib/hooks/useGroup';
+import { useRequireRoundCuz } from '@/lib/hooks/useHatimRoundGate';
 import { usePullToRefresh } from '@/lib/hooks/usePullToRefresh';
 import { useGetMyProgress } from '@/lib/hooks/useRounds';
 import { useTranslation } from '@/lib/i18n/I18n.context';
@@ -16,6 +20,8 @@ import type { StringKey } from '@/lib/i18n/strings';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import type { GroupCycle, MyProgressPeriod } from '@/lib/types/domain';
 import type { TabStackParamList } from '@/navigation/types';
+import { HatimProgress } from '@/screens/Groups/HatimProgress.component';
+import { HatimProgressSkeleton } from '@/screens/Groups/HatimProgressSkeleton.component';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -33,7 +39,9 @@ const LEGEND = ['mpLegendFull', 'mpLegendPart', 'mpLegendNone', 'mpLegendOpen'] 
 const PERIOD_COPY: Record<GroupCycle, { heading: StringKey; ago: StringKey; open: StringKey }> = {
 	DAILY: { heading: 'mpLast7', ago: 'mpDaysAgo', open: 'mpToday' },
 	WEEKLY: { heading: 'mpLast8', ago: 'mpWeeksAgo', open: 'mpThisWeek' },
-	MONTHLY: { heading: 'mpLast6', ago: 'mpMonthsAgo', open: 'mpThisMonth' }
+	MONTHLY: { heading: 'mpLast6', ago: 'mpMonthsAgo', open: 'mpThisMonth' },
+	// Only a hatim is ever a one-off, and a hatim's record is `HatimProgress` — never this strip.
+	CUSTOM: { heading: 'mpLast8', ago: 'mpWeeksAgo', open: 'mpThisWeek' }
 };
 
 /**
@@ -48,11 +56,16 @@ const PERIOD_COPY: Record<GroupCycle, { heading: StringKey; ago: StringKey; open
  */
 export const MyProgressScreen = ({ navigation, route }: Props) => {
 	const { groupId } = route.params;
+	// Holding no cüz this round means QR1 comes first, however this screen was reached.
+	useRequireRoundCuz(groupId, navigation);
+	useHintScreen('myProgress');
 	const { language, t } = useTranslation();
 	const { theme } = useThemeContext();
 
 	const groupQuery = useGetGroupById(groupId);
 	const progressQuery = useGetMyProgress(groupId);
+	// Which record is on its way, before the group has answered — from the list that led here.
+	const cachedKind = useCachedGroup(groupId)?.kind;
 	const pullToRefresh = usePullToRefresh(groupQuery, progressQuery);
 
 	const progress = progressQuery.data;
@@ -67,11 +80,15 @@ export const MyProgressScreen = ({ navigation, route }: Props) => {
 	);
 
 	if (groupQuery.isPending || progressQuery.isPending) {
+		const isHatim = (groupQuery.data?.kind ?? cachedKind) === 'HATIM';
+
 		// The heading is known before the data is, so it stays put rather than the screen
-		// arriving blank and growing a title a moment later.
+		// arriving blank and growing a title a moment later. A hatim's record has bones under it
+		// (Q6l); a Cevşen one keeps the bare heading, having no loading frame of its own.
 		return (
 			<ScreenContainer>
-				<ScreenHeader hasBackButton subtitle={t('mpSub')} title={t('myProgress')} />
+				<ScreenHeader hasBackButton subtitle={t(isHatim ? 'qMpSub' : 'mpSub')} title={t('myProgress')} />
+				{isHatim ? <HatimProgressSkeleton /> : null}
 			</ScreenContainer>
 		);
 	}
@@ -81,6 +98,22 @@ export const MyProgressScreen = ({ navigation, route }: Props) => {
 	}
 
 	const group = groupQuery.data;
+
+	// Q6: a hatim's record is cüz per round, not a strip of seat shares.
+	if (group.kind === 'HATIM') {
+		return (
+			<ScreenContainer isScrollable pullToRefresh={pullToRefresh}>
+				<ScreenHeader hasBackButton subtitle={t('qMpSub')} title={t('myProgress')} />
+				<HatimProgress
+					cycle={group.cycle}
+					onOpenPool={() => navigation.navigate('Pool', { groupId })}
+					onReadCuz={cuzNumber => navigation.navigate('CuzReader', { cuzNumber, groupId })}
+					progress={progress}
+					roundDays={group.roundDays}
+				/>
+			</ScreenContainer>
+		);
+	}
 	const isHizb = group.kind === 'HIZB';
 	const periodCopy = PERIOD_COPY[progress.cycle];
 	const openPeriod = progress.periods.at(-1);
@@ -127,151 +160,167 @@ export const MyProgressScreen = ({ navigation, route }: Props) => {
 		<ScreenContainer isScrollable pullToRefresh={pullToRefresh}>
 			<ScreenHeader hasBackButton subtitle={t('mpSub')} title={t('myProgress')} />
 
-			<View style={styles.stats}>
-				<StatTile
-					label={t('mpRead')}
-					style={styles.statTile}
-					tone='accent'
-					value={`${progress.readCount}/${progress.owedCount}`}
-				/>
-				<StatTile label={t('mpMissed')} style={styles.statTile} value={progress.missedCount} />
-				<StatTile label={t('mpRate')} style={styles.statTile} value={`${progress.ratePercent}%`} />
-			</View>
+			{/* The screen's hints go section by section: the counts, the strip, the missed list. */}
+			<HintTarget id='progressStats'>
+				<View style={styles.stats}>
+					<StatTile
+						label={t('mpRead')}
+						style={styles.statTile}
+						tone='accent'
+						value={`${progress.readCount}/${progress.owedCount}`}
+					/>
+					<StatTile label={t('mpMissed')} style={styles.statTile} value={progress.missedCount} />
+					<StatTile label={t('mpRate')} style={styles.statTile} value={`${progress.ratePercent}%`} />
+				</View>
+			</HintTarget>
 
-			<View style={styles.sectionHead}>
-				<TitleText>{t(periodCopy.heading)}</TitleText>
-				{openPeriod ? (
-					<CaptionText color={theme.colors.subtext}>
-						{`${t(isHizb ? 'yourPortions' : 'myBabs')} ${openPeriod.readCount}/${openPeriod.owedCount}`}
-					</CaptionText>
-				) : null}
-			</View>
-
-			<CardSurface style={styles.stripCard}>
-				<PeriodStrip cycle={progress.cycle} periods={progress.periods} timezone={group.timezone} />
-			</CardSurface>
-
-			<View style={styles.legend}>
-				{LEGEND.map(key => (
-					<View key={key} style={styles.legendItem}>
-						<View
-							style={[
-								styles.swatch,
-								{
-									backgroundColor: legendTone[key],
-									// Only the "open" swatch is an outline — it is the one state
-									// drawn as a ring rather than a fill on the strip itself.
-									borderColor: key === 'mpLegendOpen' ? theme.colors.accent : legendTone[key]
-								}
-							]}
-						/>
+			<HintTarget id='progressStrip' style={styles.hintSection}>
+				<View style={styles.sectionHead}>
+					<TitleText>{t(periodCopy.heading)}</TitleText>
+					{openPeriod ? (
 						<CaptionText color={theme.colors.subtext}>
-							{key === 'mpLegendOpen' ? `${t(key)} (${t(periodCopy.open)})` : t(key)}
+							{`${t(isHizb ? 'yourPortions' : 'myBabs')} ${openPeriod.readCount}/${openPeriod.owedCount}`}
 						</CaptionText>
-					</View>
-				))}
-			</View>
+					) : null}
+				</View>
 
-			<View style={styles.sectionHead}>
-				<TitleText>{t('mpMissedList')}</TitleText>
-				{progress.missedCount > 0 ? <Chip label={String(progress.missedCount)} tone='missed' /> : null}
-			</View>
+				<CardSurface style={styles.stripCard}>
+					<PeriodStrip cycle={progress.cycle} periods={progress.periods} timezone={group.timezone} />
+				</CardSurface>
 
-			{missedPeriods.length > 0 ? (
-				<CardSurface isFlush>
-					{missedPeriods.map(period => {
-						// One action for the row, so it opens where the catching-up starts.
-						const firstMissed = period.missedBabs[0];
-						const isWholeShare = period.missedBabs.length === period.owedCount;
-
-						return (
+				<View style={styles.legend}>
+					{LEGEND.map(key => (
+						<View key={key} style={styles.legendItem}>
 							<View
-								key={period.roundIndex}
-								style={[styles.missedRow, { borderBottomColor: theme.colors.divider }]}
-							>
-								<View style={styles.missedCopy}>
-									<View style={styles.missedHead}>
-										<CaptionText weight='semibold'>{dateLabel(period)}</CaptionText>
-										<CaptionText color={theme.colors.subtext}>
-											{`· ${agoLabel(period)} · ${missedCountLabel(period.missedBabs.length)}${
-												isWholeShare ? ` · ${t('mpAllMissed')}` : ''
-											}`}
-										</CaptionText>
+								style={[
+									styles.swatch,
+									{
+										backgroundColor: legendTone[key],
+										// Only the "open" swatch is an outline — it is the one state
+										// drawn as a ring rather than a fill on the strip itself.
+										borderColor: key === 'mpLegendOpen' ? theme.colors.accent : legendTone[key]
+									}
+								]}
+							/>
+							<CaptionText color={theme.colors.subtext}>
+								{key === 'mpLegendOpen' ? `${t(key)} (${t(periodCopy.open)})` : t(key)}
+							</CaptionText>
+						</View>
+					))}
+				</View>
+			</HintTarget>
+
+			<HintTarget id='progressMissed' style={styles.hintSection}>
+				<View style={styles.sectionHead}>
+					<TitleText>{t('mpMissedList')}</TitleText>
+					{progress.missedCount > 0 ? <Chip label={String(progress.missedCount)} tone='missed' /> : null}
+				</View>
+
+				{missedPeriods.length > 0 ? (
+					<CardSurface isFlush>
+						{missedPeriods.map(period => {
+							// One action for the row, so it opens where the catching-up starts.
+							const firstMissed = period.missedBabs[0];
+							const isWholeShare = period.missedBabs.length === period.owedCount;
+
+							return (
+								<View
+									key={period.roundIndex}
+									style={[styles.missedRow, { borderBottomColor: theme.colors.divider }]}
+								>
+									<View style={styles.missedCopy}>
+										<View style={styles.missedHead}>
+											<CaptionText weight='semibold'>{dateLabel(period)}</CaptionText>
+											<CaptionText color={theme.colors.subtext}>
+												{`· ${agoLabel(period)} · ${missedCountLabel(
+													period.missedBabs.length
+												)}${isWholeShare ? ` · ${t('mpAllMissed')}` : ''}`}
+											</CaptionText>
+										</View>
+										{/*
+										 * **Only the gaps.** The design draws the whole share and greys
+										 * out what was read; that was built and dropped on sight — the
+										 * grey squares were the majority on a good day, so the thing
+										 * the screen is about was the quieter half of its own list.
+										 */}
+										<View style={styles.squares}>
+											{period.missedBabs.map(missed => (
+												<View
+													key={missed.babNumber}
+													style={[
+														styles.square,
+														{ backgroundColor: theme.colors.missedSurface }
+													]}
+												>
+													<Typography
+														color={theme.colors.missed}
+														style={styles.squareLabel}
+														weight='semibold'
+													>
+														{missed.babNumber}
+													</Typography>
+												</View>
+											))}
+										</View>
+										{/* Reading help for a missed round; a flexible pool has no share to hand over. */}
+										{group.splitMode === 'FLEXIBLE' ? null : (
+											<RequestHelpButton
+												groupId={groupId}
+												target={{ roundIndex: period.roundIndex }}
+											/>
+										)}
 									</View>
 									{/*
-									 * **Only the gaps.** The design draws the whole share and greys
-									 * out what was read; that was built and dropped on sight — the
-									 * grey squares were the majority on a good day, so the thing
-									 * the screen is about was the quieter half of its own list.
+									 * **One "Oku" for the row**, not a pill per bab. It opens the oldest
+									 * gap in that round and the reader walks forward from there — a
+									 * share is contiguous, so stepping the run is the arrows' job once
+									 * you are in it.
 									 */}
-									<RequestHelpButton groupId={groupId} target={{ roundIndex: period.roundIndex }} />
-									<View style={styles.squares}>
-										{period.missedBabs.map(missed => (
-											<View
-												key={missed.babNumber}
-												style={[styles.square, { backgroundColor: theme.colors.missedSurface }]}
-											>
-												<Typography
-													color={theme.colors.missed}
-													style={styles.squareLabel}
-													weight='semibold'
-												>
-													{missed.babNumber}
-												</Typography>
-											</View>
-										))}
-									</View>
+									{firstMissed ? (
+										<AppButton
+											/*
+											 * **`fullWidth={false}`, or the button is a sliver.** It
+											 * defaults to true, which on iOS 26 tells the SwiftUI host
+											 * to fill its column — and in this row the column is
+											 * whatever the `flex: 1` copy beside it leaves over, which
+											 * once the squares wrap is nothing. False makes the host
+											 * measure horizontally and report its own width, which is
+											 * what the other call sites in flex rows do.
+											 */
+											fullWidth={false}
+											onPress={() =>
+												// The round this gap belongs to — a weekly cell spans
+												// seven, so the period's own index could aim the cover
+												// at the wrong one. A Hizb group's gap is a portion, and
+												// the Cevşen reader would show bab N and cover portion N.
+												group.kind === 'HIZB'
+													? navigation.navigate('HizbReader', {
+															groupId,
+															partNumber: firstMissed.babNumber,
+															roundIndex: firstMissed.roundIndex
+													  })
+													: navigation.navigate('BabReader', {
+															babNumber: firstMissed.babNumber,
+															groupId,
+															roundIndex: firstMissed.roundIndex
+													  })
+											}
+											size='sm'
+											style={styles.readButton}
+											title={t('read')}
+											variant='accent'
+										/>
+									) : null}
 								</View>
-								{/*
-								 * **One "Oku" for the row**, not a pill per bab. It opens the oldest
-								 * gap in that round and the reader walks forward from there — a
-								 * share is contiguous, so stepping the run is the arrows' job once
-								 * you are in it.
-								 */}
-								{firstMissed ? (
-									<AppButton
-										/*
-										 * **`fullWidth={false}`, or the button is a sliver.** It
-										 * defaults to true, which on iOS 26 tells the SwiftUI host
-										 * to fill its column — and in this row the column is
-										 * whatever the `flex: 1` copy beside it leaves over, which
-										 * once the squares wrap is nothing. False makes the host
-										 * measure horizontally and report its own width, which is
-										 * what the other call sites in flex rows do.
-										 */
-										fullWidth={false}
-										onPress={() =>
-											// The round this gap belongs to — a weekly cell spans
-											// seven, so the period's own index could aim the cover
-											// at the wrong one. A Hizb group's gap is a portion, and
-											// the Cevşen reader would show bab N and cover portion N.
-											group.kind === 'HIZB'
-												? navigation.navigate('HizbReader', {
-														groupId,
-														partNumber: firstMissed.babNumber,
-														roundIndex: firstMissed.roundIndex
-												  })
-												: navigation.navigate('BabReader', {
-														babNumber: firstMissed.babNumber,
-														groupId,
-														roundIndex: firstMissed.roundIndex
-												  })
-										}
-										size='sm'
-										style={styles.readButton}
-										title={t('read')}
-										variant='accent'
-									/>
-								) : null}
-							</View>
-						);
-					})}
-				</CardSurface>
-			) : (
-				<CardSurface style={styles.empty}>
-					<CaptionText color={theme.colors.subtext}>{t('mpNoMissed')}</CaptionText>
-				</CardSurface>
-			)}
+							);
+						})}
+					</CardSurface>
+				) : (
+					<CardSurface style={styles.empty}>
+						<CaptionText color={theme.colors.subtext}>{t('mpNoMissed')}</CaptionText>
+					</CardSurface>
+				)}
+			</HintTarget>
 		</ScreenContainer>
 	);
 };
@@ -280,6 +329,10 @@ const styles = StyleSheet.create({
 	empty: {
 		alignItems: 'center',
 		padding: 18
+	},
+	// A section the hints frame keeps the column's own gap inside it.
+	hintSection: {
+		gap: 12
 	},
 	legend: {
 		flexDirection: 'row',

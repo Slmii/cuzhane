@@ -69,7 +69,7 @@ describe('privacy at service response boundaries', () => {
 
 	it('sends an anonymous reading notification in the recipient language', async () => {
 		const group = await create();
-		await prisma.userSettings.create({ data: { userId: VIEWER, groupReadsEnabled: true, language: 'nl' } });
+		await prisma.userSettings.create({ data: { userId: VIEWER, cevsenGroupReadsEnabled: true, language: 'nl' } });
 		await setAssignedBabsReadForUser(OWNER, group.id, true);
 		const calls = vi.mocked(sendPushToUser).mock.calls;
 		expect(calls).toHaveLength(1);

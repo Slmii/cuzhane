@@ -25,6 +25,7 @@ export type IconName =
 	| 'minus'
 	| 'search'
 	| 'searchOff'
+	| 'goTo'
 	| 'filter'
 	| 'sort'
 	| 'edit'
@@ -34,6 +35,9 @@ export type IconName =
 	| 'key'
 	| 'undo'
 	| 'book'
+	/** Q4's "Uygulamada oku" and the frame's "Devret" — the set's open book and its hand-over card. */
+	| 'readInApp'
+	| 'handOver'
 	| 'copy'
 	| 'mail'
 	| 'invite'
@@ -41,13 +45,22 @@ export type IconName =
 	| 'nudge'
 	| 'more'
 	| 'refresh'
+	| 'reset'
+	| 'bookPages'
 	| 'textSize'
 	| 'clock'
 	| 'play'
 	| 'memberCheck'
 	| 'memberFull'
 	| 'members'
+	| 'liveSession'
+	| 'pointLine'
+	| 'arrowDown'
+	| 'arrowUp'
+	| 'liveSessionLive'
+	| 'liveSessionTinted'
 	| 'lock'
+	| 'eyeOff'
 	| 'globe'
 	| 'calendar'
 	| 'bookmark'
@@ -75,7 +88,16 @@ export type IconName =
 	| 'claimReleased'
 	| 'unclaimed'
 	| 'sun'
-	| 'moon';
+	| 'moon'
+	/* Live voice (Birlikte Oku Ses, lane I): open is a wash, paused is two strokes. */
+	| 'mic'
+	| 'micOn'
+	| 'micPaused'
+	| 'micOff'
+	| 'speaker'
+	| 'speakerOn'
+	| 'speakerPaused'
+	| 'stop';
 
 export interface IconProps {
 	name: IconName;

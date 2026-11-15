@@ -2,6 +2,21 @@ import type { StringKey } from '@/lib/i18n/strings';
 import type { AppNotification } from '@/lib/types/domain';
 import { PART_COUNT } from '@/lib/utils/groupKinds';
 import { isSinglePart } from '@/lib/utils/groups';
+import { HIZB_PORTION_COUNT, worksForParts } from '@/lib/content/hizbPortions';
+
+/**
+ * The portions a notice's range names — "12–14, 19" is 12, 13, 14 and 19; anything else, none. A
+ * notice kept from the 33-portion division can name 33, which the division no longer has.
+ */
+const portionsOfRange = (range: string): number[] =>
+	range
+		.split(',')
+		.flatMap(run => {
+			const [from, to = from] = run.trim().split('–').map(Number);
+
+			return from && to && to >= from ? Array.from({ length: to - from + 1 }, (_, i) => from + i) : [];
+		})
+		.filter(number => number <= HIZB_PORTION_COUNT);
 
 /**
  * The three buckets design P2 groups its list into.
@@ -97,6 +112,11 @@ type Translate = (key: StringKey, values?: Record<string, string | number>) => s
  * a range of one portion takes the singular, as the push it mirrors does. The member rows name
  * neither and read the same for both. A Cevşen row is composed exactly as it always was,
  * released range included: a Cevşen block is never a single bab.
+ *
+ * **Q8 — the same events about a hatim.** The cüz goes into the title beside the person
+ * ("Ayşe · 29. cüz") and the body says what they did with it; a closed round is the hatim
+ * itself, "Tur 3 · 30 / 30"; and the member lines count people, because a hatim has no seats
+ * for "{count}/{spots}" to fill. A released pool claim is a Cevşen seat event and has no twin.
  */
 export const notificationText = (
 	{ groupKind, kind, payload }: Pick<AppNotification, 'groupKind' | 'kind' | 'payload'>,
@@ -112,6 +132,33 @@ export const notificationText = (
 	const isHizb = groupKind === 'HIZB';
 	const range = text('range');
 	const isOne = isSinglePart(range);
+
+	if (groupKind === 'HATIM') {
+		switch (kind) {
+			case 'MEMBER_JOINED':
+				return {
+					body: t('notifMembersBody', { count: count('memberCount') }),
+					title: t('notifMemberJoinedTitle', { name: text('memberName') })
+				};
+			case 'MEMBER_LEFT':
+				return {
+					body: t('notifMembersBody', { count: count('memberCount') }),
+					title: t('notifMemberLeftTitle', { name: text('memberName') })
+				};
+			case 'POOL_BAB_CLAIMED':
+				return { body: t('notifCuzTookBody'), title: t('notifCuzTitle', { name: text('takerName'), range }) };
+			case 'ROUND_COMPLETE':
+				return {
+					body: t('notifHatimDoneBody', { count: PART_COUNT.HATIM, round: count('roundNumber') }),
+					title: t('notifHatimDoneTitle')
+				};
+			case 'SHARE_READ':
+				return { body: t('notifCuzReadBody'), title: t('notifCuzTitle', { name: text('readerName'), range }) };
+			case 'POOL_CLAIM_RELEASED':
+				// No twin — falls through to the Cevşen wording below.
+				break;
+		}
+	}
 
 	switch (kind) {
 		case 'POOL_CLAIM_RELEASED': {
@@ -135,13 +182,23 @@ export const notificationText = (
 				})
 			};
 		}
-		case 'SHARE_READ':
+		case 'SHARE_READ': {
+			// A Hizb reading names its works too — "9. bölüm (Evrâd-ı Kudsiye) okundu".
+			const works = isHizb
+				? worksForParts(portionsOfRange(range))
+						.map(work => t(work.titleKey))
+						.join(', ')
+				: '';
+
 			return {
-				body: isHizb
-					? t(isOne ? 'notifShareReadBodyHizbOne' : 'notifShareReadBodyHizb', { range })
-					: t('notifShareReadBody', { range }),
+				body: !isHizb
+					? t('notifShareReadBody', { range })
+					: works
+					? t(isOne ? 'notifShareReadBodyHizbWorksOne' : 'notifShareReadBodyHizbWorks', { range, works })
+					: t(isOne ? 'notifShareReadBodyHizbOne' : 'notifShareReadBodyHizb', { range }),
 				title: t('notifShareReadTitle', { name: text('readerName') })
 			};
+		}
 		case 'ROUND_COMPLETE':
 			return {
 				body: isHizb

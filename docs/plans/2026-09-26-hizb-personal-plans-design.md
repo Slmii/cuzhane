@@ -15,30 +15,27 @@ Status: approved and implemented locally on 2026-09-26. Existing groups retain t
 - The user authorizes proposing the seven-day division from the existing text.
 - Sekine continues to require 19 repetitions from its individual reader whenever assigned.
 
-## Approved seven-day division
+## Seven- and fifteen-day divisions (revised 2026-10-04)
 
-This is an app-designed division, not an assertion about the missing family's seven-day table. It uses existing 33-day boundaries, preserves reading order, and covers the entire current digital source once. That does not resolve the separately documented missing Amenerrasulu passage in the digital source.
+Both are built from **whole days of the 32-day family calendar** (its 2026 sheet): no cut falls inside a sheet day. Consecutive sheet days are grouped so the daily readings are as even as possible, measured in words with the Sekine passage counted 19 times. This replaces the earlier app-designed seven-day division and the fifteen-day table taken from an unconfirmed photo. `hizbPlans.test.ts` pins both lists of sheet days.
 
-| Day | Reading | Existing 33-day portions | Inclusive source start |
-| --- | --- | --- | --- |
-| 1 | Opening istighfar and Quran readings; Cevsen babs 1–20 | 1–4 | section 0 |
-| 2 | Cevsen babs 21–81 | 5–7 | section 7, block 18 |
-| 3 | Cevsen babs 82–100 and its closing prayer; complete Evrad-i Kudsiyye | 8–13 | section 7, block 79 |
-| 4 | Complete Delail-in Nur; Sekine with 19 repetitions | 14–19 | section 9 |
-| 5 | Veysel Karani and the Ism-i Azam prayers; Munacat-ul Quran from Fatiha up to, excluding, Lokman | 20–22 | section 11 |
-| 6 | Munacat-ul Quran from Lokman to its end; complete Tahmidiye | 23–26 | section 14, block 26 |
-| 7 | Complete Hulasat-ul Hulasa and the final Tazarru ve Niyaz prayers | 27–33 | section 16 |
-
-Each end is the next day's start, exclusive; the last ends at the source's end. Coordinates are zero-based. Rough whitespace word counts, counting the Sekine passage from Bismillah 19 times, are 3896 / 3864 / 4480 / 4299 / 2867 / 4272 / 3240. These are balance checks, not reading-time estimates; they include source headings and editorial lines. Existing Cevsen boundaries still carry the interpretation documented in the earlier source review.
-
-## Fifteen-day division: approved boundary
-
-Use the independent supplied table, not equal-sized bundles of the 33-day portions. Inspection of `whatsappfotos/WhatsApp Image 2026-09-26 at 01.27.34.jpeg` confirms the table's abbreviated Hulasat boundary. The digital text has two openings matching that abbreviation:
-
-- section 16, block 13: continues with `bi-lisani'l-hakikati'l-insaniyye`;
-- section 16, block 16: continues with `dhu'l-kamalati...`; this is also the existing 33-day portion 29 start.
-
-The user approved the later start (section 16, block 16). The supplied fifteen-day table alone does not disambiguate the occurrence. The Munacat Saffat boundary is section 14, block 30; Cevsen bab 51 starts at section 7, block 48. Content tests verify these anchors and complete source coverage.
+| Day | 7-day: sheet days | 15-day: sheet days |
+| --- | --- | --- |
+| 1 | 1–4 Kur'an + Cevşen 1–20 | 1–2 |
+| 2 | 5–7 Cevşen 21–80 | 3–4 |
+| 3 | 8–13 Cevşen 81–100 + Evrâd | 5 |
+| 4 | 14–19 Delâil + Sekine | 6 |
+| 5 | 20–23 Veysel Karani, İsm-i A'zam, Münâcât to Münâfikûn | 7 |
+| 6 | 24–25 Münâcât from Münâfikûn + Tahmidiye | 8–9 |
+| 7 | 26–32 Hülasa + Tazarru | 10–12 |
+| 8 | | 13–18 |
+| 9 | | 19 (Sekine) |
+| 10 | | 20 |
+| 11 | | 21–22 |
+| 12 | | 23–24 |
+| 13 | | 25 (Tahmidiye) |
+| 14 | | 26–29 |
+| 15 | | 30–32 |
 
 ## Sequence rules
 

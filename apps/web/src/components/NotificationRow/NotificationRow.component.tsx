@@ -46,7 +46,7 @@ export const NotificationRow = ({ notification, now }: NotificationRowProps) => 
 	/*
 	 * One glyph per kind. A lookup keyed on the kind rather than a chain of ternaries, which is
 	 * what this was at three and would be an unreadable ladder at six. The two lines are
-	 * `notificationText`'s, which picks bab or bölüm from the group's kind.
+	 * `notificationText`'s, which picks bab, cüz or bölüm from the group's kind.
 	 *
 	 * **Every glyph here is the icon set's own, from "Bildirim türleri".** They used to borrow —
 	 * `range` for a finished share, `completed` (the hatim mark) for a closed round, `memberCheck`

@@ -65,7 +65,7 @@ export type RoundRow = {
 	imageUrl: string | null;
 	isViewer: boolean;
 	isPool: boolean;
-	/** The block this person owed that round, e.g. "16–20". */
+	/** What this person owed that round as runs — a Cevşen block "16–20", a hatim's "7, 22". */
 	rangeLabel: string;
 	/** Babs they owed that are still unread — what the row's action acts on. */
 	outstanding: number[];
@@ -87,22 +87,26 @@ export type RoundRow = {
 	covered: RoundCover | null;
 };
 
-const rangeOf = (numbers: number[]): string => {
-	if (numbers.length === 0) {
-		return '—';
-	}
-
-	const sorted = [...numbers].sort((a, b) => a - b);
-
-	return `${sorted[0]}–${sorted[sorted.length - 1]}`;
-};
-
-const settledKeyFor = (owed: RoundBab[], coveredByOthers: RoundBab[]): RoundRow['settledKey'] => {
+/*
+ * A block partly covered by someone else is "sen üstlendin" only when *you* were that someone;
+ * otherwise it is plainly done, and the accent line under the row names who stepped in.
+ */
+const settledKeyFor = (
+	owed: RoundBab[],
+	coveredByOthers: RoundBab[],
+	viewerUserId: string | null
+): RoundRow['settledKey'] => {
 	if (coveredByOthers.length === 0) {
 		return 'noMisses';
 	}
 
-	return coveredByOthers.length === owed.length ? 'splitTaken' : 'transferred';
+	if (coveredByOthers.length === owed.length) {
+		return 'splitTaken';
+	}
+
+	return viewerUserId !== null && coveredByOthers.every(bab => bab.readByUserId === viewerUserId)
+		? 'transferred'
+		: 'noMisses';
 };
 
 /**
@@ -173,10 +177,10 @@ export const roundRows = (
 			imageUrl: photoByUserId.get(userId) ?? null,
 			isViewer,
 			isPool: false,
-			rangeLabel: rangeOf(owed.map(bab => bab.number)),
+			rangeLabel: formatBabRange(owed.map(bab => bab.number)),
 			outstanding,
 			owedCount: owed.length,
-			settledKey: outstanding.length > 0 ? null : settledKeyFor(owed, coveredByOthers),
+			settledKey: outstanding.length > 0 ? null : settledKeyFor(owed, coveredByOthers, viewerUserId),
 			detailKind:
 				outstanding.length === 0 ? 'settled' : outstanding.length === owed.length ? 'wholeBlock' : 'partial',
 			covered
@@ -193,11 +197,17 @@ export const roundRows = (
 			imageUrl: null,
 			isViewer: false,
 			isPool: true,
-			rangeLabel: rangeOf(poolBabs.map(bab => bab.number)),
+			rangeLabel: formatBabRange(poolBabs.map(bab => bab.number)),
 			outstanding,
 			owedCount: poolBabs.length,
-			// A settled pool block was covered by definition — nobody owed it.
-			settledKey: outstanding.length > 0 ? null : 'transferred',
+			// A settled pool block was covered by definition — nobody owed it. "Sen üstlendin"
+			// only when you read all of it; anyone else in it makes it "hepsi devralındı".
+			settledKey:
+				outstanding.length > 0
+					? null
+					: viewerUserId !== null && poolBabs.every(bab => bab.readByUserId === viewerUserId)
+					? 'transferred'
+					: 'splitTaken',
 			detailKind: outstanding.length === 0 ? 'settled' : 'poolLeft',
 			covered: null
 		});

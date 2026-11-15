@@ -1,34 +1,36 @@
 import { describe, expect, it } from 'vitest';
-import { hizbPlanBoard } from './hizbPlanBoard';
+import { boardPortionsOf, planBoardCells, unreadPortionCount } from './hizbPlanBoard';
 import { spansFor } from './hizbPlans';
 
-const reader = (planDays: number, portion: number, completed = false) => ({
-	id: 'reader',
-	displayName: 'Reader',
-	planDays,
-	portion,
-	completed
+describe('planBoardCells', () => {
+	it('draws all 32 unread with nothing covered, and rings today’s portion', () => {
+		const cells = planBoardCells([], { planDays: 32, portion: 8 });
+
+		expect(cells).toHaveLength(32);
+		expect(cells.every(cell => cell.state === 'unread')).toBe(true);
+		expect(cells.filter(cell => cell.isMine).map(cell => cell.number)).toEqual([8]);
+	});
+
+	it('marks a portion read only when every span of it is covered', () => {
+		const spans = spansFor(32, 5);
+		const cells = planBoardCells(spans, null);
+
+		expect(cells.filter(cell => cell.state === 'read').map(cell => cell.number)).toEqual([5]);
+		expect(unreadPortionCount(spans)).toBe(31);
+	});
+
+	it('fills every portion a longer plan’s day covers', () => {
+		const week = spansFor(7, 1);
+		const read = planBoardCells(week, { planDays: 7, portion: 1 }).filter(cell => cell.state === 'read');
+
+		expect(read.length).toBeGreaterThan(1);
+		expect(read.every(cell => cell.isMine)).toBe(true);
+	});
 });
-describe('personal plan group board', () => {
-	it('shows all 33 portions, highlights mine and distinguishes scheduled from unassigned', () => {
-		const board = hizbPlanBoard([reader(33, 1)], [], { planDays: 33, portion: 1 });
-		expect(board).toHaveLength(33);
-		expect(board[0]).toMatchObject({ number: 1, state: 'pending', isMine: true });
-		expect(board[1]).toMatchObject({ number: 2, state: 'empty', isMine: false });
-	});
-	it('maps a seven-day reading to the canonical portions and does not double count overlaps', () => {
-		const board = hizbPlanBoard([reader(7, 1, true), reader(33, 1, true)], spansFor(7, 1), null);
-		expect(board.filter(cell => cell.state === 'read').map(cell => cell.number)).toEqual([1, 2, 3]);
-	});
-	it('shows partial coverage where a fifteen-day boundary splits a canonical portion', () => {
-		const board = hizbPlanBoard([reader(15, 2, true)], spansFor(15, 2), null);
-		expect(board[5]).toMatchObject({ number: 6, state: 'partial' });
-		expect(board[3]?.state).toBe('read');
-	});
-	it('retains completed coverage after the reader leaves', () => {
-		expect(hizbPlanBoard([], spansFor(33, 19), null)[18]).toMatchObject({ state: 'read', readers: [] });
-	});
-	it('does not count a pending Sekine assignment as read', () => {
-		expect(hizbPlanBoard([reader(33, 19)], [], null)[18]?.state).toBe('pending');
+
+describe('boardPortionsOf', () => {
+	it('is the portion itself on a 32-day plan, and several on a 7-day one', () => {
+		expect(boardPortionsOf(32, 14)).toEqual([14]);
+		expect(boardPortionsOf(7, 3).length).toBeGreaterThan(1);
 	});
 });

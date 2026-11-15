@@ -1,13 +1,12 @@
-import { BrandMarkGlyph } from '@/components/ui/BrandMark/BrandMark.component';
+import { BRAND_ROSETTE } from '@/components/ui/BrandMark/BrandMark.component';
 import { CaptionText, EyebrowText } from '@/components/ui/Typography/Typography.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
-import { toAlphaColor } from '@/lib/theme/tokens';
 import { inviteLink } from '@/lib/utils/inviteCode';
 import QRCode from 'qrcode';
 import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Svg, { G, Path, Rect } from 'react-native-svg';
+import Svg, { G, Path, Rect, Image as SvgImage } from 'react-native-svg';
 import type { InviteQrProps } from './InviteQr.types';
 
 /**
@@ -19,9 +18,9 @@ import type { InviteQrProps } from './InviteQr.types';
  *   reads as a field of dots rather than a block of squares;
  * - **finder eyes** in sage: a rounded 6×6 outline with a rounded 3×3 core, in place of the
  *   standard black squares;
- * - **the mark in the middle**: a 5×5-module zone is cleared and a sage plate carries the
- *   app icon (`ui/BrandMark`'s glyph, one geometry for both) in the plate colour. ECC M
- *   absorbs the cleared zone; don't enlarge it;
+ * - **the mark in the middle**: a 5×5-module zone is cleared and the app's rosette
+ *   (`ui/BrandMark`'s image, one file for both) sits in it. ECC M absorbs the cleared zone;
+ *   don't enlarge it;
  * - **the quiet zone is in the viewBox** (four modules), and the plate around it is a
  *   warm paper in both themes — a scanner does not read light modules on dark reliably, so
  *   dark mode gets the generator's warmer plate and deeper ink rather than an inversion.
@@ -43,9 +42,6 @@ const EYE_MODULES = 7;
 /** The plate's corner and its padding — small, since the quiet zone is already in the viewBox. */
 const PLATE_RADIUS = 18;
 const PLATE_PADDING = 5;
-
-/** The generator fades the mark's unread columns to 55% of the plate colour. */
-const MARK_FADED_OPACITY = 0.55;
 
 interface QrGeometry {
 	/** Symbol side in modules. */
@@ -153,21 +149,14 @@ export const InviteQr = ({ inviteCode }: InviteQrProps) => {
 							<Rect fill={codeAccent} height={3} rx={1} width={3} x={x + 2} y={y + 2} />
 						</G>
 					))}
-					<Rect
-						fill={codeAccent}
+					{/* The rosette is its own round plate: 4.3 modules, centred in the cleared zone. */}
+					<SvgImage
 						height={4.3}
-						rx={1.3}
+						href={BRAND_ROSETTE}
 						width={4.3}
 						x={emblemOrigin + 0.35}
 						y={emblemOrigin + 0.35}
 					/>
-					{/* The mark's 100-unit box scaled into 2.9 modules, centred on the plate. */}
-					<G transform={`translate(${emblemOrigin + 1.05} ${emblemOrigin + 1.05}) scale(${2.9 / 100})`}>
-						<BrandMarkGlyph
-							fadedColor={toAlphaColor(codePaper, MARK_FADED_OPACITY)}
-							solidColor={codePaper}
-						/>
-					</G>
 				</Svg>
 			</View>
 			<EyebrowText color={theme.colors.faintText}>{t('shareQrLabel')}</EyebrowText>

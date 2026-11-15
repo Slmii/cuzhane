@@ -110,12 +110,44 @@ describe('notificationText', () => {
 		});
 	});
 
-	it('names portions in a Hizb group, singular for a range of one', () => {
+	it('speaks in cüz for a hatim, and counts people rather than seats (Q8)', () => {
+		expect(notificationText(row('SHARE_READ', { range: '29', readerName: 'Ayşe' }, 'HATIM'), t)).toEqual({
+			body: 'notifCuzReadBody',
+			title: 'notifCuzTitle(name=Ayşe,range=29)'
+		});
+		expect(notificationText(row('ROUND_COMPLETE', { roundNumber: 3 }, 'HATIM'), t)).toEqual({
+			body: 'notifHatimDoneBody(count=30,round=3)',
+			title: 'notifHatimDoneTitle'
+		});
+		expect(notificationText(row('MEMBER_JOINED', { memberCount: 4, memberName: 'Ali' }, 'HATIM'), t).body).toBe(
+			'notifMembersBody(count=4)'
+		);
+	});
+
+	it('reads a row whose group is gone as Cevşen', () => {
+		expect(notificationText(row('ROUND_COMPLETE', { roundNumber: 4 }, null), t).body).toBe(
+			'notifRoundCompleteBody'
+		);
+	});
+
+	it('names portions and their works in a Hizb group, singular for a range of one', () => {
 		expect(notificationText(row('SHARE_READ', { range: '15–16', readerName: 'Ali' }, 'HIZB'), t).body).toBe(
-			'notifShareReadBodyHizb(range=15–16)'
+			'notifShareReadBodyHizbWorks(range=15–16,works=hizbWorkDelail)'
 		);
 		expect(notificationText(row('SHARE_READ', { range: '19', readerName: 'Ali' }, 'HIZB'), t).body).toBe(
-			'notifShareReadBodyHizbOne(range=19)'
+			'notifShareReadBodyHizbWorksOne(range=19,works=hizbWorkSekine)'
+		);
+		// A day across two works names both, in reading order.
+		expect(notificationText(row('SHARE_READ', { range: '12–14', readerName: 'Ali' }, 'HIZB'), t).body).toBe(
+			'notifShareReadBodyHizbWorks(range=12–14,works=hizbWorkEvrad, hizbWorkDelail)'
+		);
+		// A range it cannot read still says the portions.
+		expect(notificationText(row('SHARE_READ', { range: '', readerName: 'Ali' }, 'HIZB'), t).body).toBe(
+			'notifShareReadBodyHizbOne(range=)'
+		);
+		// A notice kept from the 33-portion division names a portion that no longer exists.
+		expect(notificationText(row('SHARE_READ', { range: '31–33', readerName: 'Ali' }, 'HIZB'), t).body).toBe(
+			'notifShareReadBodyHizbWorks(range=31–33,works=hizbWorkTazarru)'
 		);
 	});
 
@@ -141,7 +173,7 @@ describe('notificationText', () => {
 
 	it('counts the Hizb’s own portions when a round closes', () => {
 		expect(notificationText(row('ROUND_COMPLETE', { roundNumber: 2 }, 'HIZB'), t)).toEqual({
-			body: 'notifRoundCompleteBodyHizb(count=33)',
+			body: 'notifRoundCompleteBodyHizb(count=32)',
 			title: 'notifRoundCompleteTitle(round=2)'
 		});
 	});

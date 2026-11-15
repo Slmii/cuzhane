@@ -3,15 +3,17 @@ import {
 	civilDayNumber,
 	roundEndsAt,
 	roundIndexSince,
+	roundLengthFor,
 	roundStartedAtFor,
 	startOfCivilDay,
-	type CycleName
+	type RoundLength
 } from '@utils/rounds';
 import { describe, expect, it } from 'vitest';
 
-const DAILY = 'DAILY';
-const WEEKLY = 'WEEKLY';
-const MONTHLY = 'MONTHLY';
+// What `roundLengthFor` hands the helpers: a number of days, or a Hizb's calendar month.
+const DAILY: RoundLength = 1;
+const WEEKLY: RoundLength = 7;
+const MONTHLY: RoundLength = 'MONTH';
 
 const UTC = 'UTC';
 const ISTANBUL = 'Europe/Istanbul';
@@ -132,7 +134,7 @@ describe('time zones', () => {
 		// The week containing the spring-forward is 167 hours long. Measuring it in hours
 		// would end it an hour late, and drift further at every DST change after that.
 		const roundStart = new Date('2027-03-14T18:00:00Z'); // 2027-03-14 14:00 EDT
-		const ends = roundEndsAt(roundStart, 'WEEKLY', 0, NEW_YORK);
+		const ends = roundEndsAt(roundStart, WEEKLY, 0, NEW_YORK);
 
 		expect(ends).toEqual(new Date('2027-03-21T04:00:00Z')); // 2027-03-21 00:00 EDT
 		expect(ends.getTime() - startOfCivilDay(civilDayNumber(roundStart, NEW_YORK), NEW_YORK).getTime()).toBe(
@@ -213,15 +215,18 @@ describe('time zones', () => {
 });
 
 describe('roundEndsAt', () => {
-	it.each<CycleName>([DAILY, WEEKLY, MONTHLY])('ends a %s round exactly where the next one starts', cycle => {
-		const startedAt = new Date('2027-01-31T10:00:00Z');
+	it.each<RoundLength>([DAILY, WEEKLY, 30, 15, MONTHLY])(
+		'ends a %s round exactly where the next one starts',
+		cycle => {
+			const startedAt = new Date('2027-01-31T10:00:00Z');
 
-		for (let roundIndex = 0; roundIndex < 14; roundIndex++) {
-			expect(roundEndsAt(startedAt, cycle, roundIndex, NEW_YORK)).toEqual(
-				roundStartedAtFor(startedAt, cycle, roundIndex + 1, NEW_YORK)
-			);
+			for (let roundIndex = 0; roundIndex < 14; roundIndex++) {
+				expect(roundEndsAt(startedAt, cycle, roundIndex, NEW_YORK)).toEqual(
+					roundStartedAtFor(startedAt, cycle, roundIndex + 1, NEW_YORK)
+				);
+			}
 		}
-	});
+	);
 });
 
 describe('MONTHLY', () => {
@@ -279,5 +284,54 @@ describe('MONTHLY', () => {
 			expect(roundStartedAtFor(startedAt, MONTHLY, index, zone).getTime()).toBeLessThanOrEqual(now.getTime());
 			expect(roundEndsAt(startedAt, MONTHLY, index, zone).getTime()).toBeGreaterThan(now.getTime());
 		}
+	});
+});
+
+describe('roundLengthFor', () => {
+	it("reads a Cevşen or Kur'an group by its day count, whatever the label says", () => {
+		expect(roundLengthFor({ kind: 'CEVSEN', cycle: 'DAILY', roundDays: 1 })).toBe(1);
+		expect(roundLengthFor({ kind: 'CEVSEN', cycle: 'WEEKLY', roundDays: 7 })).toBe(7);
+		// A hatim's MONTHLY is thirty days, and a CUSTOM one any number — never a calendar month.
+		expect(roundLengthFor({ kind: 'HATIM', cycle: 'MONTHLY', roundDays: 30 })).toBe(30);
+		expect(roundLengthFor({ kind: 'HATIM', cycle: 'CUSTOM', roundDays: 12 })).toBe(12);
+	});
+
+	it('gives only a monthly Hizb group the calendar month', () => {
+		expect(roundLengthFor({ kind: 'HIZB', cycle: 'MONTHLY', roundDays: 30 })).toBe('MONTH');
+		expect(roundLengthFor({ kind: 'HIZB', cycle: 'WEEKLY', roundDays: 7 })).toBe(7);
+		expect(roundLengthFor({ kind: 'HIZB', cycle: 'DAILY', roundDays: 1 })).toBe(1);
+	});
+
+	it('keeps a thirty-day hatim on thirty days where a monthly Hizb follows the calendar', () => {
+		const startedAt = new Date('2027-01-31T10:00:00Z');
+		const hatim = roundLengthFor({ kind: 'HATIM', cycle: 'MONTHLY', roundDays: 30 });
+		const hizb = roundLengthFor({ kind: 'HIZB', cycle: 'MONTHLY', roundDays: 30 });
+
+		// Jan 31 + 30 local days is Mar 2; the calendar month clamps to Feb 28.
+		expect(roundEndsAt(startedAt, hatim, 0, UTC)).toEqual(new Date('2027-03-02T00:00:00Z'));
+		expect(roundEndsAt(startedAt, hizb, 0, UTC)).toEqual(new Date('2027-02-28T00:00:00Z'));
+	});
+});
+
+describe('a day count, as development measured it', () => {
+	it('ends round N exactly roundDays local days after round N began', () => {
+		const startedAt = new Date('2026-03-01T15:00:00Z');
+
+		for (const roundDays of [1, 7, 12, 30, 90]) {
+			for (let roundIndex = 0; roundIndex < 6; roundIndex++) {
+				const start = roundStartedAtFor(startedAt, roundDays, roundIndex, NEW_YORK);
+
+				expect(roundEndsAt(startedAt, roundDays, roundIndex, NEW_YORK)).toEqual(
+					startOfCivilDay(civilDayNumber(start, NEW_YORK) + roundDays, NEW_YORK)
+				);
+			}
+		}
+	});
+
+	it('treats a nonsense length as a single round that never rolls', () => {
+		const startedAt = new Date('2026-03-01T15:00:00Z');
+
+		expect(roundIndexSince(startedAt, 0, new Date('2026-06-01T00:00:00Z'), UTC)).toBe(0);
+		expect(roundStartedAtFor(startedAt, 0, 3, UTC)).toEqual(startedAt);
 	});
 });

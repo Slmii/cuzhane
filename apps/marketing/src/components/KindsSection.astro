@@ -1,0 +1,132 @@
+---
+import { copyFor, type Locale } from '../i18n/copy';
+import { KIND_TONES, type KindKey } from './kindTones';
+
+interface Props {
+	locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = copyFor(locale);
+
+/**
+ * The three readings' glyphs: the tesbih for the Cevşen, the open book on its stand for the
+ * Kur'an, the eight-pointed seal for the Hizb — the design's own, 24 grid, 1.6 stroke.
+ */
+const GLYPHS: Record<KindKey, string> = {
+	cevsen: '<circle cx="12" cy="4.2" r="1.1"/><circle cx="17.5" cy="6.5" r="1.1"/><circle cx="19.8" cy="12" r="1.1"/><circle cx="17.5" cy="17.5" r="1.1"/><circle cx="6.5" cy="17.5" r="1.1"/><circle cx="4.2" cy="12" r="1.1"/><circle cx="6.5" cy="6.5" r="1.1"/><path d="M12 18.4v3.2M10.4 20.6h3.2"/>',
+	hatim: '<path d="M12 6.5C10 5 7.2 4.6 4 5v11c3.2-.4 6 0 8 1.5 2-1.5 4.8-1.9 8-1.5V5c-3.2-.4-6 0-8 1.5z"/><path d="M12 6.5v11"/><path d="M8 20.5l4-3 4 3"/>',
+	hizb: '<path d="M12 3l2.2 2.7 3.4-.6.6 3.4L21 12l-2.8 3.5-.6 3.4-3.4-.6L12 21l-2.2-2.7-3.4.6-.6-3.4L3 12l2.8-3.5.6-3.4 3.4.6z"/><circle cx="12" cy="12" r="2.6"/>'
+};
+
+const KEYS: KindKey[] = ['cevsen', 'hatim', 'hizb'];
+---
+
+{/*
+  "Üç okuma" — one card per reading, each in its own section's colours and each a link down to
+  that section, as the design draws them.
+*/}
+<section id="okumalar" class="shell section">
+	<p class="eyebrow reveal">{t.kindsEyebrow}</p>
+	<h2 class="reveal wide">{t.kindsTitle}</h2>
+
+	<div class="cards">
+		{
+			KEYS.map((key, index) => {
+				const kind = t.kinds[index]!;
+				const tone = KIND_TONES[key];
+
+				return (
+					<a
+						class="card reveal"
+						href={`#${key}`}
+						style={`--wash:${tone.wash};--edge:${tone.edge};--ink-kind:${tone.ink}`}
+					>
+						<span class="glyph" aria-hidden="true">
+							<svg
+								width="20"
+								height="20"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="1.6"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								set:html={GLYPHS[key]}
+							/>
+						</span>
+						<span class="name">{kind.name}</span>
+						<span class="unit">{kind.unit}</span>
+						<span class="body">{kind.body}</span>
+					</a>
+				);
+			})
+		}
+	</div>
+</section>
+
+<style>
+	h2.wide {
+		max-width: 620px;
+	}
+
+	.cards {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+		gap: 14px;
+		margin-top: 32px;
+	}
+
+	.card {
+		text-decoration: none;
+		color: var(--ink);
+		background: var(--wash);
+		border: 1px solid var(--edge);
+		border-radius: 22px;
+		padding: 24px 24px 22px;
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		transition:
+			transform 0.25s cubic-bezier(0.2, 0.9, 0.25, 1),
+			box-shadow 0.25s ease;
+	}
+
+	.card:hover {
+		color: var(--ink);
+		transform: translateY(-3px);
+		box-shadow: 0 14px 34px rgba(28, 29, 26, 0.09);
+	}
+
+	.glyph {
+		width: 38px;
+		height: 38px;
+		border-radius: 11px;
+		background: var(--ink-kind);
+		color: #fff;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.glyph svg {
+		display: block;
+	}
+
+	.name {
+		font: 400 24px/1.15 var(--serif);
+		margin-top: 4px;
+	}
+
+	.unit {
+		font: 500 10.5px var(--mono);
+		letter-spacing: 0.04em;
+		color: var(--ink-kind);
+	}
+
+	.body {
+		font: 400 13.5px/1.6 var(--sans);
+		color: rgba(28, 29, 26, 0.7);
+		text-wrap: pretty;
+	}
+</style>

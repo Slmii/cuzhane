@@ -23,3 +23,9 @@ export const formatInviteCode = (code: string): string =>
 	code.length > INVITE_CODE_GROUP_LENGTH
 		? `${code.slice(0, INVITE_CODE_GROUP_LENGTH)}-${code.slice(INVITE_CODE_GROUP_LENGTH)}`
 		: code;
+
+/**
+ * A live reading's link. Every tab prefixes its screens' paths (`linking.ts`), so `LiveJoin`'s
+ * `live/:code` is reached as `home/live/:code` — a bare `live/…` matched no route at all.
+ */
+export const liveLink = (code: string): string => `${APP_SCHEME}home/live/${code.replace(/-/g, '')}`;

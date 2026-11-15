@@ -1,5 +1,6 @@
 import prisma from '@db/prisma';
 import { partCountFor, type GroupKindName } from '@utils/groupKinds';
+import { hizbWorksOf } from '@utils/hizbWorks';
 import { normalizeUserId } from '@utils/normalizeUserId';
 
 /**
@@ -40,9 +41,10 @@ export const toPushLanguage = (language: string | null | undefined): PushLanguag
 	language === 'tr' || language === 'nl' ? language : 'en';
 
 /**
- * **What a group reads decides the noun.** A Cevşen group reads babs and a Hizb group reads
- * portions — "bölüm", "portion", "gedeelte" — and a notification naming the wrong one would
- * describe a book the reader is not reading.
+ * **What a group reads decides the noun.** A Cevşen group reads babs, a hatim cüz ("juz" in
+ * English) and a Hizb group portions — "bölüm", "portion", "gedeelte" — and a notification
+ * naming the wrong one would describe a book the reader is not reading: "all 100 babs read" is
+ * simply false about thirty cüz.
  *
  * A range can also be a single part: a Hizb group of more than sixteen seats hands some of
  * them one portion each, so "portion 19" and "portions 1–3" both occur. A Cevşen share never
@@ -52,20 +54,30 @@ export const toPushLanguage = (language: string | null | undefined): PushLanguag
 const isSinglePart = (range: string) => !/[–,]/.test(range);
 
 const PART_NOUNS: Record<'en' | 'nl', Record<GroupKindName, { one: string; many: string }>> = {
-	en: { CEVSEN: { one: 'bab', many: 'babs' }, HIZB: { one: 'portion', many: 'portions' } },
-	nl: { CEVSEN: { one: 'bab', many: 'babs' }, HIZB: { one: 'gedeelte', many: 'gedeelten' } }
+	en: {
+		CEVSEN: { one: 'bab', many: 'babs' },
+		HATIM: { one: 'juz', many: 'juz' },
+		HIZB: { one: 'portion', many: 'portions' }
+	},
+	nl: {
+		CEVSEN: { one: 'bab', many: 'babs' },
+		HATIM: { one: 'cüz', many: 'cüz' },
+		HIZB: { one: 'gedeelte', many: 'gedeelten' }
+	}
 };
 
 /**
  * Turkish puts the noun in whichever case the sentence needs, and vowel harmony picks each
  * suffix, so the forms are spelled out rather than built. A noun after a number stays
- * singular — "33 bölümün hepsi", never "bölümlerin".
+ * singular — "32 bölümün hepsi", never "bölümlerin".
  */
 const TR_PART_NOUNS: Record<
 	GroupKindName,
 	{ one: string; many: string; accusative: string; possessiveAccusative: string; genitive: string }
 > = {
 	CEVSEN: { one: 'bab', many: 'bablar', accusative: 'babı', possessiveAccusative: 'bablarını', genitive: 'babın' },
+	// Vowel harmony puts "cüz" at "cüzün" where "bab" is at "babın", so nothing here is built.
+	HATIM: { one: 'cüz', many: 'cüzler', accusative: 'cüzü', possessiveAccusative: 'cüzlerini', genitive: 'cüzün' },
 	HIZB: {
 		one: 'bölüm',
 		many: 'bölümler',
@@ -145,9 +157,18 @@ export const poolClaimReleasedPush = (language: PushLanguage, input: { kind: Gro
  */
 export const groupReadPush = (
 	language: PushLanguage,
-	input: { groupName: string; kind: GroupKindName; range: string; readerName: string }
+	input: {
+		groupName: string;
+		kind: GroupKindName;
+		range: string;
+		readerName: string;
+		/** A Hizb reading's portions, so the line can name their works: "· Delâilü’n-Nûr". */
+		portions?: readonly number[];
+	}
 ) => {
-	const { groupName, kind, range, readerName } = input;
+	const { groupName, kind, portions, range, readerName } = input;
+	const works = kind === 'HIZB' && portions ? hizbWorksOf(portions, language) : '';
+	const reader = readerName || anonymousMember(language);
 
 	if (language === 'tr') {
 		return {
@@ -155,26 +176,31 @@ export const groupReadPush = (
 			// "Okumasını", not "payını": the range can carry a pool block taken on top of the
 			// share, and calling that their share would be untrue. English and Dutch state the
 			// babs rather than claim anything about whose they were, so they needed no change.
-			// It names no noun at all, which is why a Hizb group's line reads the same.
-			body: `${readerName || anonymousMember(language)} okumasını tamamladı (${range}).`
+			// It names no noun at all, which is why a Hizb group's line reads the same — unless
+			// its works are known, when the portion and its work say what was read.
+			body: works
+				? `${reader} okumasını tamamladı: ${range}. bölüm · ${works}.`
+				: `${reader} okumasını tamamladı (${range}).`
 		};
 	}
+
+	const worksSuffix = works ? ` · ${works}` : '';
 
 	if (language === 'nl') {
 		return {
 			title: groupName,
-			body: `${readerName || anonymousMember(language)} is klaar met ${partNoun(language, kind, range)} ${range}.`
+			body: `${reader} is klaar met ${partNoun(language, kind, range)} ${range}${worksSuffix}.`
 		};
 	}
 
 	return {
 		title: groupName,
-		body: `${readerName || anonymousMember(language)} finished ${partNoun(language, kind, range)} ${range}.`
+		body: `${reader} finished ${partNoun(language, kind, range)} ${range}${worksSuffix}.`
 	};
 };
 
 /**
- * "The group closed the hundred" — or, in a Hizb group, the 33.
+ * "The group closed the hundred" — or, in a hatim, the thirty, and in a Hizb group the 32.
  *
  * The one notification in the app that is purely good news — every other one is a task, a
  * reminder, or something that was taken away. It names the round, because a group that has run
@@ -188,7 +214,7 @@ export const roundCompletePush = (
 	input: { groupName: string; kind: GroupKindName; roundNumber: number }
 ) => {
 	const { groupName, kind, roundNumber } = input;
-	// The group's own count, so the line says what was actually closed.
+	// The group's own count — 100, 30 or 32 — so the line says what was actually closed.
 	const partCount = partCountFor(kind);
 
 	if (language === 'tr') {

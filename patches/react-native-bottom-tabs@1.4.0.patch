@@ -1,0 +1,24 @@
+diff --git a/ios/TabView/NewTabView.swift b/ios/TabView/NewTabView.swift
+index 2f18f210a37062fbf044aa26dae16b8a33773382..751887c9f5e976ff05c196cb9fa2b90c3af7a9ef 100644
+--- a/ios/TabView/NewTabView.swift
++++ b/ios/TabView/NewTabView.swift
+@@ -83,7 +83,18 @@ struct ConditionalBottomAccessoryModifier: ViewModifier {
+     // tabViewBottomAccessory is not available on macOS
+     content
+     #else
+-    if #available(iOS 26.0, visionOS 3.0, *), bottomAccessoryView != nil {
++    /*
++     * Cüzhane patch: on iOS 26.1+ the accessory is always applied and switched with `isEnabled`.
++     * Branching between `content` and `content.tabViewBottomAccessory {}` changes the view's
++     * identity, so mounting or unmounting the accessory at runtime rebuilt the TabView and UIKit
++     * threw a view-controller hierarchy exception (crash) while re-inserting the tabs.
++     */
++    if #available(iOS 26.1, visionOS 26.1, *) {
++      content
++        .tabViewBottomAccessory(isEnabled: bottomAccessoryView != nil) {
++          renderBottomAccessoryView()
++        }
++    } else if #available(iOS 26.0, visionOS 3.0, *), bottomAccessoryView != nil {
+       content
+         .tabViewBottomAccessory {
+           renderBottomAccessoryView()

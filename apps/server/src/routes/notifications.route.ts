@@ -7,6 +7,9 @@ import {
 	markNotificationReadForUser
 } from '@services/notifications.service';
 import { NextFunction, Request, Response, Router } from 'express';
+import { z } from 'zod';
+
+const NotificationIdParamsSchema = z.object({ notificationId: z.string().trim().min(1).max(64) });
 
 const notificationsRouter = Router();
 
@@ -52,7 +55,8 @@ notificationsRouter.patch(
 	'/:notificationId/read',
 	async (req: Request, res: Response<object, ResponseLocals>, next: NextFunction) => {
 		try {
-			await markNotificationReadForUser(res.locals.auth.userId, req.params.notificationId as string);
+			const { notificationId } = NotificationIdParamsSchema.parse(req.params);
+			await markNotificationReadForUser(res.locals.auth.userId, notificationId);
 			res.status(NO_CONTENT).send();
 		} catch (error) {
 			next(error);

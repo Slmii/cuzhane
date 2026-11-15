@@ -2,7 +2,13 @@ import prisma from '@db/prisma';
 import { CreateGroupBodySchema } from '@schemas/group.schema';
 import { createGroupForUser } from '@services/groups.service';
 import { joinGroupForUser, leaveGroupForUser } from '@services/groupMembership.service';
-import { enrollHizb, getHizbState, updateHizbAssignment } from '@services/hizbReading.service';
+import {
+	enrollHizb,
+	getHizbState,
+	hizbSummary,
+	setHizbReadsFromBook,
+	updateHizbAssignment
+} from '@services/hizbReading.service';
 import { spansFor } from '@utils/hizbPlans';
 import { civilDayNumber } from '@utils/rounds';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -39,33 +45,15 @@ afterAll(async () => {
 });
 
 describe('Hizb personal assignments', () => {
-	it('returns exact daily coverage even after a reader leaves, without including past dates', async () => {
-		const group = await create(33);
-		await prisma.group.update({ where: { id: group.id }, data: { visibility: 'OPEN' } });
-		await joinGroupForUser('reader', 'Reader', group.id);
-		const state = await getHizbState('reader', group.id);
-		await updateHizbAssignment('reader', group.id, state.today!.id, { version: 0, read: true });
-		await leaveGroupForUser('reader', group.id);
-		const after = await getHizbState('owner', group.id);
-		expect(after.coveredSpans).toEqual(spansFor(33, 2));
-		expect(after.coveredSpans.length).toBe(after.coverage.covered);
-		vi.setSystemTime(day(1));
-		expect((await getHizbState('owner', group.id)).coveredSpans).toEqual([]);
-	});
-
 	it('starts immediately, advances through missed days and catches up without moving today', async () => {
 		const group = await create();
 		expect(group.status).toBe('RUNNING');
 		const first = await getHizbState('owner', group.id);
 		expect(first.today?.portion).toBe(1);
-		expect(first.personalProgress).toEqual({ day: 1, total: 7, completed: 0 });
-		expect(first.oldestMissedId).toBeNull();
 		vi.setSystemTime(day(2));
 		const next = await getHizbState('owner', group.id);
 		expect(next.today?.portion).toBe(3);
 		expect(next.missedCount).toBe(2);
-		expect(next.personalProgress).toEqual({ day: 3, total: 7, completed: 0 });
-		expect(next.oldestMissedId).toBe(first.today!.id);
 		await updateHizbAssignment('owner', group.id, first.today!.id, {
 			version: 0,
 			read: true,
@@ -74,11 +62,63 @@ describe('Hizb personal assignments', () => {
 		const caught = await getHizbState('owner', group.id);
 		expect(caught.today?.portion).toBe(3);
 		expect(caught.missedCount).toBe(1);
-		expect(caught.personalProgress).toEqual({ day: 3, total: 7, completed: 1 });
-		expect(caught.oldestMissedId).not.toBe(first.today!.id);
 		expect(caught.completedTraversals).toBe(0);
-		vi.setSystemTime(day(7));
-		expect((await getHizbState('owner', group.id)).personalProgress).toEqual({ day: 1, total: 7, completed: 0 });
+	});
+	it('lists missed days newest first, and the spans today and the day before cover', async () => {
+		const group = await create();
+		expect((await getHizbState('owner', group.id)).previousDay).toBeNull();
+		vi.setSystemTime(day(2));
+		const state = await getHizbState('owner', group.id);
+		expect(state.missed.map(a => a.day)).toEqual([state.today!.day - 1, state.today!.day - 2]);
+		expect(state.previousDay).toMatchObject({ covered: 0, coveredSpans: [] });
+		expect(state.coveredSpans).toEqual([]);
+		await updateHizbAssignment('owner', group.id, state.today!.id, { version: 0, read: true });
+		const read = await getHizbState('owner', group.id);
+		expect(read.coveredSpans.sort((a, b) => a - b)).toEqual(spansFor(7, read.today!.portion));
+		// Day 3 of round 1: today read, the two days before it not.
+		expect(read.currentRound).toEqual({ number: 1, read: 1, days: 3 });
+		vi.setSystemTime(day(8));
+		expect((await getHizbState('owner', group.id)).currentRound).toEqual({ number: 2, read: 0, days: 2 });
+	});
+	it('marks the viewer and a started reading on the readers list, and keeps thirty past days', async () => {
+		const group = await create();
+		await prisma.group.update({ where: { id: group.id }, data: { visibility: 'OPEN' } });
+		await joinGroupForUser('reader', 'Reader', group.id);
+		const mine = (await getHizbState('owner', group.id)).today!;
+		await updateHizbAssignment('owner', group.id, mine.id, { version: 0, bookmark: 1 });
+		const state = await getHizbState('reader', group.id);
+		expect(state.members.map(m => [m.isMe, m.started])).toEqual([
+			[false, true],
+			[true, false]
+		]);
+		vi.setSystemTime(day(40));
+		expect((await getHizbState('owner', group.id)).dailyHistory).toHaveLength(31);
+	});
+	it('numbers rounds across a leave and a rejoin, for today and for a missed day alike', async () => {
+		const group = await create();
+		await prisma.group.update({ where: { id: group.id }, data: { visibility: 'OPEN' } });
+		await joinGroupForUser('reader', 'Reader', group.id);
+		vi.setSystemTime(day(8));
+		await getHizbState('reader', group.id);
+		await leaveGroupForUser('reader', group.id);
+		vi.setSystemTime(day(9));
+		await joinGroupForUser('reader', 'Reader', group.id);
+		const state = await getHizbState('reader', group.id);
+		// Days 7–8 were round 2 of the first enrollment; the rejoin today opens round 3.
+		expect(state.currentRound?.number).toBe(3);
+		expect(state.today?.round).toBe(3);
+		expect(state.missed[0]?.round).toBe(2);
+		// S3b: back today, with the earlier enrollment behind it; S7: joined after the group began.
+		expect(state.isReturnedToday).toBe(true);
+		expect(state.enrollment?.joinedDate > state.startedDate).toBe(true);
+	});
+	it("stamps the member's own finish on the summary, for Home's read-today list", async () => {
+		const group = await create();
+		const { getGroupDetailForUser } = await import('@services/groups.service');
+		expect((await getGroupDetailForUser('owner', group.id)).myShareDoneAt).toBeNull();
+		const today = (await getHizbState('owner', group.id)).today!;
+		await updateHizbAssignment('owner', group.id, today.id, { version: 0, read: true, istighfarRepetitions: 11 });
+		expect((await getGroupDetailForUser('owner', group.id)).myShareDoneAt).toBe(start.toISOString());
 	});
 	it('allows unlimited members, preserves personal ownership, and appends after a departure', async () => {
 		const group = await create();
@@ -145,6 +185,57 @@ describe('Hizb personal assignments', () => {
 	});
 });
 
+describe('Hizb on the Discover card and the invite preview', () => {
+	const ascending = (spans: readonly number[]) => [...spans].sort((a, b) => a - b);
+
+	it('lists only personal-plan Hizb groups on Discover, never a seat or flexible board', async () => {
+		const plan = await create();
+		const flexible = await create();
+		const seats = await create();
+		await prisma.group.updateMany({
+			where: { id: { in: [plan.id, flexible.id, seats.id] } },
+			data: { visibility: 'OPEN' }
+		});
+		await prisma.group.update({ where: { id: flexible.id }, data: { hizbPlan: null } });
+		await prisma.group.update({ where: { id: seats.id }, data: { hizbPlan: null, splitMode: 'FIXED' } });
+		const { discoverGroups } = await import('@services/groups.service');
+		const ids = (await discoverGroups('outsider', {})).map(g => g.id);
+		expect(ids).toContain(plan.id);
+		expect(ids).not.toContain(flexible.id);
+		expect(ids).not.toContain(seats.id);
+	});
+	it("carries today's covered spans and the next day's start, as the group screen has them", async () => {
+		const group = await create();
+		vi.setSystemTime(day(2));
+		const today = (await getHizbState('owner', group.id)).today!;
+		await updateHizbAssignment('owner', group.id, today.id, { version: 0, read: true });
+		const state = await getHizbState('owner', group.id);
+		const summary = await hizbSummary(group.id, 'outsider');
+		expect(summary.hizbCoveredSpans.length).toBeGreaterThan(0);
+		expect(ascending(summary.hizbCoveredSpans)).toEqual(ascending(state.coveredSpans));
+		expect(summary.nextDayAt).toBe(state.nextDayAt);
+	});
+	it("counts the group's day from 1 on the day it began", async () => {
+		const group = await create();
+		expect((await hizbSummary(group.id, 'outsider')).hizbDay).toBe(1);
+		vi.setSystemTime(day(40));
+		expect((await hizbSummary(group.id, 'outsider')).hizbDay).toBe(41);
+	});
+	it('says the viewer was taken out of the order, until they rejoin', async () => {
+		const group = await create(7, 10);
+		expect((await hizbSummary(group.id, 'owner')).hizbRemoved).toBe(false);
+		expect((await hizbSummary(group.id, 'outsider')).hizbRemoved).toBe(false);
+		vi.setSystemTime(day(30));
+		expect((await hizbSummary(group.id, 'owner')).hizbRemoved).toBe(true);
+		// The rule that removed them, not the group's current one.
+		await prisma.group.update({ where: { id: group.id }, data: { inactivityDays: 21 } });
+		expect((await hizbSummary(group.id, 'owner')).hizbRemovalDays).toBe(10);
+		await enrollHizb('owner', group.id, 7);
+		expect((await hizbSummary(group.id, 'owner')).hizbRemoved).toBe(false);
+		expect((await hizbSummary(group.id, 'owner')).hizbRemovalDays).toBeNull();
+	});
+});
+
 describe('Hizb edge cases', () => {
 	it('does not reuse a deleted account’s rotation position', async () => {
 		const { deleteAccountForUser } = await import('@services/account.service');
@@ -154,6 +245,114 @@ describe('Hizb edge cases', () => {
 		await deleteAccountForUser('reader');
 		await joinGroupForUser('next', 'Next', group.id);
 		expect((await getHizbState('next', group.id)).enrollment?.sequence).toBe(2);
+	});
+	it('paints a part-read day from the book on the board and leaves it owed, then finishes it', async () => {
+		const group = await create(15);
+		const today = (await getHizbState('owner', group.id)).today!;
+		// Day 1 of 15 has the opening istighfar; from the book, its count is not asked.
+		expect(today.requiresIstighfar).toBe(true);
+		const [first, ...rest] = today.boardPortions;
+		expect(rest.length).toBeGreaterThan(0);
+		const partial = await updateHizbAssignment('owner', group.id, today.id, { version: 0, bookPortions: [first!] });
+		expect(partial).toMatchObject({ completedAt: null, readPortions: [first], readFrom: null });
+		const state = await getHizbState('owner', group.id);
+		expect(state.coveredSpans.sort((a, b) => a - b)).toEqual(spansFor(32, first!));
+		expect(state.members.find(m => m.isMe)).toMatchObject({ completed: false, started: true });
+		expect((await hizbSummary(group.id, 'owner')).readCount).toBe(1);
+		// Still owed tomorrow.
+		vi.setSystemTime(day(1));
+		expect((await getHizbState('owner', group.id)).missedCount).toBe(1);
+		const done = await updateHizbAssignment('owner', group.id, today.id, {
+			version: 1,
+			bookPortions: today.boardPortions
+		});
+		expect(done).toMatchObject({ readFrom: 'BOOK', readPortions: [], istighfarRepetitions: 0 });
+		expect(done.completedAt).not.toBeNull();
+		// A later page turn in the reader does not ask for the counts it skipped.
+		await expect(
+			updateHizbAssignment('owner', group.id, today.id, { version: 2, bookmark: 1 })
+		).resolves.toMatchObject({ bookmark: 1, readFrom: 'BOOK' });
+		expect((await getHizbState('owner', group.id)).missedCount).toBe(0);
+	});
+	it('undoes a part-read day, and refuses portions the day does not have', async () => {
+		const group = await create(15);
+		const today = (await getHizbState('owner', group.id)).today!;
+		await updateHizbAssignment('owner', group.id, today.id, {
+			version: 0,
+			bookPortions: [today.boardPortions[0]!]
+		});
+		const undone = await updateHizbAssignment('owner', group.id, today.id, { version: 1, read: false });
+		expect(undone).toMatchObject({ readPortions: [], completedAt: null });
+		expect((await getHizbState('owner', group.id)).coveredSpans).toEqual([]);
+		const outside = [32].find(p => !today.boardPortions.includes(p))!;
+		await expect(
+			updateHizbAssignment('owner', group.id, today.id, { version: 2, bookPortions: [outside] })
+		).rejects.toMatchObject({ statusCode: 400 });
+	});
+	it('keeps an app reading gated, and records how a day was read', async () => {
+		const group = await create(15);
+		const today = (await getHizbState('owner', group.id)).today!;
+		await expect(
+			updateHizbAssignment('owner', group.id, today.id, { version: 0, read: true })
+		).rejects.toMatchObject({ statusCode: 409 });
+		const read = await updateHizbAssignment('owner', group.id, today.id, {
+			version: 0,
+			read: true,
+			istighfarRepetitions: 11
+		});
+		expect(read.readFrom).toBe('APP');
+	});
+	it('takes any istighfar target from 1 to 100', async () => {
+		const group = await create(15);
+		const today = (await getHizbState('owner', group.id)).today!;
+		await expect(
+			updateHizbAssignment('owner', group.id, today.id, { version: 0, istighfarTarget: 25 })
+		).resolves.toMatchObject({ istighfarTarget: 25 });
+		for (const target of [0, 101, 2.5]) {
+			await expect(
+				updateHizbAssignment('owner', group.id, today.id, { version: 1, istighfarTarget: target })
+			).rejects.toMatchObject({ statusCode: 400 });
+		}
+	});
+	it('keeps “hep kitaptan” per member, on the account', async () => {
+		const group = await create(15);
+		expect((await getHizbState('owner', group.id)).readsFromBook).toBe(false);
+		await setHizbReadsFromBook('owner', group.id, true);
+		expect((await getHizbState('owner', group.id)).readsFromBook).toBe(true);
+		await expect(setHizbReadsFromBook('stranger', group.id, true)).rejects.toMatchObject({ statusCode: 403 });
+	});
+	it('counts members as the group’s members, not only the readers in the order', async () => {
+		const group = await create(0);
+		await prisma.group.update({ where: { id: group.id }, data: { visibility: 'OPEN' } });
+		// Joined but no plan chosen yet: a member, not yet a reader.
+		await joinGroupForUser('reader', 'Reader', group.id);
+		expect((await hizbSummary(group.id, 'reader')).memberCount).toBe(2);
+	});
+	it('counts the summary in the board’s 32 portions, not in text spans', async () => {
+		const group = await create(15);
+		const today = (await getHizbState('owner', group.id)).today!;
+		await updateHizbAssignment('owner', group.id, today.id, { version: 0, read: true, istighfarRepetitions: 11 });
+		const read = new Set(spansFor(15, today.portion));
+		const portions = Array.from({ length: 32 }, (_, i) => i + 1).filter(p =>
+			spansFor(32, p).every(span => read.has(span))
+		).length;
+		const summary = await hizbSummary(group.id, 'owner');
+		expect(summary.partCount).toBe(32);
+		expect(summary.readCount).toBe(portions);
+		expect(summary.percent).toBe(Math.round((portions * 100) / 32));
+	});
+	it('keeps a deleted account’s completed readings in the group’s coverage', async () => {
+		const { deleteAccountForUser } = await import('@services/account.service');
+		const { getGroupDetailForUser } = await import('@services/groups.service');
+		const group = await create();
+		await prisma.group.update({ where: { id: group.id }, data: { visibility: 'OPEN' } });
+		await joinGroupForUser('reader', 'Reader', group.id);
+		const today = (await getHizbState('reader', group.id)).today!;
+		await updateHizbAssignment('reader', group.id, today.id, { version: 0, read: true });
+		const before = (await getGroupDetailForUser('owner', group.id)).readCount;
+		expect(before).toBeGreaterThan(0);
+		await deleteAccountForUser('reader');
+		expect((await getGroupDetailForUser('owner', group.id)).readCount).toBe(before);
 	});
 	it('shows an earlier assignment on the same day after leaving and rejoining', async () => {
 		const group = await create();
@@ -289,14 +488,14 @@ describe('Hizb edge cases', () => {
 	});
 });
 
-it('personal readings contribute to the profile activity without adding Cevsen babs', async () => {
+it('personal readings count in the profile total and its activity', async () => {
 	const { getProfileStatsForUser } = await import('@services/profile.service');
 	const group = await create();
 	const a = (await getHizbState('owner', group.id)).today!;
 	await updateHizbAssignment('owner', group.id, a.id, { version: 0, read: true, istighfarRepetitions: 11 });
 	const stats = await getProfileStatsForUser('owner', 'Europe/Amsterdam');
 	expect(stats.streakDays).toBe(1);
-	expect(stats.babsRead).toBe(0);
+	expect(stats.babsRead).toBe(1);
 	expect(stats.last30Days.at(-1)?.count).toBe(1);
 });
 
@@ -313,7 +512,7 @@ describe('individual Hizb reading', () => {
 			reminderTime: '21:00',
 			timezone: 'Europe/Amsterdam'
 		});
-	it.each([7, 15, 33])(
+	it.each([7, 15, 32])(
 		'starts the %i-day plan at the selected portion and wraps without past arrears',
 		async plan => {
 			vi.setSystemTime(start);
@@ -328,6 +527,10 @@ describe('individual Hizb reading', () => {
 			expect(next.missedCount).toBe(1);
 			const { getGroupDetailForUser } = await import('@services/groups.service');
 			expect((await getGroupDetailForUser('owner', group.id)).hizbToday?.portion).toBe(1);
+			// Home opens the day's reading from the summary alone, before the group screen has loaded it.
+			vi.setSystemTime(day(2));
+			const summaryToday = (await getGroupDetailForUser('owner', group.id)).hizbToday;
+			expect(summaryToday?.assignmentId).toBe((await getHizbState('owner', group.id)).today?.id);
 			vi.setSystemTime(day(40));
 			expect((await getHizbState('owner', group.id)).enrollment?.endDay).toBeNull();
 		}
@@ -378,7 +581,7 @@ describe('individual Hizb reading', () => {
 	it('rejects starting portions outside the selected plan and individual mixed plans', () => {
 		expect(() => input(7, 8)).toThrow();
 		expect(() => input(15, 16)).toThrow();
-		expect(() => input(33, 34)).toThrow();
+		expect(() => input(32, 33)).toThrow();
 		expect(() => input(7, 0)).toThrow();
 		expect(() => input(0, 1)).toThrow();
 		expect(() =>
@@ -437,7 +640,8 @@ describe('opening istighfar repetitions', () => {
 	it('validates counts and targets, rejects stale edits and unrelated portions, and supports 100', async () => {
 		const group = await create();
 		let a = (await getHizbState('owner', group.id)).today!;
-		for (const target of [0, 12, 101]) {
+		// Any count from 1 to 100 ("Sayıyı gir"); nothing outside it.
+		for (const target of [0, 101, 2.5]) {
 			await expect(
 				updateHizbAssignment('owner', group.id, a.id, { version: 0, istighfarTarget: target })
 			).rejects.toThrow();
@@ -538,82 +742,5 @@ describe('Delail three repetitions', () => {
 		const old = await updateHizbAssignment('owner', group.id, a.id, { version: 0, bookmark: 1 });
 		expect(old.completedAt).not.toBeNull();
 		expect(old.delailRepetitions).toBe(0);
-	});
-});
-
-describe('reading ahead', () => {
-	it.each([7, 15, 33])('offers the next %i days without adding them to missed history', async plan => {
-		const group = await create(plan);
-		const state = await getHizbState('owner', group.id);
-		expect(state.upcoming).toHaveLength(plan);
-		expect(state.upcoming[0]).toMatchObject({ day: state.today!.day + 1, portion: 2 });
-		expect(state.upcoming.at(-1)).toMatchObject({ day: state.today!.day + plan, portion: 1 });
-		expect(state.assignments).toEqual([]);
-		expect(state.missedCount).toBe(0);
-	});
-	it('saves early completion, keeps today unchanged and reuses it on its scheduled date', async () => {
-		const group = await create();
-		const first = await getHizbState('owner', group.id);
-		expect(first.upcoming?.length).toBeGreaterThan(0);
-		const tomorrow = first.upcoming[0]!;
-		const done = await updateHizbAssignment('owner', group.id, tomorrow.id, {
-			version: 0,
-			read: true,
-			bookmark: 2
-		});
-		expect(done.completedAt).toBe(start.toISOString());
-		const saved = await getHizbState('owner', group.id);
-		expect(saved.upcoming[0]).toMatchObject({ id: tomorrow.id, completedAt: done.completedAt, bookmark: 2 });
-		expect(saved.today).toEqual(first.today);
-		expect(saved.coverage.covered).toBe(0);
-		expect(saved.personalProgress?.completed).toBe(1);
-		vi.setSystemTime(day(1));
-		const next = await getHizbState('owner', group.id);
-		expect(next.today).toMatchObject({ id: tomorrow.id, completedAt: done.completedAt });
-		expect(next.coverage.covered).toBeGreaterThan(0);
-		vi.setSystemTime(day(2));
-		expect((await getHizbState('owner', group.id)).missedCount).toBe(1);
-	});
-	it('keeps ownership, repetition requirements and undo for future assignments', async () => {
-		const group = await create();
-		await prisma.group.update({ where: { id: group.id }, data: { visibility: 'OPEN' } });
-		await joinGroupForUser('reader', 'Reader', group.id);
-		const state = await getHizbState('owner', group.id);
-		expect(state.upcoming?.length).toBeGreaterThan(0);
-		const a = state.upcoming.find(a => a.requiresSekine)!;
-		await expect(updateHizbAssignment('reader', group.id, a.id, { version: 0, bookmark: 1 })).rejects.toThrow();
-		await expect(updateHizbAssignment('owner', group.id, a.id, { version: 0, read: true })).rejects.toThrow('19');
-		const done = await updateHizbAssignment('owner', group.id, a.id, {
-			version: 0,
-			read: true,
-			repetitions: 19,
-			delailRepetitions: 3
-		});
-		expect(done.completedAt).not.toBeNull();
-		const undone = await updateHizbAssignment('owner', group.id, a.id, { version: done.version, read: false });
-		expect(undone.completedAt).toBeNull();
-	});
-	it('does not turn unused future assignments into missed readings after inactivity', async () => {
-		const group = await create(7, 2);
-		const first = await getHizbState('owner', group.id);
-		expect(first.upcoming?.length).toBeGreaterThan(0);
-		vi.setSystemTime(day(10));
-		const expired = await getHizbState('owner', group.id);
-		expect(expired.upcoming).toEqual([]);
-		expect(expired.missedCount).toBe(2);
-	});
-	it('preserves early completions but cancels unused future commitments after leaving', async () => {
-		const group = await create();
-		await prisma.group.update({ where: { id: group.id }, data: { visibility: 'OPEN' } });
-		await joinGroupForUser('reader', 'Reader', group.id);
-		const first = await getHizbState('reader', group.id);
-		expect(first.upcoming?.length).toBeGreaterThan(0);
-		const a = first.upcoming[0]!;
-		await updateHizbAssignment('reader', group.id, a.id, { version: 0, read: true });
-		await leaveGroupForUser('reader', group.id);
-		expect(await prisma.hizbAssignment.findUnique({ where: { id: a.id } })).toMatchObject({ completedAt: start });
-		vi.setSystemTime(day(10));
-		await joinGroupForUser('reader', 'Reader', group.id);
-		expect((await getHizbState('reader', group.id)).missedCount).toBe(1);
 	});
 });

@@ -1,5 +1,6 @@
 import type { IconName } from '@/components/ui/Icon/Icon.types';
 import type { StringKey } from '@/lib/i18n/strings';
+import type { GroupKind } from '@/lib/types/domain';
 import { APP_VERSION } from '@/lib/utils/appVersion';
 
 /**
@@ -15,6 +16,8 @@ export type ReleaseNoteEntry = {
 	bodyKey: StringKey;
 	/** Wears the "YENİ" tag, and only in the full list — the sheet shows no tags. */
 	isNew: boolean;
+	/** The books it is for, as chips beside the title — none when it is for every group. */
+	kinds?: GroupKind[];
 };
 
 export type Release = {
@@ -74,6 +77,64 @@ export type Release = {
  */
 export const RELEASES: Release[] = [
 	{
+		id: '2026-10-sahsi',
+		entries: [
+			{
+				bodyKey: 'rn150LiveBody',
+				icon: 'mic',
+				isNew: true,
+				kinds: ['CEVSEN', 'HATIM'],
+				titleKey: 'rn150LiveTitle'
+			},
+			{
+				bodyKey: 'rn150SahsiBody',
+				icon: 'book',
+				isNew: true,
+				kinds: ['CEVSEN', 'HATIM'],
+				titleKey: 'rn150SahsiTitle'
+			},
+			{ bodyKey: 'rn150AheadBody', icon: 'calendar', isNew: true, titleKey: 'rn150AheadTitle' },
+			{
+				bodyKey: 'rn150ReadersBody',
+				icon: 'members',
+				isNew: true,
+				kinds: ['HIZB'],
+				titleKey: 'rn150ReadersTitle'
+			},
+			{
+				bodyKey: 'rn150PlaceBody',
+				icon: 'bookmark',
+				isNew: true,
+				kinds: ['HATIM', 'HIZB'],
+				titleKey: 'rn150PlaceTitle'
+			},
+			{ bodyKey: 'rn150ProfileBody', icon: 'completed', isNew: true, titleKey: 'rn150ProfileTitle' }
+		],
+		releasedOn: '2026-10-02',
+		version: APP_VERSION
+	},
+	{
+		id: '2026-09-hizb',
+		entries: [
+			{ bodyKey: 'rn140HizbBody', icon: 'book', isNew: true, titleKey: 'rn140HizbTitle' },
+			{ bodyKey: 'rn140CountBody', icon: 'countdown', isNew: true, titleKey: 'rn140CountTitle' },
+			{ bodyKey: 'rn140HistoryBody', icon: 'members', isNew: true, titleKey: 'rn140HistoryTitle' },
+			{ bodyKey: 'rn140PrivacyBody', icon: 'eyeOff', isNew: true, titleKey: 'rn140PrivacyTitle' }
+		],
+		releasedOn: '2026-09-29',
+		version: '1.4.0'
+	},
+	{
+		id: '2026-09-quran',
+		entries: [
+			{ bodyKey: 'rn130HatimBody', icon: 'book', isNew: true, titleKey: 'rn130HatimTitle' },
+			{ bodyKey: 'rn130MushafBody', icon: 'readInApp', isNew: true, titleKey: 'rn130MushafTitle' },
+			{ bodyKey: 'rn130GoBody', icon: 'goTo', isNew: true, titleKey: 'rn130GoTitle' }
+		],
+		releasedOn: '2026-09-26',
+		version: '1.3.0'
+	},
+	{
 		id: '2026-09-my-progress',
 		entries: [
 			{ bodyKey: 'rn120ProgressBody', icon: 'calendar', isNew: true, titleKey: 'rn120ProgressTitle' },
@@ -81,7 +142,7 @@ export const RELEASES: Release[] = [
 			{ bodyKey: 'rn120NotificationBody', icon: 'bell', isNew: false, titleKey: 'rn120NotificationTitle' }
 		],
 		releasedOn: '2026-09-20',
-		version: APP_VERSION
+		version: '1.2.0'
 	},
 	{
 		id: '2026-09-notifications',
@@ -117,8 +178,7 @@ export const EARLIER_RELEASES = RELEASES.slice(1).filter(
  * "20 Eylül 2026" — the release's day, in the reader's language.
  *
  * **Parsed field by field, not handed to `new Date('2026-09-20')`.** That form is treated as
- * UTC, so for anybody west of Greenwich it formats as the day before — the same trap
- * `StreakCard` records for its own `YYYY-MM-DD` keys.
+ * UTC, so for anybody west of Greenwich it formats as the day before.
  */
 export const releaseDateLabel = (releasedOn: string, language: string): string => {
 	const [year, month, day] = releasedOn.split('-').map(Number);

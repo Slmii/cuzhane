@@ -18,6 +18,10 @@ const GRID = 24;
 /** The heavier weight the design strokes an active glyph's outline at. */
 const ACTIVE_STROKE_WIDTH = 2.1;
 
+/** The design's `fill-opacity` for a `wash`, and `opacity` for a `faint` group. */
+const WASH_OPACITY = 0.22;
+const FAINT_OPACITY = 0.5;
+
 /** Circles are `[cx, cy, r]`, rects `[x, y, width, height, rx]`; the rest are path `d`s. */
 type Shapes = {
 	paths?: string[];
@@ -34,6 +38,15 @@ type Glyph = Shapes & {
 	 * a hairline left behind beside the solid.
 	 */
 	bold?: Shapes;
+	/**
+	 * Painted in the icon's colour at `WASH_OPACITY`, under the outline. Only the live reading's
+	 * glyph has one — the design tints its book while a session runs ("canlıyken dolu").
+	 */
+	wash?: Shapes;
+	/** Stroked like the outline but at `FAINT_OPACITY` — the live glyph's outer, fainter waves. */
+	faint?: Shapes;
+	/** `faint`'s opacity where the design draws it at another than `FAINT_OPACITY`. */
+	faintOpacity?: number;
 };
 
 const GLYPHS: Record<IconName, Glyph> = {
@@ -124,6 +137,18 @@ const GLYPHS: Record<IconName, Glyph> = {
 			'M20 5.4h-6.2A1.8 1.8 0 0 0 12 7.2v11.4a1.6 1.6 0 0 1 1.6-1.6H20z'
 		]
 	},
+	// `uygulamada-oku-read-in-app` — two leaves on a rahle, as the design's Q4 draws it.
+	readInApp: {
+		paths: [
+			'M4 5.5h6.5v13H4z',
+			'M13.5 5.5H20v13h-6.5z',
+			'M10.5 18.5c-1.6-1-4.9-1-6.5 0M13.5 18.5c1.6-1 4.9-1 6.5 0'
+		]
+	},
+	// `devret-hand-over` — a card with a plus, for passing a cüz on. Drawn, unused since Devret was removed.
+	handOver: {
+		paths: ['M9 18l-4 2V5a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v15l-4-2', 'M12 8v6', 'M9 11h6']
+	},
 
 	// An arrow curving back on itself — "Geri al" on a pool slot you just took. Traced from
 	// the handoff's own two paths rather than mirroring `back`, which is a bare chevron and
@@ -150,6 +175,14 @@ const GLYPHS: Record<IconName, Glyph> = {
 
 	// A range that exists but has nothing to open yet — 03e's "Başlangıçta açılır" pill.
 	lock: { paths: ['M8.6 11V8.6a3.4 3.4 0 0 1 6.8 0V11'], rects: [[5.5, 11, 13, 8.5, 2.2]] },
+	// "İsimler gizli" — an eye struck through (Hizb Kişisel Plan, Keşfet card 07).
+	eyeOff: {
+		paths: [
+			'M3 3l18 18',
+			'M10.6 6.2A9.8 9.8 0 0 1 12 6c5 0 8.5 4.2 9.5 6-.4.8-1.3 2-2.5 3.2M6.6 7.6C4.6 8.9 3.2 10.8 2.5 12c1 1.8 4.5 6 9.5 6 1.6 0 3-.4 4.3-1',
+			'M9.9 10a3 3 0 0 0 4.1 4.1'
+		]
+	},
 
 	/*
 	 * The rest of the Icon Set page, added wholesale rather than one at a time. An icon set is
@@ -193,6 +226,17 @@ const GLYPHS: Record<IconName, Glyph> = {
 		]
 	},
 	refresh: { paths: ['M19.4 12a7.4 7.4 0 1 1-2.2-5.2', 'M19.6 4.6v4.2h-4.2'] },
+	// R1's "Kitaptan okudum": a printed book, two pages side by side. Traced from the Hizb plan
+	// design file.
+	bookPages: {
+		paths: [
+			'M4 5.5A1.5 1.5 0 0 1 5.5 4H11v16H5.5A1.5 1.5 0 0 1 4 18.5z',
+			'M20 5.5A1.5 1.5 0 0 0 18.5 4H13v16h5.5a1.5 1.5 0 0 0 1.5-1.5z'
+		]
+	},
+	// T1d's "Sıfırla": a count wound back — the arrow turns the other way from `refresh`.
+	// Traced from the Hizb plan design file.
+	reset: { paths: ['M4 12a8 8 0 1 0 2.4-5.7', 'M4 4v4h4'] },
 	// Two A's at different sizes — the reader's size control, where the header sets "Aa" as
 	// type because the design does, and a sheet row would use this.
 	textSize: {
@@ -374,6 +418,69 @@ const GLYPHS: Record<IconName, Glyph> = {
 		],
 		paths: ['M3.6 18.4a5.6 5.6 0 0 1 11.2 0', 'M16.8 12.6a4.4 4.4 0 0 1 3.6 1.9']
 	},
+	/*
+	 * "Birlikte oku · Live session" — traced from the Icon Set sheet: an open book with a signal
+	 * over it. The dot is the sheet's solid r1.5 — a stroked ring that small left a pinhole on
+	 * Android. Its SF Symbol (`birlikte-oku-live-session`) has the ring instead, since the
+	 * converter takes centreline strokes only.
+	 */
+	liveSession: {
+		filled: { circles: [[12, 5.4, 1.5]] },
+		paths: [
+			'M12 11.6c-2.4-1.4-5.4-1.8-8.4-1.4v8.4c3-.4 6 0 8.4 1.4 2.4-1.4 5.4-1.8 8.4-1.4v-8.4c-3-.4-6 0-8.4 1.4z',
+			'M12 11.6V20',
+			'M9.2 3.2a3.4 3.4 0 0 0 0 4.4',
+			'M14.8 3.2a3.4 3.4 0 0 1 0 4.4'
+		]
+	},
+	/*
+	 * "Göster"'s first-session hint (Birlikte oku v2, R3): a dot inside a faint ring — the line the
+	 * reader points at. Drawn inline in the design rather than taken from the Icon Set sheet.
+	 */
+	pointLine: { faint: { circles: [[12, 12, 7.5]] }, faintOpacity: 0.45, filled: { circles: [[12, 12, 2.8]] } },
+	// "Takip et" while detached: which way the reader's line went (Birlikte oku v2, R2).
+	arrowDown: { paths: ['M12 5v14', 'M6 13l6 6 6-6'] },
+	arrowUp: { paths: ['M12 19V5', 'M6 11l6-6 6 6'] },
+	/*
+	 * The same button while a live reading runs — the sheet's "canlıyken dolu": the book tinted,
+	 * the dot grown to r1.9 and a second, fainter pair of waves outside the first. Its SF Symbol
+	 * (`birlikte-oku-live-session-live`) is monochrome: the native image takes no rendering mode,
+	 * so it has no tint and draws the outer waves at full strength.
+	 */
+	liveSessionLive: {
+		wash: {
+			paths: [
+				'M12 11.6c-2.4-1.4-5.4-1.8-8.4-1.4v8.4c3-.4 6 0 8.4 1.4 2.4-1.4 5.4-1.8 8.4-1.4v-8.4c-3-.4-6 0-8.4 1.4z'
+			]
+		},
+		filled: { circles: [[12, 5.4, 1.9]] },
+		paths: [
+			'M12 11.6c-2.4-1.4-5.4-1.8-8.4-1.4v8.4c3-.4 6 0 8.4 1.4 2.4-1.4 5.4-1.8 8.4-1.4v-8.4c-3-.4-6 0-8.4 1.4z',
+			'M12 11.6V20',
+			'M9.2 3.2a3.4 3.4 0 0 0 0 4.4',
+			'M14.8 3.2a3.4 3.4 0 0 1 0 4.4'
+		],
+		faint: { paths: ['M7 1.6a6 6 0 0 0 0 7.6', 'M17 1.6a6 6 0 0 1 0 7.6'] }
+	},
+	/*
+	 * The return-to-reading strip's lead while the session runs: `liveSession` with its book washed
+	 * (the design's fill .22), and none of `liveSessionLive`'s outer waves. Ended, the strip draws
+	 * the plain `liveSession` — the design's fill 0.
+	 */
+	liveSessionTinted: {
+		wash: {
+			paths: [
+				'M12 11.6c-2.4-1.4-5.4-1.8-8.4-1.4v8.4c3-.4 6 0 8.4 1.4 2.4-1.4 5.4-1.8 8.4-1.4v-8.4c-3-.4-6 0-8.4 1.4z'
+			]
+		},
+		filled: { circles: [[12, 5.4, 1.5]] },
+		paths: [
+			'M12 11.6c-2.4-1.4-5.4-1.8-8.4-1.4v8.4c3-.4 6 0 8.4 1.4 2.4-1.4 5.4-1.8 8.4-1.4v-8.4c-3-.4-6 0-8.4 1.4z',
+			'M12 11.6V20',
+			'M9.2 3.2a3.4 3.4 0 0 0 0 4.4',
+			'M14.8 3.2a3.4 3.4 0 0 1 0 4.4'
+		]
+	},
 
 	// Actions
 	back: { paths: ['M14.5 5.5L8 12l6.5 6.5'] },
@@ -394,6 +501,8 @@ const GLYPHS: Record<IconName, Glyph> = {
 	plus: { paths: ['M12 5.5v13', 'M5.5 12h13'] },
 	minus: { paths: ['M5.5 12h13'] },
 	search: { circles: [[11, 11, 6.2]], paths: ['M15.6 15.6L20 20'] },
+	// `git-go-to` — three lines of text and a small lens: Q5's "Git", a place in the mushaf.
+	goTo: { circles: [[17, 13, 3.2]], paths: ['M4 6h10', 'M4 12h7', 'M4 18h10', 'M19.4 15.4L21 17'] },
 	// The magnifier with a cross in its lens — "Grup bulunamadı". Not `search` plus a
 	// separate ×: the cross belongs inside the glass, which is what makes it read as
 	// "looked and found nothing" rather than "dismiss this search".
@@ -424,7 +533,39 @@ const GLYPHS: Record<IconName, Glyph> = {
 		paths: ['M10.9 12.9l7.6-7.6', 'M15.4 8.4l2.1 2.1', 'M17.6 6.2l2.1 2.1']
 	},
 	// The dot is a zero-length stroke rather than a filled circle — the set carries no fill.
-	info: { circles: [[12, 12, 8.6]], paths: ['M12 8.2v.2', 'M12 11.4v4.4'] }
+	info: { circles: [[12, 12, 8.6]], paths: ['M12 8.2v.2', 'M12 11.4v4.4'] },
+
+	/*
+	 * Live voice (Birlikte Oku Ses, lane I). "Açık olmayı dolgu anlatır, duraklamayı iki çizgi":
+	 * on is the shape washed, paused is the shape with two bars beside it — the paused microphone
+	 * moved 2.6 left to make room for them.
+	 */
+	mic: { paths: ['M5.6 11.6a6.4 6.4 0 0 0 12.8 0', 'M12 18v2.8'], rects: [[8.6, 3.4, 6.8, 11, 3.4]] },
+	micOn: {
+		wash: { rects: [[8.6, 3.4, 6.8, 11, 3.4]] },
+		paths: ['M5.6 11.6a6.4 6.4 0 0 0 12.8 0', 'M12 18v2.8'],
+		rects: [[8.6, 3.4, 6.8, 11, 3.4]]
+	},
+	micPaused: {
+		paths: ['M3 11.6a6.4 6.4 0 0 0 12.8 0', 'M9.4 18v2.8', 'M18.8 8.4v5.4', 'M21.6 8.4v5.4'],
+		rects: [[6, 3.4, 6.8, 11, 3.4]]
+	},
+	micOff: {
+		paths: ['M5.6 11.6a6.4 6.4 0 0 0 12.8 0', 'M12 18v2.8', 'M4.4 4.4l15.2 15.2'],
+		rects: [[8.6, 3.4, 6.8, 11, 3.4]]
+	},
+	speaker: { paths: ['M4.4 9.6h3.2l4.4-3.8v12.4l-4.4-3.8H4.4z', 'M15.4 9.4a3.8 3.8 0 0 1 0 5.2'] },
+	speakerOn: {
+		wash: { paths: ['M4.4 9.6h3.2l4.4-3.8v12.4l-4.4-3.8H4.4z'] },
+		paths: [
+			'M4.4 9.6h3.2l4.4-3.8v12.4l-4.4-3.8H4.4z',
+			'M15.4 9.4a3.8 3.8 0 0 1 0 5.2',
+			'M18.2 6.8a7.6 7.6 0 0 1 0 10.4'
+		]
+	},
+	speakerPaused: { paths: ['M4.4 9.6h3.2l4.4-3.8v12.4l-4.4-3.8H4.4z', 'M16.6 9.4v5.2', 'M19.8 9.4v5.2'] },
+	// Solid, as the design draws it on the button and the lock screen ("dolu").
+	stop: { filled: { rects: [[6.6, 6.6, 10.8, 10.8, 2.2]] } }
 };
 
 /**
@@ -434,12 +575,20 @@ const GLYPHS: Record<IconName, Glyph> = {
  * ones beside it — and `fill`/`stroke` are set per shape rather than on the `<Svg>`, because
  * a filled glyph and an outlined one can share a single icon.
  */
-const renderShapes = (shapes: Shapes | undefined, paint: { fill?: string; stroke?: string; strokeWidth?: number }) => {
+const renderShapes = (
+	shapes: Shapes | undefined,
+	paint: { fill?: string; opacity?: number; stroke?: string; strokeWidth?: number }
+) => {
 	if (!shapes) {
 		return null;
 	}
 
-	const common = { fill: paint.fill ?? 'none', strokeLinecap: 'round', strokeLinejoin: 'round' } as const;
+	const common = {
+		fill: paint.fill ?? 'none',
+		opacity: paint.opacity ?? 1,
+		strokeLinecap: 'round',
+		strokeLinejoin: 'round'
+	} as const;
 
 	return (
 		<>
@@ -484,8 +633,11 @@ export const Icon = ({ color, name, size = 21, strokeWidth = 1.8, style }: IconP
 
 	return (
 		<Svg fill='none' height={size} style={style} viewBox={`0 0 ${GRID} ${GRID}`} width={size}>
+			{/* First, so the outline it tints is drawn over it. */}
+			{renderShapes(glyph.wash, { fill: ink, opacity: WASH_OPACITY })}
 			{renderShapes(glyph, { stroke: ink, strokeWidth })}
 			{renderShapes(glyph.bold, { stroke: ink, strokeWidth: ACTIVE_STROKE_WIDTH })}
+			{renderShapes(glyph.faint, { opacity: glyph.faintOpacity ?? FAINT_OPACITY, stroke: ink, strokeWidth })}
 			{/* Last, so a solid sits over the outline it shares an icon with. */}
 			{renderShapes(glyph.filled, { fill: ink })}
 		</Svg>

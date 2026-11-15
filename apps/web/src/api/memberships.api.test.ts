@@ -32,12 +32,12 @@ describe.each([
 	});
 
 	it.each([{ memberNames: [] }, { memberNames: ['Ali', 'Emre'] }])(
-		'preserves server names: $memberNames',
+		'never keeps server names — a preview names nobody: $memberNames',
 		async ({ memberNames }) => {
 			const response = { ...preview, memberNames };
 			vi.mocked(wrapperApi).mockResolvedValue(response);
 
-			expect(await load()).toEqual(response);
+			expect(await load()).toEqual({ ...preview, memberNames: [] });
 		}
 	);
 

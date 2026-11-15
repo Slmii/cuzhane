@@ -3,6 +3,7 @@ import type { GroupBab } from '@/lib/types/domain';
 import {
 	babCellState,
 	type BabCellContext,
+	creatingCopy,
 	cycleLabelKey,
 	cycleOptionsFor,
 	emptyBabCells,
@@ -15,6 +16,8 @@ import {
 	partLabelKey,
 	partUnitKey,
 	planPreviewRows,
+	roundsSubtitleKey,
+	showsSplitMode,
 	staggerWithinRuns,
 	toBabCells,
 	toPoolCells
@@ -401,5 +404,67 @@ describe('hizbPartsLabel', () => {
 	it('picks the singular line for one portion and the plural for more', () => {
 		expect(hizbPartsLabel('19', t)).toBe('hizbPartsOne(19)');
 		expect(hizbPartsLabel('15–16', t)).toBe('hizbParts(15–16)');
+	});
+});
+
+describe('roundsSubtitleKey', () => {
+	it('says what a Cevşen round does to the shares, by how the group divides them', () => {
+		expect(roundsSubtitleKey('CEVSEN', 'ROTATION')).toBe('roundsSub');
+		expect(roundsSubtitleKey('CEVSEN', 'FIXED')).toBe('roundsSubFixed');
+		expect(roundsSubtitleKey('CEVSEN', 'FLEXIBLE')).toBe('roundsSubFlexible');
+	});
+
+	it("keeps the Kur'an and Hizb lines, which never moved by five", () => {
+		expect(roundsSubtitleKey('HATIM', 'FIXED')).toBe('roundsSubCuz');
+		expect(roundsSubtitleKey('HIZB', 'ROTATION')).toBe('roundsSubHizb');
+	});
+});
+
+describe('showsSplitMode', () => {
+	it('names the split for groups that divide by seat, never for a hatim', () => {
+		expect(showsSplitMode('CEVSEN')).toBe(true);
+		expect(showsSplitMode('HIZB')).toBe(true);
+		expect(showsSplitMode('HATIM')).toBe(false);
+	});
+});
+
+describe('creatingCopy', () => {
+	it('talks about babs only for a Cevşen group', () => {
+		expect(creatingCopy({ kind: 'CEVSEN', isFlexible: false, isPersonal: false })).toEqual({
+			sub: 'creatingSub',
+			step: 'creatingStepBabs',
+			showsCode: true
+		});
+	});
+
+	it('talks about cüz for a hatim and about the plan for a Hizb group', () => {
+		expect(creatingCopy({ kind: 'HATIM', isFlexible: false, isPersonal: false })).toEqual({
+			sub: 'creatingCuzSub',
+			step: 'creatingStepCuz',
+			showsCode: true
+		});
+		expect(creatingCopy({ kind: 'HIZB', isFlexible: true, isPersonal: false })).toEqual({
+			sub: 'creatingPlanSub',
+			step: 'creatingStepPlan',
+			showsCode: true
+		});
+	});
+
+	it('keeps the open-pool lines for a flexible Cevşen group', () => {
+		expect(creatingCopy({ kind: 'CEVSEN', isFlexible: true, isPersonal: false })).toEqual({
+			sub: 'creatingFlexibleSub',
+			step: 'creatingFlexibleParts',
+			showsCode: true
+		});
+	});
+
+	it('promises no invite code for a reading of your own', () => {
+		for (const kind of ['CEVSEN', 'HATIM', 'HIZB'] as const) {
+			expect(creatingCopy({ kind, isFlexible: false, isPersonal: true })).toEqual({
+				sub: 'creatingPersonalSub',
+				step: 'creatingStepPlan',
+				showsCode: false
+			});
+		}
 	});
 });

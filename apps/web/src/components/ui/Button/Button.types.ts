@@ -11,7 +11,21 @@ import type { ImageSourcePropType, StyleProp, ViewStyle } from 'react-native';
  * the design uses the filled one where leaving or deleting *is* the screen's action rather than
  * one option among several.
  */
-export type ButtonVariant = 'primary' | 'accent' | 'accentOutline' | 'surface' | 'danger' | 'dangerFilled' | 'ghost';
+/**
+ * `outline` is an ink hairline over no fill — Ana sayfa's "Serbest oku" and "Grup kur", which
+ * sit beside or under a filled ink button as its quieter partner.
+ */
+export type ButtonVariant =
+	| 'primary'
+	| 'accent'
+	| 'accentOutline'
+	| 'outline'
+	| 'surface'
+	/** A soft grey fill with no edge — R1's "Kitaptan okudum", the quieter of two ways to read. */
+	| 'tonal'
+	| 'danger'
+	| 'dangerFilled'
+	| 'ghost';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
 interface AppButtonBaseProps {

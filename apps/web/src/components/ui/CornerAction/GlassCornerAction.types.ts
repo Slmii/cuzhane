@@ -24,4 +24,9 @@ export interface GlassCornerActionProps extends Omit<CornerActionProps, 'style'>
 	 * do it, and this asks SwiftUI for the same `glass` style and circle the bar would give.
 	 */
 	hasOwnGlass?: boolean;
+	/**
+	 * A ripple spreads from under the glyph — Birlikte oku's button for as long as a session is
+	 * live, on the live dot's beat. The same on both paths; never with Reduce Motion.
+	 */
+	isPulsing?: boolean;
 }

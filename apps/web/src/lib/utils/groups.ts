@@ -12,24 +12,46 @@ import type {
 } from '@/lib/types/domain';
 import { babRuns, formatRun, rangeForRound, rangeForSlot } from '@/lib/utils/babs';
 import { CYCLES_FOR_KIND } from '@/lib/utils/groupKinds';
+import { unitLabelKey } from '@/lib/utils/units';
 
 /** The cycles the create sheet offers a kind — the Hizb's month is not the Cevşen's to choose. */
 export const cycleOptionsFor = (kind: GroupKind): readonly GroupCycle[] => CYCLES_FOR_KIND[kind];
 
-// A record rather than a ternary, so a cycle added to `GroupCycle` fails the build until it has a name.
-const CYCLE_LABEL_KEYS: Record<GroupCycle, StringKey> = { DAILY: 'daily', WEEKLY: 'weekly', MONTHLY: 'monthly' };
+/**
+ * The cadence's name.
+ *
+ * **A full map, not `DAILY ? … : 'weekly'`.** That was complete while the only two values
+ * were DAILY and WEEKLY, and it silently labelled a monthly hatim "Haftalık" and a one-off
+ * the same — the shape of every other bug this feature has produced. `CUSTOM` is not a
+ * cadence at all, so it borrows the "tek seferlik" wording rather than naming a rhythm.
+ */
+const CYCLE_LABEL_KEYS: Record<GroupCycle, StringKey> = {
+	CUSTOM: 'qCustom',
+	DAILY: 'daily',
+	MONTHLY: 'monthly',
+	WEEKLY: 'weekly'
+};
 
 export const cycleLabelKey = (cycle: GroupCycle): StringKey => CYCLE_LABEL_KEYS[cycle];
 
 /**
- * The noun a count of parts takes — "20 bab", "7 bölüm". Lowercase, for after a number:
- * "/ 100 bab", "33 bölüm". A Hizb group divides portions, not babs, and saying "bab" there
- * would name a unit the book is not cut into.
+ * The noun a count of parts takes — "20 bab", "30 cüz", "7 bölüm". Lowercase, for after a
+ * number: "/ 100 bab", "32 bölüm". A Hizb group divides portions and a hatim cüz, not babs, and
+ * saying "bab" there would name a unit the book is not cut into. Same as `unitLabelKey`.
  */
-export const partUnitKey = (kind: GroupKind): StringKey => (kind === 'HIZB' ? 'portions' : 'babs');
+export const partUnitKey = (kind: GroupKind): StringKey => unitLabelKey(kind);
 
-/** The same noun titling one part — "Bab 12", "Bölüm 19". */
-export const partLabelKey = (kind: GroupKind): StringKey => (kind === 'HIZB' ? 'portion' : 'bab');
+// A record, so a kind added to `GroupKind` fails the build until it has a name.
+const PART_LABEL_KEYS: Record<GroupKind, StringKey> = { CEVSEN: 'bab', HATIM: 'cuzLabel', HIZB: 'portion' };
+
+/** The same noun titling one part — "Bab 12", "Cüz 12", "Bölüm 19". */
+export const partLabelKey = (kind: GroupKind): StringKey => PART_LABEL_KEYS[kind];
+
+// The kind's own name — "Cevşen", "Kuran", "Hizbü'l-Hakaik". A record, for the same reason.
+const KIND_LABEL_KEYS: Record<GroupKind, StringKey> = { CEVSEN: 'qCevsen', HATIM: 'qHatim', HIZB: 'kindHizb' };
+
+/** What a group reads, by name — a card's badge, a filter row, a notification's heading. */
+export const kindLabelKey = (kind: GroupKind): StringKey => KIND_LABEL_KEYS[kind];
 
 /**
  * Whether a written range is a single part. `formatRun` and `formatBabRange` write one part as a
@@ -48,6 +70,12 @@ export const hizbPartsLabel = (
 	t: (key: 'hizbParts' | 'hizbPartsOne', values: Record<string, string>) => string
 ) => t(isSinglePart(parts) ? 'hizbPartsOne' : 'hizbParts', { parts });
 
+/** The plan screens' "Bölüm 11–13" / "Portions 11–13" / "Portion 19" — the noun first, counted. */
+export const hizbPortionLabel = (
+	portions: string,
+	t: (key: 'hpPortionLabel' | 'hpPortionLabelMany', values: Record<string, string>) => string
+) => t(isSinglePart(portions) ? 'hpPortionLabel' : 'hpPortionLabelMany', { portions });
+
 export const visibilityLabelKey = (visibility: GroupVisibility): StringKey =>
 	visibility === 'OPEN' ? 'open' : 'private';
 
@@ -64,6 +92,49 @@ export const visibilityIcon = (visibility: GroupVisibility): IconName => (visibi
 /** The long form, for a card subtitle: "Sabit paylaşım". */
 export const splitModeLabelKey = (splitMode: GroupSplitMode): StringKey =>
 	splitMode === 'FLEXIBLE' ? 'planFlexible' : splitMode === 'FIXED' ? 'fixedSplit' : 'planRotation';
+
+/** Whether a card names the split mode: a hatim's cüz are held, not divided by seat, so it has none. */
+export const showsSplitMode = (kind: GroupKind) => kind !== 'HATIM';
+
+/**
+ * Turlar's subtitle: what closing a round does. A hatim and a Hizb group have their own lines;
+ * a Cevşen group's depends on how it divides the babs. Seats move on by a whole share in a
+ * ROTATION group (never a fixed number of babs), stay put in a FIXED one, and a FLEXIBLE group's
+ * claims last one round.
+ */
+export const roundsSubtitleKey = (kind: GroupKind, splitMode: GroupSplitMode): StringKey =>
+	kind === 'HIZB'
+		? 'roundsSubHizb'
+		: kind === 'HATIM'
+		? 'roundsSubCuz'
+		: splitMode === 'FIXED'
+		? 'roundsSubFixed'
+		: splitMode === 'FLEXIBLE'
+		? 'roundsSubFlexible'
+		: 'roundsSub';
+
+/**
+ * The create flow's waiting copy, by what is being made. The create flow only makes Hizb plan
+ * groups, which have no portions to divide, and a reading of your own has no invite code.
+ */
+export const creatingCopy = ({
+	isFlexible,
+	isPersonal,
+	kind
+}: {
+	isFlexible: boolean;
+	isPersonal: boolean;
+	kind: GroupKind;
+}): { sub: StringKey; step: StringKey; showsCode: boolean } =>
+	isPersonal
+		? { sub: 'creatingPersonalSub', step: 'creatingStepPlan', showsCode: false }
+		: kind === 'HIZB'
+		? { sub: 'creatingPlanSub', step: 'creatingStepPlan', showsCode: true }
+		: kind === 'HATIM'
+		? { sub: 'creatingCuzSub', step: 'creatingStepCuz', showsCode: true }
+		: isFlexible
+		? { sub: 'creatingFlexibleSub', step: 'creatingFlexibleParts', showsCode: true }
+		: { sub: 'creatingSub', step: 'creatingStepBabs', showsCode: true };
 
 /** The short form used wherever the plan sits inline beside a range. */
 export const planLabelKey = (splitMode: GroupSplitMode): StringKey =>
@@ -311,7 +382,8 @@ export const shareSlices = (babNumbers: number[], nextBabNumber: number | null):
  * viewer's is a separate fact, because it is drawn as a separate mark — a ring over whichever of
  * the three it is.
  */
-export type HizbBoardCellState = 'read' | 'taken' | 'pool';
+/** `unread` is a personal-plan group's: no holders and no pool, only read or not yet. */
+export type HizbBoardCellState = 'read' | 'taken' | 'pool' | 'unread';
 
 export type HizbBoardCell = {
 	number: number;
@@ -393,7 +465,7 @@ const HIZB_SEAT_COLUMNS_MAX = 11;
  * How many columns the Hizb lobby's seat lattice (HC4) lays its seats out in: ten up to ten
  * seats — the Cevşen lobby's row — and past that as few rows as eleven columns allow, evened
  * out across them, but never narrower than eight. HC4 draws sixteen as two rows of eight and
- * the full 33 comes out as three of eleven; the floor is what keeps a cell from ballooning
+ * the full 32 comes out as three of eleven; the floor is what keeps a cell from ballooning
  * where evening out alone would halve the width (twelve seats as two rows of six).
  */
 export const hizbSeatColumns = (spots: number) =>
@@ -403,7 +475,7 @@ export const hizbSeatColumns = (spots: number) =>
  * What `PlanPreview` draws. Under ROTATION, the first `maxRounds` rounds of one seat — never more
  * rounds than there are seats, because after `spots` of them the seat is back where it began.
  * Under FIXED, the one range it holds every round. Percentages of `partCount`, so a bar reads as
- * a position on the whole book, the hundred babs or the Hizb's 33 portions alike.
+ * a position on the whole book, the hundred babs or the Hizb's 32 portions alike.
  */
 export const planPreviewRows = ({
 	maxRounds,

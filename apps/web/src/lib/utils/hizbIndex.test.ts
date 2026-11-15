@@ -7,9 +7,9 @@ const ME = 'user_me';
 const KEREM = 'user_kerem';
 const RABIA = 'user_rabia';
 
-/** All 33 portions, unread and unclaimed, with `overrides` applied by number. */
+/** All 32 portions, unread and unclaimed, with `overrides` applied by number. */
 const board = (overrides: Record<number, Partial<GroupBab>> = {}): GroupBab[] =>
-	Array.from({ length: 33 }, (_, index) => ({
+	Array.from({ length: 32 }, (_, index) => ({
 		assignedUserId: null,
 		number: index + 1,
 		readAt: null,
@@ -37,7 +37,7 @@ describe('hizbIndexWorks', () => {
 
 		expect(works.map(entry => entry.work.key)).toEqual(HIZB_WORKS.map(work => work.key));
 		expect(works.flatMap(entry => entry.rows.map(row => row.number))).toEqual(
-			Array.from({ length: 33 }, (_, index) => index + 1)
+			Array.from({ length: 32 }, (_, index) => index + 1)
 		);
 		expect(works[3]?.rows.map(row => row.number)).toEqual([14, 15, 16, 17, 18]);
 	});

@@ -1,1 +1,0 @@
-ALTER TABLE "Group" ADD COLUMN "hideMemberNames" BOOLEAN NOT NULL DEFAULT false;

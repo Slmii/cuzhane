@@ -13,7 +13,7 @@ export type ViewerIdentity = {
 	 * "Sen üstlendin" with one stranger's face, then swapped it for another.
 	 *
 	 * **The precedence has to match `apps/server/src/utils/displayName.ts`** — name, then
-	 * first name, then email, then the fallback — because the two are compared as strings.
+	 * first name, then the fallback, never the email — because the two are compared as strings.
 	 */
 	displayName: string;
 	/**
@@ -32,10 +32,9 @@ export const useViewerIdentity = (): ViewerIdentity => {
 
 	const name = user?.fullName?.trim();
 	const firstName = user?.firstName?.trim();
-	const email = user?.primaryEmailAddress?.emailAddress?.trim();
 
 	return {
-		displayName: name || firstName || email || FALLBACK_DISPLAY_NAME,
+		displayName: name || firstName || FALLBACK_DISPLAY_NAME,
 		imageUrl: user?.hasImage && user.imageUrl ? user.imageUrl : null
 	};
 };

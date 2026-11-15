@@ -1,0 +1,1779 @@
+{
+	"cuz": [
+		{
+			"firstVerseKey": "1:1",
+			"lastVerseKey": "2:141",
+			"number": 1,
+			"pageCount": 21,
+			"suraRange": {
+				"en": "Al-Fatihah 1 – Al-Baqarah 141",
+				"nl": "Al-Fatihah 1 – Al-Baqarah 141",
+				"tr": "Fâtiha 1 – Bakara 141"
+			},
+			"suras": [
+				{
+					"chapterId": 1,
+					"firstAyah": 1,
+					"lastAyah": 7,
+					"name": {
+						"en": "Al-Fatihah",
+						"nl": "Al-Fatihah",
+						"tr": "Fâtiha"
+					}
+				},
+				{
+					"chapterId": 2,
+					"firstAyah": 1,
+					"lastAyah": 141,
+					"name": {
+						"en": "Al-Baqarah",
+						"nl": "Al-Baqarah",
+						"tr": "Bakara"
+					}
+				}
+			],
+			"verseCount": 148
+		},
+		{
+			"firstVerseKey": "2:142",
+			"lastVerseKey": "2:252",
+			"number": 2,
+			"pageCount": 20,
+			"suraRange": {
+				"en": "Al-Baqarah 142 – 252",
+				"nl": "Al-Baqarah 142 – 252",
+				"tr": "Bakara 142 – 252"
+			},
+			"suras": [
+				{
+					"chapterId": 2,
+					"firstAyah": 142,
+					"lastAyah": 252,
+					"name": {
+						"en": "Al-Baqarah",
+						"nl": "Al-Baqarah",
+						"tr": "Bakara"
+					}
+				}
+			],
+			"verseCount": 111
+		},
+		{
+			"firstVerseKey": "2:253",
+			"lastVerseKey": "3:92",
+			"number": 3,
+			"pageCount": 21,
+			"suraRange": {
+				"en": "Al-Baqarah 253 – Ali 'Imran 92",
+				"nl": "Al-Baqarah 253 – Ali 'Imran 92",
+				"tr": "Bakara 253 – Âl-i İmrân 92"
+			},
+			"suras": [
+				{
+					"chapterId": 2,
+					"firstAyah": 253,
+					"lastAyah": 286,
+					"name": {
+						"en": "Al-Baqarah",
+						"nl": "Al-Baqarah",
+						"tr": "Bakara"
+					}
+				},
+				{
+					"chapterId": 3,
+					"firstAyah": 1,
+					"lastAyah": 92,
+					"name": {
+						"en": "Ali 'Imran",
+						"nl": "Ali 'Imran",
+						"tr": "Âl-i İmrân"
+					}
+				}
+			],
+			"verseCount": 126
+		},
+		{
+			"firstVerseKey": "3:93",
+			"lastVerseKey": "4:23",
+			"number": 4,
+			"pageCount": 20,
+			"suraRange": {
+				"en": "Ali 'Imran 93 – An-Nisa 23",
+				"nl": "Ali 'Imran 93 – An-Nisa 23",
+				"tr": "Âl-i İmrân 93 – Nisâ 23"
+			},
+			"suras": [
+				{
+					"chapterId": 3,
+					"firstAyah": 93,
+					"lastAyah": 200,
+					"name": {
+						"en": "Ali 'Imran",
+						"nl": "Ali 'Imran",
+						"tr": "Âl-i İmrân"
+					}
+				},
+				{
+					"chapterId": 4,
+					"firstAyah": 1,
+					"lastAyah": 23,
+					"name": {
+						"en": "An-Nisa",
+						"nl": "An-Nisa",
+						"tr": "Nisâ"
+					}
+				}
+			],
+			"verseCount": 131
+		},
+		{
+			"firstVerseKey": "4:24",
+			"lastVerseKey": "4:147",
+			"number": 5,
+			"pageCount": 20,
+			"suraRange": {
+				"en": "An-Nisa 24 – 147",
+				"nl": "An-Nisa 24 – 147",
+				"tr": "Nisâ 24 – 147"
+			},
+			"suras": [
+				{
+					"chapterId": 4,
+					"firstAyah": 24,
+					"lastAyah": 147,
+					"name": {
+						"en": "An-Nisa",
+						"nl": "An-Nisa",
+						"tr": "Nisâ"
+					}
+				}
+			],
+			"verseCount": 124
+		},
+		{
+			"firstVerseKey": "4:148",
+			"lastVerseKey": "5:81",
+			"number": 6,
+			"pageCount": 20,
+			"suraRange": {
+				"en": "An-Nisa 148 – Al-Ma'idah 81",
+				"nl": "An-Nisa 148 – Al-Ma'idah 81",
+				"tr": "Nisâ 148 – Mâide 81"
+			},
+			"suras": [
+				{
+					"chapterId": 4,
+					"firstAyah": 148,
+					"lastAyah": 176,
+					"name": {
+						"en": "An-Nisa",
+						"nl": "An-Nisa",
+						"tr": "Nisâ"
+					}
+				},
+				{
+					"chapterId": 5,
+					"firstAyah": 1,
+					"lastAyah": 81,
+					"name": {
+						"en": "Al-Ma'idah",
+						"nl": "Al-Ma'idah",
+						"tr": "Mâide"
+					}
+				}
+			],
+			"verseCount": 110
+		},
+		{
+			"firstVerseKey": "5:82",
+			"lastVerseKey": "6:110",
+			"number": 7,
+			"pageCount": 21,
+			"suraRange": {
+				"en": "Al-Ma'idah 82 – Al-An'am 110",
+				"nl": "Al-Ma'idah 82 – Al-An'am 110",
+				"tr": "Mâide 82 – En'âm 110"
+			},
+			"suras": [
+				{
+					"chapterId": 5,
+					"firstAyah": 82,
+					"lastAyah": 120,
+					"name": {
+						"en": "Al-Ma'idah",
+						"nl": "Al-Ma'idah",
+						"tr": "Mâide"
+					}
+				},
+				{
+					"chapterId": 6,
+					"firstAyah": 1,
+					"lastAyah": 110,
+					"name": {
+						"en": "Al-An'am",
+						"nl": "Al-An'am",
+						"tr": "En'âm"
+					}
+				}
+			],
+			"verseCount": 149
+		},
+		{
+			"firstVerseKey": "6:111",
+			"lastVerseKey": "7:87",
+			"number": 8,
+			"pageCount": 20,
+			"suraRange": {
+				"en": "Al-An'am 111 – Al-A'raf 87",
+				"nl": "Al-An'am 111 – Al-A'raf 87",
+				"tr": "En'âm 111 – A'râf 87"
+			},
+			"suras": [
+				{
+					"chapterId": 6,
+					"firstAyah": 111,
+					"lastAyah": 165,
+					"name": {
+						"en": "Al-An'am",
+						"nl": "Al-An'am",
+						"tr": "En'âm"
+					}
+				},
+				{
+					"chapterId": 7,
+					"firstAyah": 1,
+					"lastAyah": 87,
+					"name": {
+						"en": "Al-A'raf",
+						"nl": "Al-A'raf",
+						"tr": "A'râf"
+					}
+				}
+			],
+			"verseCount": 142
+		},
+		{
+			"firstVerseKey": "7:88",
+			"lastVerseKey": "8:40",
+			"number": 9,
+			"pageCount": 20,
+			"suraRange": {
+				"en": "Al-A'raf 88 – Al-Anfal 40",
+				"nl": "Al-A'raf 88 – Al-Anfal 40",
+				"tr": "A'râf 88 – Enfâl 40"
+			},
+			"suras": [
+				{
+					"chapterId": 7,
+					"firstAyah": 88,
+					"lastAyah": 206,
+					"name": {
+						"en": "Al-A'raf",
+						"nl": "Al-A'raf",
+						"tr": "A'râf"
+					}
+				},
+				{
+					"chapterId": 8,
+					"firstAyah": 1,
+					"lastAyah": 40,
+					"name": {
+						"en": "Al-Anfal",
+						"nl": "Al-Anfal",
+						"tr": "Enfâl"
+					}
+				}
+			],
+			"verseCount": 159
+		},
+		{
+			"firstVerseKey": "8:41",
+			"lastVerseKey": "9:92",
+			"number": 10,
+			"pageCount": 20,
+			"suraRange": {
+				"en": "Al-Anfal 41 – At-Tawbah 92",
+				"nl": "Al-Anfal 41 – At-Tawbah 92",
+				"tr": "Enfâl 41 – Tevbe 92"
+			},
+			"suras": [
+				{
+					"chapterId": 8,
+					"firstAyah": 41,
+					"lastAyah": 75,
+					"name": {
+						"en": "Al-Anfal",
+						"nl": "Al-Anfal",
+						"tr": "Enfâl"
+					}
+				},
+				{
+					"chapterId": 9,
+					"firstAyah": 1,
+					"lastAyah": 92,
+					"name": {
+						"en": "At-Tawbah",
+						"nl": "At-Tawbah",
+						"tr": "Tevbe"
+					}
+				}
+			],
+			"verseCount": 127
+		},
+		{
+			"firstVerseKey": "9:93",
+			"lastVerseKey": "11:5",
+			"number": 11,
+			"pageCount": 21,
+			"suraRange": {
+				"en": "At-Tawbah 93 – Hud 5",
+				"nl": "At-Tawbah 93 – Hud 5",
+				"tr": "Tevbe 93 – Hûd 5"
+			},
+			"suras": [
+				{
+					"chapterId": 9,
+					"firstAyah": 93,
+					"lastAyah": 129,
+					"name": {
+						"en": "At-Tawbah",
+						"nl": "At-Tawbah",
+						"tr": "Tevbe"
+					}
+				},
+				{
+					"chapterId": 10,
+					"firstAyah": 1,
+					"lastAyah": 109,
+					"name": {
+						"en": "Yunus",
+						"nl": "Yunus",
+						"tr": "Yûnus"
+					}
+				},
+				{
+					"chapterId": 11,
+					"firstAyah": 1,
+					"lastAyah": 5,
+					"name": {
+						"en": "Hud",
+						"nl": "Hud",
+						"tr": "Hûd"
+					}
+				}
+			],
+			"verseCount": 151
+		},
+		{
+			"firstVerseKey": "11:6",
+			"lastVerseKey": "12:52",
+			"number": 12,
+			"pageCount": 20,
+			"suraRange": {
+				"en": "Hud 6 – Yusuf 52",
+				"nl": "Hud 6 – Yusuf 52",
+				"tr": "Hûd 6 – Yûsuf 52"
+			},
+			"suras": [
+				{
+					"chapterId": 11,
+					"firstAyah": 6,
+					"lastAyah": 123,
+					"name": {
+						"en": "Hud",
+						"nl": "Hud",
+						"tr": "Hûd"
+					}
+				},
+				{
+					"chapterId": 12,
+					"firstAyah": 1,
+					"lastAyah": 52,
+					"name": {
+						"en": "Yusuf",
+						"nl": "Yusuf",
+						"tr": "Yûsuf"
+					}
+				}
+			],
+			"verseCount": 170
+		},
+		{
+			"firstVerseKey": "12:53",
+			"lastVerseKey": "14:52",
+			"number": 13,
+			"pageCount": 20,
+			"suraRange": {
+				"en": "Yusuf 53 – Ibrahim 52",
+				"nl": "Yusuf 53 – Ibrahim 52",
+				"tr": "Yûsuf 53 – İbrâhîm 52"
+			},
+			"suras": [
+				{
+					"chapterId": 12,
+					"firstAyah": 53,
+					"lastAyah": 111,
+					"name": {
+						"en": "Yusuf",
+						"nl": "Yusuf",
+						"tr": "Yûsuf"
+					}
+				},
+				{
+					"chapterId": 13,
+					"firstAyah": 1,
+					"lastAyah": 43,
+					"name": {
+						"en": "Ar-Ra'd",
+						"nl": "Ar-Ra'd",
+						"tr": "Ra'd"
+					}
+				},
+				{
+					"chapterId": 14,
+					"firstAyah": 1,
+					"lastAyah": 52,
+					"name": {
+						"en": "Ibrahim",
+						"nl": "Ibrahim",
+						"tr": "İbrâhîm"
+					}
+				}
+			],
+			"verseCount": 154
+		},
+		{
+			"firstVerseKey": "15:1",
+			"lastVerseKey": "16:128",
+			"number": 14,
+			"pageCount": 20,
+			"suraRange": {
+				"en": "Al-Hijr 1 – An-Nahl 128",
+				"nl": "Al-Hijr 1 – An-Nahl 128",
+				"tr": "Hicr 1 – Nahl 128"
+			},
+			"suras": [
+				{
+					"chapterId": 15,
+					"firstAyah": 1,
+					"lastAyah": 99,
+					"name": {
+						"en": "Al-Hijr",
+						"nl": "Al-Hijr",
+						"tr": "Hicr"
+					}
+				},
+				{
+					"chapterId": 16,
+					"firstAyah": 1,
+					"lastAyah": 128,
+					"name": {
+						"en": "An-Nahl",
+						"nl": "An-Nahl",
+						"tr": "Nahl"
+					}
+				}
+			],
+			"verseCount": 227
+		},
+		{
+			"firstVerseKey": "17:1",
+			"lastVerseKey": "18:74",
+			"number": 15,
+			"pageCount": 20,
+			"suraRange": {
+				"en": "Al-Isra 1 – Al-Kahf 74",
+				"nl": "Al-Isra 1 – Al-Kahf 74",
+				"tr": "İsrâ 1 – Kehf 74"
+			},
+			"suras": [
+				{
+					"chapterId": 17,
+					"firstAyah": 1,
+					"lastAyah": 111,
+					"name": {
+						"en": "Al-Isra",
+						"nl": "Al-Isra",
+						"tr": "İsrâ"
+					}
+				},
+				{
+					"chapterId": 18,
+					"firstAyah": 1,
+					"lastAyah": 74,
+					"name": {
+						"en": "Al-Kahf",
+						"nl": "Al-Kahf",
+						"tr": "Kehf"
+					}
+				}
+			],
+			"verseCount": 185
+		},
+		{
+			"firstVerseKey": "18:75",
+			"lastVerseKey": "20:135",
+			"number": 16,
+			"pageCount": 20,
+			"suraRange": {
+				"en": "Al-Kahf 75 – Taha 135",
+				"nl": "Al-Kahf 75 – Taha 135",
+				"tr": "Kehf 75 – Tâhâ 135"
+			},
+			"suras": [
+				{
+					"chapterId": 18,
+					"firstAyah": 75,
+					"lastAyah": 110,
+					"name": {
+						"en": "Al-Kahf",
+						"nl": "Al-Kahf",
+						"tr": "Kehf"
+					}
+				},
+				{
+					"chapterId": 19,
+					"firstAyah": 1,
+					"lastAyah": 98,
+					"name": {
+						"en": "Maryam",
+						"nl": "Maryam",
+						"tr": "Meryem"
+					}
+				},
+				{
+					"chapterId": 20,
+					"firstAyah": 1,
+					"lastAyah": 135,
+					"name": {
+						"en": "Taha",
+						"nl": "Taha",
+						"tr": "Tâhâ"
+					}
+				}
+			],
+			"verseCount": 269
+		},
+		{
+			"firstVerseKey": "21:1",
+			"lastVerseKey": "22:78",
+			"number": 17,
+			"pageCount": 20,
+			"suraRange": {
+				"en": "Al-Anbya 1 – Al-Hajj 78",
+				"nl": "Al-Anbya 1 – Al-Hajj 78",
+				"tr": "Enbiyâ 1 – Hac 78"
+			},
+			"suras": [
+				{
+					"chapterId": 21,
+					"firstAyah": 1,
+					"lastAyah": 112,
+					"name": {
+						"en": "Al-Anbya",
+						"nl": "Al-Anbya",
+						"tr": "Enbiyâ"
+					}
+				},
+				{
+					"chapterId": 22,
+					"firstAyah": 1,
+					"lastAyah": 78,
+					"name": {
+						"en": "Al-Hajj",
+						"nl": "Al-Hajj",
+						"tr": "Hac"
+					}
+				}
+			],
+			"verseCount": 190
+		},
+		{
+			"firstVerseKey": "23:1",
+			"lastVerseKey": "25:20",
+			"number": 18,
+			"pageCount": 20,
+			"suraRange": {
+				"en": "Al-Mu'minun 1 – Al-Furqan 20",
+				"nl": "Al-Mu'minun 1 – Al-Furqan 20",
+				"tr": "Mü'minûn 1 – Furkân 20"
+			},
+			"suras": [
+				{
+					"chapterId": 23,
+					"firstAyah": 1,
+					"lastAyah": 118,
+					"name": {
+						"en": "Al-Mu'minun",
+						"nl": "Al-Mu'minun",
+						"tr": "Mü'minûn"
+					}
+				},
+				{
+					"chapterId": 24,
+					"firstAyah": 1,
+					"lastAyah": 64,
+					"name": {
+						"en": "An-Nur",
+						"nl": "An-Nur",
+						"tr": "Nûr"
+					}
+				},
+				{
+					"chapterId": 25,
+					"firstAyah": 1,
+					"lastAyah": 20,
+					"name": {
+						"en": "Al-Furqan",
+						"nl": "Al-Furqan",
+						"tr": "Furkân"
+					}
+				}
+			],
+			"verseCount": 202
+		},
+		{
+			"firstVerseKey": "25:21",
+			"lastVerseKey": "27:55",
+			"number": 19,
+			"pageCount": 20,
+			"suraRange": {
+				"en": "Al-Furqan 21 – An-Naml 55",
+				"nl": "Al-Furqan 21 – An-Naml 55",
+				"tr": "Furkân 21 – Neml 55"
+			},
+			"suras": [
+				{
+					"chapterId": 25,
+					"firstAyah": 21,
+					"lastAyah": 77,
+					"name": {
+						"en": "Al-Furqan",
+						"nl": "Al-Furqan",
+						"tr": "Furkân"
+					}
+				},
+				{
+					"chapterId": 26,
+					"firstAyah": 1,
+					"lastAyah": 227,
+					"name": {
+						"en": "Ash-Shu'ara",
+						"nl": "Ash-Shu'ara",
+						"tr": "Şuarâ"
+					}
+				},
+				{
+					"chapterId": 27,
+					"firstAyah": 1,
+					"lastAyah": 55,
+					"name": {
+						"en": "An-Naml",
+						"nl": "An-Naml",
+						"tr": "Neml"
+					}
+				}
+			],
+			"verseCount": 339
+		},
+		{
+			"firstVerseKey": "27:56",
+			"lastVerseKey": "29:45",
+			"number": 20,
+			"pageCount": 20,
+			"suraRange": {
+				"en": "An-Naml 56 – Al-'Ankabut 45",
+				"nl": "An-Naml 56 – Al-'Ankabut 45",
+				"tr": "Neml 56 – Ankebût 45"
+			},
+			"suras": [
+				{
+					"chapterId": 27,
+					"firstAyah": 56,
+					"lastAyah": 93,
+					"name": {
+						"en": "An-Naml",
+						"nl": "An-Naml",
+						"tr": "Neml"
+					}
+				},
+				{
+					"chapterId": 28,
+					"firstAyah": 1,
+					"lastAyah": 88,
+					"name": {
+						"en": "Al-Qasas",
+						"nl": "Al-Qasas",
+						"tr": "Kasas"
+					}
+				},
+				{
+					"chapterId": 29,
+					"firstAyah": 1,
+					"lastAyah": 45,
+					"name": {
+						"en": "Al-'Ankabut",
+						"nl": "Al-'Ankabut",
+						"tr": "Ankebût"
+					}
+				}
+			],
+			"verseCount": 171
+		},
+		{
+			"firstVerseKey": "29:46",
+			"lastVerseKey": "33:30",
+			"number": 21,
+			"pageCount": 20,
+			"suraRange": {
+				"en": "Al-'Ankabut 46 – Al-Ahzab 30",
+				"nl": "Al-'Ankabut 46 – Al-Ahzab 30",
+				"tr": "Ankebût 46 – Ahzâb 30"
+			},
+			"suras": [
+				{
+					"chapterId": 29,
+					"firstAyah": 46,
+					"lastAyah": 69,
+					"name": {
+						"en": "Al-'Ankabut",
+						"nl": "Al-'Ankabut",
+						"tr": "Ankebût"
+					}
+				},
+				{
+					"chapterId": 30,
+					"firstAyah": 1,
+					"lastAyah": 60,
+					"name": {
+						"en": "Ar-Rum",
+						"nl": "Ar-Rum",
+						"tr": "Rûm"
+					}
+				},
+				{
+					"chapterId": 31,
+					"firstAyah": 1,
+					"lastAyah": 34,
+					"name": {
+						"en": "Luqman",
+						"nl": "Luqman",
+						"tr": "Lokmân"
+					}
+				},
+				{
+					"chapterId": 32,
+					"firstAyah": 1,
+					"lastAyah": 30,
+					"name": {
+						"en": "As-Sajdah",
+						"nl": "As-Sajdah",
+						"tr": "Secde"
+					}
+				},
+				{
+					"chapterId": 33,
+					"firstAyah": 1,
+					"lastAyah": 30,
+					"name": {
+						"en": "Al-Ahzab",
+						"nl": "Al-Ahzab",
+						"tr": "Ahzâb"
+					}
+				}
+			],
+			"verseCount": 178
+		},
+		{
+			"firstVerseKey": "33:31",
+			"lastVerseKey": "36:27",
+			"number": 22,
+			"pageCount": 20,
+			"suraRange": {
+				"en": "Al-Ahzab 31 – Ya-Sin 27",
+				"nl": "Al-Ahzab 31 – Ya-Sin 27",
+				"tr": "Ahzâb 31 – Yâsîn 27"
+			},
+			"suras": [
+				{
+					"chapterId": 33,
+					"firstAyah": 31,
+					"lastAyah": 73,
+					"name": {
+						"en": "Al-Ahzab",
+						"nl": "Al-Ahzab",
+						"tr": "Ahzâb"
+					}
+				},
+				{
+					"chapterId": 34,
+					"firstAyah": 1,
+					"lastAyah": 54,
+					"name": {
+						"en": "Saba",
+						"nl": "Saba",
+						"tr": "Sebe'"
+					}
+				},
+				{
+					"chapterId": 35,
+					"firstAyah": 1,
+					"lastAyah": 45,
+					"name": {
+						"en": "Fatir",
+						"nl": "Fatir",
+						"tr": "Fâtır"
+					}
+				},
+				{
+					"chapterId": 36,
+					"firstAyah": 1,
+					"lastAyah": 27,
+					"name": {
+						"en": "Ya-Sin",
+						"nl": "Ya-Sin",
+						"tr": "Yâsîn"
+					}
+				}
+			],
+			"verseCount": 169
+		},
+		{
+			"firstVerseKey": "36:28",
+			"lastVerseKey": "39:31",
+			"number": 23,
+			"pageCount": 20,
+			"suraRange": {
+				"en": "Ya-Sin 28 – Az-Zumar 31",
+				"nl": "Ya-Sin 28 – Az-Zumar 31",
+				"tr": "Yâsîn 28 – Zümer 31"
+			},
+			"suras": [
+				{
+					"chapterId": 36,
+					"firstAyah": 28,
+					"lastAyah": 83,
+					"name": {
+						"en": "Ya-Sin",
+						"nl": "Ya-Sin",
+						"tr": "Yâsîn"
+					}
+				},
+				{
+					"chapterId": 37,
+					"firstAyah": 1,
+					"lastAyah": 182,
+					"name": {
+						"en": "As-Saffat",
+						"nl": "As-Saffat",
+						"tr": "Sâffât"
+					}
+				},
+				{
+					"chapterId": 38,
+					"firstAyah": 1,
+					"lastAyah": 88,
+					"name": {
+						"en": "Sad",
+						"nl": "Sad",
+						"tr": "Sâd"
+					}
+				},
+				{
+					"chapterId": 39,
+					"firstAyah": 1,
+					"lastAyah": 31,
+					"name": {
+						"en": "Az-Zumar",
+						"nl": "Az-Zumar",
+						"tr": "Zümer"
+					}
+				}
+			],
+			"verseCount": 357
+		},
+		{
+			"firstVerseKey": "39:32",
+			"lastVerseKey": "41:46",
+			"number": 24,
+			"pageCount": 20,
+			"suraRange": {
+				"en": "Az-Zumar 32 – Fussilat 46",
+				"nl": "Az-Zumar 32 – Fussilat 46",
+				"tr": "Zümer 32 – Fussilet 46"
+			},
+			"suras": [
+				{
+					"chapterId": 39,
+					"firstAyah": 32,
+					"lastAyah": 75,
+					"name": {
+						"en": "Az-Zumar",
+						"nl": "Az-Zumar",
+						"tr": "Zümer"
+					}
+				},
+				{
+					"chapterId": 40,
+					"firstAyah": 1,
+					"lastAyah": 85,
+					"name": {
+						"en": "Ghafir",
+						"nl": "Ghafir",
+						"tr": "Mü'min"
+					}
+				},
+				{
+					"chapterId": 41,
+					"firstAyah": 1,
+					"lastAyah": 46,
+					"name": {
+						"en": "Fussilat",
+						"nl": "Fussilat",
+						"tr": "Fussilet"
+					}
+				}
+			],
+			"verseCount": 175
+		},
+		{
+			"firstVerseKey": "41:47",
+			"lastVerseKey": "45:37",
+			"number": 25,
+			"pageCount": 21,
+			"suraRange": {
+				"en": "Fussilat 47 – Al-Jathiyah 37",
+				"nl": "Fussilat 47 – Al-Jathiyah 37",
+				"tr": "Fussilet 47 – Câsiye 37"
+			},
+			"suras": [
+				{
+					"chapterId": 41,
+					"firstAyah": 47,
+					"lastAyah": 54,
+					"name": {
+						"en": "Fussilat",
+						"nl": "Fussilat",
+						"tr": "Fussilet"
+					}
+				},
+				{
+					"chapterId": 42,
+					"firstAyah": 1,
+					"lastAyah": 53,
+					"name": {
+						"en": "Ash-Shuraa",
+						"nl": "Ash-Shuraa",
+						"tr": "Şûrâ"
+					}
+				},
+				{
+					"chapterId": 43,
+					"firstAyah": 1,
+					"lastAyah": 89,
+					"name": {
+						"en": "Az-Zukhruf",
+						"nl": "Az-Zukhruf",
+						"tr": "Zuhruf"
+					}
+				},
+				{
+					"chapterId": 44,
+					"firstAyah": 1,
+					"lastAyah": 59,
+					"name": {
+						"en": "Ad-Dukhan",
+						"nl": "Ad-Dukhan",
+						"tr": "Duhân"
+					}
+				},
+				{
+					"chapterId": 45,
+					"firstAyah": 1,
+					"lastAyah": 37,
+					"name": {
+						"en": "Al-Jathiyah",
+						"nl": "Al-Jathiyah",
+						"tr": "Câsiye"
+					}
+				}
+			],
+			"verseCount": 246
+		},
+		{
+			"firstVerseKey": "46:1",
+			"lastVerseKey": "51:30",
+			"number": 26,
+			"pageCount": 20,
+			"suraRange": {
+				"en": "Al-Ahqaf 1 – Adh-Dhariyat 30",
+				"nl": "Al-Ahqaf 1 – Adh-Dhariyat 30",
+				"tr": "Ahkâf 1 – Zâriyât 30"
+			},
+			"suras": [
+				{
+					"chapterId": 46,
+					"firstAyah": 1,
+					"lastAyah": 35,
+					"name": {
+						"en": "Al-Ahqaf",
+						"nl": "Al-Ahqaf",
+						"tr": "Ahkâf"
+					}
+				},
+				{
+					"chapterId": 47,
+					"firstAyah": 1,
+					"lastAyah": 38,
+					"name": {
+						"en": "Muhammad",
+						"nl": "Muhammad",
+						"tr": "Muhammed"
+					}
+				},
+				{
+					"chapterId": 48,
+					"firstAyah": 1,
+					"lastAyah": 29,
+					"name": {
+						"en": "Al-Fath",
+						"nl": "Al-Fath",
+						"tr": "Fetih"
+					}
+				},
+				{
+					"chapterId": 49,
+					"firstAyah": 1,
+					"lastAyah": 18,
+					"name": {
+						"en": "Al-Hujurat",
+						"nl": "Al-Hujurat",
+						"tr": "Hucurât"
+					}
+				},
+				{
+					"chapterId": 50,
+					"firstAyah": 1,
+					"lastAyah": 45,
+					"name": {
+						"en": "Qaf",
+						"nl": "Qaf",
+						"tr": "Kâf"
+					}
+				},
+				{
+					"chapterId": 51,
+					"firstAyah": 1,
+					"lastAyah": 30,
+					"name": {
+						"en": "Adh-Dhariyat",
+						"nl": "Adh-Dhariyat",
+						"tr": "Zâriyât"
+					}
+				}
+			],
+			"verseCount": 195
+		},
+		{
+			"firstVerseKey": "51:31",
+			"lastVerseKey": "57:29",
+			"number": 27,
+			"pageCount": 20,
+			"suraRange": {
+				"en": "Adh-Dhariyat 31 – Al-Hadid 29",
+				"nl": "Adh-Dhariyat 31 – Al-Hadid 29",
+				"tr": "Zâriyât 31 – Hadîd 29"
+			},
+			"suras": [
+				{
+					"chapterId": 51,
+					"firstAyah": 31,
+					"lastAyah": 60,
+					"name": {
+						"en": "Adh-Dhariyat",
+						"nl": "Adh-Dhariyat",
+						"tr": "Zâriyât"
+					}
+				},
+				{
+					"chapterId": 52,
+					"firstAyah": 1,
+					"lastAyah": 49,
+					"name": {
+						"en": "At-Tur",
+						"nl": "At-Tur",
+						"tr": "Tûr"
+					}
+				},
+				{
+					"chapterId": 53,
+					"firstAyah": 1,
+					"lastAyah": 62,
+					"name": {
+						"en": "An-Najm",
+						"nl": "An-Najm",
+						"tr": "Necm"
+					}
+				},
+				{
+					"chapterId": 54,
+					"firstAyah": 1,
+					"lastAyah": 55,
+					"name": {
+						"en": "Al-Qamar",
+						"nl": "Al-Qamar",
+						"tr": "Kamer"
+					}
+				},
+				{
+					"chapterId": 55,
+					"firstAyah": 1,
+					"lastAyah": 78,
+					"name": {
+						"en": "Ar-Rahman",
+						"nl": "Ar-Rahman",
+						"tr": "Rahmân"
+					}
+				},
+				{
+					"chapterId": 56,
+					"firstAyah": 1,
+					"lastAyah": 96,
+					"name": {
+						"en": "Al-Waqi'ah",
+						"nl": "Al-Waqi'ah",
+						"tr": "Vâkıa"
+					}
+				},
+				{
+					"chapterId": 57,
+					"firstAyah": 1,
+					"lastAyah": 29,
+					"name": {
+						"en": "Al-Hadid",
+						"nl": "Al-Hadid",
+						"tr": "Hadîd"
+					}
+				}
+			],
+			"verseCount": 399
+		},
+		{
+			"firstVerseKey": "58:1",
+			"lastVerseKey": "66:12",
+			"number": 28,
+			"pageCount": 20,
+			"suraRange": {
+				"en": "Al-Mujadila 1 – At-Tahrim 12",
+				"nl": "Al-Mujadila 1 – At-Tahrim 12",
+				"tr": "Mücâdele 1 – Tahrîm 12"
+			},
+			"suras": [
+				{
+					"chapterId": 58,
+					"firstAyah": 1,
+					"lastAyah": 22,
+					"name": {
+						"en": "Al-Mujadila",
+						"nl": "Al-Mujadila",
+						"tr": "Mücâdele"
+					}
+				},
+				{
+					"chapterId": 59,
+					"firstAyah": 1,
+					"lastAyah": 24,
+					"name": {
+						"en": "Al-Hashr",
+						"nl": "Al-Hashr",
+						"tr": "Haşr"
+					}
+				},
+				{
+					"chapterId": 60,
+					"firstAyah": 1,
+					"lastAyah": 13,
+					"name": {
+						"en": "Al-Mumtahanah",
+						"nl": "Al-Mumtahanah",
+						"tr": "Mümtehine"
+					}
+				},
+				{
+					"chapterId": 61,
+					"firstAyah": 1,
+					"lastAyah": 14,
+					"name": {
+						"en": "As-Saf",
+						"nl": "As-Saf",
+						"tr": "Saf"
+					}
+				},
+				{
+					"chapterId": 62,
+					"firstAyah": 1,
+					"lastAyah": 11,
+					"name": {
+						"en": "Al-Jumu'ah",
+						"nl": "Al-Jumu'ah",
+						"tr": "Cuma"
+					}
+				},
+				{
+					"chapterId": 63,
+					"firstAyah": 1,
+					"lastAyah": 11,
+					"name": {
+						"en": "Al-Munafiqun",
+						"nl": "Al-Munafiqun",
+						"tr": "Münâfikûn"
+					}
+				},
+				{
+					"chapterId": 64,
+					"firstAyah": 1,
+					"lastAyah": 18,
+					"name": {
+						"en": "At-Taghabun",
+						"nl": "At-Taghabun",
+						"tr": "Tegâbün"
+					}
+				},
+				{
+					"chapterId": 65,
+					"firstAyah": 1,
+					"lastAyah": 12,
+					"name": {
+						"en": "At-Talaq",
+						"nl": "At-Talaq",
+						"tr": "Talâk"
+					}
+				},
+				{
+					"chapterId": 66,
+					"firstAyah": 1,
+					"lastAyah": 12,
+					"name": {
+						"en": "At-Tahrim",
+						"nl": "At-Tahrim",
+						"tr": "Tahrîm"
+					}
+				}
+			],
+			"verseCount": 137
+		},
+		{
+			"firstVerseKey": "67:1",
+			"lastVerseKey": "77:50",
+			"number": 29,
+			"pageCount": 20,
+			"suraRange": {
+				"en": "Al-Mulk 1 – Al-Mursalat 50",
+				"nl": "Al-Mulk 1 – Al-Mursalat 50",
+				"tr": "Mülk 1 – Mürselât 50"
+			},
+			"suras": [
+				{
+					"chapterId": 67,
+					"firstAyah": 1,
+					"lastAyah": 30,
+					"name": {
+						"en": "Al-Mulk",
+						"nl": "Al-Mulk",
+						"tr": "Mülk"
+					}
+				},
+				{
+					"chapterId": 68,
+					"firstAyah": 1,
+					"lastAyah": 52,
+					"name": {
+						"en": "Al-Qalam",
+						"nl": "Al-Qalam",
+						"tr": "Kalem"
+					}
+				},
+				{
+					"chapterId": 69,
+					"firstAyah": 1,
+					"lastAyah": 52,
+					"name": {
+						"en": "Al-Haqqah",
+						"nl": "Al-Haqqah",
+						"tr": "Hâkka"
+					}
+				},
+				{
+					"chapterId": 70,
+					"firstAyah": 1,
+					"lastAyah": 44,
+					"name": {
+						"en": "Al-Ma'arij",
+						"nl": "Al-Ma'arij",
+						"tr": "Meâric"
+					}
+				},
+				{
+					"chapterId": 71,
+					"firstAyah": 1,
+					"lastAyah": 28,
+					"name": {
+						"en": "Nuh",
+						"nl": "Nuh",
+						"tr": "Nûh"
+					}
+				},
+				{
+					"chapterId": 72,
+					"firstAyah": 1,
+					"lastAyah": 28,
+					"name": {
+						"en": "Al-Jinn",
+						"nl": "Al-Jinn",
+						"tr": "Cin"
+					}
+				},
+				{
+					"chapterId": 73,
+					"firstAyah": 1,
+					"lastAyah": 20,
+					"name": {
+						"en": "Al-Muzzammil",
+						"nl": "Al-Muzzammil",
+						"tr": "Müzzemmil"
+					}
+				},
+				{
+					"chapterId": 74,
+					"firstAyah": 1,
+					"lastAyah": 56,
+					"name": {
+						"en": "Al-Muddaththir",
+						"nl": "Al-Muddaththir",
+						"tr": "Müddessir"
+					}
+				},
+				{
+					"chapterId": 75,
+					"firstAyah": 1,
+					"lastAyah": 40,
+					"name": {
+						"en": "Al-Qiyamah",
+						"nl": "Al-Qiyamah",
+						"tr": "Kıyâmet"
+					}
+				},
+				{
+					"chapterId": 76,
+					"firstAyah": 1,
+					"lastAyah": 31,
+					"name": {
+						"en": "Al-Insan",
+						"nl": "Al-Insan",
+						"tr": "İnsân"
+					}
+				},
+				{
+					"chapterId": 77,
+					"firstAyah": 1,
+					"lastAyah": 50,
+					"name": {
+						"en": "Al-Mursalat",
+						"nl": "Al-Mursalat",
+						"tr": "Mürselât"
+					}
+				}
+			],
+			"verseCount": 431
+		},
+		{
+			"firstVerseKey": "78:1",
+			"lastVerseKey": "114:6",
+			"number": 30,
+			"pageCount": 23,
+			"suraRange": {
+				"en": "An-Naba 1 – An-Nas 6",
+				"nl": "An-Naba 1 – An-Nas 6",
+				"tr": "Nebe 1 – Nâs 6"
+			},
+			"suras": [
+				{
+					"chapterId": 78,
+					"firstAyah": 1,
+					"lastAyah": 40,
+					"name": {
+						"en": "An-Naba",
+						"nl": "An-Naba",
+						"tr": "Nebe"
+					}
+				},
+				{
+					"chapterId": 79,
+					"firstAyah": 1,
+					"lastAyah": 46,
+					"name": {
+						"en": "An-Nazi'at",
+						"nl": "An-Nazi'at",
+						"tr": "Naziât"
+					}
+				},
+				{
+					"chapterId": 80,
+					"firstAyah": 1,
+					"lastAyah": 42,
+					"name": {
+						"en": "'Abasa",
+						"nl": "'Abasa",
+						"tr": "Abese"
+					}
+				},
+				{
+					"chapterId": 81,
+					"firstAyah": 1,
+					"lastAyah": 29,
+					"name": {
+						"en": "At-Takwir",
+						"nl": "At-Takwir",
+						"tr": "Tekvîr"
+					}
+				},
+				{
+					"chapterId": 82,
+					"firstAyah": 1,
+					"lastAyah": 19,
+					"name": {
+						"en": "Al-Infitar",
+						"nl": "Al-Infitar",
+						"tr": "İnfitâr"
+					}
+				},
+				{
+					"chapterId": 83,
+					"firstAyah": 1,
+					"lastAyah": 36,
+					"name": {
+						"en": "Al-Mutaffifin",
+						"nl": "Al-Mutaffifin",
+						"tr": "Mutaffifîn"
+					}
+				},
+				{
+					"chapterId": 84,
+					"firstAyah": 1,
+					"lastAyah": 25,
+					"name": {
+						"en": "Al-Inshiqaq",
+						"nl": "Al-Inshiqaq",
+						"tr": "İnşikâk"
+					}
+				},
+				{
+					"chapterId": 85,
+					"firstAyah": 1,
+					"lastAyah": 22,
+					"name": {
+						"en": "Al-Buruj",
+						"nl": "Al-Buruj",
+						"tr": "Burûc"
+					}
+				},
+				{
+					"chapterId": 86,
+					"firstAyah": 1,
+					"lastAyah": 17,
+					"name": {
+						"en": "At-Tariq",
+						"nl": "At-Tariq",
+						"tr": "Târık"
+					}
+				},
+				{
+					"chapterId": 87,
+					"firstAyah": 1,
+					"lastAyah": 19,
+					"name": {
+						"en": "Al-A'la",
+						"nl": "Al-A'la",
+						"tr": "A'lâ"
+					}
+				},
+				{
+					"chapterId": 88,
+					"firstAyah": 1,
+					"lastAyah": 26,
+					"name": {
+						"en": "Al-Ghashiyah",
+						"nl": "Al-Ghashiyah",
+						"tr": "Gâşiye"
+					}
+				},
+				{
+					"chapterId": 89,
+					"firstAyah": 1,
+					"lastAyah": 30,
+					"name": {
+						"en": "Al-Fajr",
+						"nl": "Al-Fajr",
+						"tr": "Fecr"
+					}
+				},
+				{
+					"chapterId": 90,
+					"firstAyah": 1,
+					"lastAyah": 20,
+					"name": {
+						"en": "Al-Balad",
+						"nl": "Al-Balad",
+						"tr": "Beled"
+					}
+				},
+				{
+					"chapterId": 91,
+					"firstAyah": 1,
+					"lastAyah": 15,
+					"name": {
+						"en": "Ash-Shams",
+						"nl": "Ash-Shams",
+						"tr": "Şems"
+					}
+				},
+				{
+					"chapterId": 92,
+					"firstAyah": 1,
+					"lastAyah": 21,
+					"name": {
+						"en": "Al-Layl",
+						"nl": "Al-Layl",
+						"tr": "Leyl"
+					}
+				},
+				{
+					"chapterId": 93,
+					"firstAyah": 1,
+					"lastAyah": 11,
+					"name": {
+						"en": "Ad-Duhaa",
+						"nl": "Ad-Duhaa",
+						"tr": "Duhâ"
+					}
+				},
+				{
+					"chapterId": 94,
+					"firstAyah": 1,
+					"lastAyah": 8,
+					"name": {
+						"en": "Ash-Sharh",
+						"nl": "Ash-Sharh",
+						"tr": "İnşirâh"
+					}
+				},
+				{
+					"chapterId": 95,
+					"firstAyah": 1,
+					"lastAyah": 8,
+					"name": {
+						"en": "At-Tin",
+						"nl": "At-Tin",
+						"tr": "Tîn"
+					}
+				},
+				{
+					"chapterId": 96,
+					"firstAyah": 1,
+					"lastAyah": 19,
+					"name": {
+						"en": "Al-'Alaq",
+						"nl": "Al-'Alaq",
+						"tr": "Alak"
+					}
+				},
+				{
+					"chapterId": 97,
+					"firstAyah": 1,
+					"lastAyah": 5,
+					"name": {
+						"en": "Al-Qadr",
+						"nl": "Al-Qadr",
+						"tr": "Kadir"
+					}
+				},
+				{
+					"chapterId": 98,
+					"firstAyah": 1,
+					"lastAyah": 8,
+					"name": {
+						"en": "Al-Bayyinah",
+						"nl": "Al-Bayyinah",
+						"tr": "Beyyine"
+					}
+				},
+				{
+					"chapterId": 99,
+					"firstAyah": 1,
+					"lastAyah": 8,
+					"name": {
+						"en": "Az-Zalzalah",
+						"nl": "Az-Zalzalah",
+						"tr": "Zilzâl"
+					}
+				},
+				{
+					"chapterId": 100,
+					"firstAyah": 1,
+					"lastAyah": 11,
+					"name": {
+						"en": "Al-'Adiyat",
+						"nl": "Al-'Adiyat",
+						"tr": "Âdiyât"
+					}
+				},
+				{
+					"chapterId": 101,
+					"firstAyah": 1,
+					"lastAyah": 11,
+					"name": {
+						"en": "Al-Qari'ah",
+						"nl": "Al-Qari'ah",
+						"tr": "Kâria"
+					}
+				},
+				{
+					"chapterId": 102,
+					"firstAyah": 1,
+					"lastAyah": 8,
+					"name": {
+						"en": "At-Takathur",
+						"nl": "At-Takathur",
+						"tr": "Tekâsür"
+					}
+				},
+				{
+					"chapterId": 103,
+					"firstAyah": 1,
+					"lastAyah": 3,
+					"name": {
+						"en": "Al-'Asr",
+						"nl": "Al-'Asr",
+						"tr": "Asr"
+					}
+				},
+				{
+					"chapterId": 104,
+					"firstAyah": 1,
+					"lastAyah": 9,
+					"name": {
+						"en": "Al-Humazah",
+						"nl": "Al-Humazah",
+						"tr": "Hümeze"
+					}
+				},
+				{
+					"chapterId": 105,
+					"firstAyah": 1,
+					"lastAyah": 5,
+					"name": {
+						"en": "Al-Fil",
+						"nl": "Al-Fil",
+						"tr": "Fîl"
+					}
+				},
+				{
+					"chapterId": 106,
+					"firstAyah": 1,
+					"lastAyah": 4,
+					"name": {
+						"en": "Quraysh",
+						"nl": "Quraysh",
+						"tr": "Kureyş"
+					}
+				},
+				{
+					"chapterId": 107,
+					"firstAyah": 1,
+					"lastAyah": 7,
+					"name": {
+						"en": "Al-Ma'un",
+						"nl": "Al-Ma'un",
+						"tr": "Maûn"
+					}
+				},
+				{
+					"chapterId": 108,
+					"firstAyah": 1,
+					"lastAyah": 3,
+					"name": {
+						"en": "Al-Kawthar",
+						"nl": "Al-Kawthar",
+						"tr": "Kevser"
+					}
+				},
+				{
+					"chapterId": 109,
+					"firstAyah": 1,
+					"lastAyah": 6,
+					"name": {
+						"en": "Al-Kafirun",
+						"nl": "Al-Kafirun",
+						"tr": "Kâfirûn"
+					}
+				},
+				{
+					"chapterId": 110,
+					"firstAyah": 1,
+					"lastAyah": 3,
+					"name": {
+						"en": "An-Nasr",
+						"nl": "An-Nasr",
+						"tr": "Nasr"
+					}
+				},
+				{
+					"chapterId": 111,
+					"firstAyah": 1,
+					"lastAyah": 5,
+					"name": {
+						"en": "Al-Masad",
+						"nl": "Al-Masad",
+						"tr": "Tebbet"
+					}
+				},
+				{
+					"chapterId": 112,
+					"firstAyah": 1,
+					"lastAyah": 4,
+					"name": {
+						"en": "Al-Ikhlas",
+						"nl": "Al-Ikhlas",
+						"tr": "İhlâs"
+					}
+				},
+				{
+					"chapterId": 113,
+					"firstAyah": 1,
+					"lastAyah": 5,
+					"name": {
+						"en": "Al-Falaq",
+						"nl": "Al-Falaq",
+						"tr": "Felak"
+					}
+				},
+				{
+					"chapterId": 114,
+					"firstAyah": 1,
+					"lastAyah": 6,
+					"name": {
+						"en": "An-Nas",
+						"nl": "An-Nas",
+						"tr": "Nâs"
+					}
+				}
+			],
+			"verseCount": 564
+		}
+	],
+	"meta": {
+		"fetchedAt": "2026-09-24",
+		"note": "Generated by apps/server/scripts/fetch-cuz-metadata.ts. Do not edit by hand; re-run the script.",
+		"source": "Quran Foundation API via @quranjs/api"
+	}
+}

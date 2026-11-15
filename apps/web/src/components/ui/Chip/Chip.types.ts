@@ -1,4 +1,5 @@
 import type { IconName } from '@/components/ui/Icon/Icon.types';
+import type { ReactNode } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 
 /**
@@ -16,6 +17,11 @@ export interface ChipProps {
 	 * in the same small caps do not.
 	 */
 	icon?: IconName;
+	/**
+	 * A drawing before the label, for marks that are not icon-set glyphs — the reading-type
+	 * marks, which are multi-path and carry their own palette. Sits where `icon` would.
+	 */
+	leading?: ReactNode;
 	tone?: ChipTone;
 	/** Filter chips render in the inverse tone when selected, ignoring `tone`. */
 	isSelected?: boolean;

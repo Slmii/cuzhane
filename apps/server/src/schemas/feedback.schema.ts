@@ -13,7 +13,10 @@ export const CreateFeedbackBodySchema = z.object({
 	message: z.string().trim().min(FEEDBACK_MESSAGE_MIN_LENGTH).max(FEEDBACK_MESSAGE_MAX_LENGTH),
 	appVersion: z.string().trim().max(64).optional(),
 	platform: z.string().trim().max(32).optional(),
-	locale: z.string().trim().max(16).optional()
+	locale: z.string().trim().max(16).optional(),
+	// The app's last steps (screens and their numbers, app state), oldest first — see the web
+	// app's `lib/utils/breadcrumbs`, whose bounds these mirror.
+	trail: z.array(z.string().max(120)).max(30).optional()
 });
 
 export type CreateFeedbackBody = z.infer<typeof CreateFeedbackBodySchema>;

@@ -11,7 +11,7 @@ const KNOB_SIZE = 20;
 const KNOB_TRAVEL = TRACK_WIDTH - TRACK_PADDING * 2 - KNOB_SIZE;
 
 /** The design's own switch, drawn to the mock. Used wherever the platform has nothing better. */
-const DrawnSwitch = ({ disabled = false, onBlur, onValueChange, style, value }: AppSwitchProps) => {
+const DrawnSwitch = ({ disabled = false, onBlur, onColor, onValueChange, style, value }: AppSwitchProps) => {
 	const { theme } = useThemeContext();
 	// Lazy `useState` rather than `useRef().current` — reading `.current` during render
 	// trips react-hooks/refs, and the initialiser still runs only once.
@@ -37,7 +37,7 @@ const DrawnSwitch = ({ disabled = false, onBlur, onValueChange, style, value }: 
 			style={[
 				styles.track,
 				{
-					backgroundColor: value ? theme.colors.accent : theme.colors.switchTrackOff,
+					backgroundColor: value ? onColor ?? theme.colors.accent : theme.colors.switchTrackOff,
 					opacity: disabled ? 0.5 : 1
 				},
 				style
@@ -57,7 +57,7 @@ const DrawnSwitch = ({ disabled = false, onBlur, onValueChange, style, value }: 
 };
 
 /** The real `UISwitch`, whose knob iOS 26 renders in glass during interaction. */
-const GlassSwitch = ({ disabled = false, onBlur, onValueChange, style, value }: AppSwitchProps) => {
+const GlassSwitch = ({ disabled = false, onBlur, onColor, onValueChange, style, value }: AppSwitchProps) => {
 	const { theme } = useThemeContext();
 
 	return (
@@ -81,7 +81,7 @@ const GlassSwitch = ({ disabled = false, onBlur, onValueChange, style, value }: 
 			 * over again.
 			 */
 			{...(Platform.OS === 'android' ? { thumbColor: theme.colors.switchThumbOff } : {})}
-			trackColor={{ false: theme.colors.switchTrackOff, true: theme.colors.accent }}
+			trackColor={{ false: theme.colors.switchTrackOff, true: onColor ?? theme.colors.accent }}
 			value={value}
 		/>
 	);

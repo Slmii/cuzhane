@@ -1,7 +1,7 @@
 import React, { type ReactElement, type ReactNode } from 'react';
 import { expect, it, vi } from 'vitest';
 import { HizbPlanReader } from './HizbPlanReader.component';
-const state = vi.hoisted(() => ({ mutate: vi.fn(), setState: vi.fn() }));
+const state = vi.hoisted(() => ({ bookmark: 0, mutate: vi.fn(), setState: vi.fn() }));
 vi.mock('react', async original => ({
 	...(await original<typeof import('react')>()),
 	useContext: () => 0,
@@ -19,16 +19,32 @@ vi.mock('@/lib/hooks/useHizbReading', () => ({
 		data: {
 			id: 'a',
 			version: 2,
-			planDays: 33,
+			planDays: 32,
 			portion: 2,
 			date: '2026-09-26',
-			bookmark: 0,
+			bookmark: state.bookmark,
 			canEdit: false,
 			completedAt: null
 		}
 	}),
-	useUpdateHizbAssignment: () => ({ mutate: state.mutate })
+	useUpdateHizbAssignment: () => ({ mutate: state.mutate, isPending: false }),
+	useHizbReading: () => ({ data: undefined })
 }));
+vi.mock('@/lib/content/hizbDelail', () => ({ DELAIL_REPETITIONS: 3, splitDelailRepetition: () => null }));
+vi.mock('@/lib/content/hizbIstighfar', () => ({ splitIstighfar: () => null }));
+vi.mock('@/lib/content/hizbSekine', () => ({ SEKINE_REPETITIONS: 19, splitSekine: () => null }));
+vi.mock('@/components/Hints/HintScroll.context', () => ({ HintScrollProvider: 'HintScrollProvider' }));
+vi.mock('@/components/Hints/useHintScreen', () => ({ useHintScreen: () => undefined }));
+vi.mock('@/lib/hooks/useHizbPlanText', () => ({
+	useHizbPlanText: () => ({ monthDay: () => '', portionsLabel: () => [] })
+}));
+vi.mock('@/lib/utils/groups', () => ({ hizbPartsLabel: () => '' }));
+vi.mock('@/lib/utils/hizbAhead', () => ({ canUndoHizbDay: () => true }));
+vi.mock('@/lib/utils/hizbPlanLabels', () => ({ hizbPlanDescriptionKey: () => 'desc' }));
+vi.mock('@/screens/Reader/textSizeSheet', () => ({
+	textSizeSheet: () => ({ isVisible: false, close: () => undefined })
+}));
+vi.mock('./HizbPlanReaderSkeleton.component', () => ({ HizbPlanReaderSkeleton: 'HizbPlanReaderSkeleton' }));
 vi.mock('@/lib/hooks/useUserSettings', () => ({
 	useGetUserSettings: () => ({}),
 	useUpdateUserSettings: () => ({ mutate: vi.fn() })
@@ -45,6 +61,7 @@ vi.mock('@/components/ui/Icon/Icon.component', () => ({ Icon: 'Icon' }));
 vi.mock('@/components/ui/Typography/Typography.component', () => ({
 	BodyText: 'BodyText',
 	CaptionText: 'CaptionText',
+	EyebrowText: 'EyebrowText',
 	TitleText: 'TitleText'
 }));
 vi.mock('@/components/ui/ErrorState/ErrorState.component', () => ({ ErrorState: 'ErrorState' }));
@@ -59,13 +76,22 @@ const elements = (node: ReactNode): Element[] =>
 	React.Children.toArray(node).flatMap(c =>
 		React.isValidElement<Record<string, any>>(c) ? [c, ...elements(c.props.children)] : []
 	);
+const render = () => {
+	const entry = HizbPlanReader({
+		navigation: {},
+		route: { params: { groupId: 'g', assignmentId: 'a' } }
+	} as any) as Element;
+	return elements((entry.type as (props: any) => ReactNode)(entry.props));
+};
 it('lets the requester turn pages locally while the helper exclusively controls completion', () => {
-	const entry = HizbPlanReader({ route: { params: { groupId: 'g', assignmentId: 'a' } } } as any);
-	const nodes = elements((entry.type as (props: any) => ReactNode)(entry.props));
-	const next = nodes.find(n => n.props.accessibilityLabel === 'abNext')!;
+	const next = render().find(n => n.props.accessibilityLabel === 'abNext')!;
 	expect(next.props.disabled).toBeFalsy();
 	next.props.onPress();
 	expect(state.setState).toHaveBeenCalledWith(1);
 	expect(state.mutate).not.toHaveBeenCalled();
+	// The last page carries the finish button, which stays the helper's.
+	state.bookmark = 2;
+	const nodes = render();
 	expect(nodes.find(n => n.props.title === 'hpFinish')!.props.disabled).toBe(true);
+	expect(nodes.some(n => n.type === 'CaptionText' && n.props.children === 'helpClaimed')).toBe(true);
 });

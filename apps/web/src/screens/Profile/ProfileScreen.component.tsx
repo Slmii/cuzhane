@@ -1,6 +1,6 @@
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenTitle } from '@/components/ScreenTitle/ScreenTitle.component';
-import { TourTarget } from '@/components/Tour/TourTarget.component';
+import { useHintsContext } from '@/components/Hints/Hints.context';
 import { ActivityHeatmap } from '@/components/ui/ActivityHeatmap/ActivityHeatmap.component';
 import { Avatar } from '@/components/ui/Avatar/Avatar.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
@@ -9,6 +9,8 @@ import { Divider } from '@/components/ui/Divider/Divider.component';
 import { ErrorState } from '@/components/ui/ErrorState/ErrorState.component';
 import { Form } from '@/components/ui/Form/Form.component';
 import { Icon } from '@/components/ui/Icon/Icon.component';
+import { NavRow } from '@/components/ui/NavRow/NavRow.component';
+import { ToggleRow } from '@/components/ui/ToggleRow/ToggleRow.component';
 import {
 	isSegmentedControlNative,
 	SegmentedControl
@@ -17,6 +19,7 @@ import { StatTile } from '@/components/ui/StatTile/StatTile.component';
 import { BodyStrongText, CaptionText, MonoText } from '@/components/ui/Typography/Typography.component';
 import { useDeleteAccount } from '@/lib/hooks/useAccount';
 import { useGetProfileStats } from '@/lib/hooks/useProfileStats';
+import { useGetUserSettings, useUpdateUserSettings } from '@/lib/hooks/useUserSettings';
 import { LanguageSheet } from '@/screens/Profile/LanguageSheet.component';
 import { useTranslation } from '@/lib/i18n/I18n.context';
 import { LANGUAGE_NATIVE_NAMES } from '@/lib/i18n/strings';
@@ -25,7 +28,6 @@ import { appVersionLabel } from '@/lib/utils/appVersion';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { ThemeMode } from '@/lib/theme/tokens';
 import { FeedbackSheet } from '@/screens/Profile/FeedbackSheet.component';
-import { useTour } from '@/components/Tour/Tour.context';
 import { InlineFieldRow } from '@/screens/Profile/InlineFieldRow.component';
 import { PhotoSheet } from '@/screens/Profile/PhotoSheet.component';
 import { WhatsNewSheet } from '@/screens/WhatsNew/WhatsNewSheet.component';
@@ -33,19 +35,23 @@ import type { TabStackParamList } from '@/navigation/types';
 import { useAuth, useUser } from '@clerk/expo';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { refreshMyProfile } from '@/api/profile.api';
+import { groupQueryKeys, notificationQueryKeys } from '@/lib/hooks/queryKeys';
 import { useQueryClient } from '@tanstack/react-query';
 import { File } from 'expo-file-system';
 import { useCallback, useMemo, useState } from 'react';
 import { Controller } from 'react-hook-form';
 import { confirmDestructive } from '@/lib/utils/confirmDestructive';
-import { Image, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, Image, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { ProfileSkeleton } from './ProfileSkeleton.component';
 
 export const ProfileScreen = () => {
 	const navigation = useNavigation<NativeStackNavigationProp<TabStackParamList>>();
 	const { mode, setMode, theme } = useThemeContext();
 	const { language, t } = useTranslation();
-	const { start: startTour } = useTour();
+	const { resetHints } = useHintsContext();
+	const { data: settings } = useGetUserSettings();
+	const { mutate: updateUserSettings } = useUpdateUserSettings();
 	const statsQuery = useGetProfileStats();
 	const { data: stats, isError, isPending } = statsQuery;
 	const deleteAccount = useDeleteAccount();
@@ -67,6 +73,16 @@ export const ProfileScreen = () => {
 		},
 		[setMode]
 	);
+
+	// "İpuçlarını yeniden göster", then a short word that it worked — nothing on this screen changes.
+	const handleHintsReplay = useCallback(async () => {
+		try {
+			await resetHints();
+			Alert.alert(t('hintsReplayDoneTitle'), t('hintsReplayDoneBody'));
+		} catch {
+			Alert.alert(t('genericError'));
+		}
+	}, [resetHints, t]);
 
 	const handleSignOutConfirm = useCallback(async () => {
 		await signOut();
@@ -209,16 +225,41 @@ export const ProfileScreen = () => {
 						}
 
 						const nextValue = getValues(field);
+						const current = field === 'firstName' ? user.firstName ?? '' : user.lastName ?? '';
 
-						if (field === 'firstName') {
-							if (nextValue !== (user.firstName ?? '')) {
-								user.update({ firstName: nextValue }).catch(() => {});
-							}
+						if (nextValue === current) {
 							return;
 						}
 
-						if (nextValue !== (user.lastName ?? '')) {
-							user.update({ lastName: nextValue }).catch(() => {});
+						/*
+						 * **The name lives in Clerk, and every screen that prints it reads it
+						 * from the server.** Members lists, round details and the pool all show
+						 * whoever holds a bab by their *live* Clerk name — so changing it here
+						 * and doing nothing else left the old one on every one of them, with
+						 * nothing to refetch and no reason to.
+						 *
+						 * Two things have to give way, and one of them is not on this device:
+						 * the server caches Clerk profiles for a minute, which is a good trade
+						 * for everyone else's name and a bad one for your own a second after
+						 * changing it. So the server is told to forget the caller first, and the
+						 * queries are invalidated only once it has — invalidating first would
+						 * refetch, hit the warm cache, and re-cache the old name for another
+						 * minute.
+						 *
+						 * Failures are swallowed the way the update itself always was: a name
+						 * that saved but did not propagate corrects itself within the minute.
+						 */
+						try {
+							await user.update(
+								field === 'firstName' ? { firstName: nextValue } : { lastName: nextValue }
+							);
+							await refreshMyProfile();
+							await queryClient.invalidateQueries({ queryKey: groupQueryKeys.root() });
+							await queryClient.invalidateQueries({ queryKey: notificationQueryKeys.root() });
+						} catch {
+							// Swallowed as the update always was — nothing here is worth an error
+							// screen, and a name that saved but did not propagate corrects itself
+							// within the cache's own minute.
 						}
 					};
 
@@ -281,7 +322,7 @@ export const ProfileScreen = () => {
 											label={t('firstName')}
 											onBlur={() => {
 												field.onBlur();
-												persistIfChanged('firstName');
+												void persistIfChanged('firstName');
 											}}
 											onChangeText={value => field.onChange(value)}
 											value={field.value}
@@ -298,7 +339,7 @@ export const ProfileScreen = () => {
 											label={t('lastName')}
 											onBlur={() => {
 												field.onBlur();
-												persistIfChanged('lastName');
+												void persistIfChanged('lastName');
 											}}
 											onChangeText={value => field.onChange(value)}
 											value={field.value}
@@ -317,199 +358,156 @@ export const ProfileScreen = () => {
 			 * stayed flat. It graduated: every section surface in the app is glass now, so saying
 			 * it at each call site would only imply the others aren't.
 			 */}
-			{/* Stops 12 and 13 of the first-use tour. */}
-			<TourTarget id='stats' style={styles.statsRow}>
-				<StatTile label={t('babsRead')} style={styles.statTile} tone='accent' value={stats.babsRead} />
+			<View style={styles.statsRow}>
+				<StatTile label={t('profileReadings')} style={styles.statTile} tone='accent' value={stats.babsRead} />
 				<StatTile label={t('roundsDone')} style={styles.statTile} tone='accent' value={stats.roundsCompleted} />
 				<StatTile label={t('streak')} style={styles.statTile} tone='accent' value={stats.streakDays} />
-			</TourTarget>
-			<TourTarget id='heatmap'>
-				<CardSurface>
-					<BodyStrongText style={styles.heatmapTitle}>{t('last30')}</BodyStrongText>
-					<ActivityHeatmap columns={15} days={stats.last30Days} />
-				</CardSurface>
-			</TourTarget>
-			{/* Stop 16 of the first-use tour — the last one. */}
-			<TourTarget id='settings'>
-				<CardSurface isFlush>
-					{/*
-					 * G3 → G4: the language is a row that opens a list, not a control in the row. A
-					 * segment per language was already stacking onto its own line at three and had
-					 * nowhere to go at four; a row reads the current choice — in that language's own
-					 * name, so it is legible whatever the interface is set to — and leaves the choosing
-					 * to a sheet with room for it. Same shape as the Feedback row below: label, where
-					 * it goes, chevron.
-					 */}
-					<Pressable
-						accessibilityRole='button'
-						onPress={() => setIsLanguageSheetOpen(true)}
-						style={({ pressed }) => [styles.settingsRow, { opacity: pressed ? 0.7 : 1 }]}
-					>
-						<BodyStrongText>{t('language')}</BodyStrongText>
-						<View style={styles.settingsNav}>
-							<CaptionText color={theme.colors.subtext}>{LANGUAGE_NATIVE_NAMES[language]}</CaptionText>
-							<Icon color={theme.colors.faintText} name='chevronRight' size={15} strokeWidth={1.8} />
-						</View>
-					</Pressable>
-					<Divider />
-					<View style={styles.settingsRow}>
-						<BodyStrongText>{t('appearance')}</BodyStrongText>
-						{/*
-						 * **The control is given a width; it cannot find one itself.** `@expo/ui`
-						 * hosts the native segmented control with `matchContents={{ vertical: true }}`
-						 * — it reports its own height and inherits its width from the parent. The
-						 * language row above is a column, so it inherits the card's full width and
-						 * looks fine; this row is a flex row, where nothing constrains width, and the
-						 * control collapsed to nothing at all.
-						 *
-						 * A fixed width rather than `flex: 1`: filling the row stretches the control to
-						 * the card's edge, where the design has it hugging the right. There is no
-						 * third option — the native control reports no intrinsic width, so something
-						 * has to name one, and only the caller knows how much room the row has.
-						 *
-						 * No icons. Sun and moon were two thirds of an answer — "system" has no glyph
-						 * in the set, and UIKit gives a segment an image *or* a title, never both, so
-						 * the third option would have read as a word among pictures.
-						 */}
-						<SegmentedControl
-							onChange={handleAppearanceChange}
-							options={[
-								{ label: t('light'), value: 'light' },
-								{ label: t('dark'), value: 'dark' },
-								{ label: t('systemAppearance'), value: 'system' }
-							]}
-							// Only the native control needs telling; the drawn one hugs its segments,
-							// and a fixed width left empty track after the last option.
-							{...(isSegmentedControlNative ? { style: styles.settingsRowControl } : {})}
-							value={mode}
-						/>
+			</View>
+			<CardSurface>
+				<BodyStrongText style={styles.heatmapTitle}>{t('last30')}</BodyStrongText>
+				<ActivityHeatmap columns={15} days={stats.last30Days} />
+			</CardSurface>
+			<CardSurface isFlush>
+				{/*
+				 * G3 → G4: the language is a row that opens a list, not a control in the row. A
+				 * segment per language was already stacking onto its own line at three and had
+				 * nowhere to go at four; a row reads the current choice — in that language's own
+				 * name, so it is legible whatever the interface is set to — and leaves the choosing
+				 * to a sheet with room for it. Same shape as the Feedback row below: label, where
+				 * it goes, chevron.
+				 */}
+				<Pressable
+					accessibilityRole='button'
+					onPress={() => setIsLanguageSheetOpen(true)}
+					style={({ pressed }) => [styles.settingsRow, { opacity: pressed ? 0.7 : 1 }]}
+				>
+					<BodyStrongText>{t('language')}</BodyStrongText>
+					<View style={styles.settingsNav}>
+						<CaptionText color={theme.colors.subtext}>{LANGUAGE_NATIVE_NAMES[language]}</CaptionText>
+						<Icon color={theme.colors.faintText} name='chevronRight' size={15} strokeWidth={1.8} />
 					</View>
-					<Divider />
+				</Pressable>
+				<Divider />
+				<View style={styles.settingsRow}>
+					<BodyStrongText>{t('appearance')}</BodyStrongText>
 					{/*
-					 * The support surface, and the only row here that leaves the screen. It reads
-					 * as a destination rather than a setting — label, where it goes, chevron —
-					 * which is what separates it from the two controls above it.
+					 * **The control is given a width; it cannot find one itself.** `@expo/ui`
+					 * hosts the native segmented control with `matchContents={{ vertical: true }}`
+					 * — it reports its own height and inherits its width from the parent. The
+					 * language row above is a column, so it inherits the card's full width and
+					 * looks fine; this row is a flex row, where nothing constrains width, and the
+					 * control collapsed to nothing at all.
+					 *
+					 * A fixed width rather than `flex: 1`: filling the row stretches the control to
+					 * the card's edge, where the design has it hugging the right. There is no
+					 * third option — the native control reports no intrinsic width, so something
+					 * has to name one, and only the caller knows how much room the row has.
+					 *
+					 * No icons. Sun and moon were two thirds of an answer — "system" has no glyph
+					 * in the set, and UIKit gives a segment an image *or* a title, never both, so
+					 * the third option would have read as a word among pictures.
 					 */}
-					{/*
-					 * Section O's own way back in, and it starts by leaving this screen. The first
-					 * three stops point at Ana sayfa's streak card, its group rows and a row's Read
-					 * button, so `useTourNavigation` unwinds to Ana sayfa on the welcome card — see
-					 * `goToTourHome`. It was left where it stood at first, on the grounds that
-					 * `TourTarget` withdraws its rectangle on **blur** so those stops would simply
-					 * centre their cards over Profil rather than cut a hole at another screen's
-					 * coordinates. True, and beside the point: three cards describing a screen that
-					 * is not the one you are looking at is not a walkthrough.
-					 */}
-					<Pressable
-						accessibilityRole='button'
-						onPress={() => navigation.navigate('Onboarding')}
-						style={({ pressed }) => [styles.settingsRow, { opacity: pressed ? 0.6 : 1 }]}
-					>
-						<View style={styles.settingsCopy}>
-							<BodyStrongText>{t('quickStartTitle')}</BodyStrongText>
-							<CaptionText color={theme.colors.subtext}>{t('quickStartSubtitle')}</CaptionText>
-						</View>
-						<Icon color={theme.colors.subtext} name='chevronRight' size={14} />
-					</Pressable>
-					<Divider />
-					<Pressable
-						accessibilityRole='button'
-						onPress={() => startTour({ isReplay: true })}
-						style={({ pressed }) => [styles.settingsRow, { opacity: pressed ? 0.6 : 1 }]}
-					>
-						<View style={styles.settingsCopy}>
-							<BodyStrongText>{t('tourReplay')}</BodyStrongText>
-							<CaptionText color={theme.colors.subtext}>{t('tourReplaySub')}</CaptionText>
-						</View>
-						<View style={styles.settingsNav}>
-							<Icon color={theme.colors.subtext} name='chevronRight' size={14} strokeWidth={1.8} />
-						</View>
-					</Pressable>
-					<Divider />
-					{/* The Hizb-ül Hakaik, read for its own sake — its table of contents is a screen of its own. */}
-					<Pressable
-						accessibilityRole='button'
-						onPress={() => navigation.navigate('HizbSections')}
-						style={({ pressed }) => [styles.settingsRow, { opacity: pressed ? 0.6 : 1 }]}
-					>
-						<View style={styles.settingsCopy}>
-							<BodyStrongText>{t('hizbRow')}</BodyStrongText>
-							<CaptionText color={theme.colors.subtext}>{t('hizbRowSub')}</CaptionText>
-						</View>
-						<View style={styles.settingsNav}>
-							<Icon color={theme.colors.subtext} name='chevronRight' size={14} strokeWidth={1.8} />
-						</View>
-					</Pressable>
-					<Divider />
-					{/*
-					 * **The second way to the reminder settings**, and the reason giving the bell
-					 * tab to the inbox is affordable: P4 is otherwise only behind the gear on that
-					 * tab, and the daily reminder is too load-bearing to sit behind one glyph.
-					 * The design lists this row as an entry point of its own.
-					 */}
-					<Pressable
-						accessibilityRole='button'
-						onPress={() => navigation.navigate('Reminders')}
-						style={({ pressed }) => [styles.settingsRow, { opacity: pressed ? 0.6 : 1 }]}
-					>
-						<View style={styles.settingsCopy}>
-							<BodyStrongText>{t('notifSettingsRow')}</BodyStrongText>
-							<CaptionText color={theme.colors.subtext}>{t('notifSettingsRowSub')}</CaptionText>
-						</View>
-						<View style={styles.settingsNav}>
-							<Icon color={theme.colors.subtext} name='chevronRight' size={14} strokeWidth={1.8} />
-						</View>
-					</Pressable>
-					<Divider />
-					<Pressable
-						accessibilityRole='button'
-						onPress={() => setIsFeedbackSheetOpen(true)}
-						style={({ pressed }) => [styles.settingsRow, { opacity: pressed ? 0.6 : 1 }]}
-					>
-						<BodyStrongText>{t('feedback')}</BodyStrongText>
-						<View style={styles.settingsNav}>
-							<Icon color={theme.colors.subtext} name='chevronRight' size={14} strokeWidth={1.8} />
-						</View>
-					</Pressable>
-					<Divider />
-					{/*
-					 * **P1 on demand.** The sheet otherwise opens once per release and is gone; this
-					 * is the way back to it. Above the version row rather than anywhere else,
-					 * because the two are the same subject at two depths — what changed in *this*
-					 * release, and the record of every release.
-					 */}
-					<Pressable
-						accessibilityRole='button'
-						onPress={() => setIsWhatsNewOpen(true)}
-						style={({ pressed }) => [styles.settingsRow, { opacity: pressed ? 0.6 : 1 }]}
-					>
-						<View style={styles.settingsCopy}>
-							<BodyStrongText>{t('whatsNewTitle')}</BodyStrongText>
-							<CaptionText color={theme.colors.subtext}>{t('whatsNewSub')}</CaptionText>
-						</View>
-						<View style={styles.settingsNav}>
-							<Icon color={theme.colors.subtext} name='chevronRight' size={14} strokeWidth={1.8} />
-						</View>
-					</Pressable>
-					<Divider />
-					{/*
-					 * P3's way in, and the version row is it — the notes are *about* this number, so
-					 * a second row naming them would say the same thing twice. It keeps the version
-					 * on the right and gains a chevron, which is the same shape as the rows above.
-					 */}
-					<Pressable
-						accessibilityRole='button'
-						onPress={() => navigation.navigate('ReleaseNotes')}
-						style={({ pressed }) => [styles.settingsRow, { opacity: pressed ? 0.6 : 1 }]}
-					>
-						<BodyStrongText>{t('appVersion')}</BodyStrongText>
-						<View style={styles.settingsNav}>
-							<MonoText color={theme.colors.subtext}>{appVersion}</MonoText>
-							<Icon color={theme.colors.faintText} name='chevronRight' size={14} strokeWidth={1.8} />
-						</View>
-					</Pressable>
-				</CardSurface>
-			</TourTarget>
+					<SegmentedControl
+						onChange={handleAppearanceChange}
+						fitsContent
+						options={[
+							{ label: t('light'), value: 'light' },
+							{ label: t('dark'), value: 'dark' },
+							{ label: t('systemAppearance'), value: 'system' }
+						]}
+						// Only the native control needs telling; the drawn one hugs its segments,
+						// and a fixed width left empty track after the last option.
+						{...(isSegmentedControlNative ? { style: styles.settingsRowControl } : {})}
+						value={mode}
+					/>
+				</View>
+				<Divider />
+				{/*
+				 * The support surface, and the only row here that leaves the screen. It reads
+				 * as a destination rather than a setting — label, where it goes, chevron —
+				 * which is what separates it from the two controls above it.
+				 */}
+				{/*
+				 * The screens' hints: whether they play, and a way to see them all again — every one
+				 * but the welcome, which comes once.
+				 */}
+				<ToggleRow
+					hint={t('hintsEnabledSub')}
+					onValueChange={value => updateUserSettings({ hintsEnabled: value })}
+					title={t('hintsEnabledTitle')}
+					value={settings?.hintsEnabled ?? true}
+				/>
+				<Divider />
+				<NavRow label={t('hintsReplay')} onPress={handleHintsReplay} />
+				<Divider />
+				{/*
+				 * **The second way to the reminder settings**, and the reason giving the bell
+				 * tab to the inbox is affordable: P4 is otherwise only behind the gear on that
+				 * tab, and the daily reminder is too load-bearing to sit behind one glyph.
+				 * The design lists this row as an entry point of its own.
+				 */}
+				<Pressable
+					accessibilityRole='button'
+					onPress={() => navigation.navigate('Reminders')}
+					style={({ pressed }) => [styles.settingsRow, { opacity: pressed ? 0.6 : 1 }]}
+				>
+					<View style={styles.settingsCopy}>
+						<BodyStrongText>{t('notifSettingsRow')}</BodyStrongText>
+						<CaptionText color={theme.colors.subtext}>{t('notifSettingsRowSub')}</CaptionText>
+					</View>
+					<View style={styles.settingsNav}>
+						<Icon color={theme.colors.subtext} name='chevronRight' size={14} strokeWidth={1.8} />
+					</View>
+				</Pressable>
+				<Divider />
+				<Pressable
+					accessibilityRole='button'
+					onPress={() => setIsFeedbackSheetOpen(true)}
+					style={({ pressed }) => [styles.settingsRow, { opacity: pressed ? 0.6 : 1 }]}
+				>
+					<BodyStrongText>{t('feedback')}</BodyStrongText>
+					<View style={styles.settingsNav}>
+						<Icon color={theme.colors.subtext} name='chevronRight' size={14} strokeWidth={1.8} />
+					</View>
+				</Pressable>
+				<Divider />
+				{/*
+				 * **P1 on demand.** The sheet otherwise opens once per release and is gone; this
+				 * is the way back to it. Above the version row rather than anywhere else,
+				 * because the two are the same subject at two depths — what changed in *this*
+				 * release, and the record of every release.
+				 */}
+				<Pressable
+					accessibilityRole='button'
+					onPress={() => setIsWhatsNewOpen(true)}
+					style={({ pressed }) => [styles.settingsRow, { opacity: pressed ? 0.6 : 1 }]}
+				>
+					<View style={styles.settingsCopy}>
+						<BodyStrongText>{t('whatsNewTitle')}</BodyStrongText>
+						<CaptionText color={theme.colors.subtext}>{t('whatsNewSub')}</CaptionText>
+					</View>
+					<View style={styles.settingsNav}>
+						<Icon color={theme.colors.subtext} name='chevronRight' size={14} strokeWidth={1.8} />
+					</View>
+				</Pressable>
+				<Divider />
+				{/*
+				 * P3's way in, and the version row is it — the notes are *about* this number, so
+				 * a second row naming them would say the same thing twice. It keeps the version
+				 * on the right and gains a chevron, which is the same shape as the rows above.
+				 */}
+				<Pressable
+					accessibilityRole='button'
+					onPress={() => navigation.navigate('ReleaseNotes')}
+					style={({ pressed }) => [styles.settingsRow, { opacity: pressed ? 0.6 : 1 }]}
+				>
+					<BodyStrongText>{t('appVersion')}</BodyStrongText>
+					<View style={styles.settingsNav}>
+						<MonoText color={theme.colors.subtext}>{appVersion}</MonoText>
+						<Icon color={theme.colors.faintText} name='chevronRight' size={14} strokeWidth={1.8} />
+					</View>
+				</Pressable>
+			</CardSurface>
 			<View style={styles.footer}>
 				<AppButton
 					onPress={handleSignOut}

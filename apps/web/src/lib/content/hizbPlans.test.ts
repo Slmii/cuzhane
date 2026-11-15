@@ -10,19 +10,6 @@ const textOf = (blocks: typeof HIZB_BLOCKS) =>
 		.join('')
 		.replace(/[\s❁]/gu, '');
 describe('versioned Hizb content', () => {
-	it.each([
-		[1, [0, 1, 2, 3, 4, 5, 6]], // Opening istighfar and Qur'an readings.
-		[2, [7]], // Complete Cevşen, including its closing prayer.
-		[3, [8]], // Evrâd-ı Kudsiyye.
-		[4, [9, 10, 11, 12, 13]], // Delail, Sekine, Münâcât and both İsm-i A'zam prayers.
-		[5, [14]], // Münâcât-ül Kur'an.
-		[6, [15]], // Tahmidiye.
-		[7, [16]] // Hülasat-ül Hülasa, including Tazarru ve Niyaz.
-	] as const)('assigns the complete works to day %i of the seven-day plan', (portion, sections) => {
-		expect(planBlocks(7, portion)).toEqual(
-			HIZB_BLOCKS.filter(ref => (sections as readonly number[]).includes(ref.sectionIndex))
-		);
-	});
 	it('covers every source character once in all three divisions', () => {
 		for (const days of PLAN_DAYS) {
 			const blocks = Array.from({ length: days }, (_, i) => planBlocks(days, i + 1));
@@ -30,12 +17,12 @@ describe('versioned Hizb content', () => {
 			expect(textOf(blocks.flat())).toBe(textOf(HIZB_BLOCKS));
 		}
 	});
-	it('uses the independent 15-day boundaries, including bab 51 and the approved Hulasat split', () => {
-		expect(startsFor(15)[2]).toEqual([7, 48, 0, 0]);
-		expect(textOf(planBlocks(15, 2))).toContain('﴿٥٠﴾');
-		expect(textOf(planBlocks(15, 2))).not.toContain('﴿٥١﴾');
-		expect(textOf(planBlocks(15, 3))).toContain('﴿٥١﴾');
-		expect(startsFor(15)[13]).toEqual([16, 16, 0, 0]);
+	it('builds the 7- and 15-day plans from whole days of the 32-day sheet', () => {
+		const sheetDays = startsFor(32).map(start => start.join(','));
+		const sheetDayOf = (start: readonly number[]) => sheetDays.indexOf(start.join(',')) + 1;
+
+		expect(startsFor(7).map(sheetDayOf)).toEqual([1, 5, 8, 14, 20, 24, 26]);
+		expect(startsFor(15).map(sheetDayOf)).toEqual([1, 3, 5, 6, 7, 8, 10, 13, 19, 20, 21, 23, 25, 26, 30]);
 	});
 	it('keeps client/server plan manifests identical', () => {
 		expect(readFileSync(new URL('../utils/hizbPlans.ts', import.meta.url), 'utf8')).toBe(

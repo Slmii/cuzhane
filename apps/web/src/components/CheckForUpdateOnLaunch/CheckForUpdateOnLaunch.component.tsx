@@ -1,5 +1,5 @@
 import { UpdateCheckState, useInitialUpdateState } from '@/lib/hooks/useInitialUpdateState';
-import { SplashScreen as AnimatedSplash } from '@/screens/Splash/SplashScreen.component';
+import { SplashScreen as BrandSplash } from '@/screens/Splash/SplashScreen.component';
 import { reloadAsync } from 'expo-updates';
 import { useEffect } from 'react';
 import type { CheckForUpdateOnLaunchProps } from './CheckForUpdateOnLaunch.types';
@@ -30,9 +30,9 @@ export const UPDATE_CHECK_TIMEOUT_MS = 10_000;
  * until you reopen it.
  *
  * **The reference leaves "put your beautiful loading UI here" as a spinner; this app already has
- * one.** Rendering `AnimatedSplash` means the check happens behind the brand animation that was
- * going to play anyway, so on a good connection it costs nothing at all — and there is no seam,
- * because what replaces this component is the same splash still running out its minimum.
+ * one.** Rendering `BrandSplash` means the check happens behind the splash that was going to
+ * show anyway, so on a good connection it costs nothing at all — and there is no seam, because
+ * what replaces this component is the same splash still running out its minimum.
  */
 export const CheckForUpdateOnLaunch = ({ onComplete, timeout }: CheckForUpdateOnLaunchProps) => {
 	const state = useInitialUpdateState({ timeout: timeout ?? UPDATE_CHECK_TIMEOUT_MS });
@@ -71,5 +71,5 @@ export const CheckForUpdateOnLaunch = ({ onComplete, timeout }: CheckForUpdateOn
 		// Anything else is still in flight.
 	}, [onComplete, state]);
 
-	return <AnimatedSplash />;
+	return <BrandSplash />;
 };

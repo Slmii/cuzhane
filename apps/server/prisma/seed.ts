@@ -2,14 +2,27 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/generated/prisma/client';
 import { babNumbersForRound, babNumbersForSlot } from '../src/utils/babs';
 import { CYCLES_FOR_KIND, partCountFor, requiredRepetitions, type GroupKindName } from '../src/utils/groupKinds';
+import { CUZ_COUNT } from '../src/utils/units';
 import { INVITE_CODE_ALPHABET } from '../src/utils/inviteCode';
 import {
+	civilDayNumber,
 	DEFAULT_TIME_ZONE,
+	ROUND_DAYS,
 	roundEndsAt,
 	roundIndexSince,
+	roundLengthFor,
 	roundStartedAtFor,
+	startOfCivilDay,
 	type CycleName
 } from '../src/utils/rounds';
+import {
+	hasDelailRepetition,
+	hasIstighfar,
+	hasSekine,
+	PLAN_VERSION,
+	portionForDay,
+	type PlanDays
+} from '../src/utils/hizbPlans';
 
 /**
  * Development seed. Builds one group per screen state the app can show, so every
@@ -38,19 +51,10 @@ import {
  *                      state at once: one block dev_user has taken, one another member has,
  *                      and one still going. dev_user is a MEMBER (not owner).
  *
- * The Hizb (33 portions, `kind: 'HIZB'`) has its own six, one per Hizb screen:
+ * No seat-based Hizb groups: a Hizb group is a personal plan now (`HIZB_PLAN_GROUPS` and on,
+ * below). The seat seeder still accepts `kind: 'HIZB'` for groups made before plans existed.
  *
- * 16. Cuma Hizbi      — GATHERING, dev_user is OWNER, 9 of 16 seats (the creator's lobby, HC4).
- * 17. Sabah Hizbi     — GATHERING, dev_user is a MEMBER (not owner) — joined and waiting (HJ3).
- * 18. Pazartesi Hizbi — GATHERING + PUBLIC, dev_user is NOT a member, starts itself when full (HJ1).
- * 19. Talebe Hizbi    — RUNNING + PUBLIC, MONTHLY + FIXED, dev_user is NOT a member, FULL (HJ2).
- * 20. Hizb Halkası    — RUNNING + ROTATION, dev_user is a MEMBER (not owner). Two empty seats,
- *                       so the pool is claimed portion by portion — one portion another member
- *                       holds, one dev_user holds, three still free — and dev_user's share this
- *                       round is 18–19, Sekine included, with 7 of its 19 counted (HZ1/HZ3).
- * 21. Aylık Hizb      — RUNNING + ROTATION + MONTHLY, dev_user is OWNER, 33 seats of one portion.
- *
- * Closed-round history (`pastRounds`) is spread across five of them so the Turlar screens
+ * Closed-round history (`pastRounds`) is spread across three of them so the Turlar screens
  * have every state to show:
  *  · Silsile Hatmi — five seats, no pool. Two finished rounds, one part-read round holding
  *    all four row shapes at once, and one nobody touched.
@@ -58,10 +62,35 @@ import {
  *    covered part of it, one where it stands untouched.
  *  · Gönül Hatmi   — WEEKLY, so its closed round is what proves the cadence labels read
  *    "geçen hafta" rather than "dün".
- *  · Hizb Halkası  — five closed rounds (HZ4/HZ5): two finished, two that missed a few
- *    portions, and one where dev_user left half of their own share unread.
- *  · Aylık Hizb    — MONTHLY, so its one closed round runs from the start to the same day of
- *    the next month.
+ *
+ * Hizb personal plans, individual reading and a flexible board (`HIZB_PLAN_GROUPS`, below):
+ *
+ * 22. Hizb · 33 Günlük   — plan 33, dev_user OWNER, 40 days in: one full traversal done, two
+ *                          days eksik (catch-up), today owed; five readers, coverage partial.
+ * 23. Hizb · 7 Günlük    — plan 7, dev_user MEMBER, names hidden, today already read.
+ * 24. Hizb · Üyeler seçsin — plan chosen per member (7/15/33 mixed); dev_user hasn't chosen.
+ * 25. Hizb · Çıkarıldın  — plan 15 with a 5-day inactivity rule; dev_user was removed (rejoin).
+ * 26. Bireysel · Sekine  — individual 33, today's portion holds Sekine, 7 of 19 counted.
+ * 27. Bireysel · İstiğfar — individual 7, today holds the istighfar, 4 of a 33 target.
+ * 28. Bireysel · Delâil  — individual 33, today holds the Delâil salawat, 1 of 3.
+ *
+ * The group screen's four states (design "Hizb Kişisel Plan", section W), one group each:
+ *
+ * 29. W1 · Başlandı      — plan 33, today's Delâil started (page 2, salavat 1/3), 3 days eksik.
+ * 30. W2 · Bugün okundu  — plan 33, today read, 3 days eksik: the dark button moves to catch-up.
+ * 31. W3 · Grup tamam    — plan 7, seven readers cover all 33 today, dev_user read, none eksik.
+ * 32. W4 · 7 günlük      — plan 7, 34 days eksik, today unread, 33-day readers cover part of it.
+ *
+ * **What the account is in depends on the scenario** (`SEED_SCENARIO`, below):
+ *
+ *  · none (the default) — lean: dev_user is in three groups of each kind, one per situation
+ *    (`LEAN_KEEP`: Her Gün Bir Bab, Gönül Hatmi, the Cevşen Ramazan Hatmi lobby; the Kur'an
+ *    Ramazan Hatmi, Tamamlanan Hatim, Bekleyen Hatim; W1 · Başlandı, Hizb · Üyeler seçsin,
+ *    Bireysel · Sekine). Every other group is still seeded, with a stand-in in dev_user's place,
+ *    and opened so Discover shows it. Individual Hizb readings not kept are left out; a group
+ *    dev_user was never in (the private Özel Hizb) is seeded as written.
+ *  · `full` — everything above, exactly as listed.
+ *  · `all-read` — only the all-read groups (B9b).
  */
 
 const connectionString = process.env.DATABASE_URL;
@@ -81,14 +110,26 @@ const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) })
  *
  * `dev_user` is the default and is nobody — useful for exercising the API, useless the moment
  * you open the app, because every seeded group belongs to an account you are not signed in as
- * and Ana sayfa looks empty. Pass a real Clerk id to make the fixtures yours:
+ * and Ana sayfa looks empty. Pass real Clerk ids to make the fixtures yours — one run seeds
+ * every account listed, each with its own copy of every group:
  *
- *   SEED_USER_ID=user_xxx pnpm --filter @cuzhane/server db:seed
+ *   SEED_USER_IDS=user_aaa,user_bbb pnpm --filter @cuzhane/server db:seed
  *
- * Which is what taking App Store screenshots needs — a populated home screen belonging to the
- * account on the device.
+ * (Usually set in `apps/server/.env`, which the seed runner loads.) The first account gets the
+ * codes as written; each one after it gets its own namespace — see `SEED_NAMESPACE` — chosen
+ * automatically. `SEED_USER_ID=user_xxx` still works for a single account.
  */
-const OWNER_USER_ID = process.env.SEED_USER_ID ?? 'dev_user';
+const SEED_USER_IDS = (process.env.SEED_USER_IDS ?? '')
+	.split(',')
+	.map(id => id.trim())
+	.filter(Boolean);
+const SEED_USERS = SEED_USER_IDS.length > 0 ? SEED_USER_IDS : [process.env.SEED_USER_ID ?? 'dev_user'];
+
+/**
+ * **This run's account** — set by `seed()` before each account's fixtures are built. The fixture
+ * lists below are functions for that reason: they read it (and `SEED_NAMESPACE`) when called.
+ */
+let OWNER_USER_ID = 'dev_user';
 
 /**
  * **A second account's fixtures, alongside the first rather than instead of it.**
@@ -101,16 +142,29 @@ const OWNER_USER_ID = process.env.SEED_USER_ID ?? 'dev_user';
  * populated at once, which is what taking iOS and Android screenshots in one sitting needs.
  *
  * A namespace gives the second account its own set. It replaces the **last character** of
- * every invite code, so:
- *
- *   SEED_USER_ID=user_aaa pnpm --filter @cuzhane/server db:seed
- *   SEED_USER_ID=user_bbb SEED_NAMESPACE=9 pnpm --filter @cuzhane/server db:seed
- *
- * leaves both sets standing. The last character rather than a prefix or an extra one because
+ * every invite code, so a run for `user_aaa` and a run for `user_bbb` with `SEED_NAMESPACE=9`
+ * leave both sets standing — which is what `SEED_USER_IDS` does for you in one run. The last character rather than a prefix or an extra one because
  * `INVITE_CODE_LENGTH` is 8 and the QR emblem zone is only known to be safe at symbol version
  * 3 — `inviteCode.test.ts` pins that, and a ninth character would push the payload over.
+ *
+ * With `SEED_USER_IDS` the namespaces are picked for you (see `autoNamespaces`); an explicit one
+ * applies to the first account. Per run, like `OWNER_USER_ID`: `seed()` sets it.
  */
-const SEED_NAMESPACE = process.env.SEED_NAMESPACE;
+let SEED_NAMESPACE: string | undefined;
+
+/**
+ * **One Ana sayfa state on its own, for an account that shows nothing else.** Most of Ana
+ * sayfa's states hold in the full set — something owed, something read today — but B9b ("Hepsi
+ * okundu") only shows when *every* share an account has this round is finished and none of it
+ * today, which fifteen groups with work still in them never are. So a scenario seeds its own
+ * groups and nothing else, meant for an account that is in no other group:
+ *
+ *   SEED_USER_ID=user_zzz SEED_SCENARIO=all-read pnpm --filter @cuzhane/server db:seed
+ *
+ * `full` seeds every fixture with the account in all of them; with none set, the lean default
+ * (see the top of this file).
+ */
+const SEED_SCENARIO = process.env.SEED_SCENARIO;
 
 /**
  * The code this run should use for a fixture. Unnamespaced runs get the literal code, so the
@@ -127,22 +181,56 @@ const assertNamespaceIsUsable = () => {
 
 	if (SEED_NAMESPACE.length !== 1 || !INVITE_CODE_ALPHABET.includes(SEED_NAMESPACE)) {
 		throw new Error(
-			`SEED_NAMESPACE must be exactly one character from ${INVITE_CODE_ALPHABET} — got ${JSON.stringify(SEED_NAMESPACE)}.`
+			`SEED_NAMESPACE must be exactly one character from ${INVITE_CODE_ALPHABET} — got ${JSON.stringify(
+				SEED_NAMESPACE
+			)}.`
 		);
 	}
 
 	/*
 	 * The base codes have distinct first seven characters, so swapping the eighth keeps them
-	 * unique among themselves. Asserted rather than assumed: a future fixture whose code
-	 * differs from another's only in its last character would silently seed one group fewer,
-	 * the second quietly deleting the first.
+	 * unique among themselves. Asserted rather than assumed: a fixture whose code differs from
+	 * another's only in its last character would silently seed one group fewer, the second
+	 * quietly deleting the first. **Every set is checked** — the hatim codes, then the Hizb plan
+	 * ones, were added later and left out of this at first, which is exactly how that goes
+	 * unnoticed. (Hatim fixtures carry their code already namespaced.)
 	 */
-	const codes = GROUPS.map(spec => codeFor(spec.inviteCode));
+	const codes = [
+		...[...GROUPS(), ...ALL_READ_GROUPS()].map(spec => codeFor(spec.inviteCode)),
+		...[...HATIM_GROUPS(), ...ALL_READ_HATIMS()].map(spec => spec.inviteCode),
+		...[...HIZB_PLAN_GROUPS(), ...HIZB_W_GROUPS(), ...HIZB_DISCOVER_GROUPS()].map(spec => codeFor(spec.inviteCode))
+	];
 	const collisions = [...new Set(codes.filter((code, index) => codes.indexOf(code) !== index))];
 
 	if (collisions.length > 0) {
 		throw new Error(`SEED_NAMESPACE=${SEED_NAMESPACE} collapses invite codes: ${collisions.join(', ')}.`);
 	}
+};
+
+/**
+ * Namespaces for the accounts after the first, from the end of the alphabet ('9', '8', …).
+ * A character that already ends some base code is skipped: that fixture's code would come out
+ * unchanged, and the run would take the first account's group away. Call with no namespace set,
+ * so the Hatim fixtures give their base codes.
+ */
+const autoNamespaces = (count: number, taken: (string | undefined)[]): string[] => {
+	const baseCodes = [
+		...GROUPS(),
+		...ALL_READ_GROUPS(),
+		...HATIM_GROUPS(),
+		...ALL_READ_HATIMS(),
+		...HIZB_PLAN_GROUPS(),
+		...HIZB_W_GROUPS(),
+		...HIZB_DISCOVER_GROUPS()
+	].map(spec => spec.inviteCode);
+	const unusable = new Set([...baseCodes.map(code => code.slice(-1)), ...taken]);
+	const free = [...INVITE_CODE_ALPHABET].reverse().filter(character => !unusable.has(character));
+
+	if (free.length < count) {
+		throw new Error(`SEED_USER_IDS lists more accounts than there are free namespaces (${free.length + 1}).`);
+	}
+
+	return free.slice(0, count);
 };
 
 /** [display name, babs this seat has read], or `null` for a seat with no member. */
@@ -184,7 +272,8 @@ type GroupSeed = {
 	/** What the group reads. Defaults to the Cevşen, which most fixtures are. */
 	kind?: GroupKindName;
 	spots: number;
-	cycle: CycleName;
+	/** A preset: a Cevşen or Hizb group is never CUSTOM, which only a hatim's typed length makes. */
+	cycle: Exclude<CycleName, 'CUSTOM'>;
 	reminderTime: string;
 	splitMode: 'ROTATION' | 'FIXED';
 	visibility: 'OPEN' | 'PRIVATE';
@@ -199,6 +288,10 @@ type GroupSeed = {
 	/** Closed rounds to backfill, so the Turlar screens have history to show. */
 	pastRounds?: PastRoundSeed[];
 	repetitionsInProgress?: RepetitionInProgress[];
+	/** When this round's reads happened, as "HH:mm" today — see `readTimeToday`. Now if absent. */
+	readAtToday?: string;
+	/** Moves those reads this many days back, still inside the round — see `readTimeToday`. */
+	readDaysAgo?: number;
 };
 
 /**
@@ -223,17 +316,7 @@ type PastRoundSeed = {
 	covers?: { babNumbers: number[]; bySlotIndex: number }[];
 };
 
-/**
- * `readBySlot` for a round every seat finished except the ones named. A count past a seat's
- * share is clamped to it, so "everyone else" needs no per-seat arithmetic; empty seats are
- * skipped by the seeder like anywhere else.
- */
-const everySeatReadExcept = (spots: number, shortfalls: Record<number, number>): Record<number, number> => ({
-	...Object.fromEntries(Array.from({ length: spots }, (_, slot) => [slot, Number.POSITIVE_INFINITY])),
-	...shortfalls
-});
-
-const GROUPS: GroupSeed[] = [
+const GROUPS = (): GroupSeed[] => [
 	{
 		name: 'Şifa Hatmi',
 		dedication: "Fatma Hanım'ın şifası için",
@@ -707,287 +790,96 @@ const GROUPS: GroupSeed[] = [
 			{ slotIndex: 6, byMemberIndex: 3, babsRead: 9 }
 		]
 	},
+	/*
+	 * ── Bugün okunanlar (B8c) ─────────────────────────────────────────────────────────────
+	 *
+	 * Two groups whose share the signed-in user has already finished today, at different
+	 * times, so Ana sayfa has a "Bugün okunanlar" list to show beside what is still owed.
+	 */
 	{
-		name: 'Cuma Hizbi',
-		dedication: 'Cuma gecelerinin bereketi için',
-		inviteCode: 'HZCM4R7T',
-		ownerUserId: OWNER_USER_ID,
-		memberIdPrefix: 'dev_cumahizb',
-		kind: 'HIZB',
-		spots: 16,
-		cycle: 'WEEKLY',
-		reminderTime: '21:00',
-		splitMode: 'ROTATION',
-		visibility: 'OPEN',
-		status: 'GATHERING',
-		// Off, so this lobby waits on its creator's "Başlat" rather than on the last seat.
-		autoStartWhenFull: false,
-		// 9 of 16 seats taken — the Hizb creator's lobby (HC4), nothing counted until it starts.
-		members: [
-			['Nuriye Aksoy', 0],
-			['Salih Demirel', 0],
-			['Hacer Uzun', 0],
-			['Cemil Karaca', 0],
-			['Esma Yurt', 0],
-			['Rıza Güler', 0],
-			['Nesrin Ateş', 0],
-			['Veysel Tunç', 0],
-			['Dilek Oral', 0]
-		]
-	},
-	{
-		name: 'Sabah Hizbi',
+		// Your own seat 0 — babs 1–4 — read this morning.
+		name: 'Sabah Halkası',
 		dedication: 'Sabah namazından sonra',
-		inviteCode: 'HZSB6K3W',
-		ownerUserId: 'dev_sabahhizb_owner',
-		memberIdPrefix: 'dev_sabahhizb',
-		// dev_user has joined someone else's Hizb and is waiting for it to start (HJ3).
-		slotUserIds: { 4: OWNER_USER_ID },
-		kind: 'HIZB',
-		spots: 11,
-		cycle: 'WEEKLY',
-		reminderTime: '06:15',
-		splitMode: 'ROTATION',
-		visibility: 'OPEN',
-		status: 'GATHERING',
-		autoStartWhenFull: true,
-		// 6 of 11 seats taken.
+		inviteCode: 'SBHL4K7M',
+		ownerUserId: OWNER_USER_ID,
+		memberIdPrefix: 'dev_sabah',
+		spots: 25,
+		cycle: 'DAILY',
+		reminderTime: '06:30',
+		splitMode: 'FIXED',
+		visibility: 'PRIVATE',
+		status: 'RUNNING',
+		startedDaysAgo: 5,
+		autoStartWhenFull: false,
 		members: [
-			['Şerafettin Işık', 0],
-			['Halime Sezgin', 0],
-			['Orhan Kaplan', 0],
-			['Sevda Er', 0],
-			['Hilal Bozdağ', 0],
-			['Taner Uysal', 0]
-		]
+			['Sen', 4],
+			['Zehra Uçar', 2],
+			['Orhan Tekin', 4],
+			['Dilek Sarı', 0],
+			['Levent Işık', 1]
+		],
+		readAtToday: '07:12'
 	},
 	{
-		name: 'Pazartesi Hizbi',
-		dedication: 'Pazartesi akşamları, hep beraber',
-		inviteCode: 'HZPZ8M2D',
-		// Owned by a stranger and dev_user holds no seat — the Hizb invite preview (HJ1).
-		ownerUserId: 'dev_pazartesi_owner',
-		memberIdPrefix: 'dev_pazartesi',
-		kind: 'HIZB',
-		spots: 16,
-		cycle: 'WEEKLY',
-		reminderTime: '20:30',
-		splitMode: 'ROTATION',
-		visibility: 'OPEN',
-		status: 'GATHERING',
-		// On, so the preview can say the group starts itself once the last seat is taken.
-		autoStartWhenFull: true,
-		// 9 of 16 seats taken.
-		members: [
-			['Necmettin Çınar', 0],
-			['Gülsüm Aydın', 0],
-			['Fatih Özer', 0],
-			['Şule Kocaman', 0],
-			['Adem Yücel', 0],
-			['Tuba Sarıgül', 0],
-			['Kemal Balcı', 0],
-			['Nurcan Işıklı', 0],
-			['Erol Tekinalp', 0]
-		]
-	},
-	{
-		name: 'Talebe Hizbi',
-		dedication: 'Talebe arkadaşlarımızla',
-		inviteCode: 'HZTL3V9G',
-		// Owned by a stranger and every seat taken — the full Hizb preview (HJ2).
-		ownerUserId: 'dev_talebe_owner',
-		memberIdPrefix: 'dev_talebe',
-		kind: 'HIZB',
-		spots: 11,
-		cycle: 'MONTHLY',
-		reminderTime: '22:00',
+		// Seat 12 is yours — babs 61–65, the frame's own range — read after noon.
+		name: 'Her Gün Bir Bab',
+		dedication: 'Her gün biraz',
+		inviteCode: 'HGBB6R2T',
+		ownerUserId: 'dev_hgbb_owner',
+		memberIdPrefix: 'dev_hgbb',
+		slotUserIds: { 12: OWNER_USER_ID },
+		spots: 20,
+		cycle: 'DAILY',
+		reminderTime: '12:30',
 		splitMode: 'FIXED',
 		visibility: 'OPEN',
 		status: 'RUNNING',
-		// Inside its first month whatever day the seed runs, so this is round 0.
-		startedDaysAgo: 12,
-		autoStartWhenFull: true,
-		// Three portions a seat. Seat 6 holds 19–21 and has read Sekine, so the seeder files the
-		// finished count of 19 that read could not have been made without.
+		startedDaysAgo: 9,
+		autoStartWhenFull: false,
 		members: [
-			['Said Eren', 3],
-			['Zeki Aydemir', 2],
-			['Mahmut Köse', 3],
-			['Bayram Oğuz', 1],
-			['Lütfi Sevim', 0],
-			['Nurettin Acar', 3],
-			['Sadık Yaman', 1],
-			['Ramazan Taşçı', 2],
-			['Selahattin Uçar', 3],
-			['Hamza Bilgiç', 0],
-			['Kâmil Duman', 2]
-		]
-	},
-	{
-		name: 'Hizb Halkası',
-		dedication: 'Halkamızın devamı için',
-		inviteCode: 'HZHK5N8Q',
-		ownerUserId: 'dev_halkasi_owner',
-		memberIdPrefix: 'dev_halkasi',
-		/**
-		 * Seat 3 on purpose. 33 over 16 seats is 1–3 for seat 0 and pairs after it, so seat 8
-		 * holds 18–19 — Sekine and the portion before it. Round 5 moves seat 3 onto seat 8's
-		 * block, which is what puts the Sekine counter in dev_user's own share today. If the
-		 * arithmetic ever drifts, `repetitionsInProgress` below refuses to seed rather than
-		 * counting a part dev_user doesn't hold.
-		 */
-		slotUserIds: { 3: OWNER_USER_ID },
-		kind: 'HIZB',
-		spots: 16,
-		cycle: 'WEEKLY',
-		reminderTime: '21:15',
-		splitMode: 'ROTATION',
-		visibility: 'OPEN',
-		status: 'RUNNING',
-		// 38 days is week 6 — round 5, three days in. The default zone keeps no DST, so it can't slip.
-		startedDaysAgo: 38,
-		autoStartWhenFull: true,
-		/**
-		 * Seats 11 and 14 are empty. This round they leave uncovered the blocks of seats 0 and 3,
-		 * 1–3 and 8–9, which is the pool. Every occupied seat reads two portions this round;
-		 * dev_user has read 18 and is partway through Sekine.
-		 */
-		members: [
-			['Abdullah Gürsoy', 2],
-			['Rukiye Tan', 1],
-			['Mustafa Erkan', 2],
-			['Hüseyin Kara', 1],
-			['Saadet Önal', 0],
-			['Bekir Aslantaş', 2],
-			['Havva Durmaz', 1],
-			['Yakup Selçuk', 2],
-			['Meryem Öztürk', 0],
-			['Enes Kılınç', 2],
-			['Kübra Yazıcı', 1],
+			['Kübra Aslan', 5],
+			['Serkan Uysal', 3],
 			null,
-			['İsmail Tekin', 0],
-			['Zübeyde Kalkan', 2],
+			['Gül Ekinci', 5],
 			null,
-			['Harun Çiftçi', 1]
+			['Tarık Soylu', 2],
+			null,
+			null,
+			['Pınar Kaya', 5],
+			null,
+			null,
+			null,
+			['Sen', 5]
 		],
-		/**
-		 * A Hizb pool is claimed a portion at a time, so one block can be split between people:
-		 *
-		 *  part 1   — Bekir Aslantaş (seat 5) took it and read it; 2 and 3 are still free
-		 *  part 9   — dev_user took it, not read yet; 8 is still free
-		 */
-		poolClaims: [
-			{ slotIndex: 11, byMemberIndex: 5, portions: [0], babsRead: 1 },
-			{ slotIndex: 14, byMemberIndex: 3, portions: [1], babsRead: 0 }
-		],
-		repetitionsInProgress: [{ bySlotIndex: 3, partNumber: 19, count: 7 }],
-		/**
-		 * The Hizb's Turlar screens. The two empty seats leave two blocks uncovered every round,
-		 * so a round is only whole when somebody covered them:
-		 *
-		 *  5 (round 0) — finished, both pool blocks covered
-		 *  4 (round 1) — seat 9 missed 23 and the pool's 32–33 stood untouched
-		 *  3 (round 2) — dev_user read 12 and missed 13; everything else was read or covered
-		 *  2 (round 3) — finished, dev_user covering the pool's 4–5
-		 *  1 (round 4) — seat 12 read nothing (1–3) and the pool's 6–7 stood untouched
-		 */
-		pastRounds: [
-			{
-				roundsAgo: 5,
-				readBySlot: 'all',
-				covers: [
-					{ babNumbers: [24, 25], bySlotIndex: 0 },
-					{ babNumbers: [30, 31], bySlotIndex: 5 }
-				]
-			},
-			{
-				roundsAgo: 4,
-				readBySlot: everySeatReadExcept(16, { 9: 1 }),
-				covers: [{ babNumbers: [26, 27], bySlotIndex: 2 }]
-			},
-			{
-				roundsAgo: 3,
-				readBySlot: everySeatReadExcept(16, { 3: 1 }),
-				covers: [
-					{ babNumbers: [28, 29], bySlotIndex: 7 },
-					{ babNumbers: [1, 2, 3], bySlotIndex: 10 }
-				]
-			},
-			{
-				roundsAgo: 2,
-				readBySlot: 'all',
-				covers: [
-					{ babNumbers: [30, 31], bySlotIndex: 1 },
-					{ babNumbers: [4, 5], bySlotIndex: 3 }
-				]
-			},
-			{
-				roundsAgo: 1,
-				readBySlot: everySeatReadExcept(16, { 12: 0 }),
-				covers: [{ babNumbers: [32, 33], bySlotIndex: 6 }]
-			}
-		]
-	},
-	{
-		name: 'Aylık Hizb',
-		dedication: 'Her ay bir hatim',
-		inviteCode: 'HZAY7P4C',
-		ownerUserId: OWNER_USER_ID,
-		memberIdPrefix: 'dev_aylik',
-		kind: 'HIZB',
-		spots: 33,
-		cycle: 'MONTHLY',
-		reminderTime: '21:00',
-		splitMode: 'ROTATION',
-		visibility: 'OPEN',
-		status: 'RUNNING',
-		// Past one month and short of two from any day of the year, so this is always round 1.
-		startedDaysAgo: 40,
-		autoStartWhenFull: true,
-		// One portion a seat, 26 of 33 taken; seats 26–32 are empty, so seven portions are the pool.
-		members: [
-			['Nuran Bayraktar', 1],
-			['Asım Gündoğdu', 1],
-			['Feyza Kılıçarslan', 0],
-			['Hikmet Aras', 1],
-			['Leyla Sarı', 1],
-			['Muhammed Coşkun', 0],
-			['Rabia Ekinci', 1],
-			['Sabri Akın', 1],
-			['Tülay Kavak', 0],
-			['Ümit Ersoy', 1],
-			['Vildan Göktaş', 1],
-			['Yasin Başaran', 0],
-			['Zehra Öz', 1],
-			['Abdurrahman Keskin', 1],
-			['Betül Arıkan', 1],
-			['Cengiz Yılmazer', 0],
-			['Döndü Kaya', 1],
-			// Rotated onto Sekine this month and has read it.
-			['Emine Çakır', 1],
-			['Ferhat Soylu', 0],
-			['Gülay Tekeli', 1],
-			['Haşim Erdem', 1],
-			['İclal Tosun', 0],
-			['Kadriye Bal', 1],
-			['Lokman Duru', 1],
-			['Melek Sönmez', 0],
-			['Nazif Özdemir', 1]
-		],
-		// Last month: seats 5 and 12 missed theirs, and dev_user and seat 3 covered three of the
-		// seven pool portions, leaving 30–33 standing.
-		pastRounds: [
-			{
-				roundsAgo: 1,
-				readBySlot: everySeatReadExcept(33, { 5: 0, 12: 0 }),
-				covers: [
-					{ babNumbers: [27, 28], bySlotIndex: 0 },
-					{ babNumbers: [29], bySlotIndex: 3 }
-				]
-			}
-		]
+		readAtToday: '13:40'
 	}
 ];
+
+/**
+ * The moment a fixture's current-round reads are stamped: `clock` ("07:12") today in the
+ * seeding machine's zone — the device's, which is the zone Ana sayfa's "Bugün okunanlar" reads
+ * its times in — so finished shares list at different times rather than all at the seed's run.
+ * Never later than now, and never before the round began, which would file the read under a
+ * round the board no longer shows.
+ *
+ * `daysAgo` moves it back — a share finished earlier in a longer round, which Ana sayfa counts
+ * as done this round but not as read today (B9b).
+ */
+const readTimeToday = (clock: string | undefined, now: Date, roundStartedAt: Date | null, daysAgo = 0): Date => {
+	if (!clock && daysAgo === 0) {
+		return now;
+	}
+
+	const [hours = now.getHours(), minutes = now.getMinutes()] = clock ? clock.split(':').map(Number) : [];
+	const at = new Date(now);
+
+	at.setDate(at.getDate() - daysAgo);
+	at.setHours(hours, minutes, 0, 0);
+
+	const earliest = roundStartedAt && roundStartedAt > at ? roundStartedAt : at;
+
+	return earliest > now ? now : earliest;
+};
 
 const userIdForSlot = (spec: GroupSeed, slotIndex: number) =>
 	spec.slotUserIds?.[slotIndex] ?? (slotIndex === 0 ? spec.ownerUserId : `${spec.memberIdPrefix}_${slotIndex}`);
@@ -1034,9 +926,12 @@ const seedGroup = async (spec: GroupSeed) => {
 	// Derive the round the calendar says this fixture should already be on, using the same
 	// helpers `ensureCurrentRound` does — otherwise a group "started N days ago" seeds on
 	// round 0 while the first request that opens it rolls forward and wipes the reads below.
-	const roundIndex = startedAt ? roundIndexSince(startedAt, spec.cycle, now, DEFAULT_TIME_ZONE) : 0;
-	const roundStartedAt = startedAt ? roundStartedAtFor(startedAt, spec.cycle, roundIndex, DEFAULT_TIME_ZONE) : null;
-	const endsAt = startedAt ? roundEndsAt(startedAt, spec.cycle, roundIndex, DEFAULT_TIME_ZONE) : undefined;
+	const roundDays = ROUND_DAYS[spec.cycle];
+	// The same calendar `ensureCurrentRound` reads: days, or a Hizb's calendar month.
+	const length = roundLengthFor({ kind: kindOf(spec), cycle: spec.cycle, roundDays });
+	const roundIndex = startedAt ? roundIndexSince(startedAt, length, now, DEFAULT_TIME_ZONE) : 0;
+	const roundStartedAt = startedAt ? roundStartedAtFor(startedAt, length, roundIndex, DEFAULT_TIME_ZONE) : null;
+	const endsAt = startedAt ? roundEndsAt(startedAt, length, roundIndex, DEFAULT_TIME_ZONE) : undefined;
 
 	const group = await prisma.group.create({
 		data: {
@@ -1053,6 +948,10 @@ const seedGroup = async (spec: GroupSeed) => {
 			autoStartWhenFull: spec.autoStartWhenFull,
 			kind: kindOf(spec),
 			cycle: spec.cycle,
+			// Stored, never inferred from the cadence: the column defaults to 7, so a DAILY
+			// fixture that omits it seeds a group whose rounds are a week long. The backfill
+			// migration only reached rows that already existed.
+			roundDays,
 			spots: spec.spots,
 			inviteCode,
 			openToJoin: true,
@@ -1075,7 +974,7 @@ const seedGroup = async (spec: GroupSeed) => {
 		}
 	});
 
-	const readAt = new Date();
+	const readAt = readTimeToday(spec.readAtToday, now, roundStartedAt, spec.readDaysAgo);
 	// Bab -> who reads it and whether it's read, for the group's *current* round — rotated
 	// per seat for ROTATION groups, standing for FIXED — so an uneven `spots` (12 doesn't
 	// divide 100) lands exactly where `rangeForSlot` says it does.
@@ -1167,8 +1066,8 @@ const seedGroup = async (spec: GroupSeed) => {
 		// round now open on the heatmap and the streak. The middle of the round's own window is
 		// inside it for every cycle, round 0's mid-afternoon start included.
 		const historicalReadAt = new Date(
-			(roundStartedAtFor(startedAt, spec.cycle, historicalRoundIndex, DEFAULT_TIME_ZONE).getTime() +
-				roundEndsAt(startedAt, spec.cycle, historicalRoundIndex, DEFAULT_TIME_ZONE).getTime()) /
+			(roundStartedAtFor(startedAt, length, historicalRoundIndex, DEFAULT_TIME_ZONE).getTime() +
+				roundEndsAt(startedAt, length, historicalRoundIndex, DEFAULT_TIME_ZONE).getTime()) /
 				2
 		);
 		// One reader per bab, exactly as the unique key on `BabRead` enforces. Own reads land
@@ -1277,11 +1176,1747 @@ const seedGroup = async (spec: GroupSeed) => {
 	);
 };
 
-const seed = async () => {
-	assertNamespaceIsUsable();
+/*
+ * ── Kur'an (hatim) fixtures ──────────────────────────────────────────────────────────────
+ *
+ * **A separate builder, not a `kind` flag through `seedGroup`.** That function derives every
+ * bab from a seat and a rotation — which block a seat reads, which blocks an empty seat
+ * leaves in the pool, who owed what in a closed round. None of it applies here: a hatim's
+ * thirty cüz are *chosen*, stored one `CuzHolding` row at a time, and a member may hold six
+ * or one. Threading a branch through all of that would have left two rules tangled in one
+ * function; the two divide differently, so the fixtures do too.
+ */
 
-	for (const spec of GROUPS) {
-		await seedGroup(spec);
+/**
+ * A member and the cüz they hold, with how many of those they have read. `loanCuz` marks the
+ * ones taken out of the havuz — loans, which the rollover never carries forward.
+ */
+type HatimMemberSeed = { name: string; cuz: number[]; readCuz?: number[]; loanCuz?: number[] } | null;
+
+type HatimSeed = {
+	name: string;
+	dedication: string;
+	inviteCode: string;
+	ownerUserId: string;
+	memberIdPrefix: string;
+	/** Seat -> user override, for fixtures where the signed-in user is not the owner. */
+	slotUserIds?: Record<number, string>;
+	/** How many days a round runs. */
+	roundDays: number;
+	/**
+	 * Whether the hatim comes round again — QC3's three cadences do, "Tek seferlik" does not.
+	 *
+	 * **Stated, not inferred from `roundDays`.** The cycle used to be derived from the number
+	 * alone: 1, 7 and 30 were cadences and everything else was CUSTOM. That reads fine until
+	 * a fixture wants a repeating fifteen-day round and silently gets a one-off — the seed
+	 * would have been describing a group the create flow cannot produce, and nothing would
+	 * have said so.
+	 */
+	repeats: boolean;
+	/** Null means QC2's cap is off, which is the default a group is created with. */
+	maxPerMember: number | null;
+	boundaryPolicy: 'KEEP' | 'REPICK';
+	visibility: 'OPEN' | 'PRIVATE';
+	status: 'GATHERING' | 'RUNNING';
+	startedDaysAgo?: number;
+	autoStartWhenFull: boolean;
+	members: HatimMemberSeed[];
+	/**
+	 * What each seat held and read in the round **before** the one in progress, seat for seat
+	 * with `members` (only `cuz`, `readCuz` and `loanCuz` are read from it). For the round-start
+	 * screens: QR1 lists last round's cüz and offers them again, and Q7 celebrates a round that
+	 * closed complete. A fixture with one also dates its members' joining to that round's start,
+	 * so they count as having been there — a member who joined this round has no last round.
+	 */
+	previousRound?: HatimMemberSeed[];
+	/** When this round's reads happened, as "HH:mm" today — see `readTimeToday`. Now if absent. */
+	readAtToday?: string;
+	/** Moves those reads this many days back, still inside the round — see `readTimeToday`. */
+	readDaysAgo?: number;
+};
+
+/**
+ * The fixtures covering the states the Kur'an screens can render.
+ *
+ * Between them: a lobby still filling, a round in progress with cüz nobody has taken, a
+ * capped group, a custom length that no cadence name describes, a finished hatim, one the
+ * signed-in user belongs to without owning, and a lobby they have joined but do not own
+ * ("Bekleyen Hatim") — the waiting side, with no Başlat.
+ */
+const HATIM_GROUPS = (): HatimSeed[] => [
+	{
+		name: 'Ramazan Hatmi',
+		dedication: 'Ramazan ayı için',
+		inviteCode: codeFor('QURN1A2B'),
+		ownerUserId: OWNER_USER_ID,
+		memberIdPrefix: 'dev_hatim_a',
+		// Thirty days, so the cadence label reads "Aylık" — the preset QC3 offers.
+		roundDays: 30,
+		repeats: true,
+		maxPerMember: 3,
+		boundaryPolicy: 'KEEP',
+		visibility: 'OPEN',
+		status: 'RUNNING',
+		startedDaysAgo: 6,
+		autoStartWhenFull: false,
+		// 21 of 30 taken, 9 still in the pool — the state Q4 exists for.
+		members: [
+			{ name: 'Sen', cuz: [7, 22], readCuz: [7] },
+			{ name: 'Ayşe Yılmaz', cuz: [1, 2, 3], readCuz: [1, 2, 3] },
+			{ name: 'Mehmet Kaya', cuz: [4, 5], readCuz: [4] },
+			{ name: 'Zeynep Arslan', cuz: [6, 8, 9] },
+			{ name: 'Ali Demir', cuz: [10, 11, 12], readCuz: [10, 11] },
+			{ name: 'Fatma Şahin', cuz: [13, 14] },
+			{ name: 'Hasan Toprak', cuz: [15, 16, 17], readCuz: [15] },
+			{ name: 'Elif Çetin', cuz: [18, 19, 20] },
+			{ name: 'Burak Aydın', cuz: [21, 23] }
+		]
+	},
+	{
+		name: 'Hatim Halkası',
+		dedication: 'Her hafta bir hatim',
+		inviteCode: codeFor('QURN2C3D'),
+		ownerUserId: OWNER_USER_ID,
+		memberIdPrefix: 'dev_hatim_b',
+		// Seven days: the one length that returns to the same weekday, so its reset line
+		// names one. The fifteen-day group below is what the other phrasing is for.
+		roundDays: 7,
+		repeats: true,
+		maxPerMember: null,
+		boundaryPolicy: 'REPICK',
+		visibility: 'OPEN',
+		status: 'RUNNING',
+		startedDaysAgo: 2,
+		autoStartWhenFull: true,
+		// No cap: one member holds eight, which is what "kapalıysa herkes dilediği kadar alır"
+		// actually looks like.
+		members: [
+			{ name: 'Sen', cuz: [1, 2, 3, 4, 5, 6, 7, 8], readCuz: [1, 2, 3, 4, 5] },
+			{ name: 'Kerem Ateş', cuz: [9, 10, 11, 12], readCuz: [9, 10] },
+			{ name: 'Nur Aksoy', cuz: [13, 14, 15, 16, 17, 18] },
+			{ name: 'Hatice Bulut', cuz: [19, 20, 21, 22, 23, 24, 25], readCuz: [19, 20, 21] },
+			{ name: 'Yusuf Kara', cuz: [26, 27, 28, 29, 30], readCuz: [26] }
+		]
+	},
+	{
+		name: 'Kırk Günlük Hatim',
+		dedication: 'Merhum dedem için',
+		inviteCode: codeFor('QURN3E4F'),
+		ownerUserId: OWNER_USER_ID,
+		memberIdPrefix: 'dev_hatim_c',
+		/*
+		 * Fifteen days — **a one-off, and the fixture the reset line was getting wrong.** No
+		 * cadence describes it: the hatim runs fifteen days and is then finished, so the line
+		 * has to read "… tarihinde biter" rather than naming a weekday it meets exactly once.
+		 */
+		roundDays: 15,
+		repeats: false,
+		maxPerMember: 2,
+		// Inert on a one-off — there is no next round to keep cüz for. Stored as the default
+		// the create flow sends when it stops asking.
+		boundaryPolicy: 'KEEP',
+		visibility: 'PRIVATE',
+		status: 'RUNNING',
+		startedDaysAgo: 1,
+		autoStartWhenFull: false,
+		members: [
+			{ name: 'Sen', cuz: [30], readCuz: [] },
+			{ name: 'İbrahim Yücel', cuz: [1, 2], readCuz: [1] },
+			{ name: 'Sema Doğan', cuz: [3, 4] }
+		]
+	},
+	{
+		name: 'Günlük Cüz',
+		dedication: 'Her gün bir cüz',
+		inviteCode: codeFor('QURN4G5H'),
+		ownerUserId: OWNER_USER_ID,
+		memberIdPrefix: 'dev_hatim_d',
+		// One day, so the reset line reads "Her gün 00:00" — the third phrasing.
+		roundDays: 1,
+		repeats: true,
+		maxPerMember: 1,
+		boundaryPolicy: 'REPICK',
+		visibility: 'OPEN',
+		status: 'RUNNING',
+		startedDaysAgo: 4,
+		autoStartWhenFull: true,
+		// Capped at one each, so the pool is most of the map — the "sahipsiz" warning's case.
+		members: [
+			{ name: 'Sen', cuz: [12] },
+			{ name: 'Rabia Şen', cuz: [1], readCuz: [1] },
+			{ name: 'Ömer Kılıç', cuz: [2] }
+		]
+	},
+	{
+		// "Bugün okunanlar" (B8c) for a Kur'an share: your one cüz, already read this morning.
+		name: 'Gün Sonu Hatmi',
+		dedication: 'Günün bereketi için',
+		inviteCode: codeFor('QURN7D3S'),
+		ownerUserId: OWNER_USER_ID,
+		memberIdPrefix: 'dev_hatim_gs',
+		roundDays: 1,
+		repeats: true,
+		maxPerMember: null,
+		boundaryPolicy: 'KEEP',
+		visibility: 'PRIVATE',
+		status: 'RUNNING',
+		startedDaysAgo: 2,
+		autoStartWhenFull: false,
+		members: [
+			{ name: 'Sen', cuz: [14], readCuz: [14] },
+			{ name: 'Yasin Er', cuz: [1, 2], readCuz: [1] },
+			{ name: 'Selin Koç', cuz: [3] }
+		],
+		readAtToday: '10:05'
+	},
+	{
+		name: 'Tamamlanan Hatim',
+		dedication: 'Şükür için',
+		inviteCode: codeFor('QURN5I6J'),
+		ownerUserId: 'dev_hatim_e_0',
+		memberIdPrefix: 'dev_hatim_e',
+		// The signed-in user is a member here, not the owner — the non-owner group screen.
+		slotUserIds: { 2: OWNER_USER_ID },
+		roundDays: 7,
+		repeats: true,
+		maxPerMember: null,
+		boundaryPolicy: 'KEEP',
+		visibility: 'OPEN',
+		status: 'RUNNING',
+		startedDaysAgo: 3,
+		autoStartWhenFull: false,
+		// Every cüz taken and read: `completedAt` is stamped, and the board is the "tamam" state.
+		members: [
+			{
+				name: 'Osman Bilgin',
+				cuz: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+				readCuz: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+			},
+			{
+				name: 'Meryem Ergin',
+				cuz: [11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
+				readCuz: [11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+			},
+			{
+				name: 'Sen',
+				cuz: [21, 22, 23, 24, 25, 26, 27, 28, 29, 30],
+				readCuz: [21, 22, 23, 24, 25, 26, 27, 28, 29, 30]
+			}
+		]
+	},
+	/*
+	 * ── Tur başı (Q7 · QR1) ─────────────────────────────────────────────────────────────
+	 *
+	 * **Six groups on their second round**, one for each way a new round can open. Each started
+	 * eight days ago on a weekly round, so round 2 has just begun and round 1 is closed behind
+	 * it; `previousRound` is what each seat held and read there. Q7 for the round in progress
+	 * is "Tamamlanan Hatim" above.
+	 */
+	{
+		// "Yeniden seçilir": you hold nothing, and last round's 7 and 22 are both free again —
+		// QR1 must be answered, and "Aynı cüzlerle devam" is on offer.
+		name: 'Tur Başı · Yeniden',
+		dedication: 'Yeni turda cüzünü seç',
+		inviteCode: codeFor('QURNC5Y7'),
+		ownerUserId: OWNER_USER_ID,
+		memberIdPrefix: 'dev_hatim_l',
+		roundDays: 7,
+		repeats: true,
+		maxPerMember: null,
+		boundaryPolicy: 'REPICK',
+		visibility: 'PRIVATE',
+		status: 'RUNNING',
+		startedDaysAgo: 8,
+		autoStartWhenFull: false,
+		members: [
+			{ name: 'Sen', cuz: [] },
+			{ name: 'Kerem Ateş', cuz: [1, 2, 3] },
+			{ name: 'Nur Aksoy', cuz: [10, 11] }
+		],
+		previousRound: [
+			{ name: 'Sen', cuz: [7, 22], readCuz: [7, 22] },
+			{ name: 'Kerem Ateş', cuz: [1, 2], readCuz: [1] },
+			{ name: 'Nur Aksoy', cuz: [10] }
+		]
+	},
+	{
+		// "Cüzler korunur": 3 and 15 were carried into this round — QR1 as a note, once.
+		name: 'Tur Başı · Korunan',
+		dedication: 'Cüzlerin seninle kalır',
+		inviteCode: codeFor('QURND6Z8'),
+		ownerUserId: OWNER_USER_ID,
+		memberIdPrefix: 'dev_hatim_m',
+		roundDays: 7,
+		repeats: true,
+		maxPerMember: null,
+		boundaryPolicy: 'KEEP',
+		visibility: 'PRIVATE',
+		status: 'RUNNING',
+		startedDaysAgo: 8,
+		autoStartWhenFull: false,
+		members: [
+			{ name: 'Sen', cuz: [3, 15] },
+			{ name: 'Ali Demir', cuz: [4, 5] }
+		],
+		previousRound: [
+			{ name: 'Sen', cuz: [3, 15], readCuz: [3] },
+			{ name: 'Ali Demir', cuz: [4, 5], readCuz: [4, 5] }
+		]
+	},
+	{
+		// "Cüzler korunur", but your only cüz last round was a havuz loan — loans go back at the
+		// boundary, so you hold nothing and QR1 must be answered after all.
+		name: 'Tur Başı · Emanet',
+		dedication: 'Emanet cüz havuza döndü',
+		inviteCode: codeFor('QURNE7A9'),
+		ownerUserId: OWNER_USER_ID,
+		memberIdPrefix: 'dev_hatim_n',
+		roundDays: 7,
+		repeats: true,
+		maxPerMember: null,
+		boundaryPolicy: 'KEEP',
+		visibility: 'PRIVATE',
+		status: 'RUNNING',
+		startedDaysAgo: 8,
+		autoStartWhenFull: false,
+		members: [
+			{ name: 'Sen', cuz: [] },
+			{ name: 'Hasan Toprak', cuz: [1, 2] }
+		],
+		previousRound: [
+			{ name: 'Sen', cuz: [9], readCuz: [9], loanCuz: [9] },
+			{ name: 'Hasan Toprak', cuz: [1, 2], readCuz: [1, 2] }
+		]
+	},
+	{
+		// Every cüz already taken this round, nothing free to pick — "Bu turda boş cüz kalmadı".
+		name: 'Tur Başı · Boş Yok',
+		dedication: 'Bu turda yer kalmadı',
+		inviteCode: codeFor('QURNF8B2'),
+		ownerUserId: OWNER_USER_ID,
+		memberIdPrefix: 'dev_hatim_o',
+		roundDays: 7,
+		repeats: true,
+		maxPerMember: null,
+		boundaryPolicy: 'REPICK',
+		visibility: 'PRIVATE',
+		status: 'RUNNING',
+		startedDaysAgo: 8,
+		autoStartWhenFull: false,
+		members: [
+			{ name: 'Sen', cuz: [] },
+			{ name: 'Yakup Erdem', cuz: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] },
+			{ name: 'Rukiye Yıldız', cuz: [16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30] }
+		],
+		previousRound: [
+			{ name: 'Sen', cuz: [5], readCuz: [5] },
+			{ name: 'Yakup Erdem', cuz: [1, 2, 3, 4], readCuz: [1, 2] },
+			{ name: 'Rukiye Yıldız', cuz: [16, 17] }
+		]
+	},
+	{
+		// Last round closed with all thirty read, and you have not opened the group since — Q7
+		// for round 1 first, then QR1 ("Yeniden seçilir", holding nothing).
+		name: 'Geçen Tur Bitti',
+		dedication: 'Geçen hafta hatim tamamlandı',
+		inviteCode: codeFor('QURNG9C3'),
+		ownerUserId: OWNER_USER_ID,
+		memberIdPrefix: 'dev_hatim_p',
+		roundDays: 7,
+		repeats: true,
+		maxPerMember: null,
+		boundaryPolicy: 'REPICK',
+		visibility: 'PRIVATE',
+		status: 'RUNNING',
+		startedDaysAgo: 8,
+		autoStartWhenFull: false,
+		members: [
+			{ name: 'Sen', cuz: [] },
+			{ name: 'Meryem Ergin', cuz: [1, 2] },
+			{ name: 'Osman Bilgin', cuz: [] }
+		],
+		previousRound: [
+			{ name: 'Sen', cuz: [28, 29, 30], readCuz: [28, 29, 30] },
+			{
+				name: 'Meryem Ergin',
+				cuz: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
+				readCuz: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
+			},
+			{
+				name: 'Osman Bilgin',
+				cuz: [15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27],
+				readCuz: [15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27]
+			}
+		]
+	},
+	{
+		// The same completed round under "Cüzler korunur" — Q7 first, then the carried note.
+		name: 'Geçen Tur Bitti · Korunan',
+		dedication: 'Tamamlandı, cüzler korundu',
+		inviteCode: codeFor('QURNH2D4'),
+		ownerUserId: OWNER_USER_ID,
+		memberIdPrefix: 'dev_hatim_q',
+		roundDays: 7,
+		repeats: true,
+		maxPerMember: null,
+		boundaryPolicy: 'KEEP',
+		visibility: 'PRIVATE',
+		status: 'RUNNING',
+		startedDaysAgo: 8,
+		autoStartWhenFull: false,
+		members: [
+			{ name: 'Sen', cuz: [28, 29, 30] },
+			{ name: 'Meryem Ergin', cuz: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14] },
+			{ name: 'Osman Bilgin', cuz: [15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27] }
+		],
+		previousRound: [
+			{ name: 'Sen', cuz: [28, 29, 30], readCuz: [28, 29, 30] },
+			{
+				name: 'Meryem Ergin',
+				cuz: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
+				readCuz: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
+			},
+			{
+				name: 'Osman Bilgin',
+				cuz: [15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27],
+				readCuz: [15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27]
+			}
+		]
+	},
+	/*
+	 * ── Keşfet ──────────────────────────────────────────────────────────────────────────
+	 *
+	 * **The four below have no seat for the signed-in user, and that is the whole point.**
+	 * Discover lists OPEN groups you are *not* in, so every fixture above — where slot 0 is
+	 * yours — is invisible there by construction. Without these the catalogue was Cevşen
+	 * only, and the mixed list the type chip and the kind filter exist for could not be seen
+	 * at all.
+	 */
+	{
+		name: 'Şehir Hatmi',
+		dedication: 'Mahallemiz için',
+		inviteCode: codeFor('QURN7M8N'),
+		// Somebody else's group, all the way down — `ownerUserId` is not the seeded user.
+		ownerUserId: 'dev_hatim_g_0',
+		memberIdPrefix: 'dev_hatim_g',
+		roundDays: 7,
+		repeats: true,
+		maxPerMember: 3,
+		boundaryPolicy: 'KEEP',
+		visibility: 'OPEN',
+		status: 'RUNNING',
+		startedDaysAgo: 2,
+		autoStartWhenFull: false,
+		// Nineteen taken, eleven free: joinable, with room to pick from.
+		members: [
+			{ name: 'Emine Korkmaz', cuz: [1, 2, 3], readCuz: [1, 2] },
+			{ name: 'Salih Öztürk', cuz: [4, 5, 6], readCuz: [4] },
+			{ name: 'Havva Güneş', cuz: [7, 8, 9, 10] },
+			{ name: 'Bilal Kurt', cuz: [11, 12, 13], readCuz: [11, 12, 13] },
+			{ name: 'Zehra Aslan', cuz: [14, 15, 16, 17, 18, 19] }
+		]
+	},
+	{
+		name: 'Dolu Hatim',
+		dedication: 'Otuz cüz de alındı',
+		inviteCode: codeFor('QURN8P9R'),
+		ownerUserId: 'dev_hatim_h_0',
+		memberIdPrefix: 'dev_hatim_h',
+		roundDays: 30,
+		repeats: true,
+		maxPerMember: null,
+		boundaryPolicy: 'KEEP',
+		visibility: 'OPEN',
+		status: 'RUNNING',
+		startedDaysAgo: 9,
+		autoStartWhenFull: false,
+		/*
+		 * **Full, and full in the way only a hatim can be**: every cüz taken while seats are
+		 * still free. A Cevşen group is full when its seats are gone; this one has five
+		 * members in thirty seats and nothing left to pick, which is exactly the case
+		 * `isFull` was rewritten for.
+		 */
+		members: [
+			{ name: 'Yakup Erdem', cuz: [1, 2, 3, 4, 5, 6], readCuz: [1, 2, 3] },
+			{ name: 'Sümeyye Acar', cuz: [7, 8, 9, 10, 11, 12], readCuz: [7, 8] },
+			{ name: 'Harun Polat', cuz: [13, 14, 15, 16, 17, 18], readCuz: [13] },
+			{ name: 'Rukiye Yıldız', cuz: [19, 20, 21, 22, 23, 24] },
+			{ name: 'Davut Şimşek', cuz: [25, 26, 27, 28, 29, 30], readCuz: [25, 26, 27, 28] }
+		]
+	},
+	{
+		name: 'Kırk Gün Hatmi',
+		dedication: 'Kırk günde bir hatim',
+		inviteCode: codeFor('QURN9S2T'),
+		ownerUserId: 'dev_hatim_i_0',
+		memberIdPrefix: 'dev_hatim_i',
+		// A one-off in the catalogue, so Keşfet shows a card whose line reads "… biter"
+		// rather than a rhythm.
+		roundDays: 40,
+		repeats: false,
+		maxPerMember: 5,
+		boundaryPolicy: 'KEEP',
+		visibility: 'OPEN',
+		status: 'RUNNING',
+		startedDaysAgo: 5,
+		autoStartWhenFull: false,
+		members: [
+			{ name: 'Mustafa Eren', cuz: [1, 2, 3, 4, 5], readCuz: [1] },
+			{ name: 'Leyla Çakır', cuz: [6, 7, 8] }
+		]
+	},
+	{
+		name: 'Biten Hatim',
+		dedication: 'On gün sürdü, bitti',
+		inviteCode: codeFor('QURNBW4X'),
+		ownerUserId: 'dev_hatim_k_0',
+		memberIdPrefix: 'dev_hatim_k',
+		/*
+		 * **A one-off whose days are already up** — the state only this kind reaches.
+		 *
+		 * A cadence always has a next round, so "the time is over" is not a thing a Cevşen
+		 * group or a repeating hatim can be. This one started twelve days ago and ran for ten:
+		 * `endsAt` is in the past, `roundIndex` is still 0 because it never rolls, and four of
+		 * its cüz were never read. Nothing rescues them — that is what finishing incomplete
+		 * looks like, and it is the case `qPoolWarn` warns about.
+		 */
+		roundDays: 10,
+		repeats: false,
+		maxPerMember: null,
+		boundaryPolicy: 'KEEP',
+		visibility: 'OPEN',
+		status: 'RUNNING',
+		startedDaysAgo: 12,
+		autoStartWhenFull: false,
+		members: [
+			{
+				name: 'Ahmet Solmaz',
+				cuz: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+				readCuz: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+			},
+			{
+				name: 'Fadime Uçar',
+				cuz: [16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30],
+				readCuz: [16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28]
+			}
+		]
+	},
+	{
+		name: 'Toplanan Hatim',
+		dedication: 'Başlamayı bekliyor',
+		inviteCode: codeFor('QURNAU3V'),
+		ownerUserId: 'dev_hatim_j_0',
+		memberIdPrefix: 'dev_hatim_j',
+		roundDays: 7,
+		repeats: true,
+		maxPerMember: 2,
+		boundaryPolicy: 'REPICK',
+		visibility: 'OPEN',
+		status: 'GATHERING',
+		autoStartWhenFull: true,
+		// A lobby to join from Keşfet — the flow that ends on the joined-welcome screen.
+		members: [
+			{ name: 'Necmi Aydoğan', cuz: [5, 6] },
+			{ name: 'Şule Kaplan', cuz: [12] }
+		]
+	},
+	{
+		name: 'Yeni Hatim',
+		dedication: 'Kodu paylaş, cüzler dolsun',
+		inviteCode: codeFor('QURN6K7L'),
+		ownerUserId: OWNER_USER_ID,
+		memberIdPrefix: 'dev_hatim_f',
+		roundDays: 30,
+		repeats: true,
+		maxPerMember: 3,
+		boundaryPolicy: 'KEEP',
+		visibility: 'OPEN',
+		status: 'GATHERING',
+		autoStartWhenFull: true,
+		// Still filling: the lobby's cüz map, part taken and mostly free.
+		members: [
+			{ name: 'Sen', cuz: [22] },
+			{ name: 'Talha Ünal', cuz: [1, 2] }
+		]
+	},
+	{
+		name: 'Bekleyen Hatim',
+		dedication: 'Başlatılmasını bekliyoruz',
+		inviteCode: codeFor('QURNJ3E5'),
+		ownerUserId: 'dev_hatim_w_0',
+		memberIdPrefix: 'dev_hatim_w',
+		// The signed-in user joined somebody else's lobby: a member, not the owner, before the
+		// start — the lobby's waiting side, where there is no Başlat to press.
+		slotUserIds: { 1: OWNER_USER_ID },
+		roundDays: 7,
+		repeats: true,
+		maxPerMember: 3,
+		boundaryPolicy: 'KEEP',
+		visibility: 'PRIVATE',
+		status: 'GATHERING',
+		autoStartWhenFull: false,
+		members: [
+			{ name: 'Hüseyin Arslan', cuz: [3, 4] },
+			{ name: 'Sen', cuz: [9, 10] },
+			{ name: 'Merve Çelik', cuz: [17] }
+		]
+	}
+];
+
+/**
+ * The cadence column, from what the fixture said it wanted. Mirrors `planColumnsFor`.
+ *
+ * A repeating hatim has to be one of QC3's three presets, because those are the only lengths
+ * the create flow offers as cadences — asked for anything else it throws rather than seeding
+ * a group the app could not have made.
+ */
+const cycleForSpec = (spec: Pick<HatimSeed, 'name' | 'repeats' | 'roundDays'>) => {
+	if (!spec.repeats) {
+		return 'CUSTOM' as const;
+	}
+
+	if (spec.roundDays === 1) {
+		return 'DAILY' as const;
+	}
+
+	if (spec.roundDays === 7) {
+		return 'WEEKLY' as const;
+	}
+
+	if (spec.roundDays === 30) {
+		return 'MONTHLY' as const;
+	}
+
+	throw new Error(
+		`"${spec.name}": a repeating hatim must run 1, 7 or 30 days — ${spec.roundDays} is only reachable as a one-off.`
+	);
+};
+
+const hatimUserIdForSlot = (spec: HatimSeed, slotIndex: number) =>
+	spec.slotUserIds?.[slotIndex] ?? (slotIndex === 0 ? spec.ownerUserId : `${spec.memberIdPrefix}_${slotIndex}`);
+
+const seedHatim = async (spec: HatimSeed) => {
+	const inviteCode = spec.inviteCode;
+	const existing = await prisma.group.findUnique({ where: { inviteCode }, select: { id: true } });
+
+	if (existing) {
+		await prisma.group.delete({ where: { id: existing.id } });
+	}
+
+	const now = new Date();
+	const startedAt =
+		spec.status === 'RUNNING' ? new Date(now.getTime() - (spec.startedDaysAgo ?? 0) * 24 * 60 * 60 * 1000) : null;
+
+	/*
+	 * The same helpers `ensureCurrentRound` uses, so a fixture "started N days ago" seeds on
+	 * the round the calendar already says it is on rather than being rolled forward — and
+	 * wiped — by the first request that opens it.
+	 *
+	 * **Including the rule that a one-off never leaves round 0.** Without it a ten-day
+	 * one-off started twelve days ago seeded on round 1, which no code path can produce: the
+	 * first request would have read a group whose stored round the server would never have
+	 * advanced it to, with its holdings and reads filed under a round nobody is on.
+	 */
+	const rolls = spec.repeats && startedAt !== null;
+	const roundIndex = rolls ? roundIndexSince(startedAt, spec.roundDays, now, DEFAULT_TIME_ZONE) : 0;
+	const roundStartedAt = rolls
+		? roundStartedAtFor(startedAt, spec.roundDays, roundIndex, DEFAULT_TIME_ZONE)
+		: startedAt;
+	const endsAt = startedAt ? roundEndsAt(startedAt, spec.roundDays, roundIndex, DEFAULT_TIME_ZONE) : undefined;
+
+	// The round before this one, when the fixture describes it — it has to exist to be described.
+	if (spec.previousRound && (!rolls || roundIndex < 1)) {
+		throw new Error(`"${spec.name}": previousRound needs a repeating hatim past its first round.`);
+	}
+
+	const previousRoundStartedAt =
+		spec.previousRound && startedAt
+			? roundStartedAtFor(startedAt, spec.roundDays, roundIndex - 1, DEFAULT_TIME_ZONE)
+			: null;
+
+	/** One round's holdings: in range, each cüz held once, and reads and loans only of held cüz. */
+	const assertRound = (label: string, members: HatimMemberSeed[]) => {
+		const held = new Set<number>();
+
+		members.forEach(member => {
+			member?.cuz.forEach(number => {
+				if (number < 1 || number > CUZ_COUNT) {
+					throw new Error(`"${spec.name}" (${label}): cüz ${number} is outside 1..${CUZ_COUNT}.`);
+				}
+
+				if (held.has(number)) {
+					throw new Error(`"${spec.name}" (${label}): cüz ${number} is held twice.`);
+				}
+
+				held.add(number);
+			});
+
+			[...(member?.readCuz ?? []), ...(member?.loanCuz ?? [])].forEach(number => {
+				if (!member?.cuz.includes(number)) {
+					throw new Error(
+						`"${spec.name}" (${label}): ${member?.name} read or borrowed cüz ${number} without holding it.`
+					);
+				}
+			});
+		});
+
+		return held;
+	};
+
+	const taken = assertRound('this round', spec.members);
+
+	if (spec.previousRound) {
+		assertRound('previous round', spec.previousRound);
+	}
+
+	const group = await prisma.group.create({
+		data: {
+			ownerUserId: spec.ownerUserId,
+			name: spec.name,
+			dedication: spec.dedication,
+			visibility: spec.visibility,
+			kind: 'HATIM',
+			// A hatim divides nothing by seat: `spots` is only the ceiling `slotIndex` needs,
+			// and `splitMode` records the value that never moves. See `planColumnsFor`.
+			splitMode: 'FIXED',
+			spots: CUZ_COUNT,
+			cycle: cycleForSpec(spec),
+			roundDays: spec.roundDays,
+			distribution: 'FREE_PICK',
+			maxPerMember: spec.maxPerMember,
+			boundaryPolicy: spec.boundaryPolicy,
+			status: spec.status,
+			startedAt,
+			roundIndex,
+			roundStartedAt,
+			...(endsAt ? { endsAt } : {}),
+			autoStartWhenFull: spec.autoStartWhenFull,
+			inviteCode,
+			openToJoin: true,
+			reminderEnabled: true,
+			reminderTime: '21:30',
+			timezone: DEFAULT_TIME_ZONE,
+			startsAt: startedAt ?? now,
+			members: {
+				create: spec.members.flatMap((member, slotIndex) =>
+					member === null
+						? []
+						: [
+								{
+									userId: hatimUserIdForSlot(spec, slotIndex),
+									displayName: member.name,
+									role: slotIndex === 0 ? ('OWNER' as const) : ('MEMBER' as const),
+									slotIndex,
+									// There for last round, or the round-start screens treat them
+									// as having joined this one and have nothing to look back on.
+									...(previousRoundStartedAt ? { joinedAt: previousRoundStartedAt } : {})
+								}
+						  ]
+				)
+			}
+		}
+	});
+
+	const readAt = readTimeToday(spec.readAtToday, now, roundStartedAt, spec.readDaysAgo);
+	const readerByCuz = new Map<number, string>();
+
+	spec.members.forEach((member, slotIndex) => {
+		member?.readCuz?.forEach(number => {
+			readerByCuz.set(number, hatimUserIdForSlot(spec, slotIndex));
+		});
+	});
+
+	// Thirty rows, one per cüz — the board. `assignedUserId` stays null: a hatim records who
+	// holds what in `CuzHolding`, and that column means a pool claim on a Cevşen board.
+	await prisma.groupBab.createMany({
+		data: Array.from({ length: CUZ_COUNT }, (_, index) => {
+			const number = index + 1;
+			const readByUserId = readerByCuz.get(number) ?? null;
+
+			return {
+				groupId: group.id,
+				number,
+				assignedUserId: null,
+				readByUserId,
+				readAt: readByUserId ? readAt : null
+			};
+		})
+	});
+
+	// The holdings themselves, for the round the group is on.
+	await prisma.cuzHolding.createMany({
+		data: spec.members.flatMap((member, slotIndex) =>
+			(member?.cuz ?? []).map(cuzNumber => ({
+				cuzNumber,
+				groupId: group.id,
+				isLoan: member?.loanCuz?.includes(cuzNumber) ?? false,
+				roundIndex,
+				userId: hatimUserIdForSlot(spec, slotIndex)
+			}))
+		)
+	});
+
+	/*
+	 * **The round before, as the rollover would have left it** — its holdings (loans flagged, so
+	 * "Cüzler korunur" is seen not to have carried them) and its reads, dated inside it. Only
+	 * `BabRead` keeps a closed round's reads; the board above is this round's alone.
+	 */
+	if (spec.previousRound && previousRoundStartedAt) {
+		const previousReadAt = new Date(previousRoundStartedAt.getTime() + 24 * 60 * 60 * 1000);
+
+		await prisma.cuzHolding.createMany({
+			data: spec.previousRound.flatMap((member, slotIndex) =>
+				(member?.cuz ?? []).map(cuzNumber => ({
+					cuzNumber,
+					groupId: group.id,
+					isLoan: member?.loanCuz?.includes(cuzNumber) ?? false,
+					roundIndex: roundIndex - 1,
+					userId: hatimUserIdForSlot(spec, slotIndex)
+				}))
+			)
+		});
+		await prisma.babRead.createMany({
+			data: spec.previousRound.flatMap((member, slotIndex) =>
+				(member?.readCuz ?? []).map(babNumber => ({
+					babNumber,
+					groupId: group.id,
+					readAt: previousReadAt,
+					roundIndex: roundIndex - 1,
+					userId: hatimUserIdForSlot(spec, slotIndex)
+				}))
+			)
+		});
+	}
+
+	// `BabRead` is the record the rollover never clears — without it the reads above would
+	// vanish from every history and streak the moment the round turned over.
+	if (readerByCuz.size > 0) {
+		await prisma.babRead.createMany({
+			data: [...readerByCuz].map(([number, userId]) => ({
+				groupId: group.id,
+				roundIndex,
+				babNumber: number,
+				userId,
+				readAt
+			}))
+		});
+	}
+
+	// Mirrors `syncCompletedAt`: the stamp only ever agrees with a fully-read board.
+	if (readerByCuz.size === CUZ_COUNT) {
+		await prisma.group.update({ where: { id: group.id }, data: { completedAt: readAt } });
+	}
+
+	console.log(
+		`Seeded "${spec.name}" [${spec.status}/${cycleForSpec(spec)}] — ${spec.members.length} members, ${
+			taken.size
+		}/${CUZ_COUNT} cüz taken, ${readerByCuz.size} read.`
+	);
+};
+
+/*
+ * ── Scenario `all-read` (B9b) ───────────────────────────────────────────────────────────
+ *
+ * Three groups on longer rounds, each with the signed-in user's share finished on an earlier
+ * day of the round in progress: nothing owed, nothing read today, "3 / 3 hatim bitti".
+ */
+const ALL_READ_GROUPS = (): GroupSeed[] => [
+	{
+		name: 'Haftalık Halka',
+		dedication: 'Haftanın payı',
+		inviteCode: 'HFTL6P2M',
+		ownerUserId: OWNER_USER_ID,
+		memberIdPrefix: 'dev_haftalik',
+		spots: 10,
+		cycle: 'WEEKLY',
+		reminderTime: '20:00',
+		splitMode: 'FIXED',
+		visibility: 'PRIVATE',
+		status: 'RUNNING',
+		startedDaysAgo: 3,
+		autoStartWhenFull: false,
+		members: [
+			['Sen', 10],
+			['Hüseyin Ak', 6],
+			['Ebru Tan', 10],
+			['Murat Eren', 2]
+		],
+		readAtToday: '20:15',
+		readDaysAgo: 2
+	},
+	{
+		name: 'Bitirenler Hatmi',
+		dedication: 'Erken bitirenler için',
+		inviteCode: 'BTTN3R7K',
+		ownerUserId: 'dev_bitiren_owner',
+		memberIdPrefix: 'dev_bitiren',
+		slotUserIds: { 2: OWNER_USER_ID },
+		spots: 20,
+		cycle: 'WEEKLY',
+		reminderTime: '07:00',
+		splitMode: 'FIXED',
+		visibility: 'OPEN',
+		status: 'RUNNING',
+		startedDaysAgo: 4,
+		autoStartWhenFull: false,
+		members: [
+			['Kenan Işık', 5],
+			['Aslı Bora', 1],
+			['Sen', 5],
+			['Rıza Tok', 3]
+		],
+		readAtToday: '07:40',
+		readDaysAgo: 1
+	}
+];
+
+const ALL_READ_HATIMS = (): HatimSeed[] => [
+	{
+		name: 'Haftalık Hatim',
+		dedication: 'Her hafta bir hatim',
+		inviteCode: codeFor('QURN8B4T'),
+		ownerUserId: OWNER_USER_ID,
+		memberIdPrefix: 'dev_hatim_hf',
+		roundDays: 7,
+		repeats: true,
+		maxPerMember: null,
+		boundaryPolicy: 'KEEP',
+		visibility: 'PRIVATE',
+		status: 'RUNNING',
+		startedDaysAgo: 3,
+		autoStartWhenFull: false,
+		members: [
+			{ name: 'Sen', cuz: [5, 6], readCuz: [5, 6] },
+			{ name: 'Sevda Kurt', cuz: [1, 2], readCuz: [1] },
+			{ name: 'Cemil Aras', cuz: [3, 4] }
+		],
+		readAtToday: '21:30',
+		readDaysAgo: 1
+	}
+];
+
+/**
+ * A reader in a personal-plan Hizb group. Days are counted back from today (0 = today).
+ *
+ * Everything from the join up to yesterday is read unless it is in `missedDaysAgo` — or, for a
+ * sparse reader, only what `readDaysAgo` lists. `removed` ends the enrollment for inactivity.
+ */
+type PlanReader = {
+	userId: string;
+	name: string;
+	planDays: PlanDays;
+	joinedDaysAgo: number;
+	readsToday?: boolean;
+	missedDaysAgo?: number[];
+	readDaysAgo?: number[];
+	/** Ended by the inactivity rule; `rejoinedToday` then enrolls again today, as "Yeniden katıl" does. */
+	removed?: { lastReadDaysAgo: number; removalDays: number; rejoinedToday?: boolean };
+	/** Today's counters, part-way — the reader's panels mid-count. */
+	today?: {
+		repetitions?: number;
+		istighfarRepetitions?: number;
+		istighfarTarget?: 11 | 33 | 100;
+		delailRepetitions?: number;
+		/** The page the reader is on, 0-based — "Başlandı · Sayfa 2 / 4". */
+		bookmark?: number;
+	};
+};
+
+type PlanGroupSeed = {
+	name: string;
+	inviteCode: string;
+	dedication?: string;
+	ownerUserId: string;
+	/** 0 lets each member choose; otherwise every enrollment follows it. */
+	hizbPlan: 0 | PlanDays;
+	/** Owner-only: `startOn` picks the start portion that puts that repetition on today. */
+	individual?: { startOn: 'sekine' | 'istighfar' | 'delail' };
+	startedDaysAgo: number;
+	inactivityDays?: number;
+	hideMemberNames?: boolean;
+	visibility?: 'OPEN' | 'PRIVATE';
+	readers: PlanReader[];
+	/** Members of a plan-0 group who haven't chosen a plan yet. */
+	unenrolled?: { userId: string; name: string; joinedDaysAgo: number }[];
+};
+
+const HIZB_PLAN_GROUPS = (): PlanGroupSeed[] => [
+	{
+		name: 'Hizb · 33 Günlük',
+		inviteCode: 'HZPA3K7D',
+		dedication: 'Ailemiz için',
+		ownerUserId: OWNER_USER_ID,
+		hizbPlan: 33,
+		startedDaysAgo: 40,
+		inactivityDays: 10,
+		visibility: 'OPEN',
+		readers: [
+			// One full traversal behind them (days 40…8), two days eksik since, today owed.
+			{ userId: OWNER_USER_ID, name: 'Sen', planDays: 33, joinedDaysAgo: 40, missedDaysAgo: [3, 6] },
+			{ userId: 'dev_hp33_ahmet', name: 'Ahmet', planDays: 33, joinedDaysAgo: 40, readsToday: true },
+			{ userId: 'dev_hp33_fatma', name: 'Fatma', planDays: 33, joinedDaysAgo: 30, readDaysAgo: [4, 9, 12, 20] },
+			{ userId: 'dev_hp33_yusuf', name: 'Yusuf', planDays: 33, joinedDaysAgo: 18, readsToday: true },
+			{ userId: 'dev_hp33_zeynep', name: 'Zeynep', planDays: 33, joinedDaysAgo: 5 }
+		]
+	},
+	{
+		name: 'Hizb · 7 Günlük',
+		inviteCode: 'HZPB7K3D',
+		ownerUserId: 'dev_hp07_owner',
+		hizbPlan: 7,
+		startedDaysAgo: 16,
+		hideMemberNames: true,
+		visibility: 'OPEN',
+		readers: [
+			{ userId: 'dev_hp07_owner', name: 'Hüseyin', planDays: 7, joinedDaysAgo: 16, readsToday: true },
+			// Joined nine days ago and read every day, today included — the "done for today" state.
+			{ userId: OWNER_USER_ID, name: 'Sen', planDays: 7, joinedDaysAgo: 9, readsToday: true },
+			{ userId: 'dev_hp07_meryem', name: 'Meryem', planDays: 7, joinedDaysAgo: 12, missedDaysAgo: [1, 2] }
+		]
+	},
+	{
+		name: 'Hizb · Üyeler seçsin',
+		inviteCode: 'HZPC5K3D',
+		ownerUserId: 'dev_hp00_owner',
+		hizbPlan: 0,
+		startedDaysAgo: 3,
+		visibility: 'OPEN',
+		readers: [
+			{ userId: 'dev_hp00_owner', name: 'Osman', planDays: 33, joinedDaysAgo: 3, readsToday: true },
+			{ userId: 'dev_hp00_ali', name: 'Ali', planDays: 7, joinedDaysAgo: 3 },
+			{ userId: 'dev_hp00_hatice', name: 'Hatice', planDays: 15, joinedDaysAgo: 2, readsToday: true }
+		],
+		// In the group, no plan chosen yet — Home's "choose a plan" task and the group's picker.
+		unenrolled: [{ userId: OWNER_USER_ID, name: 'Sen', joinedDaysAgo: 1 }]
+	},
+	{
+		name: 'Hizb · Çıkarıldın',
+		inviteCode: 'HZPD6K3D',
+		ownerUserId: 'dev_hprm_owner',
+		hizbPlan: 15,
+		startedDaysAgo: 25,
+		inactivityDays: 5,
+		visibility: 'OPEN',
+		readers: [
+			{ userId: 'dev_hprm_owner', name: 'Kerem', planDays: 15, joinedDaysAgo: 25, readsToday: true },
+			// Last read twelve days ago, so the five-day rule ended the reading six days ago.
+			{
+				userId: OWNER_USER_ID,
+				name: 'Sen',
+				planDays: 15,
+				joinedDaysAgo: 20,
+				readDaysAgo: [20, 19, 17, 14, 12],
+				removed: { lastReadDaysAgo: 12, removalDays: 5 }
+			}
+		]
+	},
+	{
+		name: 'Hizb · Yeniden katıldın',
+		inviteCode: 'HZPN4K3D',
+		ownerUserId: 'dev_hprj_owner',
+		hizbPlan: 15,
+		startedDaysAgo: 25,
+		inactivityDays: 5,
+		visibility: 'OPEN',
+		readers: [
+			{ userId: 'dev_hprj_owner', name: 'Selim', planDays: 15, joinedDaysAgo: 25, readsToday: true },
+			// Removed six days ago, back in this morning — the welcome-back note (S3b).
+			{
+				userId: OWNER_USER_ID,
+				name: 'Sen',
+				planDays: 15,
+				joinedDaysAgo: 20,
+				readDaysAgo: [20, 19, 17, 14, 12],
+				removed: { lastReadDaysAgo: 12, removalDays: 5, rejoinedToday: true }
+			}
+		]
+	},
+	{
+		name: 'Hizb · İlk gün',
+		inviteCode: 'HZPP5K3D',
+		ownerUserId: 'dev_hpfd_owner',
+		hizbPlan: 33,
+		startedDaysAgo: 0,
+		visibility: 'OPEN',
+		readers: [
+			// A shared group that began today: "Bugün · 1. gün", no history or rounds yet (S5).
+			{ userId: 'dev_hpfd_owner', name: 'Emre', planDays: 33, joinedDaysAgo: 0, readsToday: true },
+			{ userId: OWNER_USER_ID, name: 'Sen', planDays: 33, joinedDaysAgo: 0 },
+			{ userId: 'dev_hpfd_aysel', name: 'Aysel', planDays: 33, joinedDaysAgo: 0 }
+		]
+	},
+	{
+		name: 'Hizb · İsimler gizli',
+		inviteCode: 'HZPQ6K3D',
+		ownerUserId: OWNER_USER_ID,
+		hizbPlan: 33,
+		startedDaysAgo: 8,
+		hideMemberNames: true,
+		visibility: 'OPEN',
+		readers: [
+			// Your own group with names hidden — the owner's note on Okuyanlar (S4).
+			{ userId: OWNER_USER_ID, name: 'Sen', planDays: 33, joinedDaysAgo: 8, missedDaysAgo: [2] },
+			{ userId: 'dev_hphn_kadir', name: 'Kadir', planDays: 33, joinedDaysAgo: 8, readsToday: true },
+			{ userId: 'dev_hphn_sema', name: 'Sema', planDays: 33, joinedDaysAgo: 6, readsToday: true },
+			{ userId: 'dev_hphn_bilal', name: 'Bilal', planDays: 33, joinedDaysAgo: 4 }
+		]
+	},
+	{
+		name: 'Bireysel · Sekine',
+		inviteCode: 'HZPE8K3D',
+		ownerUserId: OWNER_USER_ID,
+		hizbPlan: 33,
+		individual: { startOn: 'sekine' },
+		startedDaysAgo: 6,
+		readers: [
+			{
+				userId: OWNER_USER_ID,
+				name: 'Sen',
+				planDays: 33,
+				joinedDaysAgo: 6,
+				missedDaysAgo: [2],
+				today: { repetitions: 7 }
+			}
+		]
+	},
+	{
+		name: 'Bireysel · İstiğfar',
+		inviteCode: 'HZPF9K3D',
+		ownerUserId: OWNER_USER_ID,
+		hizbPlan: 7,
+		individual: { startOn: 'istighfar' },
+		startedDaysAgo: 0,
+		readers: [
+			{
+				userId: OWNER_USER_ID,
+				name: 'Sen',
+				planDays: 7,
+				joinedDaysAgo: 0,
+				today: { istighfarRepetitions: 4, istighfarTarget: 33 }
+			}
+		]
+	},
+	{
+		name: 'Bireysel · Delâil',
+		inviteCode: 'HZPG2K3D',
+		ownerUserId: OWNER_USER_ID,
+		hizbPlan: 33,
+		individual: { startOn: 'delail' },
+		startedDaysAgo: 2,
+		readers: [
+			{ userId: OWNER_USER_ID, name: 'Sen', planDays: 33, joinedDaysAgo: 2, today: { delailRepetitions: 1 } }
+		]
+	}
+];
+
+/** Names for the crowds below — enough that a long list doesn't repeat itself at a glance. */
+const CROWD_NAMES = [
+	'Ahmet',
+	'Ayşe',
+	'Mehmet',
+	'Fatma',
+	'Ali',
+	'Zeynep',
+	'Mustafa',
+	'Elif',
+	'Hasan',
+	'Meryem',
+	'Hüseyin',
+	'Hatice',
+	'İbrahim',
+	'Emine',
+	'Yusuf',
+	'Rabia',
+	'Ömer',
+	'Esra',
+	'Osman',
+	'Sümeyye'
+];
+
+/** `count` readers on one plan, all joined together, each shaped by `shape(index)`. */
+const crowd = (
+	prefix: string,
+	planDays: PlanDays,
+	count: number,
+	joinedDaysAgo: number,
+	shape: (index: number) => Partial<PlanReader>
+): PlanReader[] =>
+	Array.from({ length: count }, (_, index) => ({
+		userId: `${prefix}_${index}`,
+		name:
+			CROWD_NAMES[index % CROWD_NAMES.length]! +
+			(index >= CROWD_NAMES.length ? ` ${Math.floor(index / CROWD_NAMES.length) + 1}` : ''),
+		planDays,
+		joinedDaysAgo,
+		...shape(index)
+	}));
+
+/**
+ * Section W of the design, one group each. Day counts are chosen so each lands on the state drawn:
+ * W1's day 14 is the Delâil (a salavat to count three times); W4's plan-7 day 3 covers portions
+ * 8–13, and on day 51 the 33-day readers at positions 25 and 27 read 11 and 13 — "11 ve 13
+ * başkalarınca okundu".
+ */
+const HIZB_W_GROUPS = (): PlanGroupSeed[] => [
+	{
+		name: 'W1 · Başlandı',
+		inviteCode: 'HZPJ5K3D',
+		ownerUserId: OWNER_USER_ID,
+		hizbPlan: 33,
+		startedDaysAgo: 13,
+		visibility: 'OPEN',
+		readers: [
+			{
+				userId: OWNER_USER_ID,
+				name: 'Sen',
+				planDays: 33,
+				joinedDaysAgo: 13,
+				missedDaysAgo: [4, 6, 9],
+				today: { bookmark: 1, delailRepetitions: 1 }
+			},
+			// Twenty of them read today, none of them portion 14: yours stays open on the board.
+			...crowd('dev_w1', 33, 25, 13, index => ({ readDaysAgo: [], readsToday: index < 20 }))
+		]
+	},
+	{
+		name: 'W2 · Bugün okundu',
+		inviteCode: 'HZPK6K3D',
+		ownerUserId: OWNER_USER_ID,
+		hizbPlan: 33,
+		startedDaysAgo: 20,
+		visibility: 'OPEN',
+		readers: [
+			{
+				userId: OWNER_USER_ID,
+				name: 'Sen',
+				planDays: 33,
+				joinedDaysAgo: 20,
+				missedDaysAgo: [2, 5, 8],
+				readsToday: true
+			},
+			...crowd('dev_w2', 33, 15, 20, () => ({ readDaysAgo: [], readsToday: true }))
+		]
+	},
+	{
+		name: 'W3 · Grup tamam',
+		inviteCode: 'HZPL7K3D',
+		ownerUserId: OWNER_USER_ID,
+		hizbPlan: 7,
+		startedDaysAgo: 9,
+		visibility: 'OPEN',
+		readers: [
+			{ userId: OWNER_USER_ID, name: 'Sen', planDays: 7, joinedDaysAgo: 9, readsToday: true },
+			// Six more on the 7-day plan, so today's seven portions cover all 33.
+			...crowd('dev_w3', 7, 6, 9, () => ({ readsToday: true }))
+		]
+	},
+	{
+		name: 'W4 · 7 günlük',
+		inviteCode: 'HZPM8K3D',
+		ownerUserId: 'dev_w4_owner',
+		hizbPlan: 0,
+		startedDaysAgo: 51,
+		visibility: 'OPEN',
+		readers: [
+			// 16 days spread so no 7-day round is ever whole, and the day before yesterday: 34 eksik,
+			// no round completed, round 8 at 1 / 3.
+			{
+				userId: OWNER_USER_ID,
+				name: 'Sen',
+				planDays: 7,
+				joinedDaysAgo: 51,
+				readDaysAgo: [...[0, 1, 2, 7, 8, 9, 14, 15, 21, 22, 28, 29, 35, 36, 42, 43].map(day => 51 - day), 2]
+			},
+			...crowd('dev_w4', 33, 28, 51, index => ({
+				readDaysAgo: [],
+				readsToday: index < 10 || index === 25 || index === 27,
+				...(index === 0 ? { userId: 'dev_w4_owner' } : {})
+			}))
+		]
+	}
+];
+
+/**
+ * Section 5 — Keşfet's Hizb card and the invite preview. Open plan groups dev_user is *not* in
+ * (Keşfet lists only those), one per card state, plus a private one reached by its code (P4).
+ * A reader joined later than the group started keeps the rows few; `readsToday` sets the 33.
+ */
+const HIZB_DISCOVER_GROUPS = (): PlanGroupSeed[] => [
+	{
+		// 01: a fixed plan early in the day — 4 / 33.
+		name: 'Seher Hizbi',
+		inviteCode: 'HZDA2K3D',
+		dedication: 'Şifa bekleyen bütün hastalar için',
+		ownerUserId: 'dev_hd01_0',
+		hizbPlan: 33,
+		startedDaysAgo: 40,
+		visibility: 'OPEN',
+		readers: crowd('dev_hd01', 33, 10, 12, index => ({ readsToday: index < 4 }))
+	},
+	{
+		// 02: most of the day covered.
+		name: 'Hakaik Halkası',
+		inviteCode: 'HZDB3K3D',
+		dedication: 'Ümmetin selameti için',
+		ownerUserId: 'dev_hd02_0',
+		hizbPlan: 15,
+		startedDaysAgo: 117,
+		visibility: 'OPEN',
+		readers: crowd('dev_hd02', 15, 15, 20, index => ({ readsToday: index < 13 }))
+	},
+	{
+		// 03: all 33 read today — the green band; still open to join.
+		name: 'Mahalle Hizbi',
+		inviteCode: 'HZDC4K3D',
+		dedication: 'Mahallemizin huzuru için',
+		ownerUserId: 'dev_hd03_0',
+		hizbPlan: 7,
+		startedDaysAgo: 8,
+		visibility: 'OPEN',
+		readers: crowd('dev_hd03', 7, 7, 8, () => ({ readsToday: true }))
+	},
+	{
+		// 04: a mixed plan — the joiner picks 7, 15 or 33.
+		name: 'Cuma Hizbi',
+		inviteCode: 'HZDD5K3D',
+		dedication: 'Her gün tam bir Hizb, birlikte',
+		ownerUserId: 'dev_hd04a_0',
+		hizbPlan: 0,
+		startedDaysAgo: 203,
+		visibility: 'OPEN',
+		readers: [
+			...crowd('dev_hd04a', 7, 3, 15, index => ({ readsToday: index < 2 })),
+			...crowd('dev_hd04b', 15, 4, 15, index => ({ readsToday: index < 3 })),
+			...crowd('dev_hd04c', 33, 8, 15, index => ({ readsToday: index < 6 }))
+		]
+	},
+	{
+		// 05: started today, one member, nothing read — "Bugün başladı", no intention line.
+		name: 'Ailece Hizb',
+		inviteCode: 'HZDE6K3D',
+		ownerUserId: 'dev_hd05_0',
+		hizbPlan: 33,
+		startedDaysAgo: 0,
+		visibility: 'OPEN',
+		readers: crowd('dev_hd05', 33, 1, 0, () => ({}))
+	},
+	{
+		// 06: a large group, two years in.
+		name: 'Avrupa Hizb Halkası',
+		inviteCode: 'HZDF7K3D',
+		dedication: 'Gurbetteki kardeşlerimiz için',
+		ownerUserId: 'dev_hd06_0',
+		hizbPlan: 33,
+		startedDaysAgo: 800,
+		visibility: 'OPEN',
+		readers: crowd('dev_hd06', 33, 148, 3, index => ({ readsToday: index < 17 }))
+	},
+	{
+		// 07: an inactivity rule and hidden names — the card's two labels, P1's rules card.
+		name: 'Talebe Halkası',
+		inviteCode: 'HZDG8K3D',
+		dedication: 'İlim yolunda sebat için',
+		ownerUserId: 'dev_hd07_0',
+		hizbPlan: 15,
+		startedDaysAgo: 20,
+		inactivityDays: 21,
+		hideMemberNames: true,
+		visibility: 'OPEN',
+		readers: crowd('dev_hd07', 15, 12, 20, index => ({ readsToday: index < 6 }))
+	},
+	{
+		// 08: a long name and a long intention — three lines and two, then "…".
+		name: 'Merhum Hacı Mehmet Efendi ve bütün ehl-i imanın ruhları için Hizbü’l-Hakaik Halkası',
+		inviteCode: 'HZDH9K3D',
+		dedication:
+			'Rahmetle andığımız büyüklerimizin, anne babalarımızın ve bu yolda emeği geçen herkesin ruhuna hediye olsun; okuyan, okutan ve dua eden her kardeşimiz de bu halkaya dahildir.',
+		ownerUserId: 'dev_hd08_0',
+		hizbPlan: 33,
+		startedDaysAgo: 301,
+		visibility: 'OPEN',
+		readers: crowd('dev_hd08', 33, 30, 10, index => ({ readsToday: index < 25 }))
+	},
+	{
+		// P4: private — never in Keşfet; open it with its code (HZDJ2K3D) from the join sheet.
+		name: 'Özel Hizb',
+		inviteCode: 'HZDJ2K3D',
+		ownerUserId: 'dev_hd09_0',
+		hizbPlan: 33,
+		startedDaysAgo: 5,
+		visibility: 'PRIVATE',
+		readers: crowd('dev_hd09', 33, 3, 5, index => ({ readsToday: index < 1 }))
+	}
+];
+
+const REPETITION_RULES = { delail: hasDelailRepetition, istighfar: hasIstighfar, sekine: hasSekine } as const;
+
+/** Mid-morning of a group-local day, so a completion never lands on the boundary itself. */
+const onDay = (day: number, hour = 9) => new Date(startOfCivilDay(day, DEFAULT_TIME_ZONE).getTime() + hour * 3600000);
+
+const seedHizbPlanGroup = async (spec: PlanGroupSeed) => {
+	const inviteCode = codeFor(spec.inviteCode);
+	const existing = await prisma.group.findUnique({ where: { inviteCode } });
+
+	if (existing) {
+		await prisma.group.delete({ where: { id: existing.id } });
+	}
+
+	const today = civilDayNumber(new Date(), DEFAULT_TIME_ZONE);
+	const startedAt = onDay(today - spec.startedDaysAgo, 8);
+	const anchor = civilDayNumber(startedAt, DEFAULT_TIME_ZONE);
+
+	/*
+	 * An individual reading's start portion is chosen so today's portion carries the repetition
+	 * the fixture is for — found by trying each, with the same arithmetic the service uses.
+	 */
+	let startPortion = 1;
+
+	if (spec.individual) {
+		const days = spec.hizbPlan as PlanDays;
+		const rule = REPETITION_RULES[spec.individual.startOn];
+		const found = Array.from({ length: days }, (_, index) => index + 1).find(start =>
+			rule(days, portionForDay(days, start - 1, today - anchor))
+		);
+
+		if (found === undefined) {
+			throw new Error(`"${spec.name}": no ${days}-day portion carries ${spec.individual.startOn}.`);
+		}
+
+		startPortion = found;
+	}
+
+	const sequences: Record<PlanDays, number> = { 7: 0, 15: 0, 33: 0 };
+	const enrolled = spec.readers.map(reader => ({ ...reader, sequence: sequences[reader.planDays]++ }));
+	// A rejoin is a new enrollment at the end of the queue, after every first one.
+	const rejoins = enrolled
+		.filter(reader => reader.removed?.rejoinedToday)
+		.map(reader => ({ reader, sequence: sequences[reader.planDays]++ }));
+	const memberCount = spec.readers.length + (spec.unenrolled?.length ?? 0);
+
+	const group = await prisma.group.create({
+		data: {
+			ownerUserId: spec.ownerUserId,
+			name: spec.name,
+			dedication: spec.dedication ?? null,
+			kind: 'HIZB',
+			cycle: 'DAILY',
+			roundDays: 1,
+			splitMode: 'FLEXIBLE',
+			status: 'RUNNING',
+			startedAt,
+			startsAt: startedAt,
+			roundIndex: today - anchor,
+			roundStartedAt: startOfCivilDay(today, DEFAULT_TIME_ZONE),
+			endsAt: startOfCivilDay(today + 1, DEFAULT_TIME_ZONE),
+			spots: 33,
+			autoStartWhenFull: false,
+			visibility: spec.individual ? 'PRIVATE' : spec.visibility ?? 'OPEN',
+			openToJoin: !spec.individual,
+			hideMemberNames: spec.hideMemberNames ?? false,
+			hizbPlan: spec.hizbPlan,
+			hizbIndividual: spec.individual !== undefined,
+			hizbStartPortion: startPortion,
+			inactivityDays: spec.inactivityDays ?? null,
+			hizbNext7: sequences[7],
+			hizbNext15: sequences[15],
+			hizbNext33: sequences[33],
+			hizbNextSlot: memberCount + rejoins.length + 1,
+			timezone: DEFAULT_TIME_ZONE,
+			inviteCode
+		}
+	});
+
+	const everyone = [
+		...spec.readers.map(reader => ({
+			userId: reader.userId,
+			name: reader.name,
+			joinedDaysAgo: reader.joinedDaysAgo
+		})),
+		...(spec.unenrolled ?? [])
+	];
+
+	await prisma.groupMember.createMany({
+		data: everyone.map((member, slotIndex) => ({
+			groupId: group.id,
+			userId: member.userId,
+			displayName: member.name,
+			role: member.userId === spec.ownerUserId ? 'OWNER' : 'MEMBER',
+			slotIndex,
+			joinedAt: onDay(today - member.joinedDaysAgo, 8)
+		}))
+	});
+
+	for (const [ordinal, reader] of enrolled.entries()) {
+		const joinedDay = today - reader.joinedDaysAgo;
+		const lastReadDay = reader.removed ? today - reader.removed.lastReadDaysAgo : undefined;
+		const endDay =
+			reader.removed && lastReadDay !== undefined ? lastReadDay + 1 + reader.removed.removalDays : null;
+
+		if (endDay !== null && endDay > today) {
+			throw new Error(`"${spec.name}": ${reader.name}'s removal would not have happened yet.`);
+		}
+
+		const generatedThrough = endDay === null ? today : endDay - 1;
+		const isRead = (day: number) => {
+			const daysAgo = today - day;
+
+			if (daysAgo === 0) {
+				return reader.readsToday === true;
+			}
+
+			return reader.readDaysAgo ? reader.readDaysAgo.includes(daysAgo) : !reader.missedDaysAgo?.includes(daysAgo);
+		};
+
+		const days = Array.from({ length: generatedThrough - joinedDay + 1 }, (_, index) => joinedDay + index);
+		const readDays = days.filter(isRead);
+
+		const enrollment = await prisma.hizbEnrollment.create({
+			data: {
+				groupId: group.id,
+				userId: reader.userId,
+				planDays: reader.planDays,
+				planVersion: PLAN_VERSION,
+				sequence: reader.sequence,
+				ordinal,
+				joinedDay,
+				endDay,
+				reason: reader.removed ? 'INACTIVITY' : null,
+				removalDays: reader.removed?.removalDays ?? null,
+				lastReadDay: readDays.at(-1) ?? null,
+				generatedThrough,
+				createdAt: onDay(joinedDay, 8)
+			}
+		});
+
+		await prisma.hizbAssignment.createMany({
+			data: days.map(day => {
+				const portion = portionForDay(reader.planDays, reader.sequence + startPortion - 1, day - anchor);
+				const done = isRead(day);
+				const partial = day === today && !done ? reader.today : undefined;
+
+				return {
+					enrollmentId: enrollment.id,
+					day,
+					portion,
+					traversal: Math.floor((day - joinedDay) / reader.planDays),
+					// A completed day met its repetitions; today's counters show a count in progress.
+					repetitions: done && hasSekine(reader.planDays, portion) ? 19 : partial?.repetitions ?? 0,
+					istighfarRepetitions:
+						done && hasIstighfar(reader.planDays, portion) ? 11 : partial?.istighfarRepetitions ?? 0,
+					istighfarTarget: partial?.istighfarTarget ?? 11,
+					delailRepetitions:
+						done && hasDelailRepetition(reader.planDays, portion) ? 3 : partial?.delailRepetitions ?? 0,
+					bookmark: partial?.bookmark ?? 0,
+					completedAt: done ? onDay(day, day === today ? 7 : 20) : null
+				};
+			})
+		});
+	}
+
+	// Back in today: the fresh enrollment owes only today's portion, unread (S3b).
+	for (const [index, { reader, sequence }] of rejoins.entries()) {
+		const enrollment = await prisma.hizbEnrollment.create({
+			data: {
+				groupId: group.id,
+				userId: reader.userId,
+				planDays: reader.planDays,
+				planVersion: PLAN_VERSION,
+				sequence,
+				ordinal: enrolled.length + index,
+				joinedDay: today,
+				endDay: null,
+				generatedThrough: today,
+				createdAt: onDay(today, 8)
+			}
+		});
+
+		await prisma.hizbAssignment.create({
+			data: {
+				enrollmentId: enrollment.id,
+				day: today,
+				portion: portionForDay(reader.planDays, sequence + startPortion - 1, today - anchor),
+				traversal: 0
+			}
+		});
+	}
+};
+
+/**
+ * **The lean default: three groups of each kind are yours, the rest wait in Keşfet.**
+ *
+ * `SEED_SCENARIO=full` seeds every fixture as written — the signed-in user in most of them, one
+ * per state. Without a scenario the same fixtures are seeded, but the user stays only in these
+ * nine; in every other group a stand-in takes their seat and the group opens to Keşfet, so it can
+ * be joined — which is how the post-join screens are reached. Base codes, before `codeFor`.
+ */
+const LEAN_KEEP = new Set([
+	// Cevşen: today's share in a daily group · a weekly one with a pool and last week's history ·
+	// your own lobby, not started.
+	'HGBB6R2T',
+	'GNUL6X4P',
+	'RMZN5W8T',
+	// Kur'an: your cüz part-read in a running round · a lobby you joined, waiting · a round every
+	// cüz of which is read (Hatim duası).
+	'QURN1A2B',
+	'QURN5I6J',
+	'QURNJ3E5',
+	// Hizb: a fixed plan under way with missed days (W1) · members choose, yours not picked (S1) ·
+	// an individual reading (S6).
+	'HZPJ5K3D',
+	'HZPC5K3D',
+	'HZPE8K3D'
+]);
+/** Whether a fixture keeps the user in the lean default — by its code as this run writes it. */
+const isKeptInLean = (namespacedCode: string) => [...LEAN_KEEP].some(base => codeFor(base) === namespacedCode);
+/** Who sits where the user would have, in a group they're not in by default. */
+const STAND_IN_NAME = 'Kerim Aksoy';
+
+/** Seats (0 = the owner's) the user holds in a seat-based fixture — a Cevşen group or a hatim. */
+const viewerSeats = (spec: { ownerUserId: string; slotUserIds?: Record<number, string> }) =>
+	new Set([
+		...(spec.ownerUserId === OWNER_USER_ID ? [0] : []),
+		...Object.entries(spec.slotUserIds ?? {})
+			.filter(([, userId]) => userId === OWNER_USER_ID)
+			.map(([seat]) => Number(seat))
+	]);
+
+/**
+ * The same seat-based fixture with the user's seats given to stand-ins: seat 0 takes the prefix's
+ * own id, any other seat its default one. A group the user was in opens to Keşfet.
+ */
+const withoutViewerSeats = <Spec extends GroupSeed | HatimSeed>(spec: Spec): Spec => {
+	const seats = viewerSeats(spec);
+
+	if (seats.size === 0) {
+		return spec;
+	}
+
+	return {
+		...spec,
+		ownerUserId: seats.has(0) ? `${spec.memberIdPrefix}_0` : spec.ownerUserId,
+		slotUserIds: Object.fromEntries(
+			Object.entries(spec.slotUserIds ?? {}).filter(([, userId]) => userId !== OWNER_USER_ID)
+		),
+		visibility: 'OPEN'
+	};
+};
+
+const leanGroup = (spec: GroupSeed): GroupSeed => {
+	const seats = viewerSeats(spec);
+
+	return {
+		...withoutViewerSeats(spec),
+		members: spec.members.map((member, seat) =>
+			member && seats.has(seat) && member[0] === 'Sen' ? [STAND_IN_NAME, member[1]] : member
+		)
+	};
+};
+
+const leanHatim = (spec: HatimSeed): HatimSeed => {
+	const seats = viewerSeats(spec);
+	const rename = (members: HatimMemberSeed[]) =>
+		members.map((member, seat) =>
+			member && seats.has(seat) && member.name === 'Sen' ? { ...member, name: STAND_IN_NAME } : member
+		);
+
+	return {
+		...withoutViewerSeats(spec),
+		members: rename(spec.members),
+		...(spec.previousRound ? { previousRound: rename(spec.previousRound) } : {})
+	};
+};
+
+/**
+ * A plan group without the user: their reading and membership go to a stand-in, the group opens to
+ * Keşfet. An individual reading is the owner's alone and can't be found or joined, so it is left
+ * out entirely (null).
+ */
+const leanPlanGroup = (spec: PlanGroupSeed): PlanGroupSeed | null => {
+	if (spec.individual) {
+		return null;
+	}
+
+	const standIn = `dev_standin_${spec.inviteCode.toLowerCase()}`;
+	const isViewer = (userId: string) => userId === OWNER_USER_ID;
+	const wasIn =
+		isViewer(spec.ownerUserId) ||
+		spec.readers.some(reader => isViewer(reader.userId)) ||
+		(spec.unenrolled ?? []).some(member => isViewer(member.userId));
+
+	if (!wasIn) {
+		return spec;
+	}
+
+	const nameFor = (name: string) => (name === 'Sen' ? STAND_IN_NAME : name);
+
+	return {
+		...spec,
+		ownerUserId: isViewer(spec.ownerUserId) ? standIn : spec.ownerUserId,
+		readers: spec.readers.map(reader =>
+			isViewer(reader.userId) ? { ...reader, name: nameFor(reader.name), userId: standIn } : reader
+		),
+		...(spec.unenrolled
+			? {
+					unenrolled: spec.unenrolled.map(member =>
+						isViewer(member.userId) ? { ...member, name: nameFor(member.name), userId: standIn } : member
+					)
+			  }
+			: {}),
+		visibility: 'OPEN'
+	};
+};
+
+const SCENARIOS = ['full', 'all-read'] as const;
+
+const seed = async () => {
+	if (SEED_SCENARIO && !(SCENARIOS as readonly string[]).includes(SEED_SCENARIO)) {
+		throw new Error(`SEED_SCENARIO=${SEED_SCENARIO} is not a scenario; they are ${SCENARIOS.join(', ')}.`);
+	}
+
+	const explicitNamespace = process.env.SEED_NAMESPACE;
+	const namespaces = [explicitNamespace, ...autoNamespaces(SEED_USERS.length - 1, [explicitNamespace])];
+	const runs = SEED_USERS.map((userId, index) => ({ userId, namespace: namespaces[index] }));
+
+	// Every namespace checked before the first write, because half a seeded run is worse than none.
+	for (const run of runs) {
+		SEED_NAMESPACE = run.namespace;
+		assertNamespaceIsUsable();
+	}
+
+	for (const run of runs) {
+		OWNER_USER_ID = run.userId;
+		SEED_NAMESPACE = run.namespace;
+		console.log(`Seeding ${run.userId}${run.namespace ? ` (namespace ${run.namespace})` : ''}…`);
+		await seedRun();
+	}
+};
+
+/** One account's fixtures, for the `OWNER_USER_ID` and `SEED_NAMESPACE` set by `seed()`. */
+const seedRun = async () => {
+	const isAllRead = SEED_SCENARIO === 'all-read';
+	// No scenario: the lean default. `full`: every fixture as written.
+	const isLean = SEED_SCENARIO === undefined;
+
+	for (const spec of isAllRead ? ALL_READ_GROUPS() : GROUPS()) {
+		await seedGroup(isLean && !isKeptInLean(codeFor(spec.inviteCode)) ? leanGroup(spec) : spec);
+	}
+
+	for (const spec of isAllRead ? ALL_READ_HATIMS() : HATIM_GROUPS()) {
+		// Hatim fixtures carry their code already namespaced.
+		await seedHatim(isLean && !isKeptInLean(spec.inviteCode) ? leanHatim(spec) : spec);
+	}
+
+	if (!isAllRead) {
+		for (const spec of [...HIZB_PLAN_GROUPS(), ...HIZB_W_GROUPS(), ...HIZB_DISCOVER_GROUPS()]) {
+			const seeded = isLean && !isKeptInLean(codeFor(spec.inviteCode)) ? leanPlanGroup(spec) : spec;
+
+			if (seeded) {
+				await seedHizbPlanGroup(seeded);
+			} else {
+				// Left out this run: drop a copy an earlier run may have left behind.
+				await prisma.group.deleteMany({ where: { inviteCode: codeFor(spec.inviteCode) } });
+			}
+		}
 	}
 
 	await prisma.userSettings.upsert({

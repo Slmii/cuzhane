@@ -1,5 +1,4 @@
 import { NotificationRow } from '@/components/NotificationRow/NotificationRow.component';
-import { TourTarget } from '@/components/Tour/TourTarget.component';
 import { ScreenContainer } from '@/components/ScreenContainer/ScreenContainer.component';
 import { ScreenTitle } from '@/components/ScreenTitle/ScreenTitle.component';
 import { EmptyState } from '@/components/ui/EmptyState/EmptyState.component';
@@ -114,7 +113,7 @@ export const NotificationsScreen = () => {
 			{groups.length === 0 ? (
 				<EmptyState description={t('notifEmptySub')} icon='bell' title={t('notifEmptyTitle')} />
 			) : (
-				groups.map((group, index) => {
+				groups.map(group => {
 					const rows = (
 						<View style={styles.rows}>
 							{group.items.map(notification => (
@@ -126,14 +125,7 @@ export const NotificationsScreen = () => {
 					return (
 						<View key={group.bucket} style={styles.group}>
 							<FieldLabelText color={theme.colors.faintText}>{labelFor[group.bucket]}</FieldLabelText>
-							{/*
-							 * Stop 12 of the first-use tour frames the **first bucket's rows**, and
-							 * not its heading: "Bugün" is a date, and a spotlight around it reads as
-							 * the stop being about the grouping rather than about the notifications.
-							 * Nor the whole list — a target the height of the screen leaves the card
-							 * nowhere to sit, and the newest rows are what the stop is about.
-							 */}
-							{index === 0 ? <TourTarget id='inbox'>{rows}</TourTarget> : rows}
+							{rows}
 						</View>
 					);
 				})

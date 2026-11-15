@@ -101,37 +101,37 @@ describe('babs util', () => {
 		});
 	});
 
-	describe('a group of 33 parts', () => {
-		const HIZB_PARTS = 33;
+	describe('a group of 32 parts', () => {
+		const HIZB_PARTS = 32;
 
-		it('gives each of 11 seats three parts, tiling 1..33', () => {
-			const seats = Array.from({ length: 11 }, (_, slot) => rangeForSlot(slot, 11, HIZB_PARTS));
+		it('gives each of 16 seats two parts, tiling 1..32', () => {
+			const seats = Array.from({ length: 16 }, (_, slot) => rangeForSlot(slot, 16, HIZB_PARTS));
 
-			expect(seats[0]).toEqual({ start: 1, end: 3 });
-			expect(seats[10]).toEqual({ start: 31, end: 33 });
-			expect(seats.every(range => range !== null && range.end - range.start + 1 === 3)).toBe(true);
-			expect(seats.flatMap((_, slot) => babNumbersForSlot(slot, 11, HIZB_PARTS))).toEqual(
+			expect(seats[0]).toEqual({ start: 1, end: 2 });
+			expect(seats[15]).toEqual({ start: 31, end: 32 });
+			expect(seats.every(range => range !== null && range.end - range.start + 1 === 2)).toBe(true);
+			expect(seats.flatMap((_, slot) => babNumbersForSlot(slot, 16, HIZB_PARTS))).toEqual(
 				Array.from({ length: HIZB_PARTS }, (_, index) => index + 1)
 			);
 		});
 
-		it('gives the one leftover part to the first of 16 seats', () => {
-			expect(rangeForSlot(0, 16, HIZB_PARTS)).toEqual({ start: 1, end: 3 });
-			expect(rangeForSlot(1, 16, HIZB_PARTS)).toEqual({ start: 4, end: 5 });
-			expect(rangeForSlot(15, 16, HIZB_PARTS)).toEqual({ start: 32, end: 33 });
+		it('gives the one leftover part to the first of 31 seats', () => {
+			expect(rangeForSlot(0, 31, HIZB_PARTS)).toEqual({ start: 1, end: 2 });
+			expect(rangeForSlot(1, 31, HIZB_PARTS)).toEqual({ start: 3, end: 3 });
+			expect(rangeForSlot(30, 31, HIZB_PARTS)).toEqual({ start: 32, end: 32 });
 		});
 
-		it('gives each of 33 seats one part', () => {
+		it('gives each of 32 seats one part', () => {
 			for (let slot = 0; slot < HIZB_PARTS; slot++) {
 				expect(rangeForSlot(slot, HIZB_PARTS, HIZB_PARTS)).toEqual({ start: slot + 1, end: slot + 1 });
 			}
 		});
 
-		it('gives a lone seat the whole 33', () => {
-			expect(rangeForSlot(0, 1, HIZB_PARTS)).toEqual({ start: 1, end: 33 });
+		it('gives a lone seat the whole 32', () => {
+			expect(rangeForSlot(0, 1, HIZB_PARTS)).toEqual({ start: 1, end: 32 });
 		});
 
-		it('tiles 1..33 exactly for every seat count and every round', () => {
+		it('tiles 1..32 exactly for every seat count and every round', () => {
 			for (let spots = 1; spots <= HIZB_PARTS; spots++) {
 				for (let round = 0; round <= 40; round++) {
 					const seen: number[] = [];
@@ -148,8 +148,8 @@ describe('babs util', () => {
 		});
 
 		it('finds the seat of the last part, and none past it', () => {
-			expect(slotIndexForBab(33, 11, HIZB_PARTS)).toBe(10);
-			expect(slotIndexForBab(34, 11, HIZB_PARTS)).toBeNull();
+			expect(slotIndexForBab(32, 11, HIZB_PARTS)).toBe(10);
+			expect(slotIndexForBab(33, 11, HIZB_PARTS)).toBeNull();
 		});
 	});
 

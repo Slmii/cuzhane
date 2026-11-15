@@ -30,7 +30,8 @@ export const hizbCellPalette = ({ isMine, state }: Pick<HizbBoardCell, 'isMine' 
 			? { backgroundColor: theme.colors.accent, labelColor: theme.colors.onAccent }
 			: state === 'pool'
 			? { backgroundColor: theme.colors.poolFree, labelColor: theme.colors.sandText }
-			: { backgroundColor: theme.colors.poolTaken, labelColor: theme.colors.poolTakenText };
+			: // Taken, or a plan's unread portion: the same quiet fill, since neither is anyone's to take.
+			  { backgroundColor: theme.colors.poolTaken, labelColor: theme.colors.poolTakenText };
 
 	return { ...fill, borderColor: isMine ? theme.colors.text : fill.backgroundColor };
 };
@@ -42,7 +43,8 @@ export const hizbCellPalette = ({ isMine, state }: Pick<HizbBoardCell, 'isMine' 
 export const HIZB_STATE_LABEL_KEYS: Record<HizbBoardCellState, StringKey> = {
 	pool: 'hizbLegendPool',
 	read: 'hizbLegendRead',
-	taken: 'hizbLegendTaken'
+	taken: 'hizbLegendTaken',
+	unread: 'hizbLegendUnread'
 };
 
 /** The legend's four keys, each drawn by the palette it explains. */

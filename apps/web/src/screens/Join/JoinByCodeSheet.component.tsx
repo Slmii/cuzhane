@@ -1,3 +1,4 @@
+import { getLiveSession } from '@/api/live.api';
 import { AssignmentBanner } from '@/components/AssignmentBanner/AssignmentBanner.component';
 import { AppBottomSheet } from '@/components/ui/BottomSheet/BottomSheet.component';
 import { AppButton } from '@/components/ui/Button/Button.component';
@@ -17,13 +18,18 @@ import {
 	Typography
 } from '@/components/ui/Typography/Typography.component';
 import { useJoinGroupByCode, useLookupGroupByCode } from '@/lib/hooks/useMembership';
+import { useGetUserSettings } from '@/lib/hooks/useUserSettings';
+import { INTRO_SETTING } from '@/lib/utils/groupIntro';
+import { groupQueryKeys } from '@/lib/hooks/queryKeys';
 import { useTranslation } from '@/lib/i18n/I18n.context';
+import { unitCountFor } from '@/lib/utils/units';
 import { useThemeContext } from '@/lib/theme/ThemeProvider.context';
 import { formatRun } from '@/lib/utils/babs';
 import { cycleLabelKey, partUnitKey } from '@/lib/utils/groups';
 import { formatInviteCode } from '@/lib/utils/inviteCode';
 import type { TabStackParamList } from '@/navigation/types';
 import { useNavigation } from '@react-navigation/native';
+import { useQueryClient } from '@tanstack/react-query';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Clipboard from 'expo-clipboard';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -54,10 +60,13 @@ const normalizeCode = (input: string) =>
  * are, and it either finds the group or it doesn't. Keeping it as one surface also keeps
  * the typed code alive across "Geri", which a popped screen could not.
  */
-export const JoinByCodeSheet = ({ initialCode, isVisible, onClose }: JoinByCodeSheetProps) => {
+export const JoinByCodeSheet = ({ initialCode, isLiveOnly = false, isVisible, onClose }: JoinByCodeSheetProps) => {
 	const { theme } = useThemeContext();
 	const { t } = useTranslation();
 	const navigation = useNavigation<NativeStackNavigationProp<TabStackParamList>>();
+	const queryClient = useQueryClient();
+	// Whether a join shows "how the group works" — the account's "bir daha gösterme".
+	const userSettings = useGetUserSettings();
 	// React Native's own, which is now the only kind: the sheet is presented by the platform and
 	// moves itself for the keyboard, so no sheet-aware input is involved.
 	const inputRef = useRef<TextInput>(null);
@@ -92,11 +101,46 @@ export const JoinByCodeSheet = ({ initialCode, isVisible, onClose }: JoinByCodeS
 					return;
 				}
 
+				/*
+				 * **A Hizb plan group previews on its own screen** (section 5, P4): the plan, the
+				 * 32 and the rules don't fit this sheet. The answer seeds that screen's query, so it
+				 * draws at once, and the code travels with it: a private group joins by it alone.
+				 */
+				if (found.kind === 'HIZB' && found.hizbPlan != null) {
+					queryClient.setQueryData(groupQueryKeys.previewByGroup(found.id), found);
+					lookedUpInitialCodeRef.current = null;
+					lookupIdRef.current += 1;
+					onClose();
+					navigation.navigate('InvitePreview', { groupId: found.id, inviteCode: candidate });
+
+					return;
+				}
+
 				// A full group gets the dead-end state rather than a join button it can't honour —
 				// the same branch the standalone 01c screen used to be.
 				setStep(found.isFull ? 'full' : 'preview');
 			} catch {
 				if (lookupId !== lookupIdRef.current) {
+					return;
+				}
+
+				/*
+				 * **Not a group — perhaps a live reading.** Its code is the same eight characters, and
+				 * whoever shared one was told to type it here, so the sheet tries it before giving up.
+				 * `LiveJoin` opens the reader it is read in.
+				 */
+				const liveSession = await getLiveSession(candidate).catch(() => null);
+
+				if (lookupId !== lookupIdRef.current) {
+					return;
+				}
+
+				if (liveSession) {
+					lookedUpInitialCodeRef.current = null;
+					lookupIdRef.current += 1;
+					onClose();
+					navigation.navigate('LiveJoin', { code: liveSession.code });
+
 					return;
 				}
 
@@ -108,7 +152,7 @@ export const JoinByCodeSheet = ({ initialCode, isVisible, onClose }: JoinByCodeS
 				setStep('notfound');
 			}
 		},
-		[lookUpGroup]
+		[lookUpGroup, navigation, onClose, queryClient]
 	);
 
 	/*
@@ -197,14 +241,59 @@ export const JoinByCodeSheet = ({ initialCode, isVisible, onClose }: JoinByCodeS
 			return;
 		}
 
+		// Live mode: the joining screen looks the code up and says so if it finds nothing.
+		if (isLiveOnly) {
+			const liveCode = code;
+
+			handleClose();
+			navigation.navigate('LiveJoin', { code: liveCode });
+
+			return;
+		}
+
 		await findGroup(code);
 	};
 
+	// Above the handlers: `handleJoin` branches on the group's kind, and reading it from
+	// below them left React Compiler inferring the seat grid's memo depended on the whole
+	// lookup rather than on `spots`.
+	const data = lookup.data;
+	const isHatimPreview = data?.kind === 'HATIM';
+	const unitCount = unitCountFor(data?.kind ?? 'CEVSEN');
+	// A hatim preview's `poolBabNumbers` are the cüz nobody holds; the rest are taken.
+	const takenCuz = unitCount - (data?.poolBabNumbers.length ?? 0);
+
 	const handleJoin = async () => {
+		/*
+		 * **A hatim is not joined from here either** — it goes to QJ3 to pick cüz first.
+		 *
+		 * This is the second door into the join and it had the same defect the Keşfet preview
+		 * had: it posts a join with no `cuzNumbers`, which the server refuses ("at least one
+		 * cüz"), so typing a Kuran group's code and tapping Katıl produced an unhandled error
+		 * rather than a screen. Closing first, because a sheet cannot present a screen over
+		 * itself and iOS will not stack one sheet on another.
+		 */
+		if (data?.kind === 'HATIM') {
+			handleClose();
+			// The code goes along: a private group is previewed and joined by it, never by id.
+			navigation.navigate('PickCuz', { groupId: data.id, inviteCode: code });
+
+			return;
+		}
+
 		const joined = await joinByCode.mutateAsync(code);
 
 		handleClose();
-		navigation.navigate('GroupIntroduction', { groupId: joined.id, source: 'joined' });
+		// A Cevşen seat: how the group works (O3) unless hidden, else the welcome. A flexible board is
+		// running with nothing to explain, so it opens as it is; an old seat-based Hizb gets the welcome.
+		navigation.navigate(
+			data?.splitMode === 'FLEXIBLE'
+				? 'GroupDetail'
+				: userSettings.data?.[INTRO_SETTING.CEVSEN] !== false && data?.kind === 'CEVSEN'
+				? 'GroupHowItWorks'
+				: 'JoinedWelcome',
+			{ groupId: joined.id }
+		);
 	};
 
 	const handleDiscover = () => {
@@ -212,7 +301,6 @@ export const JoinByCodeSheet = ({ initialCode, isVisible, onClose }: JoinByCodeS
 		navigation.navigate('Tabs', { screen: 'Discover' });
 	};
 
-	const data = lookup.data;
 	// Memoised for the same reason as every other grid's cells: `CellGrid` keeps a cell only
 	// while the item it was handed keeps its identity, and this sheet re-renders on every
 	// keystroke of the code above.
@@ -233,13 +321,19 @@ export const JoinByCodeSheet = ({ initialCode, isVisible, onClose }: JoinByCodeS
 		<AppBottomSheet isVisible={isVisible} onClose={handleClose}>
 			<View>
 				<Header2 style={styles.title}>
-					{step === 'full' ? t('groupFull') : step === 'notfound' ? t('notFoundTitle') : t('joinTitle')}
+					{step === 'full'
+						? t('groupFull')
+						: step === 'notfound'
+						? t('notFoundTitle')
+						: isLiveOnly
+						? t('liveJoinMenu')
+						: t('joinTitle')}
 				</Header2>
 
 				{step === 'code' ? (
 					<View>
 						<CaptionText color={theme.colors.subtext} style={styles.intro}>
-							{t('joinSub')}
+							{isLiveOnly ? t('liveJoinSub') : t('joinSub')}
 						</CaptionText>
 						<View style={styles.codeWrap}>
 							<CodeInput onPress={() => inputRef.current?.focus()} value={code} />
@@ -265,7 +359,7 @@ export const JoinByCodeSheet = ({ initialCode, isVisible, onClose }: JoinByCodeS
 							isLoading={lookup.isPending}
 							onPress={() => void handleFindGroup()}
 							style={styles.primary}
-							title={t('findGroup')}
+							title={isLiveOnly ? t('liveJoinButton') : t('findGroup')}
 							icon='chevronRight'
 							iconPosition='trailing'
 						/>
@@ -289,15 +383,21 @@ export const JoinByCodeSheet = ({ initialCode, isVisible, onClose }: JoinByCodeS
 								<Chip label={t(data.visibility === 'OPEN' ? 'open' : 'private')} tone='accent' />
 							</View>
 
+							{/* A hatim is joined by taking cüz, so what it shows is how many are taken —
+							    "0 / 30" read on a group whose cüz are half gone read as all free. */}
 							<View style={styles.countRow}>
 								<Typography color={theme.colors.accent} style={styles.count} variant='numeric'>
-									{data.readCount}
+									{isHatimPreview ? takenCuz : data.readCount}
 								</Typography>
-								<CaptionText color={theme.colors.faintText}>
-									{`/ ${data.partCount} ${t(partUnitKey(data.kind))}`}
-								</CaptionText>
+								{/* A hatim counts cüz taken; a Cevşen or Hizb group its read babs or portions. */}
+								<CaptionText color={theme.colors.faintText}>{`/ ${unitCount} ${t(
+									isHatimPreview ? 'qCuzTaken' : partUnitKey(data.kind)
+								)}`}</CaptionText>
 							</View>
-							<ProgressBar percent={data.percent} style={styles.bar} />
+							<ProgressBar
+								percent={isHatimPreview ? Math.round((takenCuz / unitCount) * 100) : data.percent}
+								style={styles.bar}
+							/>
 
 							{/* Two facts, not four: who is in it and how often it turns over. The
 							    stats the standalone screen carried belong to Keşfet, where you
@@ -335,11 +435,13 @@ export const JoinByCodeSheet = ({ initialCode, isVisible, onClose }: JoinByCodeS
 							/>
 						) : null}
 
+						{/* The label states what the tap does: a Cevşen group is joined here and
+						    now, a hatim goes to the picker first. */}
 						<AppButton
 							isLoading={joinByCode.isPending}
 							onPress={() => void handleJoin()}
 							style={styles.primary}
-							title={t('joinNow')}
+							title={t(data.kind === 'HATIM' ? 'qJoinPick' : 'joinNow')}
 						/>
 						<AppButton
 							onPress={() => setStep('code')}

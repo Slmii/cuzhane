@@ -102,9 +102,15 @@ const DrawnTrack = ({ max, min, onChange, onDraft, value }: ReaderSizeSliderProp
  * keep their sizes, their colour and the gap that stops the knob touching them — the row is
  * the design's, and only the thing being dragged is the platform's.
  */
+/**
+ * The track alone — the platform's slider where it renders Liquid Glass, the drawn one elsewhere —
+ * for a caller with ends of its own to label, as the Git sheet's page slider does.
+ */
+export const SliderTrack = (props: ReaderSizeSliderProps) =>
+	isLiquidGlassSupported && isGlassSizeSliderAvailable ? <GlassSizeSlider {...props} /> : <DrawnTrack {...props} />;
+
 export const ReaderSizeSlider = (props: ReaderSizeSliderProps) => {
 	const { theme } = useThemeContext();
-	const isGlass = isLiquidGlassSupported && isGlassSizeSliderAvailable;
 
 	return (
 		<View style={styles.root}>
@@ -112,7 +118,9 @@ export const ReaderSizeSlider = (props: ReaderSizeSliderProps) => {
 				Aa
 			</Typography>
 			{/* The native slider fills the row itself; the drawn one is already `flex: 1`. */}
-			<View style={styles.trackSlot}>{isGlass ? <GlassSizeSlider {...props} /> : <DrawnTrack {...props} />}</View>
+			<View style={styles.trackSlot}>
+				<SliderTrack {...props} />
+			</View>
 			<Typography color={theme.colors.subtext} style={styles.endLabelLarge}>
 				Aa
 			</Typography>

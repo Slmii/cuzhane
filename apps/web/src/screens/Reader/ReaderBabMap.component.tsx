@@ -149,6 +149,7 @@ export const ReaderBabMap = ({
 	count,
 	currentBab,
 	hasLegend = true,
+	isPlan = false,
 	myBabNumbers,
 	poolBabNumbers,
 	readBabNumbers,
@@ -226,13 +227,21 @@ export const ReaderBabMap = ({
 	}, [count, poolBabNumbers, spots]);
 
 	const legend = useMemo(
-		() => [
-			{ color: theme.colors.accent, label: t('legRead') },
-			{ color: theme.colors.accentMid, label: t('ownMine') },
-			{ color: theme.colors.poolFree, label: t('ownPool') },
-			{ color: theme.colors.babMapOther, label: t('ownOther') }
-		],
-		[t, theme]
+		() =>
+			isPlan
+				? [
+						// Capitalised like its neighbours — `legRead` is the group strip's lowercase "okundu".
+						{ color: theme.colors.accent, label: t('hpLegendRead') },
+						{ color: theme.colors.accentMid, label: t('hpLegendToday') },
+						{ color: theme.colors.babMapOther, label: t('hpLegendLeft') }
+				  ]
+				: [
+						{ color: theme.colors.accent, label: t('legRead') },
+						{ color: theme.colors.accentMid, label: t('ownMine') },
+						{ color: theme.colors.poolFree, label: t('ownPool') },
+						{ color: theme.colors.babMapOther, label: t('ownOther') }
+				  ],
+		[isPlan, t, theme]
 	);
 
 	return (

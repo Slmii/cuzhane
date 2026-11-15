@@ -10,6 +10,28 @@ assertIsTestDatabase(testDatabaseUrl());
 
 const READER = 'test_inbox_reader';
 
+const KIND_READER = 'test_reader';
+
+const createKindGroup = (kind: 'CEVSEN' | 'HATIM', name: string) =>
+	prisma.group.create({
+		data: {
+			cycle: 'WEEKLY',
+			inviteCode: `N${Math.floor(performance.now() * 1000)
+				.toString(36)
+				.toUpperCase()
+				.slice(-7)}`,
+			kind,
+			name,
+			ownerUserId: 'test_owner',
+			roundIndex: 0,
+			spots: kind === 'HATIM' ? 30 : 10,
+			splitMode: 'FIXED',
+			status: 'GATHERING',
+			timezone: 'UTC',
+			visibility: 'OPEN'
+		}
+	});
+
 const createGroup = (kind: 'CEVSEN' | 'HIZB', inviteCode: string) =>
 	prisma.group.create({ data: { ownerUserId: 'test_owner', name: `${kind} Halkası`, inviteCode, kind } });
 
@@ -23,11 +45,11 @@ const file = (groupId: string, groupName: string) =>
 
 beforeEach(async () => {
 	await prisma.$executeRawUnsafe('TRUNCATE TABLE "Group" RESTART IDENTITY CASCADE');
-	await prisma.notification.deleteMany({ where: { userId: READER } });
+	await prisma.notification.deleteMany({ where: { userId: { in: [READER, KIND_READER] } } });
 });
 
 afterAll(async () => {
-	await prisma.notification.deleteMany({ where: { userId: READER } });
+	await prisma.notification.deleteMany({ where: { userId: { in: [READER, KIND_READER] } } });
 	await prisma.$disconnect();
 });
 
@@ -80,5 +102,39 @@ describe('listNotificationsForUser', () => {
 		expect(row?.groupId).toBeNull();
 		expect(row?.groupName).toBe('HIZB Halkası');
 		expect(row?.groupKind).toBe('CEVSEN');
+	});
+});
+
+describe('the inbox says which kind of group a row is about (Q8)', () => {
+	it('carries the group’s kind, and the Cevşen’s once the group is gone', async () => {
+		const hatim = await createKindGroup('HATIM', 'Ramazan Hatmi');
+		const cevsen = await createKindGroup('CEVSEN', 'Cuma Cevşeni');
+
+		await recordNotification({
+			groupId: hatim.id,
+			groupName: hatim.name,
+			payload: { kind: 'POOL_BAB_CLAIMED', range: '18', takerName: 'Zeynep' },
+			userIds: [KIND_READER]
+		});
+		await recordNotification({
+			groupId: cevsen.id,
+			groupName: cevsen.name,
+			payload: { kind: 'MEMBER_JOINED', memberCount: 4, memberName: 'Fatma', spots: 10 },
+			userIds: [KIND_READER]
+		});
+
+		const kinds = async () =>
+			Object.fromEntries(
+				(await listNotificationsForUser(KIND_READER)).map(row => [row.groupName, row.groupKind])
+			);
+
+		expect(await kinds()).toEqual({ 'Cuma Cevşeni': 'CEVSEN', 'Ramazan Hatmi': 'HATIM' });
+
+		// The relation is `SetNull`, so the row outlives the group and keeps its name.
+		await prisma.group.delete({ where: { id: hatim.id } });
+
+		// Nothing left to join, so the row reads as a Cevşen one — which is how every client
+		// already drew a row without a kind.
+		expect(await kinds()).toEqual({ 'Cuma Cevşeni': 'CEVSEN', 'Ramazan Hatmi': 'CEVSEN' });
 	});
 });

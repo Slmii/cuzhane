@@ -1,28 +1,26 @@
 import { wrapperApi } from '@/api/wrapper.api';
 import {
+	CuzBoundaryPolicy,
+	CuzDistribution,
 	GroupCycle,
 	GroupDetail,
-	GroupKind,
 	GroupSplitMode,
 	GroupSummary,
 	GroupVisibility,
-	PoolSlot
+	PoolCuz,
+	PoolSlot,
+	ReadingPlace,
+	ReadingPlaces
 } from '@/lib/types/domain';
 
-export type CreateGroupInput = {
-	hizbIndividual?: boolean;
-	hizbStartPortion?: number;
-	hizbPlan?: number;
-	inactivityDays?: number | null;
+type CreateGroupCommon = {
 	name: string;
 	dedication?: string;
 	visibility: GroupVisibility;
+	/** Members see each other anonymously — the owner still sees names. */
 	hideMemberNames?: boolean;
-	/** What the group reads. Optional over the wire; the server defaults it to the Cevşen. */
-	kind?: GroupKind;
-	splitMode: GroupSplitMode;
-	cycle: GroupCycle;
-	spots: number;
+	/** Days without a read after which a member is released; null or absent for never. */
+	inactivityDays?: number | null;
 	reminderEnabled: boolean;
 	reminderTime: string;
 	autoStartWhenFull?: boolean;
@@ -33,6 +31,47 @@ export type CreateGroupInput = {
 	timezone?: string;
 };
 
+/**
+ * Mirrors the server's `CreateGroupBodySchema`, union and all. A Cevşen group divides a
+ * hundred babs by seat, a Hizb group 32 portions by seat (or by personal plan), and a hatim
+ * divides thirty cüz by choice, so no kind's settings
+ * mean anything to the other — and since all of them are immutable after creation, sending
+ * one from the wrong half would be wrong for the life of the group.
+ *
+ * A hatim sends no `spots`: it is full when all thirty cüz are taken, not when thirty people
+ * have joined, so the server pins the seat cap itself.
+ */
+export type CreateGroupInput =
+	| (CreateGroupCommon & { kind: 'CEVSEN'; splitMode: GroupSplitMode; cycle: GroupCycle; spots: number })
+	| (CreateGroupCommon & {
+			kind: 'HIZB';
+			splitMode: GroupSplitMode;
+			cycle: GroupCycle;
+			spots: number;
+			/** Everyone reads the whole book on a personal plan rather than a seat's share. */
+			hizbIndividual?: boolean;
+			hizbStartPortion?: number;
+			/** The personal plan's length in days — 7, 15 or 32. */
+			hizbPlan?: number;
+			/** "Okuma sorumluları" — the "has read" notice to the ticked members only. */
+			readSeersEnabled?: boolean;
+	  })
+	| (CreateGroupCommon & {
+			kind: 'HATIM';
+			distribution: CuzDistribution;
+			/** Null when QC2's optional cap is switched off — the default. */
+			maxPerMember: number | null;
+			boundaryPolicy: CuzBoundaryPolicy;
+			roundDays: number;
+			/** The cüz the creator takes (QC4). The server requires at least one. */
+			cuzNumbers: number[];
+	  })
+	/**
+	 * A Şahsi Cevşen or Kur'an reading: one person's, private, the book split over `planDays`
+	 * (Cevşen 1–90, Kur'an 1–30). The server ignores every sharing setting on it.
+	 */
+	| (CreateGroupCommon & { kind: 'CEVSEN' | 'HATIM'; planDays: number });
+
 // Mirrors the server's UpdateGroupBodySchema. `kind`, `spots`, `splitMode` and `cycle` are
 // immutable once the group exists and are deliberately absent — the server rejects them.
 export type UpdateGroupInput = {
@@ -42,6 +81,10 @@ export type UpdateGroupInput = {
 	dedication?: string | null;
 	visibility?: GroupVisibility;
 	hideMemberNames?: boolean;
+	/** A shared Hizb plan's members who see who read — the whole choice, at most three. */
+	readerSeerUserIds?: string[];
+	/** "Okuma sorumluları" on or off; the ticks are kept either way. */
+	readSeersEnabled?: boolean;
 	openToJoin?: boolean;
 	reminderEnabled?: boolean;
 	reminderTime?: string;
@@ -57,6 +100,12 @@ export type TakePoolSlotInput = {
 export type TakePoolPartInput = {
 	groupId: string;
 	babNumber: number;
+};
+
+/** A hatim's havuz is addressed one cüz at a time — there are no slots to take whole. */
+export type PoolCuzInput = {
+	groupId: string;
+	cuzNumber: number;
 };
 
 export type DiscoverGroupsParams = {
@@ -125,6 +174,47 @@ export const takePoolPart = async ({ groupId, babNumber }: TakePoolPartInput) =>
 /** Hands a portion the caller took back to the pool, with their read of it. */
 export const releasePoolPart = async ({ groupId, babNumber }: TakePoolPartInput) =>
 	wrapperApi<{ success: boolean }>(`/groups/${groupId}/pool/parts/${babNumber}`, { method: 'DELETE' });
+
+export const getPoolCuz = async (groupId: string) =>
+	wrapperApi<PoolCuz[]>(`/groups/${groupId}/pool-cuz`, { method: 'GET' });
+
+export const takePoolCuz = async ({ cuzNumber, groupId }: PoolCuzInput) =>
+	wrapperApi<{ success: boolean }>(`/groups/${groupId}/pool-cuz/${cuzNumber}`, { method: 'POST' });
+
+export const releasePoolCuz = async ({ cuzNumber, groupId }: PoolCuzInput) =>
+	wrapperApi<{ success: boolean }>(`/groups/${groupId}/pool-cuz/${cuzNumber}`, { method: 'DELETE' });
+
+/** QR1's pick: the member's own cüz for the round in progress — not a havuz loan. */
+export const pickRoundCuz = async ({ cuzNumbers, groupId }: { cuzNumbers: number[]; groupId: string }) =>
+	wrapperApi<{ success: boolean }>(`/groups/${groupId}/round-cuz`, {
+		method: 'POST',
+		body: JSON.stringify({ cuzNumbers })
+	});
+
+/** QR1's "Bu turu atla": the member's cüz go back to the havuz and the round is sat out. */
+export const skipRound = async (groupId: string) =>
+	wrapperApi<{ success: boolean }>(`/groups/${groupId}/round-skip`, { method: 'POST' });
+
+/** The viewer's places in the group's current round — a board group only, never a personal plan. */
+export const getReadingPlaces = async (groupId: string) =>
+	wrapperApi<ReadingPlaces>(`/groups/${groupId}/reading-places`, { method: 'GET' });
+
+/** What a save carries: the page now open, the pages turned past (only ever raised), or both. */
+export type ReadingPlacePatch = { position?: number; textPagesRead?: number; husrevPagesRead?: number };
+
+export const saveReadingPlace = async ({
+	groupId,
+	patch,
+	unitNumber
+}: {
+	groupId: string;
+	patch: ReadingPlacePatch;
+	unitNumber: number;
+}) =>
+	wrapperApi<ReadingPlace>(`/groups/${groupId}/reading-places/${unitNumber}`, {
+		method: 'PUT',
+		body: JSON.stringify(patch)
+	});
 
 /** Acknowledges the "a joiner took over the block you volunteered for" notices in a group. */
 export const markPoolReleasesSeen = async (groupId: string) =>

@@ -15,7 +15,25 @@ const envSchema = z.object({
 
 	// Treat an unset key and a present-but-blank one the same way: `.env.example`
 	// ships this blank, and a bare `.optional()` would reject '' and block boot.
-	APP_STORE_URL: z.preprocess(value => (value === '' ? undefined : value), z.string().url().optional())
+	APP_STORE_URL: z.preprocess(value => (value === '' ? undefined : value), z.string().url().optional()),
+
+	/*
+	 * The Quran Foundation credentials — the verse meal is fetched live through them
+	 * (`quranTranslation.service.ts`). Optional so an environment without them still boots:
+	 * only the meal is unavailable, and it says so, rather than the whole API refusing to start.
+	 */
+	QURAN_CLIENT_ID: z.preprocess(value => (value === '' ? undefined : value), z.string().optional()),
+	QURAN_CLIENT_SECRET: z.preprocess(value => (value === '' ? undefined : value), z.string().optional()),
+
+	/*
+	 * Cloudflare Realtime (the SFU that carries a live reader's voice) and its TURN service
+	 * (`liveVoice.service.ts`). Optional in the same way: without all four, voice answers 503 and
+	 * live reading itself carries on.
+	 */
+	CLOUDFLARE_REALTIME_APP_ID: z.preprocess(value => (value === '' ? undefined : value), z.string().optional()),
+	CLOUDFLARE_REALTIME_APP_TOKEN: z.preprocess(value => (value === '' ? undefined : value), z.string().optional()),
+	CLOUDFLARE_TURN_KEY_ID: z.preprocess(value => (value === '' ? undefined : value), z.string().optional()),
+	CLOUDFLARE_TURN_KEY_TOKEN: z.preprocess(value => (value === '' ? undefined : value), z.string().optional())
 });
 
 const parsed = envSchema.safeParse(process.env);

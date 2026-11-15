@@ -2,7 +2,7 @@ import prisma from '@db/prisma';
 import { CreateGroupBodySchema } from '@schemas/group.schema';
 import { createGroupForUser, startGroupForUser } from '@services/groups.service';
 import { joinGroupForUser, leaveGroupForUser } from '@services/groupMembership.service';
-import { getHizbState, getHizbAssignment, updateHizbAssignment } from '@services/hizbReading.service';
+import { getHizbState, getHizbAssignment, openHizbAhead, updateHizbAssignment } from '@services/hizbReading.service';
 import { requestReadingHelp, listReadingHelp, actOnReadingHelp } from '@services/readingHelp.service';
 import { getMyProgressForUser } from '@services/roundHistory.service';
 import { getProfileStatsForUser } from '@services/profile.service';
@@ -19,7 +19,7 @@ const setup = async (hizb: boolean) => {
 		CreateGroupBodySchema.parse({
 			name: 'Help',
 			kind: hizb ? 'HIZB' : 'CEVSEN',
-			...(hizb ? { hizbPlan: 33 } : {}),
+			...(hizb ? { hizbPlan: 32 } : {}),
 			splitMode: 'FIXED',
 			spots: 20,
 			visibility: 'OPEN',
@@ -184,19 +184,19 @@ it('rejects individual readings, future assignments, completed readings and self
 	const g = await setup(true);
 	const state = await getHizbState('owner', g.id);
 	const a = state.today!;
-	const future = state.upcoming[0]!;
-	await expect(requestReadingHelp('owner', g.id, { assignmentId: future.id })).rejects.toThrow();
 	const r = await requestReadingHelp('owner', g.id, { assignmentId: a.id });
 	await expect(actOnReadingHelp('owner', g.id, r.id, 'claim', 0)).rejects.toThrow();
 	await updateHizbAssignment('owner', g.id, a.id, { version: a.version, read: true, istighfarRepetitions: 11 });
 	await expect(requestReadingHelp('owner', g.id, { assignmentId: a.id })).rejects.toThrow();
+	const future = await openHizbAhead('owner', g.id);
+	await expect(requestReadingHelp('owner', g.id, { assignmentId: future.id })).rejects.toThrow();
 	const personal = await createGroupForUser(
 		'owner',
 		'Owner',
 		CreateGroupBodySchema.parse({
 			name: 'Private',
 			kind: 'HIZB',
-			hizbPlan: 33,
+			hizbPlan: 32,
 			hizbIndividual: true,
 			reminderTime: '21:00'
 		})
@@ -220,20 +220,36 @@ it('creates a fresh request for extra pool passages without changing a completed
 	expect(requests.find(r => r.id === first.id)!.completed).toBe(true);
 });
 
-it('keeps the helper’s reading activity when one of several assisted readings is undone', async () => {
+it('lets a helper finish a reading, then not change or undo it', async () => {
 	const g = await setup(true);
-	const first = (await getHizbState('owner', g.id)).today!;
-	vi.setSystemTime(new Date(start.getTime() + 86400000));
-	const second = (await getHizbState('owner', g.id)).today!;
-	for (const a of [first, second]) {
-		const r = await requestReadingHelp('owner', g.id, { assignmentId: a.id });
-		await actOnReadingHelp('helper', g.id, r.id, 'claim', 0);
-		await actOnReadingHelp('helper', g.id, r.id, 'complete', 1);
-	}
-	const completed = await getHizbAssignment('helper', g.id, second.id);
-	await updateHizbAssignment('helper', g.id, second.id, { version: completed.version, read: false });
+	const a = (await getHizbState('owner', g.id)).today!;
+	const r = await requestReadingHelp('owner', g.id, { assignmentId: a.id });
+	await actOnReadingHelp('helper', g.id, r.id, 'claim', 0);
+	await actOnReadingHelp('helper', g.id, r.id, 'complete', 1);
+	const completed = await getHizbAssignment('helper', g.id, a.id);
+	expect(completed.canEdit).toBe(false);
+	await expect(
+		updateHizbAssignment('helper', g.id, a.id, { version: completed.version, read: false })
+	).rejects.toThrow('This reading is already complete');
+	await expect(
+		updateHizbAssignment('helper', g.id, a.id, { version: completed.version, bookmark: 3 })
+	).rejects.toThrow('This reading is already complete');
+	expect((await getHizbAssignment('owner', g.id, a.id)).completedAt).not.toBeNull();
 	const active = await prisma.hizbEnrollment.findFirstOrThrow({
 		where: { groupId: g.id, userId: 'helper', endDay: null }
 	});
-	expect(active.lastReadDay).toBe(second.day);
+	expect(active.lastReadDay).toBe(a.day);
+});
+
+it('refuses help where a share is not seat arithmetic: a flexible group and a hatim', async () => {
+	const g = await setup(false);
+	for (const shape of [{ splitMode: 'FLEXIBLE' as const }, { kind: 'HATIM' as const }]) {
+		// Neither shape is creatable alongside the others here, so the row is moved onto it directly.
+		await prisma.group.update({ where: { id: g.id }, data: shape });
+		await expect(requestReadingHelp('owner', g.id, { roundIndex: 0 })).rejects.toThrow(
+			'Help is available in Cevşen and Hizb groups'
+		);
+		await expect(listReadingHelp('owner', g.id)).rejects.toThrow('Help is available in Cevşen and Hizb groups');
+		await prisma.group.update({ where: { id: g.id }, data: { splitMode: 'FIXED', kind: 'CEVSEN' } });
+	}
 });

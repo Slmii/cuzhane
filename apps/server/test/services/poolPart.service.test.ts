@@ -33,9 +33,9 @@ const ALI = 'test_ali';
 const AYSE = 'test_ayse';
 const JOINER = 'test_joiner';
 
-/** Eleven seats over the Hizb's 33 portions: three apiece. Seats 0-2 taken, 3-10 empty. */
+/** Eleven seats over the Hizb's 32 portions: three apiece, the last seat two. Seats 0-2 taken, 3-10 empty. */
 const SPOTS = 11;
-const PARTS = 33;
+const PARTS = 32;
 const ROUND_INDEX = 2;
 /** The lowest empty seat — the one a joiner lands in. At round 2 it offers block 5, portions 16–18. */
 const POOL_SLOT = 3;
@@ -67,13 +67,14 @@ const createGroup = async ({
 			kind,
 			spots: SPOTS,
 			cycle: 'DAILY',
+			roundDays: 1,
 			timezone: DEFAULT_TIME_ZONE,
 			splitMode: 'ROTATION',
 			status,
 			startedAt: isRunning ? startedAt : null,
 			roundIndex: isRunning ? ROUND_INDEX : 0,
-			roundStartedAt: isRunning ? roundStartedAtFor(startedAt, 'DAILY', ROUND_INDEX, DEFAULT_TIME_ZONE) : null,
-			endsAt: isRunning ? roundEndsAt(startedAt, 'DAILY', ROUND_INDEX, DEFAULT_TIME_ZONE) : null,
+			roundStartedAt: isRunning ? roundStartedAtFor(startedAt, 1, ROUND_INDEX, DEFAULT_TIME_ZONE) : null,
+			endsAt: isRunning ? roundEndsAt(startedAt, 1, ROUND_INDEX, DEFAULT_TIME_ZONE) : null,
 			members: {
 				create: [
 					{ userId: OWNER, displayName: 'Owner', role: 'OWNER', slotIndex: 0 },
@@ -181,7 +182,7 @@ describe('takePoolPartForUser', () => {
 	it('refuses a portion the Hizb does not have', async () => {
 		const group = await createGroup();
 
-		await expect(takePoolPartForUser(ALI, group.id, 34)).rejects.toMatchObject({ statusCode: 400 });
+		await expect(takePoolPartForUser(ALI, group.id, 33)).rejects.toMatchObject({ statusCode: 400 });
 	});
 
 	it('refuses a Cevşen group, whose pool slots are taken whole', async () => {

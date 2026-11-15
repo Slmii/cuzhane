@@ -13,6 +13,8 @@ export type DestructiveConfirmRequest = {
 	 */
 	isDestructive?: boolean;
 	onConfirm: () => void;
+	/** Answered "no" — for a caller that was waiting on the answer to move on. */
+	onCancel?: () => void;
 };
 
 /**
@@ -59,7 +61,7 @@ export const confirmDestructive = (request: DestructiveConfirmRequest) => {
 	}
 
 	Alert.alert(request.title, request.message, [
-		{ style: 'cancel', text: request.cancelLabel },
+		{ onPress: request.onCancel, style: 'cancel', text: request.cancelLabel },
 		{
 			onPress: request.onConfirm,
 			style: request.isDestructive === false ? 'default' : 'destructive',
