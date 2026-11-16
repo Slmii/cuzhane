@@ -276,7 +276,7 @@ const AssignmentReader = ({
 						) : (
 							<AppButton
 								style={styles.fill}
-								title={t(a.completedAt ? (isUndoLocked ? 'hpStatusRead' : 'hpUndo') : 'hpFinish')}
+								title={t(a.completedAt ? (isUndoLocked ? 'hpStatusRead' : 'markUnread') : 'hpFinish')}
 								onPress={() => {
 									if (!isMarking) {
 										change({ read: !a.completedAt });

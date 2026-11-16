@@ -611,7 +611,7 @@ export const HizbPortionReader = ({ navigation, params }: Props) => {
 				return t('takeAndRead');
 			case 'cover':
 				// Your own gap is read late, not taken over — `HizbRoundDetail` splits it the same way.
-				return ownership === 'mine' ? t('markAsRead') : t('takeOver');
+				return ownership === 'mine' ? t('markRead') : t('takeOver');
 			case 'none':
 				return decision.reason === 'notYours' ? t('readLockedHizb') : t('coverDone');
 			default:
@@ -868,7 +868,9 @@ export const HizbPortionReader = ({ navigation, params }: Props) => {
 
 			<View style={[styles.footer, { borderTopColor: theme.colors.readerRule }]}>
 				<View style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.readerSurface }]} />
-				{round && decision?.action === 'cover' ? <LateReadingNotice daysLate={round.daysLate} /> : null}
+				{round && decision?.action === 'cover' ? (
+					<LateReadingNotice daysLate={round.daysLate} style={styles.readHint} />
+				) : null}
 				{hint ? (
 					<Typography color={hint.color} style={styles.readHint} variant='caption'>
 						{hint.text}

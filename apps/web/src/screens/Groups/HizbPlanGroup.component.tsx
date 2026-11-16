@@ -268,14 +268,14 @@ export const HizbPlanGroup = ({ group, route, navigation }: Props) => {
 	const confirmUndo = () =>
 		confirmDestructive({
 			cancelLabel: t('cancel'),
-			confirmLabel: t('hpUndo'),
+			confirmLabel: t('markUnread'),
 			message: t('hpUndoHint'),
 			onConfirm: () => {
 				if (today) {
 					todayUpdate.mutate({ read: false, version: today.version });
 				}
 			},
-			title: t('hpUndo')
+			title: t('markUnread')
 		});
 
 	// R1: a one-portion day is marked at once — there is nothing to choose; a longer one asks (R2).

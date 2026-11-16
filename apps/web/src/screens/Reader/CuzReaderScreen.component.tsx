@@ -469,6 +469,8 @@ const CuzReaderBody = ({ navigation, route }: Props) => {
 		}
 
 		setBookmarkedPage(pageNumber);
+		// "Okudum" counts this page too; a turn counts only the page turned past.
+		recordPagesRead(pageNumber);
 
 		// Kept on screen either way; stored only once the round it belongs to is known.
 		savePlace(cuzNumber, pageNumber);
@@ -628,11 +630,9 @@ const CuzReaderBody = ({ navigation, route }: Props) => {
 					<HintTarget id='bookmark' style={styles.markButtonSlot}>
 						<AppButton
 							disabled={isPlaceMarked}
-							// The set's own bookmark, converted to an SF Symbol (`kaldigin-yer-bookmark`) so the
-							// glass button can draw it on iOS, and drawn by `ui/Icon` on Android — one glyph on both.
-							icon={isPlaceMarked ? 'check' : 'bookmark'}
+							icon='check'
 							onPress={handleMarkPlace}
-							title={t(isPlaceMarked ? 'qPlaceMarked' : 'qMarkPlace')}
+							title={t(isPlaceMarked ? 'qCuzDone' : 'markRead')}
 							variant={isPlaceMarked ? 'surface' : 'accent'}
 						/>
 					</HintTarget>
