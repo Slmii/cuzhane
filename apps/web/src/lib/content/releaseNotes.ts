@@ -77,6 +77,34 @@ export type Release = {
  */
 export const RELEASES: Release[] = [
 	{
+		id: '2026-11-help',
+		entries: [
+			{
+				bodyKey: 'rn160HelpBody',
+				icon: 'handOver',
+				isNew: true,
+				kinds: ['CEVSEN', 'HIZB'],
+				titleKey: 'rn160HelpTitle'
+			},
+			{
+				bodyKey: 'rn160MarkReadBody',
+				icon: 'check',
+				isNew: true,
+				kinds: ['HATIM'],
+				titleKey: 'rn160MarkReadTitle'
+			},
+			{
+				bodyKey: 'rn160TextBody',
+				icon: 'book',
+				isNew: false,
+				kinds: ['CEVSEN', 'HIZB'],
+				titleKey: 'rn160TextTitle'
+			}
+		],
+		releasedOn: '2026-11-16',
+		version: APP_VERSION
+	},
+	{
 		id: '2026-10-sahsi',
 		entries: [
 			{
@@ -111,7 +139,7 @@ export const RELEASES: Release[] = [
 			{ bodyKey: 'rn150ProfileBody', icon: 'completed', isNew: true, titleKey: 'rn150ProfileTitle' }
 		],
 		releasedOn: '2026-10-02',
-		version: APP_VERSION
+		version: '1.5.0'
 	},
 	{
 		id: '2026-09-hizb',
