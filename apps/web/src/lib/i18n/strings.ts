@@ -1089,6 +1089,14 @@ const tr = {
 	 * Sürüm 1.1'in kendi notları. Tasarımdaki örnek metinler değil — gerçekten değişenler.
 	 * Yeni bir sürüm çıkarken bu üç anahtarın yerine o sürümünkiler yazılır.
 	 */
+	rn160HelpTitle: 'Okuma yardımı',
+	rn160HelpBody:
+		'Bugünkü ya da eksik kalan okumanı yapamıyor musun? Gruptan yardım iste. Bir grup üyesi üstlenip okur, senin payın da tamamlanmış görünür.',
+	rn160MarkReadTitle: 'Kur’an’da “Okudum”',
+	rn160MarkReadBody: 'Bir sayfayı okuyunca “Okudum”a dokun. Sayfa okundu sayılır ve kaldığın yer saklanır.',
+	rn160TextTitle: 'Daha doğru Arapça metin',
+	rn160TextBody:
+		'Cevşen’de ve Hizbü’l-Hakaik’te bazı işaretler yanlış harfin üstündeydi. Artık doğru harfin üstündeler.',
 	rn150LiveTitle: 'Birlikte okuma',
 	rn150LiveBody:
 		'Bir okuma oturumu aç; grubundakiler aynı sayfayı seninle birlikte takip etsin. İstersen sesli oku, onlar seni dinlesin.',
@@ -2870,6 +2878,14 @@ const en: Strings = {
 	hizbPart32Desc: 'Closing prayer: “Yâ Allâh, yâ Rahmân…”',
 	releaseNotesNew: 'new',
 	releaseNotesEmpty: 'This is the app’s first release. Later ones collect here.',
+	rn160HelpTitle: 'Help with a reading',
+	rn160HelpBody:
+		'Can’t do today’s reading, or one you missed? Ask your group for help. A member takes it on and reads it, and your part shows as done.',
+	rn160MarkReadTitle: '“Mark read” in the Qur’an',
+	rn160MarkReadBody: 'Tap “Mark read” when you have read a page. The page counts as read, and your place is kept.',
+	rn160TextTitle: 'More accurate Arabic text',
+	rn160TextBody:
+		'In the Cevşen and the Hizbü’l-Hakaik, some marks sat on the wrong letter. Now they sit on the right one.',
 	rn150LiveTitle: 'Reading together',
 	rn150LiveBody:
 		'Start a reading session and the people in your group follow the same page with you. You can read aloud and they listen.',
@@ -4524,6 +4540,15 @@ const nl: Strings = {
 	hizbPart32Desc: 'Slotgebed: “Yâ Allâh, yâ Rahmân…”',
 	releaseNotesNew: 'nieuw',
 	releaseNotesEmpty: 'Dit is de eerste versie van de app. Latere versies verzamelen zich hier.',
+	rn160HelpTitle: 'Hulp bij een lezing',
+	rn160HelpBody:
+		'Lukt de lezing van vandaag niet, of een die je hebt gemist? Vraag je groep om hulp. Iemand uit de groep neemt hem over en leest hem, en jouw deel staat als klaar.',
+	rn160MarkReadTitle: '“Gelezen” in de Koran',
+	rn160MarkReadBody:
+		'Tik op “Gelezen” als je een pagina hebt gelezen. De pagina telt als gelezen en je plek wordt bewaard.',
+	rn160TextTitle: 'Nauwkeurigere Arabische tekst',
+	rn160TextBody:
+		'In de Cevşen en de Hizbü’l-Hakaik stonden sommige tekens op de verkeerde letter. Nu staan ze op de goede.',
 	rn150LiveTitle: 'Samen lezen',
 	rn150LiveBody:
 		'Start een leessessie en de mensen in je groep volgen dezelfde pagina met je mee. Je kunt hardop lezen en zij luisteren.',
