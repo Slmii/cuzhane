@@ -1,0 +1,17 @@
+model ReadingHelp {
+    id String @id @default(cuid())
+    groupId String
+    requesterUserId String
+    helperUserId String?
+    targetKey String
+    assignmentId String? @unique
+    roundIndex Int?
+    babNumbers Int[]
+    version Int @default(0)
+    createdAt DateTime @default(now())
+    group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+    assignment HizbAssignment? @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+    @@unique([groupId, requesterUserId, targetKey])
+    @@index([groupId, createdAt])
+}

@@ -50,6 +50,7 @@ export const groupQueryKeys = {
  */
 export const groupOwnedQueryKeys = (groupId: string) => [
 	['groups', 'hizb-reading', groupId] as const,
+	['groups', 'reading-help', groupId] as const,
 	groupQueryKeys.groupById(groupId),
 	groupQueryKeys.babs(groupId),
 	groupQueryKeys.pool(groupId),

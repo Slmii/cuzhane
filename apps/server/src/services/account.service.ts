@@ -68,6 +68,15 @@ export const deleteAccountForUser = async (userId: string): Promise<{ success: t
 			await closeHizbEnrollment(tx, group, normalizedUserId);
 		}
 
+		await tx.readingHelp.deleteMany({ where: { requesterUserId: normalizedUserId } });
+		await tx.readingHelp.updateMany({
+			where: { helperUserId: normalizedUserId },
+			data: { helperUserId: null, version: { increment: 1 } }
+		});
+		await tx.hizbAssignment.updateMany({
+			where: { completedByUserId: normalizedUserId },
+			data: { completedByUserId: 'deleted-reader' }
+		});
 		await tx.groupMember.deleteMany({ where: { userId: normalizedUserId } });
 		// "Bu turu atla" choices — a record about the member, so it leaves with them.
 		await tx.cuzRoundSkip.deleteMany({ where: { userId: normalizedUserId } });

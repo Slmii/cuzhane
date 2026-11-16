@@ -76,7 +76,13 @@ export const Chip = ({ icon, isSelected = false, label, leading, onPress, style,
 	}
 
 	return (
-		<Pressable onPress={onPress} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
+		<Pressable
+			accessibilityRole='button'
+			accessibilityState={{ selected: isSelected }}
+			hitSlop={8}
+			onPress={onPress}
+			style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+		>
 			{content}
 		</Pressable>
 	);

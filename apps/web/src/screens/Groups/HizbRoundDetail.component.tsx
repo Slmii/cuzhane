@@ -153,7 +153,7 @@ export const HizbRoundDetail = ({ group, members, onOpenReader, pullToRefresh, r
 	};
 
 	const actionTitle = (row: HizbRoundRow) =>
-		row.action?.kind === 'read' ? t('read') : row.isViewer ? t('markAsRead') : t('takeOver');
+		row.action?.kind === 'read' ? t('read') : row.isViewer ? t('markRead') : t('takeOver');
 
 	return (
 		<ScreenContainer pullToRefresh={pullToRefresh}>

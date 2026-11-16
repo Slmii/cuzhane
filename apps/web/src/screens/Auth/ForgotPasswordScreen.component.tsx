@@ -90,7 +90,12 @@ export const ForgotPasswordScreen = ({ navigation }: ForgotPasswordScreenProps) 
 					</View>
 				)}
 			/>
-			<Pressable onPress={() => navigation.popTo('SignIn')} style={styles.switchLink}>
+			<Pressable
+				accessibilityRole='button'
+				hitSlop={12}
+				onPress={() => navigation.popTo('SignIn')}
+				style={styles.switchLink}
+			>
 				<BodyStrongText color={theme.colors.accent}>{t('backToSignIn')}</BodyStrongText>
 			</Pressable>
 		</ScreenContainer>

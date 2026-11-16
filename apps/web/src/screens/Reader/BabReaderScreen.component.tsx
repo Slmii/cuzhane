@@ -830,7 +830,9 @@ export const BabReaderScreen = ({ navigation, route }: Props) => {
 			<View style={[styles.footer, { borderTopColor: theme.colors.readerRule }]}>
 				{/* Same flat surface as the header above, for the same reason — see the note there. */}
 				<View style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.readerSurface }]} />
-				{coveredRound && canMark && !isRead ? <LateReadingNotice daysLate={coveredRound.daysLate} /> : null}
+				{coveredRound && canMark && !isRead ? (
+					<LateReadingNotice daysLate={coveredRound.daysLate} style={styles.readHint} />
+				) : null}
 				{takePoolPart.isError || setBabRead.isError ? (
 					<Typography color={theme.colors.danger} variant='caption'>
 						{t('genericError')}

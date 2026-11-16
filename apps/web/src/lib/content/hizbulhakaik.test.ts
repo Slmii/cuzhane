@@ -92,6 +92,26 @@ describe('hizbulhakaik.data.json', () => {
 		expect(closings.map(toLatin)).toEqual(Array.from({ length: 100 }, (_, index) => index + 1));
 	});
 
+	it('leaves no mark on a letter that cannot carry it', () => {
+		// The source types some marks a letter early or late, mostly around a lam-alef; the
+		// parser puts them back (`toReaderMarks`). Counted in the source before that rule
+		// existed: 180 words. None may survive, and what only looks like one must.
+		const text = allLines.map(line => line.text).join('\n');
+
+		// A vowel and a sukun on one letter, in either order.
+		expect(text).not.toMatch(/[\u064B-\u0650]\u0652|\u0652[\u064B-\u0650]/);
+		// The same mark twice.
+		expect(text).not.toMatch(/([\u064B-\u0652])\1/);
+		// A vowel or a sukun with no letter under it.
+		expect(text).not.toMatch(/(^|\s)[\u064B-\u0652]/m);
+		// The article's alef holding the sukun of the lam after it.
+		expect(text).not.toMatch(/\u0627\u0652\u0644(?![\u064B-\u0652\u0670])/);
+		// A shadda on an alef.
+		expect(text).not.toMatch(/\u0627\u0653?\u0651/);
+		// The hamza this edition writes as an alef with sukun is not one of them.
+		expect(text).toContain('يَاْكُلُونَ');
+	});
+
 	it('writes the long î the way the reader font expects', () => {
 		expect(JSON.stringify(sections)).not.toContain('۪');
 		expect(allLines.some(line => line.text.includes('ٖ'))).toBe(true);

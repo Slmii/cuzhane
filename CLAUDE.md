@@ -70,7 +70,7 @@ in its `overrides` (`react`/`react-dom` 19.1.0, `@react-navigation/native` 7.2.2
 ## Domain rules — read before touching group logic
 
 Three kinds: the **Cevşen** (`CEVSEN`, 100 babs), the **Kur'an** (`HATIM`, 30 cüz) and the
-**Hizbü'l-Hakaik** (`HIZB`, 33 portions). The designs and decisions behind each are in
+**Hizbü'l-Hakaik** (`HIZB`, 32 portions). The designs and decisions behind each are in
 `docs/plans/`; these are the rules that keep them correct.
 
 -   `unitCountFor(group)` answers "how many" — never write a literal 100. Every `kind` branch handles
@@ -92,6 +92,9 @@ Three kinds: the **Cevşen** (`CEVSEN`, 100 babs), the **Kur'an** (`HATIM`, 30 c
 -   **Old builds never see a kind they cannot draw.** Clients send `X-Cuzhane-Kinds` (`CLIENT_KINDS`);
     a request without it is taken to know CEVSEN and HATIM. A new kind goes into `CLIENT_KINDS` once
     the build can draw it.
+-   **Reading help** (`readingHelp.service.ts`): a member asks for help with a reading; another takes
+    it on and marks it read. Once taken, only the helper may change that reading, and only until it is
+    read (`canEditReading`); `HizbAssignment.completedByUserId` credits the helper's own stats.
 -   `spots`, `splitMode`, `cycle`, `kind` are immutable after creation.
 
 **Rounds**
@@ -272,6 +275,10 @@ finishers as having seen `LEGACY_TOUR_HINT_IDS`. A target below the fold needs i
     `node scripts/build-hizbulhakaik.mts` run from `apps/web`, Node 22.18+ — edit the source and re-run,
     never hand-edit the JSON).
 -   Keep the sources' Ottoman/Turkish orthography; the long î is written `U+0656` — don't "fix" it.
+-   The publisher places some marks by eye around lam-alef, so they land on the article's alef or under
+    a space. The Hizb parser moves them onto their letter (`MISPLACED_MARKS`; marks only, never
+    letters); `cevsen.data.json` was fixed once in place with the same rule. `hizbulhakaik.test.ts` and
+    `cevsen.test.ts` hold both at zero — a re-import from the publisher brings them back.
 -   Where a passage is cut or repeated, it is cut on the source's own text (exact anchors), with a test
     that pins it. Tests compare against the source's lines, never Arabic typed into the test.
 

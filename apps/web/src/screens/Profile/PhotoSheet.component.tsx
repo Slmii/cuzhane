@@ -61,6 +61,7 @@ export const PhotoSheet = ({ hasPhoto, isVisible, onClose, onPicked, onRemoved }
 	return (
 		<AppBottomSheet description={t('photoHint')} isVisible={isVisible} onClose={onClose} title={t('photoTitle')}>
 			<Pressable
+				accessibilityRole='button'
 				onPress={handleTakePhoto}
 				style={({ pressed }) => [
 					styles.option,
@@ -74,6 +75,7 @@ export const PhotoSheet = ({ hasPhoto, isVisible, onClose, onPicked, onRemoved }
 				<BodyStrongText>{t('takePhoto')}</BodyStrongText>
 			</Pressable>
 			<Pressable
+				accessibilityRole='button'
 				onPress={handlePickFromGallery}
 				style={({ pressed }) => [
 					styles.option,
@@ -88,6 +90,7 @@ export const PhotoSheet = ({ hasPhoto, isVisible, onClose, onPicked, onRemoved }
 			</Pressable>
 			{hasPhoto ? (
 				<Pressable
+					accessibilityRole='button'
 					onPress={handleRemovePhoto}
 					style={({ pressed }) => [
 						styles.option,

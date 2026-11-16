@@ -7,6 +7,8 @@ import { GridSkeleton } from '@/components/GridSkeleton/GridSkeleton.component';
 import { HizbBoard } from '@/components/HizbBoard/HizbBoard.component';
 import { HizbBoardSkeleton } from '@/components/HizbBoard/HizbBoardSkeleton.component';
 import { HizbSharePanel } from '@/components/HizbSharePanel/HizbSharePanel.component';
+import { ReadingHelpPanel, RequestHelpButton } from '@/components/ReadingHelp/ReadingHelp.component';
+import type { ReadingHelp } from '@/api/readingHelp.api';
 import { MyProgressCard } from '@/components/MyProgressCard/MyProgressCard.component';
 import { MyProgressCardSkeleton } from '@/components/MyProgressCard/MyProgressCardSkeleton.component';
 import { RoundResetRow } from '@/components/RoundResetRow/RoundResetRow.component';
@@ -412,6 +414,22 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 	const isDaily = detail.cycle === 'DAILY';
 	const isRoundComplete = detail.completedAt !== null;
 	const isHatim = detail.kind === 'HATIM';
+	// A reading someone asked help with opens where its own reader would.
+	const openHelpReading = (request: ReadingHelp) => {
+		const first = request.remainingNumbers[0] ?? request.babNumbers[0];
+		if (first === undefined) {
+			return;
+		}
+		if (request.kind === 'CEVSEN') {
+			navigation.navigate('AllBabs', { babNumber: first });
+		} else {
+			navigation.navigate('HizbReader', {
+				groupId,
+				partNumber: first,
+				...(request.roundIndex !== null ? { roundIndex: request.roundIndex } : {})
+			});
+		}
+	};
 	/*
 	 * How far into this round's share, for "Başladı" — only once begun and while not all read. A
 	 * Cevşen counts its babs read; a Kur'an or a Hizb its pages, each cüz or portion read whole and
@@ -985,6 +1003,23 @@ const LegacyGroupDetailScreen = ({ navigation, route }: Props) => {
 							/>
 						</HintTarget>
 					) : null}
+					{/* Reading help: a share is seat arithmetic, which a hatim's stored cüz and a flexible pool are not. */}
+					{isHatim || isFlexible ? null : (
+						<>
+							{myReadCount < myBabNumbers.length ? (
+								<RequestHelpButton
+									groupId={groupId}
+									target={{ roundIndex: detail.roundIndex ?? 0 }}
+									today
+								/>
+							) : null}
+							<ReadingHelpPanel
+								groupId={groupId}
+								onMissed={() => navigation.navigate('MyProgress', { groupId })}
+								onOpen={openHelpReading}
+							/>
+						</>
+					)}
 				</ProgressSection>
 
 				{/*

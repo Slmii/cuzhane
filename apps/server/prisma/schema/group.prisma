@@ -105,6 +105,7 @@ model Group {
     inactivitySinceDay Int?
     hizbNextSlot       Int                @default(1)
     hizbEnrollments    HizbEnrollment[]
+    readingHelp        ReadingHelp[]
     spots             Int                @default(20)
     inviteCode        String             @unique
     openToJoin        Boolean            @default(true)

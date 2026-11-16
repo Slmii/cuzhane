@@ -17,6 +17,27 @@ export const isAppLanguage = (value: unknown): value is AppLanguage =>
 	typeof value === 'string' && (APP_LANGUAGES as readonly string[]).includes(value);
 
 const tr = {
+	// Reading help: asking a group member to read in your place.
+	helpToday: 'Bugün okuyamıyorum',
+	helpRequest: 'Yardım iste',
+	helpTitle: 'Birbirimize yardım edelim',
+	helpHint:
+		'Okuyamadığın bölümü gruba aç. Bir kişi üstlensin; okuduktan sonra senin bölümün de tamamlanmış görünsün.',
+	helpMissed: 'Eksik okumalar için yardım iste',
+	helpEmpty: 'Henüz yardım isteği yok.',
+	helpRequested: 'Yardım istendi · bir okuyucu bekleniyor',
+	helpClaimed: 'Bir grup üyesi üstlendi · henüz tamamlanmadı',
+	helpCompleted: 'Okundu ve tamamlandı',
+	helpTake: 'Üstlen',
+	helpRead: 'Okumayı aç',
+	helpFinish: 'Okudum, tamamla',
+	helpFinishHint:
+		'Yalnızca istenen bölümün tamamını ve gerekli tekrarları okuduktan sonra işaretle. Kitaptan okuduysan da buradan tamamlayabilirsin.',
+	helpRelease: 'Başkasına bırak',
+	helpCancel: 'Yardım isteğini iptal et',
+	helpError: 'İşlem tamamlanamadı. İstek değişmiş olabilir; yenileyip tekrar dene.',
+	helpLoading: 'Yardım istekleri yükleniyor…',
+	hpPortion: '{days} günlük plan · {portion}. bölüm',
 	hpPlan: 'Okuma süresi',
 	hpDelailRemaining: 'Delâil-i Nur: {count}/3. Tamamlamadan önce vurgulanan salavatı üç kez okuyun.',
 	hpIstighfarSession: 'Bu sayaç yalnızca bu okuma oturumu içindir.',
@@ -56,7 +77,6 @@ const tr = {
 	hpComplete: 'Tamamlandı',
 	hpPending: 'Bekliyor',
 	hpFinish: 'Okudum',
-	hpUndo: 'Tamamlamayı geri al',
 	hpMore: 'Daha önceki okumalar',
 	hpHistory: 'Ortak okuma geçmişi',
 	hpMembers: 'Okuma sırası · {count} kişi',
@@ -475,8 +495,9 @@ const tr = {
 	hintCuzStatusBody: 'Cüzün okunup okunmadığını gösterir. Bitirince “Okudum”a dokun.',
 	hintCuzReadInAppBody: 'Cüzü buradan, uygulamanın içinde okuyabilirsin. Kendi mushafından okumak da olur.',
 	hintCuzContentsBody: 'Bu cüzde hangi sureler ve hangi ayetler var.',
-	hintCuzReaderBookmarkTitle: 'Kaldığın yer',
-	hintCuzReaderBookmarkBody: 'Okumaya ara verince buna dokun. Döndüğünde aynı sayfadan devam edersin.',
+	hintCuzReaderBookmarkTitle: 'Okudum',
+	hintCuzReaderBookmarkBody:
+		'Sayfayı okuyunca buna dokun. Kaldığın sayfa kendiliğinden saklanır; döndüğünde oradan devam edersin.',
 	hintPlanClockTitle: 'Yeni gün',
 	hintPlanClockBody: 'Bir sonraki okumaya ne kadar kaldığını ve her gün saat kaçta başladığını gösterir.',
 	hintPlanAheadBody: 'Bugünkü okumanı bitirdin. İstersen sonraki günlerin okumasını şimdiden okuyabilirsin.',
@@ -809,8 +830,6 @@ const tr = {
 	// Q5 — the cüz reader.
 	qPage: 'Sayfa',
 	qAyah: 'Ayet',
-	qMarkPlace: 'Kaldığım yeri işaretle',
-	qPlaceMarked: 'Yerin işaretlendi',
 	// The free Mushaf — the Kur'an's `abNote`: read outside any group, and counted nowhere.
 	mfNote: "Burada okuduğun hiçbir şey gruba işlenmez. Sıra, süre, tamamlama yok — sadece Kur'an.",
 	qPageLoadFailed: 'Sayfa yüklenemedi.',
@@ -1721,7 +1740,6 @@ const tr = {
 	// and Dutch can say "Portion 19".
 	hizbParts: '{parts}. bölüm',
 	hizbPartsOne: '{parts}. bölüm',
-	markAsRead: 'Okundu işaretle',
 	creatingFlexibleSub: 'Grup ve ortak okuma havuzu hazırlanıyor.',
 	creatingFlexibleParts: 'Ortak bölümler hazırlanıyor',
 	planFlexible: 'Açık ve esnek',
@@ -1864,6 +1882,27 @@ const tr = {
 type Strings = Record<keyof typeof tr, string>;
 
 const en: Strings = {
+	// Reading help: asking a group member to read in your place.
+	helpToday: 'I cannot read today',
+	helpRequest: 'Ask for help',
+	helpTitle: 'Help each other',
+	helpHint:
+		'Offer your reading to the group. Someone takes it over, then marks your share complete after reading it.',
+	helpMissed: 'Ask for help with missed readings',
+	helpEmpty: 'No help requests yet.',
+	helpRequested: 'Help requested · waiting for a reader',
+	helpClaimed: 'Taken by a group member · not finished yet',
+	helpCompleted: 'Read and signed off',
+	helpTake: 'Take over',
+	helpRead: 'Open reading',
+	helpFinish: 'I have read it — mark complete',
+	helpFinishHint:
+		'Only confirm after reading the entire requested share and its required repetitions. You can also confirm reading from a physical book here.',
+	helpRelease: 'Give back',
+	helpCancel: 'Cancel help request',
+	helpError: 'Could not save. The request may have changed; refresh and try again.',
+	helpLoading: 'Loading help requests…',
+	hpPortion: '{days}-day plan · portion {portion}',
 	hpPlan: 'Reading pace',
 	hpDelailRemaining:
 		'Delail-i Nur: {count}/3. Read the highlighted salawat three times before marking this reading complete.',
@@ -1904,7 +1943,6 @@ const en: Strings = {
 	hpComplete: 'Completed',
 	hpPending: 'Pending',
 	hpFinish: 'I have read this',
-	hpUndo: 'Undo completion',
 	hpMore: 'Earlier readings',
 	hpHistory: 'Group reading history',
 	hpMembers: 'Reading sequence · {count} readers',
@@ -2300,8 +2338,9 @@ const en: Strings = {
 	hintCuzStatusBody: 'Shows whether the juz is read. When you finish it, tap “Mark read”.',
 	hintCuzReadInAppBody: 'You can read the juz here, in the app. Reading from your own mushaf is fine too.',
 	hintCuzContentsBody: 'Which suras and which verses are in this juz.',
-	hintCuzReaderBookmarkTitle: 'Your place',
-	hintCuzReaderBookmarkBody: 'Tap this when you stop reading. When you come back, you continue on the same page.',
+	hintCuzReaderBookmarkTitle: 'Mark read',
+	hintCuzReaderBookmarkBody:
+		'Tap this when you have read the page. Your page is kept for you; when you come back, you continue there.',
 	hintPlanClockTitle: 'A new day',
 	hintPlanClockBody: 'Shows how long until the next reading, and what time it starts each day.',
 	hintPlanAheadBody: 'You finished today’s reading. If you like, you can already read the coming days.',
@@ -2601,8 +2640,6 @@ const en: Strings = {
 	qReadInApp: 'Read in app',
 	qPage: 'Page',
 	qAyah: 'Ayah',
-	qMarkPlace: 'Mark my place',
-	qPlaceMarked: 'Place marked',
 	mfNote: 'Nothing you read here is recorded to a group. No order, no timer, no completion — just the Quran.',
 	qPageLoadFailed: 'The page could not be loaded.',
 	qSecdeAyah: 'Verse of prostration',
@@ -3383,7 +3420,6 @@ const en: Strings = {
 	hizbRoundMissed: 'Assigned {assigned} · Missing {missing}',
 	hizbParts: 'Portions {parts}',
 	hizbPartsOne: 'Portion {parts}',
-	markAsRead: 'Mark as read',
 	creatingFlexibleSub: 'Preparing your group and its shared reading pool.',
 	creatingFlexibleParts: 'Preparing shared portions',
 	planFlexible: 'Open and flexible',
@@ -3495,6 +3531,27 @@ const en: Strings = {
 };
 
 const nl: Strings = {
+	// Reading help: asking a group member to read in your place.
+	helpToday: 'Ik kan vandaag niet lezen',
+	helpRequest: 'Hulp vragen',
+	helpTitle: 'Elkaar helpen',
+	helpHint:
+		'Stel je lezing beschikbaar aan de groep. Iemand neemt het over en tekent jouw deel af zodra het gelezen is.',
+	helpMissed: 'Hulp vragen bij gemiste delen',
+	helpEmpty: 'Er zijn nog geen hulpverzoeken.',
+	helpRequested: 'Hulp gevraagd · wacht op een lezer',
+	helpClaimed: 'Overgenomen door een groepslid · nog niet afgelezen',
+	helpCompleted: 'Gelezen en afgetekend',
+	helpTake: 'Overnemen',
+	helpRead: 'Lezing openen',
+	helpFinish: 'Gelezen en aftekenen',
+	helpFinishHint:
+		'Bevestig pas als je het hele gevraagde deel en de bijbehorende herhalingen hebt gelezen. Ook als je uit een boek hebt gelezen, kun je hier aftekenen.',
+	helpRelease: 'Teruggeven',
+	helpCancel: 'Hulpverzoek intrekken',
+	helpError: 'Opslaan is niet gelukt. Het verzoek kan gewijzigd zijn; ververs en probeer opnieuw.',
+	helpLoading: 'Hulpverzoeken laden…',
+	hpPortion: '{days}-dagenplan · deel {portion}',
 	hpPlan: 'Leestempo',
 	hpDelailRemaining: 'Delail-i Nur: {count}/3. Lees de gemarkeerde salawat drie keer voordat je deze lezing afvinkt.',
 	hpIstighfarSession: 'Deze teller geldt alleen voor deze leessessie.',
@@ -3534,7 +3591,6 @@ const nl: Strings = {
 	hpComplete: 'Voltooid',
 	hpPending: 'Openstaand',
 	hpFinish: 'Ik heb dit gelezen',
-	hpUndo: 'Voltooiing ongedaan maken',
 	hpMore: 'Eerdere lezingen',
 	hpHistory: 'Gezamenlijke leesgeschiedenis',
 	hpMembers: 'Leesvolgorde · {count} lezers',
@@ -3931,8 +3987,9 @@ const nl: Strings = {
 	hintCuzStatusBody: 'Laat zien of de juz gelezen is. Heb je hem uit, tik dan op “Gelezen”.',
 	hintCuzReadInAppBody: 'Je kunt de juz hier lezen, in de app. Uit je eigen mushaf lezen mag ook.',
 	hintCuzContentsBody: 'Welke soera’s en welke verzen in deze juz staan.',
-	hintCuzReaderBookmarkTitle: 'Waar je bent',
-	hintCuzReaderBookmarkBody: 'Tik hierop als je stopt met lezen. Kom je terug, dan ga je verder op dezelfde pagina.',
+	hintCuzReaderBookmarkTitle: 'Gelezen',
+	hintCuzReaderBookmarkBody:
+		'Tik hierop als je de pagina hebt gelezen. Je pagina wordt bewaard; kom je terug, dan ga je daar verder.',
 	hintPlanClockTitle: 'Een nieuwe dag',
 	hintPlanClockBody: 'Laat zien hoe lang het nog duurt tot de volgende lezing, en hoe laat die elke dag begint.',
 	hintPlanAheadBody: 'Je hebt de lezing van vandaag af. Als je wilt, kun je de volgende dagen nu al lezen.',
@@ -4235,8 +4292,6 @@ const nl: Strings = {
 	qReadInApp: 'In de app lezen',
 	qPage: 'Pagina',
 	qAyah: 'Ayah',
-	qMarkPlace: 'Markeer waar ik ben',
-	qPlaceMarked: 'Plek gemarkeerd',
 	mfNote: 'Wat je hier leest wordt nergens bij een groep geteld. Geen volgorde, geen tijd, geen voltooiing — alleen de Koran.',
 	qPageLoadFailed: 'De pagina kon niet worden geladen.',
 	qSecdeAyah: 'Vers van neerknieling',
@@ -5018,7 +5073,6 @@ const nl: Strings = {
 	hizbRoundMissed: 'Toegewezen {assigned} · Gemist {missing}',
 	hizbParts: 'Gedeelten {parts}',
 	hizbPartsOne: 'Gedeelte {parts}',
-	markAsRead: 'Markeer als gelezen',
 	creatingFlexibleSub: 'Je groep en de gezamenlijke leesdelen worden voorbereid.',
 	creatingFlexibleParts: 'Gezamenlijke delen voorbereiden',
 	planFlexible: 'Open en flexibel',
